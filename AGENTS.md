@@ -1,0 +1,459 @@
+# AGENTS.md
+
+Single source of agent guidance for Cortex Runtime. Read natively by
+Codex and by Claude Code (via `CLAUDE.md`, which only points here). Keep all
+agent/process guidance in this file — do not fork it per tool.
+
+## Project Identity
+
+Cortex Runtime is the current working name for a Python-first accelerator
+runtime and future kernel compiler for tensor computation. The Python package
+name is `cortex_runtime`. The name is provisional and may change later. The first
+target is Apple Silicon with Metal.
+
+Current naming:
+
+```text
+Working product name: Cortex Runtime
+Python package/import: cortex_runtime
+Documentation alias: import cortex_runtime as cx
+Python extension module: cortex_runtime._core
+C++ source root: cpp/cortex/
+C++ namespace: cortex
+```
+The architecture must remain backend-neutral so CUDA, ROCm, Vulkan/SPIR-V, and
+MLIR paths can be added later without rewriting the core runtime.
+
+The first real milestone is intentionally small:
+
+```text
+Python API -> C++20 core -> Metal backend -> static MSL add kernel -> correct result
+```
+
+Do not treat the early project as a PyTorch, JAX, MLX, Triton, XLA, or training
+framework replacement.
+
+## Source Of Truth
+
+Read `PROJECT.md` before making architectural or scope decisions. This file
+summarizes the development process, but `PROJECT.md` contains the full roadmap,
+rationale, and acceptance criteria.
+
+When instructions conflict, follow this priority:
+
+1. User request in the current task.
+2. `AGENTS.md`.
+3. `PROJECT.md`.
+4. Existing code and tests.
+
+If a user request would expand scope beyond the current phase, call that out and
+prefer the smallest phase-compatible implementation.
+
+## Approved Stack
+
+Use these defaults unless the user explicitly changes direction:
+
+```text
+Python: 3.11+
+Core runtime: C++20
+Apple Metal host API: Metal-cpp/C++ preferred
+GPU kernels: Metal Shading Language (.metal)
+Python bindings: nanobind
+Build: CMake + scikit-build-core
+Tests: pytest + focused C++ unit tests
+Benchmarks: Python scripts, optional C++ microbenchmarks
+```
+
+Do not introduce Rust or Zig for the initial runtime, compiler, or backend core.
+They may be considered later only for peripheral tooling.
+
+## Project Status
+
+`PROJECT.md` contains a Project Status block. Treat it as the current phase
+ledger. Update it only when a phase acceptance criteria and Definition of Done
+are actually satisfied.
+
+The current v0.1 target is the end of Phase 3: CPU backend, Metal buffer copies,
+and first static MSL elementwise kernels passing CPU-vs-Metal tests.
+
+## Codex / Claude Code Coordination
+
+This repository may be edited by Codex and Claude Code in alternating sessions.
+`AGENTS.md` is the shared guidance file, and `CLAUDE.md` points Claude Code here
+so the guidance does not fork between tools.
+
+At the start of every session, read `PROJECT.md` and this file. Inspect the
+workspace for unexpected changes before editing. At the end of every session,
+summarize the task, files changed, commands run, verification, open follow-ups,
+and next recommended task in the final response.
+
+Keep `PROJECT.md` for phase-level truth. Do not mark a phase done in
+`PROJECT.md` unless its acceptance criteria and Definition of Done have passed.
+
+## Git And Commit Rules
+
+Do not create commits unless the user explicitly asks for a commit.
+
+When the user asks for a commit, commit with the repository-local identity:
+
+```text
+User: Serkan Altuntas
+Email: serkan@altuntas.dev
+Signing: enabled
+```
+
+Use the existing signing setup on this computer. Do not disable signing, change
+the signing key, or commit with a different author.
+
+## Repository Layout
+
+Target layout:
+
+```text
+python/cortex_runtime/        Python user API
+cpp/cortex/core/               backend-neutral C++ runtime
+cpp/cortex/backends/cpu/       CPU reference backend
+cpp/cortex/backends/metal/     Metal backend using C++/Metal-cpp where possible
+cpp/cortex/backends/metal/kernels/
+                            static MSL kernels
+bindings/                   Python extension binding
+tests/python/               pytest correctness tests
+tests/cpp/                  C++ unit tests
+benchmarks/                 local benchmark scripts
+docs/                       architecture and backend notes
+```
+
+Keep these conceptual boundaries even if filenames evolve.
+
+## Development Phases
+
+Follow this sequence unless the user gives a narrower task:
+
+1. Bootstrap the package, CMake, binding skeleton, tests, and docs.
+2. Implement dtype, shape, tensor metadata, and CPU tensors.
+3. Add CPU fill, zeros, ones, copy, add, and multiply.
+4. Add Metal device discovery and backend registration.
+5. Add Metal buffers and host/device copies.
+6. Add static MSL elementwise kernels for `float32` add, multiply, and fill.
+7. Add benchmarks for copies and elementwise operations.
+8. Document what works, what does not, and what is intentionally out of scope.
+
+Only move to reductions, matmul, MPSGraph, a kernel DSL, CUDA, ROCm, or MLIR
+after the earlier phases are working and tested. When Phase 5 begins, matmul
+must prove the custom MSL path first with a naive correctness-only kernel, then
+add MPSGraph as the fast primitive path.
+
+## Architecture Rules
+
+The C++ core must be backend-neutral. Do not expose Metal, MPSGraph, CUDA, ROCm,
+Vulkan, or platform-specific handles from `cpp/cortex/core/`.
+
+The CPU backend is mandatory. Every GPU operation must have a CPU reference path
+and tests comparing CPU and GPU results with dtype-appropriate tolerances.
+
+The Metal backend is the first accelerator backend, not the central abstraction.
+Use it through backend interfaces for devices, buffers, copies, and operations.
+
+Operation dispatch is data-driven. Do not grow `Backend` with one virtual method
+per op. Use a single execution entry point driven by an `OpDesc` enum plus
+attributes, with CPU implementation and tests added before device paths.
+
+Keep primitive operations separate from custom kernels:
+
+```text
+Primitive path: MPSGraph or platform libraries later, for matmul and similar ops.
+Custom kernel path: project-owned static .metal kernels first, generated kernels later.
+```
+
+Prefer Metal-cpp and plain C++ for Apple backend host code. Keep any
+platform-specific integration hidden behind the Metal backend interface.
+
+Start with synchronous execution. Submit the command buffer, wait for completion,
+and return the result. Do not add streams or async APIs for v0.1.
+
+Start with contiguous row-major tensors. Strides may exist as metadata, but
+non-contiguous execution is out of scope at first.
+
+Initial dtype support should stay small: `float32` first, then `int32` if needed.
+Do not start with `float16`, `bfloat16`, quantized types, or broad NumPy dtype
+coverage.
+
+Core functions should return `Status` or `expected<T, Status>`. Do not let C++
+exceptions cross the Metal-cpp boundary. Translate runtime status into Python
+exceptions exactly once at the nanobind layer.
+
+Use RAII for every resource. Tensors should be cheap metadata values over shared
+buffers; copying a tensor creates a view, not a data copy. Store Metal-cpp
+objects in RAII handles: `NS::TransferPtr` for owned values, `NS::RetainPtr` for
+borrowed values, and `NS::SharedPtr` as the stored handle. Do not store raw
+`MTL::` or `NS::` pointers.
+
+NumPy and Python types live only in the Python package or nanobind layer. They
+must not appear in `cpp/cortex/core/` or any backend.
+
+## Python API Expectations
+
+Keep the first API compact:
+
+```python
+import cortex_runtime as cx
+
+x = cx.tensor([1, 2, 3], dtype=cx.float32, device="cpu")
+y = cx.ones((3,), dtype=cx.float32, device="cpu")
+z = x + y
+
+z.numpy()
+z.cpu()
+z.to("metal")
+cx.devices()
+cx.best_device()
+```
+
+Required early constructors and properties:
+
+```text
+cx.tensor(data, dtype=None, device=None)
+cx.empty(shape, dtype, device)
+cx.zeros(shape, dtype, device)
+cx.ones(shape, dtype, device)
+Tensor.shape
+Tensor.dtype
+Tensor.device
+Tensor.numpy()
+Tensor.cpu()
+Tensor.to(device)
+Tensor.__add__
+Tensor.__mul__
+```
+
+Avoid broad compatibility features until the runtime foundation is solid. In
+v0.1, elementwise operations require exact shape and dtype matches. Do not add
+broadcasting, implicit casts, or silent reinterpretation.
+
+## Metal Backend Rules
+
+For v0.1, prefer static `.metal` kernels checked into the repository. Compile
+them to a `.metallib` at build time and load that library at runtime. Do not use
+runtime MSL string compilation before the Phase 7 kernel DSL.
+
+Expected first kernels:
+
+```text
+fill_f32
+elementwise_add_f32
+elementwise_mul_f32
+```
+
+The Metal backend should own:
+
+```text
+Metal device selection
+MTLCommandQueue creation
+MTLBuffer allocation
+Metal library loading
+compute pipeline creation
+command buffer submission
+synchronization
+Metal-specific error reporting
+```
+
+Keep all Metal handles inside the Metal backend. No `MTL::` or `NS::` types
+should appear outside `cpp/cortex/backends/metal/`.
+
+Do not implement matmul in v0.1. In Phase 5, implement a naive custom MSL
+`matmul_f32` first and compare it against the CPU reference. Only after that add
+MPSGraph matmul as the optimized primitive path. Removing the MPSGraph path
+should still leave a slow but working custom MSL matmul.
+
+## Change Invariants
+
+Check these before finishing any non-trivial change:
+
+```text
+1. Every GPU op has a CPU reference and a CPU-vs-device test.
+2. No Apple/Metal type appears outside cpp/cortex/backends/metal/.
+3. No NumPy/Python type appears in cpp/cortex/core/ or any backend.
+4. The core never names a concrete backend; selection is via registry + string.
+5. Every Metal handle is RAII-wrapped; no manual retain/release calls.
+6. Adding an op = OpDesc enum entry + CPU backend impl + test, in that order.
+7. A public Python API change ships with docs and tests in the same change.
+```
+
+## Testing Requirements
+
+Testing is part of the feature, not cleanup.
+
+Every implemented operation needs tests for:
+
+```text
+valid inputs
+shape or dtype mismatch errors where applicable
+CPU correctness
+Metal correctness when Metal is available
+CPU vs Metal comparison for every Metal operation
+```
+
+Metal tests must skip cleanly on machines where Metal is unavailable.
+
+Default tolerances for `cx.testing.assert_allclose`, unless an op overrides them:
+
+```text
+float32 elementwise:    rtol=1e-6, atol=1e-6
+float32 reductions/sum: rtol=1e-5, atol=1e-5   (accumulation order differs)
+float32 matmul:         rtol=1e-4, atol=1e-4   (FMA + tiling differences)
+int32 / bool:           exact equality
+```
+
+Looser tolerances for reductions/matmul are intentional — GPU and CPU accumulate
+in different orders. Bit-exact equality is only correct for integer/bool ops.
+
+Run the most relevant test command before finishing a task. Typical commands:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -U pip
+pip install -e ".[dev]"
+
+pytest                                  # full suite
+pytest tests/python/test_elementwise.py # single file
+pytest -k add_metal_matches_cpu         # single test by name
+```
+
+When C++ tests exist, run them as part of changes touching `cpp/`.
+
+## Benchmarking Rules
+
+Do not optimize blindly. Add or update benchmarks before making performance
+claims.
+
+Initial benchmark sizes:
+
+```text
+1K elements
+16K elements
+256K elements
+1M elements
+16M elements
+```
+
+Initial benchmark scripts:
+
+```bash
+python benchmarks/bench_copy.py
+python benchmarks/bench_elementwise.py
+```
+
+It is acceptable for small tensors to be slower on GPU because launch and copy
+overheads dominate.
+
+## Documentation Rules
+
+Keep documentation honest and current. When behavior changes, update the
+relevant docs in the same task.
+
+When a phase is completed, update the Project Status block in `PROJECT.md` in
+the same change.
+
+Important docs:
+
+```text
+README.md                 setup and basic usage
+docs/ARCHITECTURE.md      core runtime design
+docs/BACKENDS.md          backend abstraction and future backend notes
+docs/METAL_BACKEND.md     Metal-specific implementation details
+docs/ROADMAP.md           phased project status
+```
+
+Document what works, what is partial, and what is intentionally not implemented.
+
+## Out Of Scope For Early Work
+
+Do not add these to v0.1:
+
+```text
+autograd
+model training
+distributed training
+CUDA backend
+ROCm backend
+TPU backend
+full graph compiler
+dynamic kernel DSL
+ONNX import
+PyTorch replacement features
+high-performance matmul from scratch
+quantized LLM inference
+async streams
+non-contiguous tensor execution
+wide dtype support
+```
+
+Scope control is the main project risk. Prefer a small working runtime over a
+large unfinished design.
+
+## Coding Guidelines
+
+Keep interfaces narrow and explicit. Prefer simple ownership rules over clever
+abstractions in the early runtime.
+
+Use C++20 RAII for resource management. Avoid raw owning pointers. Keep
+platform-specific lifetimes contained in backend implementation classes.
+
+Return clear errors for unsupported devices, dtype mismatches, shape mismatches,
+unavailable Metal support, and failed backend operations.
+
+Use Python for ergonomics and tests, C++ for runtime behavior and Metal host
+integration, and MSL for kernels.
+
+Use nanobind for the Python extension and NumPy bridge. Do not introduce
+pybind11 in new code.
+
+Avoid unrelated refactors. If a task reveals a design issue, make the smallest
+change that keeps the current phase moving and document follow-up work.
+
+## Agent Workflow
+
+Before editing:
+
+1. Read `PROJECT.md` and this file.
+2. Inspect the current tree and existing tests.
+3. Identify the current development phase.
+4. Keep the change scoped to the requested task and phase.
+
+While editing:
+
+1. Preserve backend-neutral boundaries.
+2. Add CPU behavior before or alongside accelerator behavior.
+3. Add tests with the feature.
+4. Keep Metal-specific code in the Metal backend directories.
+5. Prefer static kernels over generated kernels until the runtime is stable.
+
+Before finishing:
+
+1. Run relevant formatting, build, and test commands when available.
+2. Report exactly what changed.
+3. Report what was tested and any commands that could not be run.
+4. Note remaining phase-appropriate follow-ups and the next recommended task.
+
+## Acceptance Bar For Early Public Version
+
+The first public version should make this work:
+
+```python
+import cortex_runtime as cx
+
+device = cx.best_device()
+
+x = cx.ones((1_000_000,), dtype=cx.float32, device=device)
+y = cx.ones((1_000_000,), dtype=cx.float32, device=device)
+
+z = x + y
+
+print(z.cpu().numpy()[:5])
+# [2. 2. 2. 2. 2.]
+```
+
+The repository should also include clear setup instructions, CPU and Metal
+backends, basic correctness tests, basic benchmarks, and accurate architecture
+docs.

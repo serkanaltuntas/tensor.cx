@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# CMake / native builds
+CMakeCache.txt
+CMakeFiles/
+cmake-build-*/
+_skbuild/
+*.so
+*.dylib
+*.a
+*.o
+
+# Apple / Metal tooling
+*.metallib
+*.air
+*.dSYM/
+DerivedData/
+
+# Editors and OS files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs and local scratch
+*.log
+.tmp/
+tmp/
