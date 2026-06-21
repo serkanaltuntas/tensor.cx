@@ -113,6 +113,48 @@ Signing: enabled
 Use the existing signing setup on this computer. Do not disable signing, change
 the signing key, or commit with a different author.
 
+## Reviewer Agent Gate
+
+Every task that changes repository files must receive a professional review
+before it is committed. Read-only Q&A, investigations, and user-requested
+no-edit tasks do not require reviewer agents unless they produce architecture,
+policy, or release decisions that should be recorded in the repository.
+
+When multi-agent tooling is available, consult reviewer agents after
+implementation and before the final commit.
+
+Use at least one reviewer agent for non-trivial documentation or configuration
+tasks. For trivial text-only changes with no behavioral, process, or
+architecture impact, an explicit self-review is acceptable.
+
+Use at least two reviewer agents for code changes:
+
+```text
+Correctness reviewer: bugs, edge cases, API behavior, error handling, ownership.
+Architecture reviewer: phase scope, backend boundaries, tests, docs, maintainability.
+```
+
+Reviewer agents should be asked for findings only, ordered by severity, with
+file and line references where possible.
+
+Severity mapping:
+
+```text
+P0: critical correctness, data loss, security, or build breakage; always blocking.
+P1: major regression or architecture violation; always blocking.
+P2: moderate bug, missing required test, or process violation; blocking unless
+    explicitly classified as non-blocking with rationale.
+P3: minor maintainability, wording, or style issue; not blocking by default.
+```
+
+Resolve blocking findings before commit. If a non-blocking finding is
+intentionally deferred, document why in the final response and keep it
+phase-appropriate.
+
+If reviewer agents are unavailable, perform an explicit self-review pass and
+state that the reviewer-agent tooling was unavailable. Do not skip review
+silently.
+
 ## Repository Layout
 
 Target layout:
@@ -439,9 +481,11 @@ While editing:
 Before finishing:
 
 1. Run relevant formatting, build, and test commands when available.
-2. Report exactly what changed.
-3. Report what was tested and any commands that could not be run.
-4. Note remaining phase-appropriate follow-ups and the next recommended task.
+2. For repository-changing tasks, follow the Reviewer Agent Gate and resolve or
+   document findings before commit.
+3. Report exactly what changed.
+4. Report what was tested and any commands that could not be run.
+5. Note remaining phase-appropriate follow-ups and the next recommended task.
 
 ## Acceptance Bar For Early Public Version
 
