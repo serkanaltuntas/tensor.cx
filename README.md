@@ -23,12 +23,15 @@ uv run pytest
 
 ## Current Status
 
-Phase 1 provides CPU tensors, dtype and shape metadata, CPU buffer ownership,
-NumPy conversion, `zeros`/`ones`/`empty`, and CPU add/multiply for contiguous 1D
-`float32` and `int32` tensors.
+Phase 2 provides CPU tensors, dtype and shape metadata, CPU buffer ownership,
+NumPy conversion, `zeros`/`ones`/`empty`, CPU add/multiply for contiguous 1D
+`float32` and `int32` tensors, Metal device discovery, and CPU/Metal tensor copy
+round-trips. Phase 3 starts the first static Metal kernels.
 
 ```python
 import cortex_runtime as cx
+
+print(cx.devices())
 
 x = cx.tensor([1, 2, 3], device="cpu")
 y = cx.tensor([4, 5, 6], device="cpu")
@@ -36,6 +39,12 @@ z = x + y
 
 print(z.numpy())
 # [5 7 9]
+
+if cx.is_available("metal"):
+    x_gpu = x.to(cx.device("metal"))
+    x_back = x_gpu.cpu()
+    print(x_back.numpy())
+    # [1 2 3]
 ```
 
 ## Naming

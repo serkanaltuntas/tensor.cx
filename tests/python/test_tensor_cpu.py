@@ -34,6 +34,13 @@ def test_zeros_ones_and_empty_metadata():
     assert empty.nbytes == 8
 
 
+def test_numpy_preserves_tensor_shape():
+    x = cx.zeros((2, 3), dtype=cx.float32, device="cpu")
+
+    assert x.shape == (2, 3)
+    np.testing.assert_allclose(x.numpy(), np.zeros((2, 3), dtype=np.float32))
+
+
 def test_add_and_multiply_cpu_int32():
     x = cx.tensor([1, 2, 3], device="cpu")
     y = cx.tensor([4, 5, 6], device="cpu")
@@ -66,6 +73,6 @@ def test_binary_ops_reject_dtype_mismatch():
         _ = x * y
 
 
-def test_only_cpu_device_is_available_in_phase_1():
-    with pytest.raises(ValueError, match="only device='cpu'"):
-        cx.tensor([1, 2, 3], device="metal")
+def test_tensor_rejects_unsupported_device():
+    with pytest.raises(ValueError, match="unsupported device transfer"):
+        cx.tensor([1, 2, 3], device="cuda")

@@ -11,6 +11,11 @@
 #include "cortex/core/dtype.h"
 #include "cortex/core/shape.h"
 
+#if CORTEX_ENABLE_METAL
+#include "cortex/backends/metal/metal_backend.h"
+#include "cortex/backends/metal/metal_tensor.h"
+#endif
+
 #ifndef CORTEX_RUNTIME_VERSION
 #define CORTEX_RUNTIME_VERSION "0.0.0"
 #endif
@@ -42,7 +47,7 @@ DType parse_dtype(nb::handle dtype, DType inferred) {
 
 void validate_cpu_device(const std::string& device) {
   if (device != "cpu") {
-    throw std::invalid_argument("only device='cpu' is available in Phase 1");
+    throw std::invalid_argument("native CPU factory only accepts device='cpu'");
   }
 }
 
@@ -121,7 +126,9 @@ nb::object tensor_to_numpy(const CpuTensor& tensor) {
       break;
   }
 
-  return np.attr("array")(values, nb::arg("dtype") = std::string(cortex::dtype_name(tensor.dtype())));
+  nb::object array =
+      np.attr("array")(values, nb::arg("dtype") = std::string(cortex::dtype_name(tensor.dtype())));
+  return array.attr("reshape")(shape_tuple(tensor.shape()));
 }
 
 CpuTensor binary_op(const CpuTensor& lhs, const CpuTensor& rhs, OpKind kind) {
@@ -136,7 +143,7 @@ NB_MODULE(_core, module) {
   module.attr("float32") = "float32";
   module.attr("int32") = "int32";
 
-  nb::class_<CpuTensor>(module, "Tensor")
+  nb::class_<CpuTensor>(module, "CpuTensor")
       .def_prop_ro("shape", [](const CpuTensor& tensor) { return shape_tuple(tensor.shape()); })
       .def_prop_ro("strides", [](const CpuTensor& tensor) { return shape_tuple(tensor.strides()); })
       .def_prop_ro("dtype",
@@ -147,12 +154,6 @@ NB_MODULE(_core, module) {
       .def_prop_ro("nbytes", [](const CpuTensor& tensor) { return tensor.buffer()->nbytes(); })
       .def("numpy", &tensor_to_numpy)
       .def("cpu", [](const CpuTensor& tensor) { return tensor; })
-      .def("to",
-           [](const CpuTensor& tensor, const std::string& device) {
-             validate_cpu_device(device);
-             return tensor;
-           },
-           nb::arg("device"))
       .def("__add__", [](const CpuTensor& lhs, const CpuTensor& rhs) {
         return binary_op(lhs, rhs, OpKind::kAdd);
       })
@@ -189,4 +190,78 @@ NB_MODULE(_core, module) {
              nb::arg("shape"),
              nb::arg("dtype") = "float32",
              nb::arg("device") = "cpu");
+
+  module.def("add_cpu",
+             [](const CpuTensor& lhs, const CpuTensor& rhs) {
+               return binary_op(lhs, rhs, OpKind::kAdd);
+             },
+             nb::arg("lhs"),
+             nb::arg("rhs"));
+  module.def("multiply_cpu",
+             [](const CpuTensor& lhs, const CpuTensor& rhs) {
+               return binary_op(lhs, rhs, OpKind::kMultiply);
+             },
+             nb::arg("lhs"),
+             nb::arg("rhs"));
+  module.def("is_available",
+             [](const std::string& device) {
+               if (device == "cpu") {
+                 return true;
+               }
+#if CORTEX_ENABLE_METAL
+               if (device == "metal") {
+                 return cortex::metal::available();
+               }
+#endif
+               return false;
+             },
+             nb::arg("device"));
+  module.def("devices", []() {
+    nb::list result;
+    result.append("cpu");
+#if CORTEX_ENABLE_METAL
+    if (cortex::metal::available()) {
+      result.append("metal");
+    }
+#endif
+    return result;
+  });
+  module.def("device_name",
+             [](const std::string& device) {
+               if (device == "cpu") {
+                 return std::string("CPU");
+               }
+#if CORTEX_ENABLE_METAL
+               if (device == "metal") {
+                 const auto names = cortex::metal::devices();
+                 if (!names.empty()) {
+                   return names.front();
+                 }
+               }
+#endif
+               throw std::invalid_argument("device is not available: " + device);
+             },
+             nb::arg("device"));
+
+#if CORTEX_ENABLE_METAL
+  nb::class_<cortex::metal::MetalTensor>(module, "MetalTensor")
+      .def_prop_ro("shape", [](const cortex::metal::MetalTensor& tensor) {
+        return shape_tuple(tensor.shape());
+      })
+      .def_prop_ro("strides", [](const cortex::metal::MetalTensor& tensor) {
+        return shape_tuple(tensor.strides());
+      })
+      .def_prop_ro("dtype",
+                   [](const cortex::metal::MetalTensor& tensor) {
+                     return std::string(cortex::dtype_name(tensor.dtype()));
+                   })
+      .def_prop_ro("device", [](const cortex::metal::MetalTensor&) { return "metal"; })
+      .def_prop_ro("nbytes",
+                   [](const cortex::metal::MetalTensor& tensor) {
+                     return tensor.nbytes();
+                   });
+
+  module.def("cpu_to_metal", &cortex::metal::from_cpu, nb::arg("tensor"));
+  module.def("metal_to_cpu", &cortex::metal::to_cpu, nb::arg("tensor"));
+#endif
 }
