@@ -97,10 +97,10 @@ Keep `PROJECT.md` for phase-level truth. Do not mark a phase done in
 
 ## Git And Commit Rules
 
-When a task is done, reviewed, tested, and verified, commit it without asking
-again. Do not commit half-finished work, known-failing changes, or changes that
-have not been verified. If verification cannot be run, report that clearly and
-do not auto-commit unless the user explicitly asks.
+When a task is done, reviewed, QA-checked, tested, and verified, commit it
+without asking again. Do not commit half-finished work, known-failing changes,
+or changes that have not been verified. If verification cannot be run, report
+that clearly and do not auto-commit unless the user explicitly asks.
 
 Commit with the repository-local identity:
 
@@ -131,7 +131,7 @@ Use at least two reviewer agents for code changes:
 
 ```text
 Correctness reviewer: bugs, edge cases, API behavior, error handling, ownership.
-Architecture reviewer: phase scope, backend boundaries, tests, docs, maintainability.
+Architecture reviewer: phase scope, backend boundaries, test placement, docs structure, maintainability.
 ```
 
 Reviewer agents should be asked for findings only, ordered by severity, with
@@ -154,6 +154,61 @@ phase-appropriate.
 If reviewer agents are unavailable, perform an explicit self-review pass and
 state that the reviewer-agent tooling was unavailable. Do not skip review
 silently.
+
+## Quality Assurance Agent Gate
+
+Every task that changes repository files must receive a professional QA pass
+before it is committed. QA is separate from code review: reviewers judge code
+quality, architecture, and maintainability, while QA agents judge whether the
+task is testable, verified, and safe from user-visible regressions.
+
+When multi-agent tooling is available, consult QA agents after implementation
+and after local verification evidence exists. Verification evidence means the
+relevant command output, import/build/test result, manual inspection note, or a
+clear statement that no meaningful command applies. If a required verification
+command cannot run, QA records the risk and the Git And Commit Rules control
+whether the task can be committed.
+
+For code changes, consult at least one QA agent. For non-trivial
+phase-completion, release, Metal/backend, packaging, or workflow changes,
+consult two QA perspectives:
+
+```text
+Test QA: coverage behavior, missing cases, regression risk, command evidence.
+Acceptance QA: user workflow, phase acceptance criteria, documented behavior, release readiness.
+```
+
+For trivial text-only changes with no behavioral, process, or architecture
+impact, an explicit self-QA pass is acceptable. Read-only Q&A, investigations,
+and user-requested no-edit tasks do not require QA agents unless they produce
+decisions that should be recorded in the repository.
+
+QA agents should be asked for pass/fail risks only, ordered by severity, with
+file and line references or exact commands where possible.
+
+QA severity mapping uses the same P0-P3 scale as the Reviewer Agent Gate:
+
+```text
+P0/P1: always blocking.
+P2: blocking unless explicitly classified as non-blocking with rationale.
+P3: not blocking by default.
+```
+
+Resolve blocking QA findings before commit. Non-blocking QA findings may be
+documented with rationale. If QA agents are unavailable, perform an explicit
+self-QA pass and state that QA-agent tooling was unavailable.
+
+## Project-Side Agent Roles
+
+Use these roles when coordinating Codex, Claude Code, and sub-agents:
+
+```text
+Implementation agent: owns the task, edits files, runs commands, integrates feedback.
+Correctness reviewer: finds bugs, edge cases, API issues, error-handling gaps.
+Architecture reviewer: checks phase scope, backend boundaries, maintainability, docs.
+Test QA: checks test coverage, missing scenarios, regression risk, verification commands.
+Acceptance QA: checks user workflow, phase Definition of Done, docs, release readiness.
+```
 
 ## Repository Layout
 
@@ -481,11 +536,13 @@ While editing:
 Before finishing:
 
 1. Run relevant formatting, build, and test commands when available.
-2. For repository-changing tasks, follow the Reviewer Agent Gate and resolve or
-   document findings before commit.
-3. Report exactly what changed.
-4. Report what was tested and any commands that could not be run.
-5. Note remaining phase-appropriate follow-ups and the next recommended task.
+2. For repository-changing tasks, follow the Reviewer Agent Gate, resolve
+   blocking reviewer findings, and document any non-blocking reviewer findings.
+3. For repository-changing tasks, follow the Quality Assurance Agent Gate,
+   resolve blocking QA findings, and document any non-blocking QA findings.
+4. Report exactly what changed.
+5. Report what was tested and any commands that could not be run.
+6. Note remaining phase-appropriate follow-ups and the next recommended task.
 
 ## Acceptance Bar For Early Public Version
 
