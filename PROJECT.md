@@ -39,8 +39,8 @@ C++ namespace: cortex
 > CI (CPU) or on the local Mac (Metal).
 
 ```text
-Current phase:          Phase 0 — not started   (correct this line)
-Last verified milestone: none
+Current phase:          Phase 1 — not started
+Last verified milestone: Phase 0 — project bootstrap
 v0.1 target:            end of Phase 3
 Binding decided:        nanobind (see §5.6)
 Open decisions:         none
@@ -49,7 +49,7 @@ Open decisions:         none
 Phase checklist:
 
 ```text
-[ ] Phase 0   Project bootstrap
+[x] Phase 0   Project bootstrap
 [ ] Phase 1   CPU backend
 [ ] Phase 2   Metal backend foundation
 [ ] Phase 3   First Metal kernels        <- v0.1 ships here
@@ -74,6 +74,7 @@ C++20 core runtime
 Metal-cpp/C++ Apple Metal bridge
 MSL custom kernels
 nanobind or pybind11 Python binding
+uv Python package/environment manager
 future CUDA/ROCm/MLIR integration
 ```
 
@@ -85,10 +86,15 @@ Core runtime: C++20
 Apple bridge: Metal-cpp/C++ preferred for Metal
 GPU kernel language: Metal Shading Language (.metal)
 Python binding: nanobind (decided — see §5.6)
+Python package manager: uv
 Build system: CMake + scikit-build-core
 Test framework: pytest + C++ unit tests
 Benchmarking: Python benchmark scripts + optional C++ microbenchmarks
 ```
+
+Use `uv` for Python environments, dependency installation, editable installs,
+and Python command execution. Do not use `pip`, `python -m venv`, Poetry, PDM, or
+Conda for project workflow commands unless the user explicitly requests it.
 
 Objective-C++ should not be used by default. Prefer Metal-cpp and plain C++ for
 the Apple Metal backend whenever possible. If a future Apple API, especially
@@ -840,16 +846,16 @@ pyproject.toml
 scikit-build-core
 CMake
 nanobind or pybind11
+uv
 ```
 
 Expected developer workflow:
 
 ```bash
-python -m venv .venv
+uv venv
 source .venv/bin/activate
-pip install -U pip
-pip install -e ".[dev]"
-pytest
+uv pip install -e ".[dev]"
+uv run pytest
 ```
 
 CMake should compile:
@@ -969,8 +975,8 @@ Large tensors should show GPU advantage for simple elementwise work.
 Benchmark script examples:
 
 ```bash
-python benchmarks/bench_copy.py
-python benchmarks/bench_elementwise.py
+uv run python benchmarks/bench_copy.py
+uv run python benchmarks/bench_elementwise.py
 ```
 
 ---
@@ -1001,17 +1007,17 @@ Tasks:
 Acceptance criteria:
 
 ```text
-pip install -e ".[dev]" works
+uv pip install -e ".[dev]" works
 import cortex_runtime works
-pytest runs
+uv run pytest runs
 ```
 
 Definition of Done:
 
 ```text
-- A clean checkout, on a fresh venv, builds and imports with the documented
+- A clean checkout, on a fresh uv-managed venv, builds and imports with the documented
   commands and nothing else.
-- `pytest` collects and runs (even with zero real tests) and exits 0.
+- `uv run pytest` collects and runs (even with zero real tests) and exits 0.
 - CMake configures C++20 + the nanobind extension; the build fails with a clear
   message if the toolchain is missing.
 - docs/ARCHITECTURE.md exists and names the layer boundaries from §7.

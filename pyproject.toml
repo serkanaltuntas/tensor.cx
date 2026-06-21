@@ -1,0 +1,38 @@
+[build-system]
+requires = [
+  "scikit-build-core>=0.11",
+  "nanobind>=2.4",
+]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "cortex-runtime"
+version = "0.0.0"
+description = "Python-first accelerator runtime and kernel compiler, starting with Apple Metal."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+  { name = "Serkan Altuntas", email = "serkan@altuntas.dev" },
+]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: C++",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+]
+
+[tool.scikit-build]
+wheel.packages = ["python/cortex_runtime"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/python"]
+addopts = ["-ra"]

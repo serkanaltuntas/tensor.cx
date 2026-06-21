@@ -59,10 +59,15 @@ Core runtime: C++20
 Apple Metal host API: Metal-cpp/C++ preferred
 GPU kernels: Metal Shading Language (.metal)
 Python bindings: nanobind
+Python package manager: uv
 Build: CMake + scikit-build-core
 Tests: pytest + focused C++ unit tests
 Benchmarks: Python scripts, optional C++ microbenchmarks
 ```
+
+Use `uv` for Python environments, dependency installation, editable installs,
+and Python command execution. Do not use `pip`, `python -m venv`, Poetry, PDM, or
+Conda for project workflow commands unless the user explicitly requests it.
 
 Do not introduce Rust or Zig for the initial runtime, compiler, or backend core.
 They may be considered later only for peripheral tooling.
@@ -92,9 +97,12 @@ Keep `PROJECT.md` for phase-level truth. Do not mark a phase done in
 
 ## Git And Commit Rules
 
-Do not create commits unless the user explicitly asks for a commit.
+When a task is done, reviewed, tested, and verified, commit it without asking
+again. Do not commit half-finished work, known-failing changes, or changes that
+have not been verified. If verification cannot be run, report that clearly and
+do not auto-commit unless the user explicitly asks.
 
-When the user asks for a commit, commit with the repository-local identity:
+Commit with the repository-local identity:
 
 ```text
 User: Serkan Altuntas
@@ -310,14 +318,13 @@ in different orders. Bit-exact equality is only correct for integer/bool ops.
 Run the most relevant test command before finishing a task. Typical commands:
 
 ```bash
-python -m venv .venv
+uv venv
 source .venv/bin/activate
-pip install -U pip
-pip install -e ".[dev]"
+uv pip install -e ".[dev]"
 
-pytest                                  # full suite
-pytest tests/python/test_elementwise.py # single file
-pytest -k add_metal_matches_cpu         # single test by name
+uv run pytest                                  # full suite
+uv run pytest tests/python/test_elementwise.py # single file
+uv run pytest -k add_metal_matches_cpu         # single test by name
 ```
 
 When C++ tests exist, run them as part of changes touching `cpp/`.
@@ -340,8 +347,8 @@ Initial benchmark sizes:
 Initial benchmark scripts:
 
 ```bash
-python benchmarks/bench_copy.py
-python benchmarks/bench_elementwise.py
+uv run python benchmarks/bench_copy.py
+uv run python benchmarks/bench_elementwise.py
 ```
 
 It is acceptable for small tensors to be slower on GPU because launch and copy
