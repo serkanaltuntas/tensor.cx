@@ -23,8 +23,20 @@ uv run pytest
 
 ## Current Status
 
-Phase 0 bootstraps the package, CMake build, nanobind extension, pytest setup,
-and architecture docs. Tensor allocation and backends start in later phases.
+Phase 1 provides CPU tensors, dtype and shape metadata, CPU buffer ownership,
+NumPy conversion, `zeros`/`ones`/`empty`, and CPU add/multiply for contiguous 1D
+`float32` and `int32` tensors.
+
+```python
+import cortex_runtime as cx
+
+x = cx.tensor([1, 2, 3], device="cpu")
+y = cx.tensor([4, 5, 6], device="cpu")
+z = x + y
+
+print(z.numpy())
+# [5 7 9]
+```
 
 ## Naming
 

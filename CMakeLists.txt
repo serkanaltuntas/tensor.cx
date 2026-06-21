@@ -10,7 +10,12 @@ find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
 find_package(nanobind CONFIG REQUIRED)
 
 add_library(cortex_core STATIC
+  cpp/cortex/core/dtype.cpp
+  cpp/cortex/core/shape.cpp
   cpp/cortex/core/status.cpp
+  cpp/cortex/backends/cpu/cpu_backend.cpp
+  cpp/cortex/backends/cpu/cpu_buffer.cpp
+  cpp/cortex/backends/cpu/cpu_tensor.cpp
 )
 target_compile_features(cortex_core PUBLIC cxx_std_20)
 target_include_directories(cortex_core PUBLIC

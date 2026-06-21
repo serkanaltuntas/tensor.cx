@@ -18,9 +18,9 @@ other Apple API types stay inside `cpp/cortex/backends/metal/`.
 
 ## Current Phase
 
-Phase 0 provides the build skeleton, importable package, native extension, and
-test harness. It does not implement tensor allocation, CPU operations, Metal
-buffers, or kernels yet.
+Phase 1 provides CPU tensors, dtype and shape metadata, CPU buffer ownership,
+NumPy conversion, and CPU add/multiply. Metal buffers and kernels start in later
+phases.
 
 ## Core Principles
 
