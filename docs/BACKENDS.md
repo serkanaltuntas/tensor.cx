@@ -7,13 +7,14 @@ places backend-specific implementation under `cpp/cortex/backends/`.
 
 ```text
 cpu     Required reference backend.
-metal   Apple Silicon backend for buffer ownership and copy round-trips.
+metal   Apple Silicon backend for buffer ownership, copy round-trips, and first
+        elementwise kernels.
 ```
 
 The CPU backend is the correctness reference for every operation. Metal behavior
 must be compared against CPU behavior before it is treated as complete.
 
-## Phase 2 Status
+## Phase 3 Status
 
 The Metal backend currently supports:
 
@@ -24,14 +25,13 @@ The Metal backend currently supports:
 - Metal -> CPU copy
 - Python Tensor.to("metal")
 - Python Tensor.cpu()
+- add and multiply kernels for float32 and int32 tensors
+- fill kernels for zeros/ones on float32 and int32 tensors
 ```
 
-It does not execute Metal kernels yet. CPU add/multiply remain the only tensor
-operations.
+CPU remains the correctness reference for every Metal operation.
 
-## Phase 3 Direction
+## Phase 4 Direction
 
-Phase 3 should add the first Metal kernels through backend-neutral operation
-dispatch. Avoid extending the Python wrapper with one branch per operation, such
-as `add_metal` or `multiply_metal`, unless it is a temporary private bridge with
-a documented removal path.
+Phase 4 should polish runtime errors, shape and dtype validation, local Metal
+test instructions, and richer benchmark scripts.

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(cortex_runtime VERSION 0.0.0 LANGUAGES CXX)
+project(cortex_runtime VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -28,6 +28,8 @@ target_include_directories(cortex_core PUBLIC
 set_target_properties(cortex_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 if(CORTEX_ENABLE_METAL AND APPLE)
+  find_program(XCRUN_EXECUTABLE xcrun REQUIRED)
+
   FetchContent_Declare(
     metal_cpp
     GIT_REPOSITORY https://github.com/bkaradzic/metal-cpp.git
@@ -39,11 +41,54 @@ if(CORTEX_ENABLE_METAL AND APPLE)
   find_library(QUARTZCORE_FRAMEWORK QuartzCore REQUIRED)
   find_library(METAL_FRAMEWORK Metal REQUIRED)
 
+  set(CORTEX_METAL_KERNEL_SOURCE
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpp/cortex/backends/metal/kernels/elementwise.metal
+  )
+  set(CORTEX_METAL_AIR ${CMAKE_CURRENT_BINARY_DIR}/cortex_elementwise.air)
+  set(CORTEX_METAL_LIB ${CMAKE_CURRENT_BINARY_DIR}/cortex_elementwise.metallib)
+  set(CORTEX_METAL_EMBEDDED_CPP
+    ${CMAKE_CURRENT_BINARY_DIR}/cortex_elementwise_metallib.cpp
+  )
+
+  add_custom_command(
+    OUTPUT ${CORTEX_METAL_AIR}
+    COMMAND ${XCRUN_EXECUTABLE} -sdk macosx metal
+            -c ${CORTEX_METAL_KERNEL_SOURCE}
+            -o ${CORTEX_METAL_AIR}
+    DEPENDS ${CORTEX_METAL_KERNEL_SOURCE}
+    VERBATIM
+  )
+  add_custom_command(
+    OUTPUT ${CORTEX_METAL_LIB}
+    COMMAND ${XCRUN_EXECUTABLE} -sdk macosx metallib
+            ${CORTEX_METAL_AIR}
+            -o ${CORTEX_METAL_LIB}
+    DEPENDS ${CORTEX_METAL_AIR}
+    VERBATIM
+  )
+  add_custom_command(
+    OUTPUT ${CORTEX_METAL_EMBEDDED_CPP}
+    COMMAND ${Python_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed_binary.py
+            --input ${CORTEX_METAL_LIB}
+            --output ${CORTEX_METAL_EMBEDDED_CPP}
+            --include cortex/backends/metal/metal_kernels_data.h
+            --namespace cortex::metal
+            --array kElementwiseMetallib
+            --size kElementwiseMetallibSize
+    DEPENDS ${CORTEX_METAL_LIB}
+            ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed_binary.py
+            ${CMAKE_CURRENT_SOURCE_DIR}/cpp/cortex/backends/metal/metal_kernels_data.h
+    VERBATIM
+  )
+
   add_library(cortex_metal STATIC
+    ${CORTEX_METAL_EMBEDDED_CPP}
     cpp/cortex/backends/metal/metal_backend.cpp
     cpp/cortex/backends/metal/metal_buffer.cpp
     cpp/cortex/backends/metal/metal_context.cpp
     cpp/cortex/backends/metal/metal_cpp.cpp
+    cpp/cortex/backends/metal/metal_kernels.cpp
     cpp/cortex/backends/metal/metal_tensor.cpp
   )
   target_compile_features(cortex_metal PUBLIC cxx_std_20)

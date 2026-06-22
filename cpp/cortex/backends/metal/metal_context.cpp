@@ -1,22 +1,27 @@
 #include "cortex/backends/metal/metal_context.h"
 
-#include <stdexcept>
-
 namespace cortex::metal {
 
 MetalContext::MetalContext() {
   device_ = NS::TransferPtr(MTL::CreateSystemDefaultDevice());
   if (!device_) {
-    throw std::runtime_error("Metal is not available on this system");
+    status_ = Status(StatusCode::kUnavailable, "Metal is not available on this system");
+    return;
   }
 
   command_queue_ = NS::TransferPtr(device_->newCommandQueue());
   if (!command_queue_) {
-    throw std::runtime_error("failed to create Metal command queue");
+    status_ = Status(StatusCode::kInternal, "failed to create Metal command queue");
+    return;
   }
+
+  status_ = Status::Ok();
 }
 
 const char* MetalContext::device_name() const {
+  if (!device_) {
+    return "";
+  }
   return device_->name()->utf8String();
 }
 

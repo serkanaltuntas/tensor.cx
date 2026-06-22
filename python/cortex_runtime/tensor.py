@@ -59,16 +59,16 @@ class Tensor:
     def __add__(self, other: "Tensor") -> "Tensor":
         if not isinstance(other, Tensor):
             return NotImplemented
-        if self.device == "cpu" and other.device == "cpu":
-            return Tensor(_core.add_cpu(self._impl, other._impl))
-        raise ValueError("device operations are not available until kernel support is implemented")
+        if self.device != other.device:
+            raise ValueError("device mismatch for binary operation")
+        return Tensor(_core.add(self._impl, other._impl))
 
     def __mul__(self, other: "Tensor") -> "Tensor":
         if not isinstance(other, Tensor):
             return NotImplemented
-        if self.device == "cpu" and other.device == "cpu":
-            return Tensor(_core.multiply_cpu(self._impl, other._impl))
-        raise ValueError("device operations are not available until kernel support is implemented")
+        if self.device != other.device:
+            raise ValueError("device mismatch for binary operation")
+        return Tensor(_core.multiply(self._impl, other._impl))
 
 
 def tensor(data, dtype: str | None = None, device: str | Device | None = None) -> Tensor:
@@ -85,11 +85,19 @@ def empty(shape, dtype: str = "float32", device: str | Device = "cpu") -> Tensor
 
 def zeros(shape, dtype: str = "float32", device: str | Device = "cpu") -> Tensor:
     target = _normalize_device(device)
+    if target == "metal" and hasattr(_core, "fill"):
+        if not _core.is_available("metal"):
+            raise ValueError("Metal is not available on this system")
+        return Tensor(_core.fill(shape, dtype=dtype, value=0.0, device=target))
     cpu_tensor = Tensor(_core.zeros(shape, dtype=dtype, device="cpu"))
     return cpu_tensor if target == "cpu" else cpu_tensor.to(target)
 
 
 def ones(shape, dtype: str = "float32", device: str | Device = "cpu") -> Tensor:
     target = _normalize_device(device)
+    if target == "metal" and hasattr(_core, "fill"):
+        if not _core.is_available("metal"):
+            raise ValueError("Metal is not available on this system")
+        return Tensor(_core.fill(shape, dtype=dtype, value=1.0, device=target))
     cpu_tensor = Tensor(_core.ones(shape, dtype=dtype, device="cpu"))
     return cpu_tensor if target == "cpu" else cpu_tensor.to(target)

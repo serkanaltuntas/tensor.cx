@@ -12,6 +12,16 @@ Python API -> C++20 core -> Metal backend -> static MSL add kernel -> correct re
 
 ## Development Setup
 
+Cortex Runtime is developed first on Apple Silicon macOS. The default Apple
+build enables Metal and requires the Apple Metal command-line tools.
+
+```bash
+command -v uv
+xcode-select -p
+xcrun --find metal
+xcrun --find metallib
+```
+
 Use `uv` for Python environments and commands:
 
 ```bash
@@ -21,12 +31,25 @@ uv pip install -e ".[dev]"
 uv run pytest
 ```
 
+On a machine without Metal, or when validating the CPU-only path:
+
+```bash
+CMAKE_ARGS="-DCORTEX_ENABLE_METAL=OFF" uv pip install -e ".[dev]"
+uv run pytest
+```
+
+Run the basic local benchmark with:
+
+```bash
+uv run python benchmarks/bench_elementwise.py
+```
+
 ## Current Status
 
-Phase 2 provides CPU tensors, dtype and shape metadata, CPU buffer ownership,
-NumPy conversion, `zeros`/`ones`/`empty`, CPU add/multiply for contiguous 1D
-`float32` and `int32` tensors, Metal device discovery, and CPU/Metal tensor copy
-round-trips. Phase 3 starts the first static Metal kernels.
+Phase 3 provides CPU tensors, dtype and shape metadata, CPU buffer ownership,
+NumPy conversion, CPU add/multiply, Metal device discovery, CPU/Metal tensor copy
+round-trips, and the first static Metal elementwise kernels for add, multiply,
+and fill.
 
 ```python
 import cortex_runtime as cx
@@ -40,11 +63,13 @@ z = x + y
 print(z.numpy())
 # [5 7 9]
 
-if cx.is_available("metal"):
-    x_gpu = x.to(cx.device("metal"))
-    x_back = x_gpu.cpu()
-    print(x_back.numpy())
-    # [1 2 3]
+device = cx.best_device()
+x = cx.ones((1_000_000,), dtype=cx.float32, device=device)
+y = cx.ones((1_000_000,), dtype=cx.float32, device=device)
+z = x + y
+
+print(z.cpu().numpy()[:5])
+# [2. 2. 2. 2. 2.]
 ```
 
 ## Naming

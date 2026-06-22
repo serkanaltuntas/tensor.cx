@@ -21,19 +21,19 @@ plain C++ tensor/backend APIs.
 
 ## Current Behavior
 
-Phase 2 supports exact CPU/Metal/CPU tensor copy round-trips for contiguous
-`float32` and `int32` tensors. Zero-element tensors are represented without
-allocating a zero-length Metal buffer, and their copy path is a no-op.
+Phase 3 supports exact CPU/Metal/CPU tensor copy round-trips for contiguous
+`float32` and `int32` tensors, plus static Metal kernels for add, multiply, and
+fill. Zero-element tensors are represented without allocating a zero-length Metal
+buffer, and their copy and kernel paths are no-ops.
 
-Metal buffers use shared storage for the initial copy path. This is simple and
-correct for Phase 2; future performance work may introduce private buffers,
-command encoders, and explicit synchronization.
+Metal buffers use shared storage for the initial copy and kernel path. This is
+simple and correct for the first local runtime; future performance work may
+introduce private buffers, command encoders, and explicit synchronization.
 
 ## Current Limitations
 
 ```text
-- No Metal kernels are implemented yet.
-- CPU add/multiply do not dispatch to Metal tensors.
 - Runtime errors may still throw direct C++ exceptions until Phase 4 error polish.
 - Only device index 0 is supported.
+- Only contiguous tensors are supported.
 ```

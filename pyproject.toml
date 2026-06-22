@@ -7,7 +7,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "cortex-runtime"
-version = "0.0.0"
+version = "0.1.0"
 description = "Python-first accelerator runtime and kernel compiler, starting with Apple Metal."
 readme = "README.md"
 requires-python = ">=3.11"

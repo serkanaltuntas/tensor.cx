@@ -18,26 +18,26 @@ other Apple API types stay inside `cpp/cortex/backends/metal/`.
 
 ## Current Phase
 
-Phase 2 provides CPU tensors, dtype and shape metadata, CPU buffer ownership,
-NumPy conversion, CPU add/multiply, Metal device discovery, and exact CPU/Metal
-tensor copy round-trips. Phase 3 starts the first static Metal kernels.
+Phase 3 provides CPU tensors, dtype and shape metadata, CPU buffer ownership,
+NumPy conversion, CPU add/multiply, Metal device discovery, exact CPU/Metal
+tensor copy round-trips, and the first static Metal elementwise kernels.
 
-The public Python `Tensor` wraps backend-specific native tensor objects. CPU
-operations still execute only on CPU tensors; Metal tensors can currently be
-created, inspected, copied back to CPU, and used as the transfer target for
-future kernels.
+The public Python `Tensor` wraps backend-specific native tensor objects. CPU and
+Metal tensors both support add and multiply; Metal tensors also support direct
+fill through `zeros` and `ones`.
 
-Phase 3 should introduce backend-neutral operation dispatch for Metal kernels
-instead of adding one Python branch per operation. The Phase 2 copy helpers are
-intentionally narrow bridge functions.
+Python binary operations dispatch through shared native `_core.add` and
+`_core.multiply` entrypoints with CPU and Metal overloads. The early fill path is
+still explicit because constructors must choose a backend-specific native tensor
+type.
 
 ## Core Principles
 
 - CPU reference behavior is mandatory for every future GPU operation.
 - Operation dispatch is data-driven through `OpDesc`, not one virtual method per
   operation.
-- Runtime errors should converge on `Status` / `expected<T, Status>` and be
-  translated to Python exceptions at the nanobind layer. Early backend code may
-  still throw direct C++ exceptions until Phase 4 error polish.
+- Metal backend errors return `Status` / `Expected<T>` and are translated to
+  Python exceptions at the nanobind layer. Phase 4 should extend that polish
+  across the older CPU/core paths.
 - Python and NumPy types stay outside `cpp/cortex/core/` and all backends.
 - Metal-cpp handles must be RAII-wrapped and isolated inside the Metal backend.

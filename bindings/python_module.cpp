@@ -10,6 +10,7 @@
 #include "cortex/backends/cpu/cpu_tensor.h"
 #include "cortex/core/dtype.h"
 #include "cortex/core/shape.h"
+#include "cortex/core/status.h"
 
 #if CORTEX_ENABLE_METAL
 #include "cortex/backends/metal/metal_backend.h"
@@ -17,7 +18,7 @@
 #endif
 
 #ifndef CORTEX_RUNTIME_VERSION
-#define CORTEX_RUNTIME_VERSION "0.0.0"
+#define CORTEX_RUNTIME_VERSION "0+unknown"
 #endif
 
 namespace nb = nanobind;
@@ -135,6 +136,29 @@ CpuTensor binary_op(const CpuTensor& lhs, const CpuTensor& rhs, OpKind kind) {
   return cortex::cpu::execute_binary(OpDesc{kind}, lhs, rhs);
 }
 
+#if CORTEX_ENABLE_METAL
+void throw_status(const cortex::Status& status) {
+  switch (status.code()) {
+    case cortex::StatusCode::kInvalidArgument:
+      throw std::invalid_argument(status.message());
+    case cortex::StatusCode::kUnavailable:
+    case cortex::StatusCode::kInternal:
+      throw std::runtime_error(status.message());
+    case cortex::StatusCode::kOk:
+      break;
+  }
+  throw std::runtime_error(status.message());
+}
+
+template <typename T>
+T unwrap(cortex::Expected<T> result) {
+  if (!result) {
+    throw_status(result.status());
+  }
+  return result.move_value();
+}
+#endif
+
 }  // namespace
 
 NB_MODULE(_core, module) {
@@ -190,6 +214,25 @@ NB_MODULE(_core, module) {
              nb::arg("shape"),
              nb::arg("dtype") = "float32",
              nb::arg("device") = "cpu");
+  module.def("fill",
+             [](nb::handle shape, nb::handle dtype, double value, const std::string& device) -> nb::object {
+               const Shape parsed_shape = parse_shape(shape);
+               const DType parsed_dtype = parse_dtype(dtype, DType::kFloat32);
+               if (device == "cpu") {
+                 return nb::cast(cortex::cpu::fill(parsed_shape, parsed_dtype, value));
+               }
+#if CORTEX_ENABLE_METAL
+               if (device == "metal") {
+                 return nb::cast(unwrap(cortex::metal::fill(
+                     OpDesc{OpKind::kFill}, parsed_shape, parsed_dtype, value)));
+               }
+#endif
+               throw std::invalid_argument("device is not available: " + device);
+             },
+             nb::arg("shape"),
+             nb::arg("dtype") = "float32",
+             nb::arg("value") = 0.0,
+             nb::arg("device") = "cpu");
 
   module.def("add_cpu",
              [](const CpuTensor& lhs, const CpuTensor& rhs) {
@@ -198,6 +241,18 @@ NB_MODULE(_core, module) {
              nb::arg("lhs"),
              nb::arg("rhs"));
   module.def("multiply_cpu",
+             [](const CpuTensor& lhs, const CpuTensor& rhs) {
+               return binary_op(lhs, rhs, OpKind::kMultiply);
+             },
+             nb::arg("lhs"),
+             nb::arg("rhs"));
+  module.def("add",
+             [](const CpuTensor& lhs, const CpuTensor& rhs) {
+               return binary_op(lhs, rhs, OpKind::kAdd);
+             },
+             nb::arg("lhs"),
+             nb::arg("rhs"));
+  module.def("multiply",
              [](const CpuTensor& lhs, const CpuTensor& rhs) {
                return binary_op(lhs, rhs, OpKind::kMultiply);
              },
@@ -259,9 +314,35 @@ NB_MODULE(_core, module) {
       .def_prop_ro("nbytes",
                    [](const cortex::metal::MetalTensor& tensor) {
                      return tensor.nbytes();
-                   });
+                   })
+      .def("__add__", [](const cortex::metal::MetalTensor& lhs,
+                         const cortex::metal::MetalTensor& rhs) {
+        return unwrap(cortex::metal::execute_binary(OpDesc{OpKind::kAdd}, lhs, rhs));
+      })
+      .def("__mul__", [](const cortex::metal::MetalTensor& lhs,
+                         const cortex::metal::MetalTensor& rhs) {
+        return unwrap(cortex::metal::execute_binary(OpDesc{OpKind::kMultiply}, lhs, rhs));
+      });
 
-  module.def("cpu_to_metal", &cortex::metal::from_cpu, nb::arg("tensor"));
-  module.def("metal_to_cpu", &cortex::metal::to_cpu, nb::arg("tensor"));
+  module.def("cpu_to_metal",
+             [](const CpuTensor& tensor) { return unwrap(cortex::metal::from_cpu(tensor)); },
+             nb::arg("tensor"));
+  module.def("metal_to_cpu",
+             [](const cortex::metal::MetalTensor& tensor) {
+               return unwrap(cortex::metal::to_cpu(tensor));
+             },
+             nb::arg("tensor"));
+  module.def("add",
+             [](const cortex::metal::MetalTensor& lhs, const cortex::metal::MetalTensor& rhs) {
+               return unwrap(cortex::metal::execute_binary(OpDesc{OpKind::kAdd}, lhs, rhs));
+             },
+             nb::arg("lhs"),
+             nb::arg("rhs"));
+  module.def("multiply",
+             [](const cortex::metal::MetalTensor& lhs, const cortex::metal::MetalTensor& rhs) {
+               return unwrap(cortex::metal::execute_binary(OpDesc{OpKind::kMultiply}, lhs, rhs));
+             },
+             nb::arg("lhs"),
+             nb::arg("rhs"));
 #endif
 }

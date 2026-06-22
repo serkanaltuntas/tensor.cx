@@ -1,12 +1,19 @@
 #include "cortex/backends/metal/metal_buffer.h"
 
 #include <cstring>
-#include <stdexcept>
 
 #include "cortex/backends/metal/metal_context.h"
 #include "cortex/core/dtype.h"
 
 namespace cortex::metal {
+
+Expected<std::shared_ptr<MetalBuffer>> MetalBuffer::create(DType dtype, std::size_t elements) {
+  auto buffer = std::shared_ptr<MetalBuffer>(new MetalBuffer(dtype, elements));
+  if (!buffer->valid()) {
+    return Status(StatusCode::kInternal, "failed to allocate Metal buffer");
+  }
+  return buffer;
+}
 
 MetalBuffer::MetalBuffer(DType dtype, std::size_t elements)
     : dtype_(dtype), nbytes_(elements * dtype_size(dtype)) {
@@ -14,31 +21,41 @@ MetalBuffer::MetalBuffer(DType dtype, std::size_t elements)
     return;
   }
 
+  auto& context = default_context();
+  if (!context.ready()) {
+    return;
+  }
+
   buffer_ = NS::TransferPtr(default_context().device().newBuffer(
       nbytes_, MTL::ResourceStorageModeShared));
-  if (!buffer_) {
-    throw std::runtime_error("failed to allocate Metal buffer");
-  }
 }
 
-void MetalBuffer::copy_from_host(const void* src, std::size_t nbytes) {
+Status MetalBuffer::copy_from_host(const void* src, std::size_t nbytes) {
   if (nbytes != nbytes_) {
-    throw std::invalid_argument("host-to-Metal copy size mismatch");
+    return Status(StatusCode::kInvalidArgument, "host-to-Metal copy size mismatch");
   }
   if (nbytes_ == 0) {
-    return;
+    return Status::Ok();
+  }
+  if (!buffer_) {
+    return Status(StatusCode::kInternal, "Metal buffer is not allocated");
   }
   std::memcpy(buffer_->contents(), src, nbytes_);
+  return Status::Ok();
 }
 
-void MetalBuffer::copy_to_host(void* dst, std::size_t nbytes) const {
+Status MetalBuffer::copy_to_host(void* dst, std::size_t nbytes) const {
   if (nbytes != nbytes_) {
-    throw std::invalid_argument("Metal-to-host copy size mismatch");
+    return Status(StatusCode::kInvalidArgument, "Metal-to-host copy size mismatch");
   }
   if (nbytes_ == 0) {
-    return;
+    return Status::Ok();
+  }
+  if (!buffer_) {
+    return Status(StatusCode::kInternal, "Metal buffer is not allocated");
   }
   std::memcpy(dst, buffer_->contents(), nbytes_);
+  return Status::Ok();
 }
 
 }  // namespace cortex::metal
