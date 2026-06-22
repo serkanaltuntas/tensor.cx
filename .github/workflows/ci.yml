@@ -31,3 +31,35 @@ jobs:
 
       - name: Run CPU tests
         run: uv run pytest
+
+  macos-no-mpsgraph:
+    name: macOS build (Metal on, MPSGraph off)
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Create virtual environment
+        run: uv venv --python 3.12
+
+      # Builds the Metal backend with the MPSGraph path disabled. This locks the
+      # PROJECT.md §9.2 guarantee that removing MPSGraph still compiles a working
+      # custom-MSL matmul (the "not an MPSGraph wrapper" invariant). The hosted
+      # runner has no GPU, so Metal runtime tests skip; the value here is that the
+      # custom-only fallback keeps compiling and the CPU suite stays green.
+      - name: Install editable package (MPSGraph disabled)
+        run: CMAKE_ARGS="-DCORTEX_ENABLE_MPSGRAPH=OFF" uv pip install -e ".[dev]"
+
+      - name: Run tests
+        run: uv run pytest

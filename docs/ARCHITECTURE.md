@@ -32,11 +32,34 @@ Python binary operations dispatch through shared native `_core.add` and
 still explicit because constructors must choose a backend-specific native tensor
 type.
 
+### Dispatch today vs. the Phase 8 target
+
+`§5.6` settles a data-driven dispatch design: a single
+`Backend::execute(OpDesc, inputs, outputs)` per backend, switching on the op
+enum, rather than one method per operation. That interface exists in
+`cpp/cortex/core/backend.h`, but through Phase 5 it is a **design placeholder —
+no backend implements it and nothing calls it.** The dispatch that actually runs
+is a set of per-op typed entry points in each backend (`cpu::execute_binary`,
+`cpu::matmul`, `cpu::fill`, `metal::execute_binary`, `metal::matmul_custom`,
+`metal::matmul_mpsgraph`, `metal::fill`), selected by the nanobind layer from the
+operand tensor type and device. `OpDesc` is passed to the binary entry points
+(and Metal's `fill`) and tags the op `kind`, but it carries no attributes yet —
+CPU `fill` does not even take an `OpDesc` — so fill's value and matmul's backend
+choice travel as ordinary arguments.
+
+This is a deliberate, documented deviation kept small per the "avoid unrelated
+refactors" rule: unifying the backends onto `Backend::execute` (and giving
+`OpDesc` attributes) is the work of **Phase 8 — Backend interface hardening**,
+whose Definition of Done already requires a stub backend that compiles against
+this interface alone. Until then, do not read `backend.h` as the live dispatch
+path; read it as the contract Phase 8 implements.
+
 ## Core Principles
 
 - CPU reference behavior is mandatory for every future GPU operation.
-- Operation dispatch is data-driven through `OpDesc`, not one virtual method per
-  operation.
+- Operation dispatch is moving toward the data-driven `OpDesc` model (single
+  `Backend::execute`, no per-op virtual method). The unified interface is
+  defined but not yet wired; see "Dispatch today vs. the Phase 8 target" above.
 - Metal backend errors return `Status` / `Expected<T>` and are translated to
   Python exceptions at the nanobind layer.
 - Python and NumPy types stay outside `cpp/cortex/core/` and all backends.

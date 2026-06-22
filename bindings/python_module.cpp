@@ -1,7 +1,9 @@
 #include <nanobind/nanobind.h>
+#include <nanobind/ndarray.h>
 #include <nanobind/stl/string.h>
 
 #include <cstdint>
+#include <cstring>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -75,6 +77,11 @@ CpuTensor tensor_from_sequence(nb::handle data, nb::handle dtype, const std::str
   std::vector<nb::object> items;
   bool saw_float = false;
   for (nb::handle item : nb::iter(data)) {
+    if (nb::isinstance<nb::list>(item) || nb::isinstance<nb::tuple>(item)) {
+      throw std::invalid_argument(
+          "tensor() native factory expects a flat numeric sequence; build "
+          "higher-rank tensors through cortex_runtime.tensor()");
+    }
     items.emplace_back(nb::borrow<nb::object>(item));
     if (nb::isinstance<nb::float_>(item)) {
       saw_float = true;
@@ -150,26 +157,35 @@ nb::tuple shape_tuple(const Shape& shape) {
   return result;
 }
 
-nb::object tensor_to_numpy(const CpuTensor& tensor) {
-  nb::object np = nb::module_::import_("numpy");
-  nb::list values;
-
-  switch (tensor.dtype()) {
-    case DType::kFloat32:
-      for (float value : tensor.float_data()) {
-        values.append(nb::float_(value));
-      }
-      break;
-    case DType::kInt32:
-      for (std::int32_t value : tensor.int32_data()) {
-        values.append(nb::int_(value));
-      }
-      break;
+// Build a NumPy array that owns a private copy of the contiguous tensor data.
+// Copies once via memcpy into a heap buffer whose lifetime is tied to the array
+// through a capsule, instead of boxing every element into a Python list. This is
+// the nb::ndarray NumPy bridge §5.6 chose nanobind for, and keeps Tensor.numpy()
+// O(n) memory copies rather than O(n) PyObject allocations on 1M/16M tensors.
+template <typename T>
+nb::object make_numpy_array(const std::vector<T>& data, const Shape& shape) {
+  const std::size_t ndim = shape.size();
+  std::vector<std::size_t> dims(ndim);
+  for (std::size_t i = 0; i < ndim; ++i) {
+    dims[i] = static_cast<std::size_t>(shape[i]);
   }
 
-  nb::object array =
-      np.attr("array")(values, nb::arg("dtype") = std::string(cortex::dtype_name(tensor.dtype())));
-  return array.attr("reshape")(shape_tuple(tensor.shape()));
+  T* owned = new T[data.size()];
+  if (!data.empty()) {
+    std::memcpy(owned, data.data(), data.size() * sizeof(T));
+  }
+  nb::capsule owner(owned, [](void* ptr) noexcept { delete[] static_cast<T*>(ptr); });
+  return nb::cast(nb::ndarray<nb::numpy, T>(owned, ndim, dims.data(), owner));
+}
+
+nb::object tensor_to_numpy(const CpuTensor& tensor) {
+  switch (tensor.dtype()) {
+    case DType::kFloat32:
+      return make_numpy_array<float>(tensor.float_data(), tensor.shape());
+    case DType::kInt32:
+      return make_numpy_array<std::int32_t>(tensor.int32_data(), tensor.shape());
+  }
+  throw std::invalid_argument("unsupported dtype");
 }
 
 CpuTensor binary_op(const CpuTensor& lhs, const CpuTensor& rhs, OpKind kind) {
@@ -287,18 +303,6 @@ NB_MODULE(_core, module) {
              nb::arg("value") = 0.0,
              nb::arg("device") = "cpu");
 
-  module.def("add_cpu",
-             [](const CpuTensor& lhs, const CpuTensor& rhs) {
-               return binary_op(lhs, rhs, OpKind::kAdd);
-             },
-             nb::arg("lhs"),
-             nb::arg("rhs"));
-  module.def("multiply_cpu",
-             [](const CpuTensor& lhs, const CpuTensor& rhs) {
-               return binary_op(lhs, rhs, OpKind::kMultiply);
-             },
-             nb::arg("lhs"),
-             nb::arg("rhs"));
   module.def("add",
              [](const CpuTensor& lhs, const CpuTensor& rhs) {
                return binary_op(lhs, rhs, OpKind::kAdd);

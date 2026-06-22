@@ -138,6 +138,21 @@ Expected<MatmulDims> checked_matmul_dims(const MetalTensor& lhs, const MetalTens
         StatusCode::kInvalidArgument,
         "Metal kernels currently support at most 2^32 - 1 elements");
   }
+  // The custom matmul_f32 kernel indexes operands as lhs[row*k + inner] and
+  // rhs[inner*n + col] in 32-bit uint, so the per-operand element counts (M*K
+  // and K*N) must also fit in 2^32 - 1 or the index arithmetic would overflow
+  // and read the wrong elements. These buffers must already be allocated to
+  // reach here, so this is defensive depth rather than a reachable input today.
+  if (m != 0 && k > std::numeric_limits<std::uint32_t>::max() / m) {
+    return Status(
+        StatusCode::kInvalidArgument,
+        "Metal matmul operand element count exceeds 2^32 - 1");
+  }
+  if (k != 0 && n > std::numeric_limits<std::uint32_t>::max() / k) {
+    return Status(
+        StatusCode::kInvalidArgument,
+        "Metal matmul operand element count exceeds 2^32 - 1");
+  }
   const std::int64_t output_elements =
       static_cast<std::int64_t>(m) * static_cast<std::int64_t>(n);
   auto thread_count_result = checked_thread_count(output_elements);

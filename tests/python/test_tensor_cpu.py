@@ -124,3 +124,25 @@ def test_matmul_cpu_rejects_invalid_inputs():
 def test_tensor_rejects_unsupported_device():
     with pytest.raises(ValueError, match="unsupported device transfer"):
         cx.tensor([1, 2, 3], device="cuda")
+
+
+def test_rank0_scalar_numpy_round_trip():
+    # Rank-0 tensors are reachable via the low-level factory; numpy() must emit a
+    # 0-d array, not crash on the empty shape.
+    from cortex_runtime import _core
+
+    for dtype, np_dtype in (("float32", np.float32), ("int32", np.int32)):
+        scalar = cx.Tensor(_core.zeros((), dtype=dtype, device="cpu"))
+        array = scalar.numpy()
+        assert array.shape == ()
+        assert array.dtype == np_dtype
+        assert array.item() == 0
+
+
+def test_native_tensor_factory_rejects_nested_sequence():
+    # The native _core.tensor is the flat 1-D factory; nested data must route
+    # through the public cx.tensor() wrapper instead of mis-flattening here.
+    from cortex_runtime import _core
+
+    with pytest.raises(ValueError, match="flat numeric sequence"):
+        _core.tensor([[1, 2], [3, 4]])

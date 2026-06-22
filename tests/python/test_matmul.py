@@ -27,7 +27,7 @@ def test_metal_custom_matmul_matches_cpu(m, k, n):
 
     actual = cx.matmul(lhs_cpu.to("metal"), rhs_cpu.to("metal"), backend="custom")
 
-    np.testing.assert_allclose(actual.cpu().numpy(), cx.matmul(lhs_cpu, rhs_cpu).numpy(), rtol=1e-4, atol=1e-4)
+    cx.testing.assert_allclose(actual.cpu(), cx.matmul(lhs_cpu, rhs_cpu), kind="matmul")
 
 
 @pytest.mark.skipif(not optimized_matmul_available(), reason="Optimized Metal matmul is not available")
@@ -38,7 +38,7 @@ def test_optimized_metal_matmul_matches_cpu(m, k, n):
 
     actual = cx.matmul(lhs_cpu.to("metal"), rhs_cpu.to("metal"), backend="optimized")
 
-    np.testing.assert_allclose(actual.cpu().numpy(), cx.matmul(lhs_cpu, rhs_cpu).numpy(), rtol=1e-4, atol=1e-4)
+    cx.testing.assert_allclose(actual.cpu(), cx.matmul(lhs_cpu, rhs_cpu), kind="matmul")
 
 
 @pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
@@ -48,7 +48,7 @@ def test_metal_matmul_auto_uses_working_accelerated_path():
 
     actual = cx.matmul(lhs_cpu.to("metal"), rhs_cpu.to("metal"))
 
-    np.testing.assert_allclose(actual.cpu().numpy(), cx.matmul(lhs_cpu, rhs_cpu).numpy(), rtol=1e-4, atol=1e-4)
+    cx.testing.assert_allclose(actual.cpu(), cx.matmul(lhs_cpu, rhs_cpu), kind="matmul")
 
 
 @pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
@@ -57,10 +57,10 @@ def test_metal_matmul_zero_inner_dimension_returns_zeros():
     rhs = cx.ones((0, 3), dtype=cx.float32, device="metal")
     expected = np.zeros((2, 3), dtype=np.float32)
 
-    np.testing.assert_allclose(cx.matmul(lhs, rhs, backend="custom").cpu().numpy(), expected)
-    np.testing.assert_allclose(cx.matmul(lhs, rhs).cpu().numpy(), expected)
+    cx.testing.assert_allclose(cx.matmul(lhs, rhs, backend="custom").cpu(), expected, kind="matmul")
+    cx.testing.assert_allclose(cx.matmul(lhs, rhs).cpu(), expected, kind="matmul")
     if "optimized" in cx.matmul_backends("metal"):
-        np.testing.assert_allclose(cx.matmul(lhs, rhs, backend="optimized").cpu().numpy(), expected)
+        cx.testing.assert_allclose(cx.matmul(lhs, rhs, backend="optimized").cpu(), expected, kind="matmul")
 
 
 @pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
@@ -83,7 +83,7 @@ def test_metal_matmul_acceptance_snippet():
     b = b_cpu.to("metal")
     c = cx.matmul(a, b)
 
-    np.testing.assert_allclose(c.cpu().numpy(), cx.matmul(a_cpu, b_cpu).numpy(), rtol=1e-4, atol=1e-4)
+    cx.testing.assert_allclose(c.cpu(), cx.matmul(a_cpu, b_cpu), kind="matmul")
 
 
 @pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
@@ -98,3 +98,38 @@ def test_metal_matmul_rejects_invalid_inputs():
         cx.matmul(lhs, bad_dtype, backend="custom")
     with pytest.raises(ValueError, match="unsupported Metal matmul backend"):
         cx.matmul(lhs, bad_shape, backend="unknown")
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_matmul_auto_rejects_invalid_inputs():
+    lhs = cx.ones((2, 3), dtype=cx.float32, device="metal")
+    bad_shape = cx.ones((2, 3), dtype=cx.float32, device="metal")
+    bad_dtype = cx.ones((3, 2), dtype=cx.int32, device="metal")
+
+    with pytest.raises(ValueError, match="matmul shape mismatch"):
+        cx.matmul(lhs, bad_shape)
+    with pytest.raises(ValueError, match="only supports float32"):
+        cx.matmul(lhs, bad_dtype)
+
+
+@pytest.mark.skipif(not optimized_matmul_available(), reason="Optimized Metal matmul is not available")
+def test_optimized_metal_matmul_rejects_invalid_inputs():
+    lhs = cx.ones((2, 3), dtype=cx.float32, device="metal")
+    bad_shape = cx.ones((2, 3), dtype=cx.float32, device="metal")
+    bad_dtype = cx.ones((3, 2), dtype=cx.int32, device="metal")
+
+    with pytest.raises(ValueError, match="matmul shape mismatch"):
+        cx.matmul(lhs, bad_shape, backend="optimized")
+    # Pin the MPSGraph-specific message so this proves the optimized path was hit
+    # (and didn't silently fall back to the custom kernel).
+    with pytest.raises(ValueError, match="MPSGraph matmul only supports float32"):
+        cx.matmul(lhs, bad_dtype, backend="optimized")
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_matmul_rejects_device_mismatch():
+    lhs_cpu = cx.ones((2, 3), dtype=cx.float32, device="cpu")
+    rhs_metal = cx.ones((3, 2), dtype=cx.float32, device="metal")
+
+    with pytest.raises(ValueError, match="device mismatch for matmul"):
+        cx.matmul(lhs_cpu, rhs_metal)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from . import _core
+from . import _core, testing
 from .device import Device, best_device, device, device_name, devices, is_available
 from .tensor import Tensor, empty, matmul, matmul_backends, ones, randn, tensor, zeros
 
@@ -33,6 +33,7 @@ __all__ = [
     "ones",
     "randn",
     "tensor",
+    "testing",
     "version",
     "zeros",
 ]
