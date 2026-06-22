@@ -50,10 +50,11 @@ class Tensor:
             return self
         if target == "cpu":
             return self.cpu()
-        if target == "metal" and self.device == "cpu" and hasattr(_core, "cpu_to_metal"):
+        if target == "metal" and self.device == "cpu":
             if not _core.is_available("metal"):
                 raise ValueError("Metal is not available on this system")
-            return Tensor(_core.cpu_to_metal(self._impl))
+            if hasattr(_core, "cpu_to_metal"):
+                return Tensor(_core.cpu_to_metal(self._impl))
         raise ValueError(f"unsupported device transfer: {self.device!r} -> {target!r}")
 
     def __add__(self, other: "Tensor") -> "Tensor":

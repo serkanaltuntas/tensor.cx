@@ -33,7 +33,7 @@ introduce private buffers, command encoders, and explicit synchronization.
 ## Current Limitations
 
 ```text
-- Runtime errors may still throw direct C++ exceptions until Phase 4 error polish.
 - Only device index 0 is supported.
 - Only contiguous tensors are supported.
+- Metal kernels currently support at most 2^32 - 1 elements per launch.
 ```

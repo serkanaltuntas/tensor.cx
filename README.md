@@ -42,14 +42,45 @@ Run the basic local benchmark with:
 
 ```bash
 uv run python benchmarks/bench_elementwise.py
+uv run python benchmarks/bench_copy.py
+```
+
+The benchmark scripts use the Phase 4 benchmark sizes by default: 1K, 16K,
+256K, 1M, and 16M float32 elements.
+
+A local Apple Silicon sample run is committed at
+`benchmarks/sample_phase4_apple_silicon.txt`.
+
+## Verification
+
+CPU-only CI runs on GitHub Actions with Metal disabled:
+
+```bash
+CMAKE_ARGS="-DCORTEX_ENABLE_METAL=OFF" uv pip install -e ".[dev]"
+uv run pytest
+```
+
+Local Metal verification should be run on Apple Silicon macOS:
+
+```bash
+uv pip install -e ".[dev]"
+uv run pytest
+uv run python benchmarks/bench_elementwise.py
+uv run python benchmarks/bench_copy.py
+```
+
+Use a smaller benchmark smoke test while iterating:
+
+```bash
+uv run python benchmarks/bench_elementwise.py --sizes 1024 --repeats 2
+uv run python benchmarks/bench_copy.py --sizes 1024 --repeats 2
 ```
 
 ## Current Status
 
-Phase 3 provides CPU tensors, dtype and shape metadata, CPU buffer ownership,
-NumPy conversion, CPU add/multiply, Metal device discovery, CPU/Metal tensor copy
-round-trips, and the first static Metal elementwise kernels for add, multiply,
-and fill.
+Phase 4 provides the first polished local runtime surface: CPU tensors, Metal
+buffer copies, Metal add/multiply/fill kernels, clearer runtime errors, CPU-only
+CI, and local benchmark scripts for copy and elementwise paths.
 
 ```python
 import cortex_runtime as cx

@@ -20,6 +20,17 @@ def test_devices_always_include_cpu():
         cx.device("cuda")
 
 
+@pytest.mark.skipif(cx.is_available("metal"), reason="Metal backend is available")
+def test_metal_transfer_reports_unavailable_when_backend_is_missing():
+    x = cx.ones((1,), dtype=cx.float32, device="cpu")
+
+    with pytest.raises(ValueError, match="Metal is not available"):
+        x.to("metal")
+
+    with pytest.raises(ValueError, match="Metal is not available"):
+        cx.tensor([1], device="metal")
+
+
 @pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
 def test_metal_device_discovery():
     assert "metal" in cx.devices()

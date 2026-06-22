@@ -14,7 +14,7 @@ metal   Apple Silicon backend for buffer ownership, copy round-trips, and first
 The CPU backend is the correctness reference for every operation. Metal behavior
 must be compared against CPU behavior before it is treated as complete.
 
-## Phase 3 Status
+## Phase 4 Status
 
 The Metal backend currently supports:
 
@@ -31,7 +31,7 @@ The Metal backend currently supports:
 
 CPU remains the correctness reference for every Metal operation.
 
-## Phase 4 Direction
+## Phase 5 Direction
 
-Phase 4 should polish runtime errors, shape and dtype validation, local Metal
-test instructions, and richer benchmark scripts.
+Phase 5 should add correctness-first matmul on the custom Metal kernel path
+before adding an MPSGraph-backed fast path.
