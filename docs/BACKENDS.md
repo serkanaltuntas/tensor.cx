@@ -14,7 +14,7 @@ metal   Apple Silicon backend for buffer ownership, copy round-trips, and first
 The CPU backend is the correctness reference for every operation. Metal behavior
 must be compared against CPU behavior before it is treated as complete.
 
-## Phase 4 Status
+## Phase 5 Status
 
 The Metal backend currently supports:
 
@@ -27,11 +27,13 @@ The Metal backend currently supports:
 - Python Tensor.cpu()
 - add and multiply kernels for float32 and int32 tensors
 - fill kernels for zeros/ones on float32 and int32 tensors
+- naive custom MSL matmul for float32 rank-2 tensors
+- MPSGraph matmul for float32 rank-2 tensors
 ```
 
 CPU remains the correctness reference for every Metal operation.
 
-## Phase 5 Direction
+## Phase 6 Direction
 
-Phase 5 should add correctness-first matmul on the custom Metal kernel path
-before adding an MPSGraph-backed fast path.
+Phase 6 should add reductions and neural-network primitives after the matmul
+paths remain stable under CPU-vs-Metal comparison.

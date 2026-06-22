@@ -18,13 +18,14 @@ other Apple API types stay inside `cpp/cortex/backends/metal/`.
 
 ## Current Phase
 
-Phase 4 completed the first usable runtime surface: error behavior, benchmark
-scripts, CPU-only CI, and local Metal verification instructions. Phase 5 is the
-next planned phase and should start with correctness-first custom Metal matmul.
+Phase 5 completed the first matmul paths: CPU reference matmul, a
+correctness-first custom Metal matmul kernel, and an MPSGraph-backed Metal
+matmul path. Phase 6 is the next planned phase and should start with reductions
+and neural-network primitives.
 
 The public Python `Tensor` wraps backend-specific native tensor objects. CPU and
 Metal tensors both support add and multiply; Metal tensors also support direct
-fill through `zeros` and `ones`.
+fill through `zeros` and `ones`, plus rank-2 float32 matmul.
 
 Python binary operations dispatch through shared native `_core.add` and
 `_core.multiply` entrypoints with CPU and Metal overloads. The early fill path is
@@ -54,6 +55,9 @@ Unsupported device transfer       ValueError        unsupported device transfer
 Binary device mismatch            ValueError        device mismatch
 Binary shape mismatch             ValueError        shape mismatch
 Binary dtype mismatch             ValueError        dtype mismatch
+Matmul rank mismatch              ValueError        matmul requires rank-2
+Matmul shape mismatch             ValueError        matmul shape mismatch
+Matmul dtype mismatch             ValueError        matmul only supports float32
 Negative shape dimension          ValueError        shape dimensions must be non-negative
 Shape element-count overflow      ValueError        shape size overflow
 Shape stride overflow             ValueError        shape stride overflow

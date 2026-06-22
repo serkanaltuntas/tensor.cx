@@ -14,6 +14,10 @@
 
 #if CORTEX_ENABLE_METAL
 #include "cortex/backends/metal/metal_backend.h"
+#include "cortex/backends/metal/metal_kernels.h"
+#if CORTEX_ENABLE_MPSGRAPH
+#include "cortex/backends/metal/metal_mpsgraph.h"
+#endif
 #include "cortex/backends/metal/metal_tensor.h"
 #endif
 
@@ -102,6 +106,42 @@ CpuTensor tensor_from_sequence(nb::handle data, nb::handle dtype, const std::str
   throw std::invalid_argument("unsupported dtype");
 }
 
+CpuTensor tensor_from_flat_sequence(
+    nb::handle data,
+    nb::handle shape,
+    nb::handle dtype,
+    const std::string& device) {
+  validate_cpu_device(device);
+
+  const Shape parsed_shape = parse_shape(shape);
+  const std::int64_t expected_size = cortex::numel(parsed_shape);
+  const DType actual_dtype = parse_dtype(dtype, DType::kFloat32);
+
+  switch (actual_dtype) {
+    case DType::kFloat32: {
+      std::vector<float> values;
+      for (nb::handle item : nb::iter(data)) {
+        values.push_back(nb::cast<float>(item));
+      }
+      if (static_cast<std::int64_t>(values.size()) != expected_size) {
+        throw std::invalid_argument("tensor data length does not match shape");
+      }
+      return CpuTensor(parsed_shape, std::move(values));
+    }
+    case DType::kInt32: {
+      std::vector<std::int32_t> values;
+      for (nb::handle item : nb::iter(data)) {
+        values.push_back(nb::cast<std::int32_t>(item));
+      }
+      if (static_cast<std::int64_t>(values.size()) != expected_size) {
+        throw std::invalid_argument("tensor data length does not match shape");
+      }
+      return CpuTensor(parsed_shape, std::move(values));
+    }
+  }
+  throw std::invalid_argument("unsupported dtype");
+}
+
 nb::tuple shape_tuple(const Shape& shape) {
   nb::tuple result = nb::steal<nb::tuple>(PyTuple_New(static_cast<Py_ssize_t>(shape.size())));
   for (std::size_t i = 0; i < shape.size(); ++i) {
@@ -134,6 +174,13 @@ nb::object tensor_to_numpy(const CpuTensor& tensor) {
 
 CpuTensor binary_op(const CpuTensor& lhs, const CpuTensor& rhs, OpKind kind) {
   return cortex::cpu::execute_binary(OpDesc{kind}, lhs, rhs);
+}
+
+CpuTensor matmul_cpu(const CpuTensor& lhs, const CpuTensor& rhs, const std::string& backend) {
+  if (backend != "auto" && backend != "cpu" && backend != "reference") {
+    throw std::invalid_argument("CPU matmul only supports backend='auto', 'cpu', or 'reference'");
+  }
+  return cortex::cpu::matmul(lhs, rhs);
 }
 
 #if CORTEX_ENABLE_METAL
@@ -189,6 +236,12 @@ NB_MODULE(_core, module) {
              &tensor_from_sequence,
              nb::arg("data"),
              nb::arg("dtype").none() = nb::none(),
+             nb::arg("device") = "cpu");
+  module.def("tensor_from_flat",
+             &tensor_from_flat_sequence,
+             nb::arg("data"),
+             nb::arg("shape"),
+             nb::arg("dtype") = "float32",
              nb::arg("device") = "cpu");
   module.def("empty",
              [](nb::handle shape, nb::handle dtype, const std::string& device) {
@@ -258,6 +311,33 @@ NB_MODULE(_core, module) {
              },
              nb::arg("lhs"),
              nb::arg("rhs"));
+  module.def("matmul_backends",
+             [](const std::string& device) {
+               nb::list result;
+               if (device == "cpu") {
+                 result.append("auto");
+                 result.append("cpu");
+                 result.append("reference");
+                 return result;
+               }
+#if CORTEX_ENABLE_METAL
+               if (device == "metal") {
+                 result.append("auto");
+                 result.append("custom");
+#if CORTEX_ENABLE_MPSGRAPH
+                 result.append("optimized");
+#endif
+                 return result;
+               }
+#endif
+               throw std::invalid_argument("device is not available: " + device);
+             },
+             nb::arg("device"));
+  module.def("matmul",
+             &matmul_cpu,
+             nb::arg("lhs"),
+             nb::arg("rhs"),
+             nb::arg("backend") = "auto");
   module.def("is_available",
              [](const std::string& device) {
                if (device == "cpu") {
@@ -344,5 +424,31 @@ NB_MODULE(_core, module) {
              },
              nb::arg("lhs"),
              nb::arg("rhs"));
+  module.def("matmul",
+             [](const cortex::metal::MetalTensor& lhs,
+                const cortex::metal::MetalTensor& rhs,
+                const std::string& backend) {
+               if (backend == "auto") {
+#if CORTEX_ENABLE_MPSGRAPH
+                 return unwrap(cortex::metal::matmul_mpsgraph(lhs, rhs));
+#else
+                 return unwrap(cortex::metal::matmul_custom(lhs, rhs));
+#endif
+               }
+               if (backend == "optimized") {
+#if CORTEX_ENABLE_MPSGRAPH
+                 return unwrap(cortex::metal::matmul_mpsgraph(lhs, rhs));
+#else
+                 throw std::invalid_argument("optimized Metal matmul backend is not available");
+#endif
+               }
+               if (backend == "custom") {
+                 return unwrap(cortex::metal::matmul_custom(lhs, rhs));
+               }
+               throw std::invalid_argument("unsupported Metal matmul backend: " + backend);
+             },
+             nb::arg("lhs"),
+             nb::arg("rhs"),
+             nb::arg("backend") = "auto");
 #endif
 }

@@ -39,8 +39,8 @@ C++ namespace: cortex
 > CI (CPU) or on the local Mac (Metal).
 
 ```text
-Current phase:          Phase 5 — not started
-Last verified milestone: Phase 4 — Runtime polish
+Current phase:          Phase 6 — not started
+Last verified milestone: Phase 5 — Matmul custom MSL + MPSGraph
 v0.1 target:            achieved at end of Phase 3
 Binding decided:        nanobind (see §5.6)
 Open decisions:         none
@@ -54,7 +54,7 @@ Phase checklist:
 [x] Phase 2   Metal backend foundation
 [x] Phase 3   First Metal kernels        <- v0.1 ships here
 [x] Phase 4   Runtime polish
-[ ] Phase 5   MPSGraph matmul
+[x] Phase 5   MPSGraph matmul
 [ ] Phase 6   Reductions & NN primitives
 [ ] Phase 7   Experimental kernel DSL
 [ ] Phase 8   Backend interface hardening

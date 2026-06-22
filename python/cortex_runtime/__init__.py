@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from . import _core
 from .device import Device, best_device, device, device_name, devices, is_available
-from .tensor import Tensor, empty, ones, tensor, zeros
+from .tensor import Tensor, empty, matmul, matmul_backends, ones, randn, tensor, zeros
 
 __version__ = _core.version()
 float32 = _core.float32
@@ -28,7 +28,10 @@ __all__ = [
     "float32",
     "int32",
     "is_available",
+    "matmul",
+    "matmul_backends",
     "ones",
+    "randn",
     "tensor",
     "version",
     "zeros",

@@ -89,4 +89,42 @@ CpuTensor execute_binary(const OpDesc& op, const CpuTensor& lhs, const CpuTensor
   return result;
 }
 
+CpuTensor matmul(const CpuTensor& lhs, const CpuTensor& rhs) {
+  if (lhs.device().type != "cpu" || rhs.device().type != "cpu") {
+    throw std::invalid_argument("CPU matmul requires CPU tensors");
+  }
+  if (lhs.dtype() != DType::kFloat32 || rhs.dtype() != DType::kFloat32) {
+    throw std::invalid_argument("matmul only supports float32 tensors");
+  }
+  if (lhs.shape().size() != 2 || rhs.shape().size() != 2) {
+    throw std::invalid_argument("matmul requires rank-2 tensors");
+  }
+
+  const auto m = lhs.shape()[0];
+  const auto k = lhs.shape()[1];
+  const auto rhs_k = rhs.shape()[0];
+  const auto n = rhs.shape()[1];
+  if (k != rhs_k) {
+    throw std::invalid_argument("matmul shape mismatch");
+  }
+
+  CpuTensor result(DType::kFloat32, Shape{m, n});
+  const auto& lhs_data = lhs.float_data();
+  const auto& rhs_data = rhs.float_data();
+  auto& out = result.mutable_float_data();
+
+  for (std::int64_t row = 0; row < m; ++row) {
+    for (std::int64_t col = 0; col < n; ++col) {
+      float sum = 0.0F;
+      for (std::int64_t inner = 0; inner < k; ++inner) {
+        sum += lhs_data[static_cast<std::size_t>(row * k + inner)] *
+               rhs_data[static_cast<std::size_t>(inner * n + col)];
+      }
+      out[static_cast<std::size_t>(row * n + col)] = sum;
+    }
+  }
+
+  return result;
+}
+
 }  // namespace cortex::cpu

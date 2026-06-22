@@ -46,6 +46,13 @@ Expected<const char*> fill_kernel_name(DType dtype) {
   return Status(StatusCode::kInvalidArgument, "unsupported Metal fill dtype");
 }
 
+struct MatmulDims {
+  std::uint32_t m;
+  std::uint32_t k;
+  std::uint32_t n;
+  std::int64_t output_elements;
+};
+
 Expected<std::int64_t> checked_numel_for_metal(const Shape& shape) {
   std::int64_t total = 1;
   for (Dim dim : shape) {
@@ -87,6 +94,59 @@ Expected<std::uint32_t> checked_thread_count(std::int64_t size) {
   return static_cast<std::uint32_t>(size);
 }
 
+Expected<std::uint32_t> checked_dim_for_metal(Dim dim, const char* name) {
+  if (dim < 0) {
+    return Status(StatusCode::kInvalidArgument, "shape dimensions must be non-negative");
+  }
+  if (dim > std::numeric_limits<std::uint32_t>::max()) {
+    return Status(
+        StatusCode::kInvalidArgument,
+        std::string("Metal matmul dimension exceeds 2^32 - 1: ") + name);
+  }
+  return static_cast<std::uint32_t>(dim);
+}
+
+Expected<MatmulDims> checked_matmul_dims(const MetalTensor& lhs, const MetalTensor& rhs) {
+  if (lhs.dtype() != DType::kFloat32 || rhs.dtype() != DType::kFloat32) {
+    return Status(StatusCode::kInvalidArgument, "Metal matmul only supports float32 tensors");
+  }
+  if (lhs.shape().size() != 2 || rhs.shape().size() != 2) {
+    return Status(StatusCode::kInvalidArgument, "matmul requires rank-2 tensors");
+  }
+  if (lhs.shape()[1] != rhs.shape()[0]) {
+    return Status(StatusCode::kInvalidArgument, "matmul shape mismatch");
+  }
+
+  auto m_result = checked_dim_for_metal(lhs.shape()[0], "M");
+  if (!m_result) {
+    return m_result.status();
+  }
+  auto k_result = checked_dim_for_metal(lhs.shape()[1], "K");
+  if (!k_result) {
+    return k_result.status();
+  }
+  auto n_result = checked_dim_for_metal(rhs.shape()[1], "N");
+  if (!n_result) {
+    return n_result.status();
+  }
+
+  const auto m = m_result.move_value();
+  const auto k = k_result.move_value();
+  const auto n = n_result.move_value();
+  if (m != 0 && n > std::numeric_limits<std::uint32_t>::max() / m) {
+    return Status(
+        StatusCode::kInvalidArgument,
+        "Metal kernels currently support at most 2^32 - 1 elements");
+  }
+  const std::int64_t output_elements =
+      static_cast<std::int64_t>(m) * static_cast<std::int64_t>(n);
+  auto thread_count_result = checked_thread_count(output_elements);
+  if (!thread_count_result) {
+    return thread_count_result.status();
+  }
+  return MatmulDims{m, k, n, output_elements};
+}
+
 class KernelRuntime {
  public:
   KernelRuntime() : status_(initialize()) {}
@@ -112,6 +172,9 @@ class KernelRuntime {
     }
     if (std::strcmp(name, "fill_i32") == 0) {
       return pipeline_slot(fill_i32_, name);
+    }
+    if (std::strcmp(name, "matmul_f32") == 0) {
+      return pipeline_slot(matmul_f32_, name);
     }
     return Status(StatusCode::kInvalidArgument, "unknown Metal kernel name");
   }
@@ -178,6 +241,7 @@ class KernelRuntime {
   NS::SharedPtr<MTL::ComputePipelineState> add_i32_;
   NS::SharedPtr<MTL::ComputePipelineState> mul_i32_;
   NS::SharedPtr<MTL::ComputePipelineState> fill_i32_;
+  NS::SharedPtr<MTL::ComputePipelineState> matmul_f32_;
 };
 
 KernelRuntime& runtime() {
@@ -326,6 +390,48 @@ Expected<MetalTensor> fill(const OpDesc& op, Shape shape, DType dtype, double va
       }
     }
     encoder.setBytes(&thread_count, sizeof(thread_count), 2);
+  });
+  if (!run_status.ok()) {
+    return run_status;
+  }
+  return output;
+}
+
+Expected<MetalTensor> matmul_custom(const MetalTensor& lhs, const MetalTensor& rhs) {
+  auto dims_result = checked_matmul_dims(lhs, rhs);
+  if (!dims_result) {
+    return dims_result.status();
+  }
+  const auto dims = dims_result.move_value();
+
+  auto output_buffer_result =
+      MetalBuffer::create(DType::kFloat32, static_cast<std::size_t>(dims.output_elements));
+  if (!output_buffer_result) {
+    return output_buffer_result.status();
+  }
+  auto output_buffer = output_buffer_result.move_value();
+  MetalTensor output(DType::kFloat32, Shape{dims.m, dims.n}, output_buffer);
+
+  auto thread_count_result = checked_thread_count(dims.output_elements);
+  if (!thread_count_result) {
+    return thread_count_result.status();
+  }
+  const auto thread_count = thread_count_result.move_value();
+  if (thread_count == 0) {
+    return output;
+  }
+
+  auto pipeline_result = runtime().pipeline("matmul_f32");
+  if (!pipeline_result) {
+    return pipeline_result.status();
+  }
+  const Status run_status = run_threads(*pipeline_result.move_value(), thread_count, [&](MTL::ComputeCommandEncoder& encoder) {
+    encoder.setBuffer(lhs.buffer()->native(), 0, 0);
+    encoder.setBuffer(rhs.buffer()->native(), 0, 1);
+    encoder.setBuffer(output_buffer->native(), 0, 2);
+    encoder.setBytes(&dims.m, sizeof(dims.m), 3);
+    encoder.setBytes(&dims.k, sizeof(dims.k), 4);
+    encoder.setBytes(&dims.n, sizeof(dims.n), 5);
   });
   if (!run_status.ok()) {
     return run_status;

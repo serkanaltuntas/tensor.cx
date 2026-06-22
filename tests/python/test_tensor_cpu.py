@@ -55,6 +55,17 @@ def test_numpy_preserves_tensor_shape():
     np.testing.assert_allclose(x.numpy(), np.zeros((2, 3), dtype=np.float32))
 
 
+def test_tensor_accepts_nested_rank2_data():
+    x = cx.tensor([[1, 2, 3], [4, 5, 6]], dtype=cx.float32, device="cpu")
+
+    assert x.shape == (2, 3)
+    assert x.strides == (3, 1)
+    np.testing.assert_allclose(
+        x.numpy(),
+        np.array([[1, 2, 3], [4, 5, 6]], dtype=np.float32),
+    )
+
+
 def test_add_and_multiply_cpu_int32():
     x = cx.tensor([1, 2, 3], device="cpu")
     y = cx.tensor([4, 5, 6], device="cpu")
@@ -85,6 +96,29 @@ def test_binary_ops_reject_dtype_mismatch():
 
     with pytest.raises(ValueError, match="dtype mismatch"):
         _ = x * y
+
+
+def test_matmul_cpu_float32_matches_numpy():
+    x = cx.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=cx.float32, device="cpu")
+    y = cx.tensor([[7.0, 8.0], [9.0, 10.0], [11.0, 12.0]], dtype=cx.float32, device="cpu")
+
+    expected = x.numpy() @ y.numpy()
+
+    np.testing.assert_allclose(cx.matmul(x, y).numpy(), expected)
+    np.testing.assert_allclose((x @ y).numpy(), expected)
+
+
+def test_matmul_cpu_rejects_invalid_inputs():
+    x = cx.ones((2, 3), dtype=cx.float32, device="cpu")
+    y = cx.ones((2, 3), dtype=cx.float32, device="cpu")
+    z = cx.ones((3, 2), dtype=cx.int32, device="cpu")
+
+    with pytest.raises(ValueError, match="matmul shape mismatch"):
+        cx.matmul(x, y)
+    with pytest.raises(ValueError, match="matmul only supports float32"):
+        cx.matmul(x, z)
+    with pytest.raises(ValueError, match="matmul requires rank-2"):
+        cx.matmul(cx.ones((3,), dtype=cx.float32, device="cpu"), y)
 
 
 def test_tensor_rejects_unsupported_device():

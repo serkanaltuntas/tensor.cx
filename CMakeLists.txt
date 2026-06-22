@@ -12,6 +12,7 @@ find_package(nanobind CONFIG REQUIRED)
 include(FetchContent)
 
 option(CORTEX_ENABLE_METAL "Enable the Apple Metal backend" ${APPLE})
+option(CORTEX_ENABLE_MPSGRAPH "Enable the MPSGraph Metal matmul path" ${CORTEX_ENABLE_METAL})
 
 add_library(cortex_core STATIC
   cpp/cortex/core/dtype.cpp
@@ -40,6 +41,10 @@ if(CORTEX_ENABLE_METAL AND APPLE)
   find_library(FOUNDATION_FRAMEWORK Foundation REQUIRED)
   find_library(QUARTZCORE_FRAMEWORK QuartzCore REQUIRED)
   find_library(METAL_FRAMEWORK Metal REQUIRED)
+  if(CORTEX_ENABLE_MPSGRAPH)
+    enable_language(OBJCXX)
+    find_library(MPSGRAPH_FRAMEWORK MetalPerformanceShadersGraph REQUIRED)
+  endif()
 
   set(CORTEX_METAL_KERNEL_SOURCE
     ${CMAKE_CURRENT_SOURCE_DIR}/cpp/cortex/backends/metal/kernels/elementwise.metal
@@ -82,7 +87,7 @@ if(CORTEX_ENABLE_METAL AND APPLE)
     VERBATIM
   )
 
-  add_library(cortex_metal STATIC
+  set(CORTEX_METAL_SOURCES
     ${CORTEX_METAL_EMBEDDED_CPP}
     cpp/cortex/backends/metal/metal_backend.cpp
     cpp/cortex/backends/metal/metal_buffer.cpp
@@ -91,21 +96,41 @@ if(CORTEX_ENABLE_METAL AND APPLE)
     cpp/cortex/backends/metal/metal_kernels.cpp
     cpp/cortex/backends/metal/metal_tensor.cpp
   )
+  if(CORTEX_ENABLE_MPSGRAPH)
+    list(APPEND CORTEX_METAL_SOURCES
+      cpp/cortex/backends/metal/metal_mpsgraph.mm
+    )
+  endif()
+
+  add_library(cortex_metal STATIC
+    ${CORTEX_METAL_SOURCES}
+  )
   target_compile_features(cortex_metal PUBLIC cxx_std_20)
   target_include_directories(cortex_metal PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/cpp
     ${metal_cpp_SOURCE_DIR}
   )
-  target_compile_definitions(cortex_metal PUBLIC CORTEX_ENABLE_METAL=1)
+  target_compile_definitions(cortex_metal PUBLIC
+    CORTEX_ENABLE_METAL=1
+    CORTEX_ENABLE_MPSGRAPH=$<BOOL:${CORTEX_ENABLE_MPSGRAPH}>
+  )
   target_link_libraries(cortex_metal PUBLIC
     cortex_core
     ${FOUNDATION_FRAMEWORK}
     ${QUARTZCORE_FRAMEWORK}
     ${METAL_FRAMEWORK}
   )
+  if(CORTEX_ENABLE_MPSGRAPH)
+    target_link_libraries(cortex_metal PUBLIC ${MPSGRAPH_FRAMEWORK})
+    set_source_files_properties(
+      cpp/cortex/backends/metal/metal_mpsgraph.mm
+      PROPERTIES COMPILE_FLAGS "-fobjc-arc"
+    )
+  endif()
   set_target_properties(cortex_metal PROPERTIES POSITION_INDEPENDENT_CODE ON)
 else()
   set(CORTEX_ENABLE_METAL OFF)
+  set(CORTEX_ENABLE_MPSGRAPH OFF)
 endif()
 
 nanobind_add_module(_core
@@ -116,6 +141,7 @@ target_link_libraries(_core PRIVATE cortex_core)
 target_compile_definitions(_core PRIVATE
   CORTEX_RUNTIME_VERSION="${PROJECT_VERSION}"
   CORTEX_ENABLE_METAL=$<BOOL:${CORTEX_ENABLE_METAL}>
+  CORTEX_ENABLE_MPSGRAPH=$<BOOL:${CORTEX_ENABLE_MPSGRAPH}>
 )
 
 if(CORTEX_ENABLE_METAL)

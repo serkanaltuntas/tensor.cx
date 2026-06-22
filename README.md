@@ -43,13 +43,15 @@ Run the basic local benchmark with:
 ```bash
 uv run python benchmarks/bench_elementwise.py
 uv run python benchmarks/bench_copy.py
+uv run python benchmarks/bench_matmul.py
 ```
 
 The benchmark scripts use the Phase 4 benchmark sizes by default: 1K, 16K,
 256K, 1M, and 16M float32 elements.
 
 A local Apple Silicon sample run is committed at
-`benchmarks/sample_phase4_apple_silicon.txt`.
+`benchmarks/sample_phase4_apple_silicon.txt`. The Phase 5 matmul sample is at
+`benchmarks/sample_phase5_matmul_apple_silicon.txt`.
 
 ## Verification
 
@@ -67,6 +69,14 @@ uv pip install -e ".[dev]"
 uv run pytest
 uv run python benchmarks/bench_elementwise.py
 uv run python benchmarks/bench_copy.py
+uv run python benchmarks/bench_matmul.py
+```
+
+To verify that custom Metal matmul works without the optimized primitive path:
+
+```bash
+CMAKE_ARGS="-DCORTEX_ENABLE_MPSGRAPH=OFF" uv pip install -e ".[dev]"
+uv run pytest tests/python/test_matmul.py
 ```
 
 Use a smaller benchmark smoke test while iterating:
@@ -74,13 +84,15 @@ Use a smaller benchmark smoke test while iterating:
 ```bash
 uv run python benchmarks/bench_elementwise.py --sizes 1024 --repeats 2
 uv run python benchmarks/bench_copy.py --sizes 1024 --repeats 2
+uv run python benchmarks/bench_matmul.py --sizes 16x16x16 --repeats 2
 ```
 
 ## Current Status
 
-Phase 4 provides the first polished local runtime surface: CPU tensors, Metal
-buffer copies, Metal add/multiply/fill kernels, clearer runtime errors, CPU-only
-CI, and local benchmark scripts for copy and elementwise paths.
+Phase 5 provides CPU reference matmul, a correctness-first custom Metal matmul
+kernel, and an optimized Metal primitive path. The custom kernel remains
+available through `cx.matmul(a, b, backend="custom")`; `backend="optimized"`
+uses the Apple optimized primitive path when it is enabled.
 
 ```python
 import cortex_runtime as cx
@@ -101,6 +113,13 @@ z = x + y
 
 print(z.cpu().numpy()[:5])
 # [2. 2. 2. 2. 2.]
+
+a = cx.randn((2, 3), device="metal", seed=1)
+b = cx.randn((3, 4), device="metal", seed=2)
+c = cx.matmul(a, b)
+
+print(c.shape)
+# (2, 4)
 ```
 
 ## Naming

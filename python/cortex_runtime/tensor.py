@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import numpy as np
+
 from . import _core
 from .device import Device, _normalize_device
 
@@ -71,10 +73,29 @@ class Tensor:
             raise ValueError("device mismatch for binary operation")
         return Tensor(_core.multiply(self._impl, other._impl))
 
+    def __matmul__(self, other: "Tensor") -> "Tensor":
+        if not isinstance(other, Tensor):
+            return NotImplemented
+        return matmul(self, other)
+
 
 def tensor(data, dtype: str | None = None, device: str | Device | None = None) -> Tensor:
     target = _normalize_device(device)
-    cpu_tensor = Tensor(_core.tensor(data, dtype=dtype, device="cpu"))
+    array = np.asarray(data)
+    if array.ndim <= 1:
+        cpu_tensor = Tensor(_core.tensor(array.reshape(-1).tolist(), dtype=dtype, device="cpu"))
+    else:
+        actual_dtype = dtype
+        if actual_dtype is None:
+            actual_dtype = "float32" if np.issubdtype(array.dtype, np.floating) else "int32"
+        cpu_tensor = Tensor(
+            _core.tensor_from_flat(
+                array.reshape(-1).tolist(),
+                shape=tuple(int(dim) for dim in array.shape),
+                dtype=actual_dtype,
+                device="cpu",
+            )
+        )
     return cpu_tensor if target == "cpu" else cpu_tensor.to(target)
 
 
@@ -102,3 +123,27 @@ def ones(shape, dtype: str = "float32", device: str | Device = "cpu") -> Tensor:
         return Tensor(_core.fill(shape, dtype=dtype, value=1.0, device=target))
     cpu_tensor = Tensor(_core.ones(shape, dtype=dtype, device="cpu"))
     return cpu_tensor if target == "cpu" else cpu_tensor.to(target)
+
+
+def randn(
+    shape,
+    dtype: str = "float32",
+    device: str | Device = "cpu",
+    seed: int | None = None,
+) -> Tensor:
+    if dtype != "float32":
+        raise ValueError("randn only supports float32")
+    values = np.random.default_rng(seed).standard_normal(shape).astype(np.float32)
+    return tensor(values, dtype=dtype, device=device)
+
+
+def matmul(lhs: Tensor, rhs: Tensor, backend: str = "auto") -> Tensor:
+    if not isinstance(lhs, Tensor) or not isinstance(rhs, Tensor):
+        raise TypeError("matmul expects Tensor arguments")
+    if lhs.device != rhs.device:
+        raise ValueError("device mismatch for matmul")
+    return Tensor(_core.matmul(lhs._impl, rhs._impl, backend=backend))
+
+
+def matmul_backends(device: str | Device = "cpu") -> list[str]:
+    return list(_core.matmul_backends(_normalize_device(device)))

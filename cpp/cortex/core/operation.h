@@ -6,6 +6,7 @@ enum class OpKind {
   kFill,
   kAdd,
   kMultiply,
+  kMatmul,
 };
 
 struct OpDesc {

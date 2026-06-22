@@ -8,5 +8,6 @@ namespace cortex::cpu {
 CpuTensor empty(Shape shape, DType dtype);
 CpuTensor fill(Shape shape, DType dtype, double value);
 CpuTensor execute_binary(const OpDesc& op, const CpuTensor& lhs, const CpuTensor& rhs);
+CpuTensor matmul(const CpuTensor& lhs, const CpuTensor& rhs);
 
 }  // namespace cortex::cpu
