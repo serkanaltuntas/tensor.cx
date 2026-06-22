@@ -8,6 +8,7 @@
 #include <functional>
 #include <limits>
 #include <memory>
+#include <stdexcept>
 #include <string>
 
 #include "cortex/backends/metal/metal_buffer.h"
@@ -51,9 +52,27 @@ Expected<std::int64_t> checked_numel_for_metal(const Shape& shape) {
     if (dim < 0) {
       return Status(StatusCode::kInvalidArgument, "shape dimensions must be non-negative");
     }
+    if (total != 0 && dim > std::numeric_limits<Dim>::max() / total) {
+      return Status(StatusCode::kInvalidArgument, "shape size overflow");
+    }
     total *= dim;
   }
   return total;
+}
+
+Expected<std::int64_t> checked_shape_for_metal(const Shape& shape) {
+  auto element_count_result = checked_numel_for_metal(shape);
+  if (!element_count_result) {
+    return element_count_result.status();
+  }
+
+  try {
+    (void)cortex::contiguous_strides(shape);
+  } catch (const std::invalid_argument& error) {
+    return Status(StatusCode::kInvalidArgument, error.what());
+  }
+
+  return element_count_result.move_value();
 }
 
 Expected<std::uint32_t> checked_thread_count(std::int64_t size) {
@@ -224,6 +243,11 @@ Expected<MetalTensor> execute_binary(const OpDesc& op, const MetalTensor& lhs, c
     return metadata_status;
   }
 
+  auto thread_count_result = checked_thread_count(lhs.size());
+  if (!thread_count_result) {
+    return thread_count_result.status();
+  }
+  const auto thread_count = thread_count_result.move_value();
   auto output_buffer_result =
       MetalBuffer::create(lhs.dtype(), static_cast<std::size_t>(lhs.size()));
   if (!output_buffer_result) {
@@ -231,11 +255,6 @@ Expected<MetalTensor> execute_binary(const OpDesc& op, const MetalTensor& lhs, c
   }
   auto output_buffer = output_buffer_result.move_value();
   MetalTensor output(lhs.dtype(), lhs.shape(), output_buffer);
-  auto thread_count_result = checked_thread_count(lhs.size());
-  if (!thread_count_result) {
-    return thread_count_result.status();
-  }
-  const auto thread_count = thread_count_result.move_value();
   if (thread_count == 0) {
     return output;
   }
@@ -264,11 +283,16 @@ Expected<MetalTensor> fill(const OpDesc& op, Shape shape, DType dtype, double va
     return Status(StatusCode::kInvalidArgument, "unsupported Metal fill operation");
   }
 
-  auto element_count_result = checked_numel_for_metal(shape);
+  auto element_count_result = checked_shape_for_metal(shape);
   if (!element_count_result) {
     return element_count_result.status();
   }
   const auto element_count = element_count_result.move_value();
+  auto thread_count_result = checked_thread_count(element_count);
+  if (!thread_count_result) {
+    return thread_count_result.status();
+  }
+  const auto thread_count = thread_count_result.move_value();
   auto output_buffer_result =
       MetalBuffer::create(dtype, static_cast<std::size_t>(element_count));
   if (!output_buffer_result) {
@@ -276,11 +300,6 @@ Expected<MetalTensor> fill(const OpDesc& op, Shape shape, DType dtype, double va
   }
   auto output_buffer = output_buffer_result.move_value();
   MetalTensor output(dtype, std::move(shape), output_buffer);
-  auto thread_count_result = checked_thread_count(element_count);
-  if (!thread_count_result) {
-    return thread_count_result.status();
-  }
-  const auto thread_count = thread_count_result.move_value();
   if (thread_count == 0) {
     return output;
   }

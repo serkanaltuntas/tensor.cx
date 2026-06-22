@@ -8,6 +8,11 @@
 namespace cortex::metal {
 
 Expected<std::shared_ptr<MetalBuffer>> MetalBuffer::create(DType dtype, std::size_t elements) {
+  auto& context = default_context();
+  if (!context.ready()) {
+    return context.status();
+  }
+
   auto buffer = std::shared_ptr<MetalBuffer>(new MetalBuffer(dtype, elements));
   if (!buffer->valid()) {
     return Status(StatusCode::kInternal, "failed to allocate Metal buffer");

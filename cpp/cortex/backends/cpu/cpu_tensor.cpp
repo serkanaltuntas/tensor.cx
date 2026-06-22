@@ -11,16 +11,16 @@ namespace cortex::cpu {
 CpuTensor::CpuTensor(DType dtype, Shape shape)
     : dtype_(dtype),
       shape_(std::move(shape)),
-      strides_(contiguous_strides(shape_)),
-      size_(numel(shape_)) {
+      size_(numel(shape_)),
+      strides_(contiguous_strides(shape_)) {
   buffer_ = std::make_shared<CpuBuffer>(dtype_, static_cast<std::size_t>(size_));
 }
 
 CpuTensor::CpuTensor(Shape shape, std::vector<float> values)
     : dtype_(DType::kFloat32),
       shape_(std::move(shape)),
-      strides_(contiguous_strides(shape_)),
       size_(numel(shape_)),
+      strides_(contiguous_strides(shape_)),
       buffer_(std::make_shared<CpuBuffer>(std::move(values))) {
   if (static_cast<std::int64_t>(float_data().size()) != size_) {
     throw std::invalid_argument("tensor data length does not match shape");
@@ -30,8 +30,8 @@ CpuTensor::CpuTensor(Shape shape, std::vector<float> values)
 CpuTensor::CpuTensor(Shape shape, std::vector<std::int32_t> values)
     : dtype_(DType::kInt32),
       shape_(std::move(shape)),
-      strides_(contiguous_strides(shape_)),
       size_(numel(shape_)),
+      strides_(contiguous_strides(shape_)),
       buffer_(std::make_shared<CpuBuffer>(std::move(values))) {
   if (static_cast<std::int64_t>(int32_data().size()) != size_) {
     throw std::invalid_argument("tensor data length does not match shape");

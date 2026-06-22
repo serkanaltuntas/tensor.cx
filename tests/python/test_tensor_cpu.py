@@ -4,6 +4,10 @@ import pytest
 import cortex_runtime as cx
 
 
+HUGE_SHAPE = (3_037_000_500, 3_037_000_500)
+STRIDE_OVERFLOW_SHAPE = (0, 9_223_372_036_854_775_807, 2)
+
+
 def test_tensor_infers_int32_for_integer_list():
     x = cx.tensor([1, 2, 3], device="cpu")
 
@@ -32,6 +36,16 @@ def test_zeros_ones_and_empty_metadata():
     assert empty.shape == (2,)
     assert empty.dtype == cx.float32
     assert empty.nbytes == 8
+
+
+def test_factory_rejects_shape_size_overflow():
+    with pytest.raises(ValueError, match="shape size overflow"):
+        cx.zeros(HUGE_SHAPE, dtype=cx.float32, device="cpu")
+
+
+def test_factory_rejects_shape_stride_overflow():
+    with pytest.raises(ValueError, match="shape stride overflow"):
+        cx.zeros(STRIDE_OVERFLOW_SHAPE, dtype=cx.float32, device="cpu")
 
 
 def test_numpy_preserves_tensor_shape():

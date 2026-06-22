@@ -27,9 +27,9 @@ class MetalTensor {
  private:
   DType dtype_;
   Shape shape_;
+  std::int64_t size_{0};
   Shape strides_;
   Device device_{"metal", 0};
-  std::int64_t size_{0};
   std::shared_ptr<MetalBuffer> buffer_;
 };
 

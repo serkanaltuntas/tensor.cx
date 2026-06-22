@@ -9,14 +9,18 @@
 namespace cortex::metal {
 
 bool available() {
-  return is_available();
+  return default_context().ready();
 }
 
 std::vector<std::string> devices() {
   if (!available()) {
     return {};
   }
-  return {default_context().device_name()};
+  auto& context = default_context();
+  if (!context.ready()) {
+    return {};
+  }
+  return {context.device_name()};
 }
 
 Expected<MetalTensor> from_cpu(const cpu::CpuTensor& tensor) {

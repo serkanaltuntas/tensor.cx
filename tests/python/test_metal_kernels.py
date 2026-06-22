@@ -4,6 +4,11 @@ import pytest
 import cortex_runtime as cx
 
 
+HUGE_SHAPE = (3_037_000_500, 3_037_000_500)
+STRIDE_OVERFLOW_SHAPE = (0, 9_223_372_036_854_775_807, 2)
+TOO_MANY_METAL_THREADS_SHAPE = (4_294_967_296,)
+
+
 def test_best_device_add_success_snippet():
     device = cx.best_device()
 
@@ -54,6 +59,24 @@ def test_metal_fill_float32_matches_cpu():
 
     np.testing.assert_allclose(zeros.cpu().numpy(), zeros_cpu.numpy())
     np.testing.assert_allclose(ones.cpu().numpy(), ones_cpu.numpy())
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_fill_rejects_shape_size_overflow():
+    with pytest.raises(ValueError, match="shape size overflow"):
+        cx.zeros(HUGE_SHAPE, dtype=cx.float32, device="metal")
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_fill_rejects_shape_stride_overflow():
+    with pytest.raises(ValueError, match="shape stride overflow"):
+        cx.zeros(STRIDE_OVERFLOW_SHAPE, dtype=cx.float32, device="metal")
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_fill_rejects_shapes_larger_than_thread_limit_before_allocation():
+    with pytest.raises(ValueError, match="support at most 2\\^32 - 1 elements"):
+        cx.zeros(TOO_MANY_METAL_THREADS_SHAPE, dtype=cx.float32, device="metal")
 
 
 @pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")

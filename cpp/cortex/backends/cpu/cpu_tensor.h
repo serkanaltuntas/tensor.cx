@@ -33,9 +33,9 @@ class CpuTensor {
  private:
   DType dtype_;
   Shape shape_;
+  std::int64_t size_{0};
   Shape strides_;
   Device device_{"cpu", 0};
-  std::int64_t size_{0};
   std::shared_ptr<CpuBuffer> buffer_;
 };
 
