@@ -96,6 +96,9 @@ class Tensor:
     def silu(self) -> "Tensor":
         return silu(self)
 
+    def softmax(self, axis: int) -> "Tensor":
+        return softmax(self, axis=axis)
+
 
 def tensor(data, dtype: str | None = None, device: str | Device | None = None) -> Tensor:
     target = _normalize_device(device)
@@ -204,6 +207,12 @@ def silu(input: Tensor) -> Tensor:
     if not isinstance(input, Tensor):
         raise TypeError("silu expects a Tensor argument")
     return Tensor(_core.silu(input._impl))
+
+
+def softmax(input: Tensor, axis: int) -> Tensor:
+    if not isinstance(input, Tensor):
+        raise TypeError("softmax expects a Tensor argument")
+    return Tensor(_core.softmax(input._impl, axis=axis))
 
 
 def matmul_backends(device: str | Device = "cpu") -> list[str]:

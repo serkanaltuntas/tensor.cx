@@ -87,6 +87,38 @@ ReductionDims reduction_dims(const CpuTensor& input, std::int64_t axis) {
       inner};
 }
 
+void compute_softmax(const CpuTensor& input, CpuTensor& result, const ReductionDims& dims) {
+  const auto& input_data = input.float_data();
+  auto& out = result.mutable_float_data();
+
+  for (std::int64_t outer = 0; outer < dims.outer; ++outer) {
+    for (std::int64_t inner = 0; inner < dims.inner; ++inner) {
+      const auto base = outer * dims.reduce * dims.inner + inner;
+      float max_value = -std::numeric_limits<float>::infinity();
+      for (std::int64_t reduce_index = 0; reduce_index < dims.reduce; ++reduce_index) {
+        const float value =
+            input_data[static_cast<std::size_t>(base + reduce_index * dims.inner)];
+        if (std::isnan(value)) {
+          max_value = value;
+          break;
+        }
+        max_value = std::max(max_value, value);
+      }
+
+      float denom = 0.0F;
+      for (std::int64_t reduce_index = 0; reduce_index < dims.reduce; ++reduce_index) {
+        denom += std::exp(
+            input_data[static_cast<std::size_t>(base + reduce_index * dims.inner)] -
+            max_value);
+      }
+      for (std::int64_t reduce_index = 0; reduce_index < dims.reduce; ++reduce_index) {
+        const auto index = static_cast<std::size_t>(base + reduce_index * dims.inner);
+        out[index] = std::exp(input_data[index] - max_value) / denom;
+      }
+    }
+  }
+}
+
 }  // namespace
 
 CpuTensor empty(Shape shape, DType dtype) {
@@ -117,8 +149,18 @@ CpuTensor execute_unary(const OpDesc& op, const CpuTensor& input) {
   if (input.device().type != "cpu") {
     throw std::invalid_argument("CPU operations require CPU tensors");
   }
-  if (op.kind != OpKind::kExp && op.kind != OpKind::kGelu && op.kind != OpKind::kSilu) {
+  if (op.kind != OpKind::kExp && op.kind != OpKind::kGelu && op.kind != OpKind::kSilu &&
+      op.kind != OpKind::kSoftmax) {
     throw std::invalid_argument("unsupported unary operation");
+  }
+  if (op.kind == OpKind::kSoftmax) {
+    const ReductionDims dims = reduction_dims(input, op.axis);
+    if (input.dtype() != DType::kFloat32) {
+      throw std::invalid_argument("softmax only supports float32 tensors");
+    }
+    CpuTensor result(input.dtype(), input.shape());
+    compute_softmax(input, result, dims);
+    return result;
   }
   if (input.dtype() != DType::kFloat32) {
     switch (op.kind) {

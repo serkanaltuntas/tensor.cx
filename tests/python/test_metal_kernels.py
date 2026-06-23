@@ -183,6 +183,20 @@ def test_metal_gelu_and_silu_float32_match_cpu():
 
 
 @pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_softmax_float32_matches_cpu_on_non_trivial_axis():
+    x_cpu = cx.tensor(
+        [[1000.0, 1001.0, 999.0], [-1000.0, -999.0, -1001.0]],
+        dtype=cx.float32,
+        device="cpu",
+    )
+    x_metal = x_cpu.to("metal")
+
+    cx.testing.assert_allclose(cx.softmax(x_metal, axis=1).cpu(), cx.softmax(x_cpu, axis=1), kind="reduction")
+    cx.testing.assert_allclose(x_metal.softmax(axis=0).cpu(), x_cpu.softmax(axis=0), kind="reduction")
+    assert np.isfinite(cx.softmax(x_metal, axis=1).cpu().numpy()).all()
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
 def test_metal_reductions_support_negative_axis():
     x_cpu = cx.tensor(
         [[[1.0, 2.0], [3.0, 4.0]], [[-1.0, -2.0], [5.0, 6.0]]],
@@ -194,6 +208,7 @@ def test_metal_reductions_support_negative_axis():
     cx.testing.assert_allclose(cx.sum(x_metal, axis=-1).cpu(), cx.sum(x_cpu, axis=-1), kind="reduction")
     cx.testing.assert_allclose(cx.max(x_metal, axis=-2).cpu(), cx.max(x_cpu, axis=-2), kind="reduction")
     cx.testing.assert_allclose(cx.mean(x_metal, axis=-1).cpu(), cx.mean(x_cpu, axis=-1), kind="reduction")
+    cx.testing.assert_allclose(cx.softmax(x_metal, axis=-1).cpu(), cx.softmax(x_cpu, axis=-1), kind="reduction")
 
 
 @pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
@@ -263,6 +278,16 @@ def test_metal_gelu_and_silu_rank0_scalar_return_scalar():
 
 
 @pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_softmax_rank0_scalar_returns_one():
+    x_cpu = cx.tensor(2.0, dtype=cx.float32, device="cpu")
+
+    actual = cx.softmax(x_cpu.to("metal"), axis=0).cpu()
+
+    assert actual.shape == ()
+    cx.testing.assert_allclose(actual, np.array(1.0, dtype=np.float32), kind="reduction")
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
 def test_metal_unary_empty_tensor_returns_empty():
     x = cx.empty((0,), dtype=cx.float32, device="metal")
 
@@ -272,6 +297,16 @@ def test_metal_unary_empty_tensor_returns_empty():
     np.testing.assert_allclose(cx.exp(x).cpu().numpy(), np.array([], dtype=np.float32))
     np.testing.assert_allclose(cx.gelu(x).cpu().numpy(), np.array([], dtype=np.float32))
     np.testing.assert_allclose(cx.silu(x).cpu().numpy(), np.array([], dtype=np.float32))
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_softmax_empty_tensor_returns_empty():
+    x = cx.empty((2, 0), dtype=cx.float32, device="metal")
+
+    actual = cx.softmax(x, axis=1).cpu()
+
+    assert actual.shape == (2, 0)
+    np.testing.assert_allclose(actual.numpy(), np.empty((2, 0), dtype=np.float32))
 
 
 @pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
@@ -325,6 +360,7 @@ def test_metal_sum_empty_axis_returns_zero_and_max_rejects_empty_axis():
 @pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
 def test_metal_reductions_reject_invalid_axis():
     x = cx.ones((2, 3), dtype=cx.float32, device="metal")
+    int_x = cx.ones((2, 3), dtype=cx.int32, device="metal")
 
     with pytest.raises(ValueError, match="reduction axis is out of range"):
         cx.sum(x, axis=2)
@@ -332,6 +368,10 @@ def test_metal_reductions_reject_invalid_axis():
         cx.max(x, axis=-3)
     with pytest.raises(ValueError, match="reduction axis is out of range"):
         cx.mean(x, axis=2)
+    with pytest.raises(ValueError, match="reduction axis is out of range"):
+        cx.softmax(x, axis=2)
+    with pytest.raises(ValueError, match="reduction axis is out of range"):
+        cx.softmax(int_x, axis=2)
 
 
 @pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
@@ -346,3 +386,5 @@ def test_metal_float32_only_ops_reject_int32():
         cx.gelu(x)
     with pytest.raises(ValueError, match="silu only supports float32"):
         cx.silu(x)
+    with pytest.raises(ValueError, match="softmax only supports float32"):
+        cx.softmax(x, axis=0)

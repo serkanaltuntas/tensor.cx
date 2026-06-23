@@ -92,6 +92,38 @@ kernel void silu_f32(device const float* input [[buffer(0)]],
   }
 }
 
+kernel void softmax_f32(device const float* input [[buffer(0)]],
+                        device float* out [[buffer(1)]],
+                        constant uint& total_n [[buffer(2)]],
+                        constant uint& reduce_n [[buffer(3)]],
+                        constant uint& inner_n [[buffer(4)]],
+                        uint id [[thread_position_in_grid]]) {
+  if (id >= total_n) {
+    return;
+  }
+
+  const uint slice_n = reduce_n * inner_n;
+  const uint outer_index = id / slice_n;
+  const uint inner_index = id % inner_n;
+  const uint base = outer_index * slice_n + inner_index;
+
+  float max_value = -INFINITY;
+  for (uint reduce_index = 0; reduce_index < reduce_n; ++reduce_index) {
+    const float value = input[base + reduce_index * inner_n];
+    if (isnan(value)) {
+      max_value = value;
+      break;
+    }
+    max_value = max(max_value, value);
+  }
+
+  float denom = 0.0f;
+  for (uint reduce_index = 0; reduce_index < reduce_n; ++reduce_index) {
+    denom += exp(input[base + reduce_index * inner_n] - max_value);
+  }
+  out[id] = exp(input[id] - max_value) / denom;
+}
+
 kernel void matmul_f32(device const float* lhs [[buffer(0)]],
                        device const float* rhs [[buffer(1)]],
                        device float* out [[buffer(2)]],

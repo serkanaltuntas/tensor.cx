@@ -207,6 +207,10 @@ CpuTensor unary_op(const CpuTensor& input, OpKind kind) {
   return cortex::cpu::execute_unary(OpDesc{kind}, input);
 }
 
+CpuTensor axis_unary_op(const CpuTensor& input, OpKind kind, std::int64_t axis) {
+  return cortex::cpu::execute_unary(OpDesc{kind, axis}, input);
+}
+
 CpuTensor reduction_op(const CpuTensor& input, OpKind kind, std::int64_t axis) {
   return cortex::cpu::reduce(OpDesc{kind, axis}, input);
 }
@@ -349,6 +353,12 @@ NB_MODULE(_core, module) {
                return unary_op(input, OpKind::kSilu);
              },
              nb::arg("input"));
+  module.def("softmax",
+             [](const CpuTensor& input, std::int64_t axis) {
+               return axis_unary_op(input, OpKind::kSoftmax, axis);
+             },
+             nb::arg("input"),
+             nb::arg("axis"));
   module.def("sum",
              [](const CpuTensor& input, std::int64_t axis) {
                return reduction_op(input, OpKind::kSum, axis);
@@ -495,6 +505,12 @@ NB_MODULE(_core, module) {
                return unwrap(cortex::metal::execute_unary(OpDesc{OpKind::kSilu}, input));
              },
              nb::arg("input"));
+  module.def("softmax",
+             [](const cortex::metal::MetalTensor& input, std::int64_t axis) {
+               return unwrap(cortex::metal::execute_unary(OpDesc{OpKind::kSoftmax, axis}, input));
+             },
+             nb::arg("input"),
+             nb::arg("axis"));
   module.def("sum",
              [](const cortex::metal::MetalTensor& input, std::int64_t axis) {
                return unwrap(cortex::metal::reduce(OpDesc{OpKind::kSum, axis}, input));

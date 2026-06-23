@@ -23,6 +23,13 @@ def _silu_reference(values):
     return values / (np.float32(1.0) + np.exp(-values))
 
 
+def _softmax_reference(values, axis):
+    values = np.asarray(values, dtype=np.float32)
+    max_values = np.max(values, axis=axis, keepdims=True)
+    exp_values = np.exp(values - max_values)
+    return exp_values / np.sum(exp_values, axis=axis, keepdims=True)
+
+
 def test_tensor_infers_int32_for_integer_list():
     x = cx.tensor([1, 2, 3], device="cpu")
 
@@ -145,6 +152,18 @@ def test_gelu_and_silu_cpu_float32_match_reference():
     cx.testing.assert_allclose(x.silu(), _silu_reference(x.numpy()), kind="elementwise")
 
 
+def test_softmax_cpu_float32_matches_stable_reference():
+    x = cx.tensor(
+        [[1000.0, 1001.0, 999.0], [-1000.0, -999.0, -1001.0]],
+        dtype=cx.float32,
+        device="cpu",
+    )
+
+    cx.testing.assert_allclose(cx.softmax(x, axis=1), _softmax_reference(x.numpy(), axis=1), kind="reduction")
+    cx.testing.assert_allclose(x.softmax(axis=0), _softmax_reference(x.numpy(), axis=0), kind="reduction")
+    assert np.isfinite(cx.softmax(x, axis=1).numpy()).all()
+
+
 def test_sum_and_max_cpu_support_negative_axis():
     x = cx.tensor(
         [[[1.0, 2.0], [3.0, 4.0]], [[-1.0, -2.0], [5.0, 6.0]]],
@@ -155,6 +174,7 @@ def test_sum_and_max_cpu_support_negative_axis():
     cx.testing.assert_allclose(cx.sum(x, axis=-1), np.sum(x.numpy(), axis=-1), kind="reduction")
     cx.testing.assert_allclose(cx.max(x, axis=-2), np.max(x.numpy(), axis=-2), kind="reduction")
     cx.testing.assert_allclose(cx.mean(x, axis=-1), np.mean(x.numpy(), axis=-1), kind="reduction")
+    cx.testing.assert_allclose(cx.softmax(x, axis=-1), _softmax_reference(x.numpy(), axis=-1), kind="reduction")
 
 
 def test_sum_and_max_cpu_int32_exact():
@@ -212,6 +232,14 @@ def test_gelu_and_silu_rank0_scalar_return_scalar():
     cx.testing.assert_allclose(silu, _silu_reference(x.numpy()), kind="elementwise")
 
 
+def test_softmax_rank0_scalar_returns_one():
+    x = cx.tensor(2.0, dtype=cx.float32, device="cpu")
+    actual = cx.softmax(x, axis=0)
+
+    assert actual.shape == ()
+    cx.testing.assert_allclose(actual, np.array(1.0, dtype=np.float32), kind="reduction")
+
+
 def test_unary_empty_tensor_returns_empty():
     x = cx.empty((0,), dtype=cx.float32, device="cpu")
 
@@ -221,6 +249,15 @@ def test_unary_empty_tensor_returns_empty():
     np.testing.assert_allclose(cx.exp(x).numpy(), np.array([], dtype=np.float32))
     np.testing.assert_allclose(cx.gelu(x).numpy(), np.array([], dtype=np.float32))
     np.testing.assert_allclose(cx.silu(x).numpy(), np.array([], dtype=np.float32))
+
+
+def test_softmax_empty_tensor_returns_empty():
+    x = cx.empty((2, 0), dtype=cx.float32, device="cpu")
+
+    actual = cx.softmax(x, axis=1)
+
+    assert actual.shape == (2, 0)
+    np.testing.assert_allclose(actual.numpy(), np.empty((2, 0), dtype=np.float32))
 
 
 def test_sum_cpu_int32_wraps_two_complement():
@@ -239,17 +276,24 @@ def test_sum_empty_axis_returns_zero_and_max_rejects_empty_axis():
 
 def test_reductions_reject_invalid_axis_and_non_tensor_input():
     x = cx.ones((2, 3), dtype=cx.float32, device="cpu")
+    int_x = cx.ones((2, 3), dtype=cx.int32, device="cpu")
 
     with pytest.raises(ValueError, match="reduction axis is out of range"):
         cx.sum(x, axis=2)
     with pytest.raises(ValueError, match="reduction axis is out of range"):
         cx.max(x, axis=-3)
+    with pytest.raises(ValueError, match="reduction axis is out of range"):
+        cx.softmax(x, axis=2)
+    with pytest.raises(ValueError, match="reduction axis is out of range"):
+        cx.softmax(int_x, axis=2)
     with pytest.raises(TypeError, match="sum expects a Tensor argument"):
         cx.sum([1, 2, 3], axis=0)
     with pytest.raises(TypeError, match="max expects a Tensor argument"):
         cx.max([1, 2, 3], axis=0)
     with pytest.raises(TypeError, match="mean expects a Tensor argument"):
         cx.mean([1, 2, 3], axis=0)
+    with pytest.raises(TypeError, match="softmax expects a Tensor argument"):
+        cx.softmax([1, 2, 3], axis=0)
 
 
 def test_float32_only_ops_reject_int32_and_non_tensor_input():
@@ -263,6 +307,8 @@ def test_float32_only_ops_reject_int32_and_non_tensor_input():
         cx.gelu(x)
     with pytest.raises(ValueError, match="silu only supports float32"):
         cx.silu(x)
+    with pytest.raises(ValueError, match="softmax only supports float32"):
+        cx.softmax(x, axis=0)
     with pytest.raises(TypeError, match="exp expects a Tensor argument"):
         cx.exp([1, 2, 3])
     with pytest.raises(TypeError, match="gelu expects a Tensor argument"):

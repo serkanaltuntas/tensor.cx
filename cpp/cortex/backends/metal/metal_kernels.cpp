@@ -70,6 +70,13 @@ Expected<const char*> unary_kernel_name(OpKind kind, DType dtype) {
   }
 }
 
+Expected<const char*> softmax_kernel_name(DType dtype) {
+  if (dtype != DType::kFloat32) {
+    return Status(StatusCode::kInvalidArgument, "softmax only supports float32 tensors");
+  }
+  return "softmax_f32";
+}
+
 Expected<const char*> reduction_kernel_name(OpKind kind, DType dtype) {
   switch (kind) {
     case OpKind::kSum:
@@ -129,6 +136,12 @@ struct MatmulDims {
 struct ReductionDims {
   Shape output_shape;
   std::uint32_t output_elements;
+  std::uint32_t reduce_elements;
+  std::uint32_t inner_elements;
+};
+
+struct SoftmaxDims {
+  std::uint32_t total_elements;
   std::uint32_t reduce_elements;
   std::uint32_t inner_elements;
 };
@@ -281,6 +294,45 @@ Expected<ReductionDims> checked_reduction_dims(const MetalTensor& input, const O
       inner_elements};
 }
 
+Expected<SoftmaxDims> checked_softmax_dims(const MetalTensor& input, const OpDesc& op) {
+  if (op.kind != OpKind::kSoftmax) {
+    return Status(StatusCode::kInvalidArgument, "unsupported Metal softmax operation");
+  }
+
+  auto total_count_result = checked_thread_count(input.size());
+  if (!total_count_result) {
+    return total_count_result.status();
+  }
+
+  auto axis_result = normalized_axis(op.axis, input.shape().size());
+  if (!axis_result) {
+    return axis_result.status();
+  }
+  const auto axis = static_cast<std::size_t>(axis_result.move_value());
+
+  if (input.shape().empty()) {
+    return SoftmaxDims{1, 1, 1};
+  }
+
+  std::int64_t inner = 1;
+  for (std::size_t index = axis + 1; index < input.shape().size(); ++index) {
+    inner *= input.shape()[index];
+  }
+  auto inner_result = checked_thread_count(inner);
+  if (!inner_result) {
+    return inner_result.status();
+  }
+  auto reduce_result = checked_reduction_extent_for_metal(input.shape()[axis]);
+  if (!reduce_result) {
+    return reduce_result.status();
+  }
+
+  return SoftmaxDims{
+      total_count_result.move_value(),
+      reduce_result.move_value(),
+      inner_result.move_value()};
+}
+
 Expected<MatmulDims> checked_matmul_dims(const MetalTensor& lhs, const MetalTensor& rhs) {
   if (lhs.dtype() != DType::kFloat32 || rhs.dtype() != DType::kFloat32) {
     return Status(StatusCode::kInvalidArgument, "Metal matmul only supports float32 tensors");
@@ -375,6 +427,9 @@ class KernelRuntime {
     if (std::strcmp(name, "silu_f32") == 0) {
       return pipeline_slot(silu_f32_, name);
     }
+    if (std::strcmp(name, "softmax_f32") == 0) {
+      return pipeline_slot(softmax_f32_, name);
+    }
     if (std::strcmp(name, "reduce_sum_f32") == 0) {
       return pipeline_slot(reduce_sum_f32_, name);
     }
@@ -459,6 +514,7 @@ class KernelRuntime {
   NS::SharedPtr<MTL::ComputePipelineState> exp_f32_;
   NS::SharedPtr<MTL::ComputePipelineState> gelu_f32_;
   NS::SharedPtr<MTL::ComputePipelineState> silu_f32_;
+  NS::SharedPtr<MTL::ComputePipelineState> softmax_f32_;
   NS::SharedPtr<MTL::ComputePipelineState> reduce_sum_f32_;
   NS::SharedPtr<MTL::ComputePipelineState> reduce_max_f32_;
   NS::SharedPtr<MTL::ComputePipelineState> reduce_mean_f32_;
@@ -535,7 +591,56 @@ Status run_threads(MTL::ComputePipelineState& pipeline,
 
 }  // namespace
 
+namespace {
+
+Expected<MetalTensor> execute_softmax(const OpDesc& op, const MetalTensor& input) {
+  auto dims_result = checked_softmax_dims(input, op);
+  if (!dims_result) {
+    return dims_result.status();
+  }
+  const auto dims = dims_result.move_value();
+
+  auto kernel_name_result = softmax_kernel_name(input.dtype());
+  if (!kernel_name_result) {
+    return kernel_name_result.status();
+  }
+
+  auto output_buffer_result =
+      MetalBuffer::create(input.dtype(), static_cast<std::size_t>(input.size()));
+  if (!output_buffer_result) {
+    return output_buffer_result.status();
+  }
+  auto output_buffer = output_buffer_result.move_value();
+  MetalTensor output(input.dtype(), input.shape(), output_buffer);
+  if (dims.total_elements == 0) {
+    return output;
+  }
+
+  auto pipeline_result = runtime().pipeline(kernel_name_result.move_value());
+  if (!pipeline_result) {
+    return pipeline_result.status();
+  }
+  const Status run_status =
+      run_threads(*pipeline_result.move_value(), dims.total_elements, [&](MTL::ComputeCommandEncoder& encoder) {
+        encoder.setBuffer(input.buffer()->native(), 0, 0);
+        encoder.setBuffer(output_buffer->native(), 0, 1);
+        encoder.setBytes(&dims.total_elements, sizeof(dims.total_elements), 2);
+        encoder.setBytes(&dims.reduce_elements, sizeof(dims.reduce_elements), 3);
+        encoder.setBytes(&dims.inner_elements, sizeof(dims.inner_elements), 4);
+      });
+  if (!run_status.ok()) {
+    return run_status;
+  }
+  return output;
+}
+
+}  // namespace
+
 Expected<MetalTensor> execute_unary(const OpDesc& op, const MetalTensor& input) {
+  if (op.kind == OpKind::kSoftmax) {
+    return execute_softmax(op, input);
+  }
+
   auto thread_count_result = checked_thread_count(input.size());
   if (!thread_count_result) {
     return thread_count_result.status();

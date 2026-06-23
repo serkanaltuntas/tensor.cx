@@ -1275,9 +1275,12 @@ Progress:
 
 ```text
 - sum and max are implemented for float32 and int32 on CPU and Metal.
-- mean, exp, gelu, and silu are implemented for float32 on CPU and Metal.
+- mean, exp, gelu, silu, and softmax are implemented for float32 on CPU and
+  Metal.
 - Reductions require an explicit axis, support negative axes, and remove the
   reduced axis from the output shape.
+- softmax requires an explicit axis, preserves the input shape, supports
+  negative axes, and uses max-subtraction for numerical stability.
 - sum over an empty axis returns zeros; mean over an empty axis returns NaNs;
   max over an empty axis is rejected.
 ```
