@@ -44,6 +44,10 @@ their phases. See PROJECT.md §16 and AGENTS.md "Out Of Scope For Early Work".
 
 ## Known deferred design work
 
+- **PyTorch portability strategy.** The current roadmap keeps Cortex Runtime
+  independent from PyTorch, but a future integration can be staged through a
+  custom-op bridge before considering a full PyTorch / ATen backend. See
+  [`PYTORCH_PORTABILITY_ROADMAP.md`](PYTORCH_PORTABILITY_ROADMAP.md).
 - **Unified `Backend::execute` dispatch (Phase 8).** The data-driven dispatch
   interface (`cpp/cortex/core/backend.h`) is defined but not yet wired; the live
   path is per-op typed entry points routed by the binding. See
