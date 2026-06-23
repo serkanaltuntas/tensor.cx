@@ -62,6 +62,15 @@ kernel void fill_i32(device int* out [[buffer(0)]],
   }
 }
 
+kernel void exp_f32(device const float* input [[buffer(0)]],
+                    device float* out [[buffer(1)]],
+                    constant uint& n [[buffer(2)]],
+                    uint id [[thread_position_in_grid]]) {
+  if (id < n) {
+    out[id] = exp(input[id]);
+  }
+}
+
 kernel void matmul_f32(device const float* lhs [[buffer(0)]],
                        device const float* rhs [[buffer(1)]],
                        device float* out [[buffer(2)]],
@@ -126,6 +135,31 @@ kernel void reduce_max_f32(device const float* input [[buffer(0)]],
     max_value = max(max_value, value);
   }
   out[id] = max_value;
+}
+
+kernel void reduce_mean_f32(device const float* input [[buffer(0)]],
+                            device float* out [[buffer(1)]],
+                            constant uint& output_n [[buffer(2)]],
+                            constant uint& reduce_n [[buffer(3)]],
+                            constant uint& inner_n [[buffer(4)]],
+                            uint id [[thread_position_in_grid]]) {
+  if (id >= output_n) {
+    return;
+  }
+
+  if (reduce_n == 0) {
+    out[id] = NAN;
+    return;
+  }
+
+  const uint outer_index = id / inner_n;
+  const uint inner_index = id - outer_index * inner_n;
+  const uint base = outer_index * reduce_n * inner_n + inner_index;
+  float sum = 0.0f;
+  for (uint reduce_index = 0; reduce_index < reduce_n; ++reduce_index) {
+    sum += input[base + reduce_index * inner_n];
+  }
+  out[id] = sum / float(reduce_n);
 }
 
 kernel void reduce_sum_i32(device const int* input [[buffer(0)]],

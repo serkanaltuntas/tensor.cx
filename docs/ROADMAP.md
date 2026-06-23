@@ -26,14 +26,14 @@ acceptance criteria, and Definitions of Done also live in `PROJECT.md` (§14).
 - CPU reference backend: `float32`/`int32`, contiguous 1-D/2-D, add / multiply /
   fill / zeros / ones / empty, exact NumPy round-trip.
 - Metal backend: device discovery, buffer host↔device copy, static MSL kernels
-  (`add_f32`/`i32`, `mul_f32`/`i32`, `fill_f32`/`i32`) loaded from a build-time
-  embedded `.metallib`.
+  (`add_f32`/`i32`, `mul_f32`/`i32`, `fill_f32`/`i32`, `exp_f32`) loaded from a
+  build-time embedded `.metallib`.
 - Matmul: a naive custom MSL `matmul_f32` (correctness-first) **and** an MPSGraph
   optimized path. Removing the MPSGraph path leaves a working slow matmul — the
   project is not an MPSGraph wrapper (PROJECT.md §9.2).
-- Reductions: `sum` and `max` on CPU and Metal for `float32` and `int32`, with
-  explicit `axis`, negative-axis support, and CPU-vs-Metal tests on non-trivial
-  axes.
+- Reductions: `sum` and `max` on CPU and Metal for `float32` and `int32`, plus
+  `mean` for `float32`, with explicit `axis`, negative-axis support, and
+  CPU-vs-Metal tests on non-trivial axes.
 - Error taxonomy, CPU CI, benchmarks for copy / elementwise / matmul.
 
 ## Intentionally not implemented yet

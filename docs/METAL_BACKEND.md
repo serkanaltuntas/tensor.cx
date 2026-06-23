@@ -23,12 +23,13 @@ plain C++ tensor/backend APIs.
 
 Current Metal support includes exact CPU/Metal/CPU tensor copy round-trips for
 contiguous `float32` and `int32` tensors, static Metal kernels for add,
-multiply, fill, `sum`, and `max`, a naive custom MSL matmul kernel for
-`float32`, and an optional MPSGraph-backed matmul path for the Apple optimized
-primitive route. Reductions require an explicit axis and support negative axes;
-`sum` over an empty axis returns zeros, while `max` over an empty axis is
-rejected. Zero-element tensors are represented without allocating a zero-length
-Metal buffer, and their copy and kernel paths are no-ops.
+multiply, fill, `exp`, `sum`, `max`, and `mean`, a naive custom MSL matmul
+kernel for `float32`, and an optional MPSGraph-backed matmul path for the Apple
+optimized primitive route. Reductions require an explicit axis and support
+negative axes; `sum` over an empty axis returns zeros, `mean` over an empty axis
+returns NaNs, and `max` over an empty axis is rejected. Zero-element tensors are
+represented without allocating a zero-length Metal buffer, and their copy and
+kernel paths are no-ops.
 
 The MPSGraph integration is isolated in `metal_mpsgraph.mm`. The backend-neutral
 core and Python binding surface do not expose MPSGraph or Objective-C types.
@@ -66,6 +67,7 @@ binding without first making the pipeline cache thread-safe.
 - Only contiguous tensors are supported.
 - Metal kernels currently support at most 2^32 - 1 elements per launch.
 - Matmul currently supports float32 rank-2 tensors only.
+- `mean` and `exp` currently support float32 tensors only.
 - Reduction kernels are correctness-first and use one thread per output element;
   they are not optimized for large reduction axes yet.
 - Execution is synchronous and holds the GIL; not safe for concurrent

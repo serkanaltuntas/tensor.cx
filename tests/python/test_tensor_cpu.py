@@ -97,6 +97,30 @@ def test_max_cpu_float32_propagates_nan_like_numpy():
     cx.testing.assert_allclose(cx.max(x, axis=1), np.max(x.numpy(), axis=1), kind="reduction")
 
 
+def test_mean_cpu_float32_matches_numpy():
+    x = cx.tensor([[1.0, -2.0, 3.0], [4.0, 5.0, -6.0]], dtype=cx.float32, device="cpu")
+
+    cx.testing.assert_allclose(cx.mean(x, axis=1), np.mean(x.numpy(), axis=1), kind="reduction")
+    cx.testing.assert_allclose(x.mean(axis=0), np.mean(x.numpy(), axis=0), kind="reduction")
+
+
+def test_mean_cpu_empty_axis_returns_nan():
+    x = cx.empty((2, 0), dtype=cx.float32, device="cpu")
+
+    cx.testing.assert_allclose(
+        cx.mean(x, axis=1),
+        np.array([np.nan, np.nan], dtype=np.float32),
+        kind="reduction",
+    )
+
+
+def test_exp_cpu_float32_matches_numpy():
+    x = cx.tensor([-2.0, -0.5, 0.0, 1.0, 3.0], dtype=cx.float32, device="cpu")
+
+    cx.testing.assert_allclose(cx.exp(x), np.exp(x.numpy()), kind="elementwise")
+    cx.testing.assert_allclose(x.exp(), np.exp(x.numpy()), kind="elementwise")
+
+
 def test_sum_and_max_cpu_support_negative_axis():
     x = cx.tensor(
         [[[1.0, 2.0], [3.0, 4.0]], [[-1.0, -2.0], [5.0, 6.0]]],
@@ -106,6 +130,7 @@ def test_sum_and_max_cpu_support_negative_axis():
 
     cx.testing.assert_allclose(cx.sum(x, axis=-1), np.sum(x.numpy(), axis=-1), kind="reduction")
     cx.testing.assert_allclose(cx.max(x, axis=-2), np.max(x.numpy(), axis=-2), kind="reduction")
+    cx.testing.assert_allclose(cx.mean(x, axis=-1), np.mean(x.numpy(), axis=-1), kind="reduction")
 
 
 def test_sum_and_max_cpu_int32_exact():
@@ -129,14 +154,26 @@ def test_rank1_reduction_returns_rank0_scalar():
 
 def test_rank0_scalar_reduction_returns_scalar():
     x = cx.tensor(5, dtype=cx.int32, device="cpu")
+    y = cx.tensor(5.0, dtype=cx.float32, device="cpu")
 
     summed = cx.sum(x, axis=0)
     maximum = cx.max(x, axis=-1)
+    mean = cx.mean(y, axis=0)
 
     assert summed.shape == ()
     assert maximum.shape == ()
+    assert mean.shape == ()
     assert summed.numpy().item() == 5
     assert maximum.numpy().item() == 5
+    assert mean.numpy().item() == 5.0
+
+
+def test_exp_rank0_scalar_returns_scalar():
+    x = cx.tensor(2.0, dtype=cx.float32, device="cpu")
+    actual = cx.exp(x)
+
+    assert actual.shape == ()
+    cx.testing.assert_allclose(actual, np.exp(x.numpy()), kind="elementwise")
 
 
 def test_sum_cpu_int32_wraps_two_complement():
@@ -164,6 +201,19 @@ def test_reductions_reject_invalid_axis_and_non_tensor_input():
         cx.sum([1, 2, 3], axis=0)
     with pytest.raises(TypeError, match="max expects a Tensor argument"):
         cx.max([1, 2, 3], axis=0)
+    with pytest.raises(TypeError, match="mean expects a Tensor argument"):
+        cx.mean([1, 2, 3], axis=0)
+
+
+def test_float32_only_ops_reject_int32_and_non_tensor_input():
+    x = cx.tensor([1, 2, 3], dtype=cx.int32, device="cpu")
+
+    with pytest.raises(ValueError, match="mean only supports float32"):
+        cx.mean(x, axis=0)
+    with pytest.raises(ValueError, match="exp only supports float32"):
+        cx.exp(x)
+    with pytest.raises(TypeError, match="exp expects a Tensor argument"):
+        cx.exp([1, 2, 3])
 
 
 def test_binary_ops_reject_shape_mismatch():

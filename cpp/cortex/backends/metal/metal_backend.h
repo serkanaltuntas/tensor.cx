@@ -16,6 +16,7 @@ std::vector<std::string> devices();
 Expected<MetalTensor> from_cpu(const cpu::CpuTensor& tensor);
 Expected<cpu::CpuTensor> to_cpu(const MetalTensor& tensor);
 Expected<MetalTensor> fill(const OpDesc& op, Shape shape, DType dtype, double value);
+Expected<MetalTensor> execute_unary(const OpDesc& op, const MetalTensor& input);
 Expected<MetalTensor> execute_binary(const OpDesc& op, const MetalTensor& lhs, const MetalTensor& rhs);
 Expected<MetalTensor> reduce(const OpDesc& op, const MetalTensor& input);
 

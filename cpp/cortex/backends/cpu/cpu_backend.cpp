@@ -110,6 +110,26 @@ CpuTensor fill(Shape shape, DType dtype, double value) {
   return result;
 }
 
+CpuTensor execute_unary(const OpDesc& op, const CpuTensor& input) {
+  if (input.device().type != "cpu") {
+    throw std::invalid_argument("CPU operations require CPU tensors");
+  }
+  if (op.kind != OpKind::kExp) {
+    throw std::invalid_argument("unsupported unary operation");
+  }
+  if (input.dtype() != DType::kFloat32) {
+    throw std::invalid_argument("exp only supports float32 tensors");
+  }
+
+  CpuTensor result(input.dtype(), input.shape());
+  const auto& input_data = input.float_data();
+  auto& out = result.mutable_float_data();
+  for (std::size_t i = 0; i < out.size(); ++i) {
+    out[i] = std::exp(input_data[i]);
+  }
+  return result;
+}
+
 CpuTensor execute_binary(const OpDesc& op, const CpuTensor& lhs, const CpuTensor& rhs) {
   validate_binary_inputs(lhs, rhs);
 
@@ -166,6 +186,9 @@ CpuTensor reduce(const OpDesc& op, const CpuTensor& input) {
   if (op.kind == OpKind::kMax && dims.reduce == 0) {
     throw std::invalid_argument("max reduction requires a non-empty axis");
   }
+  if (op.kind == OpKind::kMean && input.dtype() != DType::kFloat32) {
+    throw std::invalid_argument("mean only supports float32 tensors");
+  }
 
   CpuTensor result(input.dtype(), dims.output_shape);
   switch (input.dtype()) {
@@ -198,6 +221,19 @@ CpuTensor reduce(const OpDesc& op, const CpuTensor& input) {
               max_value = std::max(max_value, value);
             }
             out[static_cast<std::size_t>(id)] = max_value;
+            break;
+          }
+          case OpKind::kMean: {
+            if (dims.reduce == 0) {
+              out[static_cast<std::size_t>(id)] = std::numeric_limits<float>::quiet_NaN();
+              break;
+            }
+            float sum = 0.0F;
+            for (std::int64_t reduce_index = 0; reduce_index < dims.reduce; ++reduce_index) {
+              sum += input_data[static_cast<std::size_t>(
+                  base + reduce_index * dims.inner)];
+            }
+            out[static_cast<std::size_t>(id)] = sum / static_cast<float>(dims.reduce);
             break;
           }
           default:

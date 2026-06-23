@@ -84,6 +84,12 @@ class Tensor:
     def max(self, axis: int) -> "Tensor":
         return max(self, axis=axis)
 
+    def mean(self, axis: int) -> "Tensor":
+        return mean(self, axis=axis)
+
+    def exp(self) -> "Tensor":
+        return exp(self)
+
 
 def tensor(data, dtype: str | None = None, device: str | Device | None = None) -> Tensor:
     target = _normalize_device(device)
@@ -168,6 +174,18 @@ def max(input: Tensor, axis: int) -> Tensor:
     if not isinstance(input, Tensor):
         raise TypeError("max expects a Tensor argument")
     return Tensor(_core.max(input._impl, axis=axis))
+
+
+def mean(input: Tensor, axis: int) -> Tensor:
+    if not isinstance(input, Tensor):
+        raise TypeError("mean expects a Tensor argument")
+    return Tensor(_core.mean(input._impl, axis=axis))
+
+
+def exp(input: Tensor) -> Tensor:
+    if not isinstance(input, Tensor):
+        raise TypeError("exp expects a Tensor argument")
+    return Tensor(_core.exp(input._impl))
 
 
 def matmul_backends(device: str | Device = "cpu") -> list[str]:

@@ -203,6 +203,10 @@ CpuTensor binary_op(const CpuTensor& lhs, const CpuTensor& rhs, OpKind kind) {
   return cortex::cpu::execute_binary(OpDesc{kind}, lhs, rhs);
 }
 
+CpuTensor unary_op(const CpuTensor& input, OpKind kind) {
+  return cortex::cpu::execute_unary(OpDesc{kind}, input);
+}
+
 CpuTensor reduction_op(const CpuTensor& input, OpKind kind, std::int64_t axis) {
   return cortex::cpu::reduce(OpDesc{kind, axis}, input);
 }
@@ -330,6 +334,11 @@ NB_MODULE(_core, module) {
              },
              nb::arg("lhs"),
              nb::arg("rhs"));
+  module.def("exp",
+             [](const CpuTensor& input) {
+               return unary_op(input, OpKind::kExp);
+             },
+             nb::arg("input"));
   module.def("sum",
              [](const CpuTensor& input, std::int64_t axis) {
                return reduction_op(input, OpKind::kSum, axis);
@@ -339,6 +348,12 @@ NB_MODULE(_core, module) {
   module.def("max",
              [](const CpuTensor& input, std::int64_t axis) {
                return reduction_op(input, OpKind::kMax, axis);
+             },
+             nb::arg("input"),
+             nb::arg("axis"));
+  module.def("mean",
+             [](const CpuTensor& input, std::int64_t axis) {
+               return reduction_op(input, OpKind::kMean, axis);
              },
              nb::arg("input"),
              nb::arg("axis"));
@@ -455,6 +470,11 @@ NB_MODULE(_core, module) {
              },
              nb::arg("lhs"),
              nb::arg("rhs"));
+  module.def("exp",
+             [](const cortex::metal::MetalTensor& input) {
+               return unwrap(cortex::metal::execute_unary(OpDesc{OpKind::kExp}, input));
+             },
+             nb::arg("input"));
   module.def("sum",
              [](const cortex::metal::MetalTensor& input, std::int64_t axis) {
                return unwrap(cortex::metal::reduce(OpDesc{OpKind::kSum, axis}, input));
@@ -464,6 +484,12 @@ NB_MODULE(_core, module) {
   module.def("max",
              [](const cortex::metal::MetalTensor& input, std::int64_t axis) {
                return unwrap(cortex::metal::reduce(OpDesc{OpKind::kMax, axis}, input));
+             },
+             nb::arg("input"),
+             nb::arg("axis"));
+  module.def("mean",
+             [](const cortex::metal::MetalTensor& input, std::int64_t axis) {
+               return unwrap(cortex::metal::reduce(OpDesc{OpKind::kMean, axis}, input));
              },
              nb::arg("input"),
              nb::arg("axis"));

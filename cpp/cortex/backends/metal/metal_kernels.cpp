@@ -10,6 +10,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 #include "cortex/backends/metal/metal_buffer.h"
 #include "cortex/backends/metal/metal_context.h"
@@ -47,15 +48,65 @@ Expected<const char*> fill_kernel_name(DType dtype) {
   return Status(StatusCode::kInvalidArgument, "unsupported Metal fill dtype");
 }
 
+Expected<const char*> unary_kernel_name(OpKind kind, DType dtype) {
+  switch (kind) {
+    case OpKind::kExp:
+      if (dtype != DType::kFloat32) {
+        return Status(StatusCode::kInvalidArgument, "exp only supports float32 tensors");
+      }
+      return "exp_f32";
+    default:
+      return Status(StatusCode::kInvalidArgument, "unsupported Metal unary operation");
+  }
+}
+
 Expected<const char*> reduction_kernel_name(OpKind kind, DType dtype) {
   switch (kind) {
     case OpKind::kSum:
       return dtype == DType::kFloat32 ? "reduce_sum_f32" : "reduce_sum_i32";
     case OpKind::kMax:
       return dtype == DType::kFloat32 ? "reduce_max_f32" : "reduce_max_i32";
+    case OpKind::kMean:
+      if (dtype != DType::kFloat32) {
+        return Status(StatusCode::kInvalidArgument, "mean only supports float32 tensors");
+      }
+      return "reduce_mean_f32";
     default:
       return Status(StatusCode::kInvalidArgument, "unsupported Metal reduction operation");
   }
+}
+
+Status fill_empty_reduction_output(
+    OpKind kind,
+    DType dtype,
+    std::uint32_t output_elements,
+    const std::shared_ptr<MetalBuffer>& output_buffer) {
+  switch (kind) {
+    case OpKind::kSum: {
+      switch (dtype) {
+        case DType::kFloat32: {
+          const std::vector<float> zeros(output_elements, 0.0F);
+          return output_buffer->copy_from_host(zeros.data(), output_buffer->nbytes());
+        }
+        case DType::kInt32: {
+          const std::vector<std::int32_t> zeros(output_elements, 0);
+          return output_buffer->copy_from_host(zeros.data(), output_buffer->nbytes());
+        }
+      }
+      break;
+    }
+    case OpKind::kMean: {
+      if (dtype != DType::kFloat32) {
+        return Status(StatusCode::kInvalidArgument, "mean only supports float32 tensors");
+      }
+      const std::vector<float> values(
+          output_elements, std::numeric_limits<float>::quiet_NaN());
+      return output_buffer->copy_from_host(values.data(), output_buffer->nbytes());
+    }
+    default:
+      break;
+  }
+  return Status(StatusCode::kInvalidArgument, "unsupported empty reduction operation");
 }
 
 struct MatmulDims {
@@ -155,7 +206,7 @@ Expected<std::int64_t> normalized_axis(std::int64_t axis, const std::size_t rank
 }
 
 Expected<ReductionDims> checked_reduction_dims(const MetalTensor& input, const OpDesc& op) {
-  if (op.kind != OpKind::kSum && op.kind != OpKind::kMax) {
+  if (op.kind != OpKind::kSum && op.kind != OpKind::kMax && op.kind != OpKind::kMean) {
     return Status(StatusCode::kInvalidArgument, "unsupported Metal reduction operation");
   }
 
@@ -305,11 +356,17 @@ class KernelRuntime {
     if (std::strcmp(name, "matmul_f32") == 0) {
       return pipeline_slot(matmul_f32_, name);
     }
+    if (std::strcmp(name, "exp_f32") == 0) {
+      return pipeline_slot(exp_f32_, name);
+    }
     if (std::strcmp(name, "reduce_sum_f32") == 0) {
       return pipeline_slot(reduce_sum_f32_, name);
     }
     if (std::strcmp(name, "reduce_max_f32") == 0) {
       return pipeline_slot(reduce_max_f32_, name);
+    }
+    if (std::strcmp(name, "reduce_mean_f32") == 0) {
+      return pipeline_slot(reduce_mean_f32_, name);
     }
     if (std::strcmp(name, "reduce_sum_i32") == 0) {
       return pipeline_slot(reduce_sum_i32_, name);
@@ -383,8 +440,10 @@ class KernelRuntime {
   NS::SharedPtr<MTL::ComputePipelineState> mul_i32_;
   NS::SharedPtr<MTL::ComputePipelineState> fill_i32_;
   NS::SharedPtr<MTL::ComputePipelineState> matmul_f32_;
+  NS::SharedPtr<MTL::ComputePipelineState> exp_f32_;
   NS::SharedPtr<MTL::ComputePipelineState> reduce_sum_f32_;
   NS::SharedPtr<MTL::ComputePipelineState> reduce_max_f32_;
+  NS::SharedPtr<MTL::ComputePipelineState> reduce_mean_f32_;
   NS::SharedPtr<MTL::ComputePipelineState> reduce_sum_i32_;
   NS::SharedPtr<MTL::ComputePipelineState> reduce_max_i32_;
 };
@@ -457,6 +516,42 @@ Status run_threads(MTL::ComputePipelineState& pipeline,
 }
 
 }  // namespace
+
+Expected<MetalTensor> execute_unary(const OpDesc& op, const MetalTensor& input) {
+  auto thread_count_result = checked_thread_count(input.size());
+  if (!thread_count_result) {
+    return thread_count_result.status();
+  }
+  const auto thread_count = thread_count_result.move_value();
+  auto kernel_name_result = unary_kernel_name(op.kind, input.dtype());
+  if (!kernel_name_result) {
+    return kernel_name_result.status();
+  }
+  auto output_buffer_result =
+      MetalBuffer::create(input.dtype(), static_cast<std::size_t>(input.size()));
+  if (!output_buffer_result) {
+    return output_buffer_result.status();
+  }
+  auto output_buffer = output_buffer_result.move_value();
+  MetalTensor output(input.dtype(), input.shape(), output_buffer);
+  if (thread_count == 0) {
+    return output;
+  }
+  auto pipeline_result = runtime().pipeline(kernel_name_result.move_value());
+  if (!pipeline_result) {
+    return pipeline_result.status();
+  }
+  const Status run_status =
+      run_threads(*pipeline_result.move_value(), thread_count, [&](MTL::ComputeCommandEncoder& encoder) {
+        encoder.setBuffer(input.buffer()->native(), 0, 0);
+        encoder.setBuffer(output_buffer->native(), 0, 1);
+        encoder.setBytes(&thread_count, sizeof(thread_count), 2);
+      });
+  if (!run_status.ok()) {
+    return run_status;
+  }
+  return output;
+}
 
 Expected<MetalTensor> execute_binary(const OpDesc& op, const MetalTensor& lhs, const MetalTensor& rhs) {
   const Status metadata_status = validate_same_metadata(lhs, rhs);
@@ -565,6 +660,9 @@ Expected<MetalTensor> reduce(const OpDesc& op, const MetalTensor& input) {
     return dims_result.status();
   }
   auto dims = dims_result.move_value();
+  if (op.kind == OpKind::kMean && input.dtype() != DType::kFloat32) {
+    return Status(StatusCode::kInvalidArgument, "mean only supports float32 tensors");
+  }
 
   auto output_buffer_result =
       MetalBuffer::create(input.dtype(), static_cast<std::size_t>(dims.output_elements));
@@ -574,6 +672,14 @@ Expected<MetalTensor> reduce(const OpDesc& op, const MetalTensor& input) {
   auto output_buffer = output_buffer_result.move_value();
   MetalTensor output(input.dtype(), dims.output_shape, output_buffer);
   if (dims.output_elements == 0) {
+    return output;
+  }
+  if (dims.reduce_elements == 0) {
+    const Status fill_status = fill_empty_reduction_output(
+        op.kind, input.dtype(), dims.output_elements, output_buffer);
+    if (!fill_status.ok()) {
+      return fill_status;
+    }
     return output;
   }
 

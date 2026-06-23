@@ -1275,9 +1275,11 @@ Progress:
 
 ```text
 - sum and max are implemented for float32 and int32 on CPU and Metal.
+- mean and exp are implemented for float32 on CPU and Metal.
 - Reductions require an explicit axis, support negative axes, and remove the
   reduced axis from the output shape.
-- sum over an empty axis returns zeros; max over an empty axis is rejected.
+- sum over an empty axis returns zeros; mean over an empty axis returns NaNs;
+  max over an empty axis is rejected.
 ```
 
 Acceptance criteria:

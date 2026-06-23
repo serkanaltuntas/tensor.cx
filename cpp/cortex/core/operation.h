@@ -11,6 +11,8 @@ enum class OpKind {
   kMatmul,
   kSum,
   kMax,
+  kMean,
+  kExp,
 };
 
 // §5.6 specifies OpDesc as "an op enum plus attributes". Through Phase 5 it
