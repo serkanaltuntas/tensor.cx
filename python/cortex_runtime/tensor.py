@@ -78,6 +78,12 @@ class Tensor:
             return NotImplemented
         return matmul(self, other)
 
+    def sum(self, axis: int) -> "Tensor":
+        return sum(self, axis=axis)
+
+    def max(self, axis: int) -> "Tensor":
+        return max(self, axis=axis)
+
 
 def tensor(data, dtype: str | None = None, device: str | Device | None = None) -> Tensor:
     target = _normalize_device(device)
@@ -150,6 +156,18 @@ def matmul(lhs: Tensor, rhs: Tensor, backend: str = "auto") -> Tensor:
     if lhs.device != rhs.device:
         raise ValueError("device mismatch for matmul")
     return Tensor(_core.matmul(lhs._impl, rhs._impl, backend=backend))
+
+
+def sum(input: Tensor, axis: int) -> Tensor:
+    if not isinstance(input, Tensor):
+        raise TypeError("sum expects a Tensor argument")
+    return Tensor(_core.sum(input._impl, axis=axis))
+
+
+def max(input: Tensor, axis: int) -> Tensor:
+    if not isinstance(input, Tensor):
+        raise TypeError("max expects a Tensor argument")
+    return Tensor(_core.max(input._impl, axis=axis))
 
 
 def matmul_backends(device: str | Device = "cpu") -> list[str]:

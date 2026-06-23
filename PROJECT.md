@@ -39,7 +39,7 @@ C++ namespace: cortex
 > CI (CPU) or on the local Mac (Metal).
 
 ```text
-Current phase:          Phase 6 — not started
+Current phase:          Phase 6 — in progress
 Last verified milestone: Phase 5 — Matmul custom MSL + MPSGraph
 v0.1 target:            achieved at end of Phase 3
 Binding decided:        nanobind (see §5.6)
@@ -1269,6 +1269,15 @@ Implementation strategy:
 - simple MSL kernels first
 - optimize only after benchmarks
 - keep CPU references mandatory
+```
+
+Progress:
+
+```text
+- sum and max are implemented for float32 and int32 on CPU and Metal.
+- Reductions require an explicit axis, support negative axes, and remove the
+  reduced axis from the output shape.
+- sum over an empty axis returns zeros; max over an empty axis is rejected.
 ```
 
 Acceptance criteria:

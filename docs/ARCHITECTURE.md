@@ -20,12 +20,13 @@ other Apple API types stay inside `cpp/cortex/backends/metal/`.
 
 Phase 5 completed the first matmul paths: CPU reference matmul, a
 correctness-first custom Metal matmul kernel, and an MPSGraph-backed Metal
-matmul path. Phase 6 is the next planned phase and should start with reductions
-and neural-network primitives.
+matmul path. Phase 6 is in progress, starting with `sum` and `max` reductions on
+CPU and Metal.
 
 The public Python `Tensor` wraps backend-specific native tensor objects. CPU and
 Metal tensors both support add and multiply; Metal tensors also support direct
-fill through `zeros` and `ones`, plus rank-2 float32 matmul.
+fill through `zeros` and `ones`, rank-2 float32 matmul, and axis-based
+`sum`/`max` reductions.
 
 Python binary operations dispatch through shared native `_core.add` and
 `_core.multiply` entrypoints with CPU and Metal overloads. The early fill path is
@@ -40,19 +41,20 @@ enum, rather than one method per operation. That interface exists in
 `cpp/cortex/core/backend.h`, but through Phase 5 it is a **design placeholder —
 no backend implements it and nothing calls it.** The dispatch that actually runs
 is a set of per-op typed entry points in each backend (`cpu::execute_binary`,
-`cpu::matmul`, `cpu::fill`, `metal::execute_binary`, `metal::matmul_custom`,
-`metal::matmul_mpsgraph`, `metal::fill`), selected by the nanobind layer from the
-operand tensor type and device. `OpDesc` is passed to the binary entry points
-(and Metal's `fill`) and tags the op `kind`, but it carries no attributes yet —
-CPU `fill` does not even take an `OpDesc` — so fill's value and matmul's backend
-choice travel as ordinary arguments.
+`cpu::reduce`, `cpu::matmul`, `cpu::fill`, `metal::execute_binary`,
+`metal::reduce`, `metal::matmul_custom`, `metal::matmul_mpsgraph`,
+`metal::fill`), selected by the nanobind layer from the operand tensor type and
+device. `OpDesc` is passed to the binary and reduction entry points (and
+Metal's `fill`) and tags the op `kind`. Phase 6 adds a minimal `axis` attribute
+to `OpDesc` for reduction entry points. Other op parameters, such as fill's
+value and matmul's backend choice, still travel as ordinary arguments.
 
 This is a deliberate, documented deviation kept small per the "avoid unrelated
-refactors" rule: unifying the backends onto `Backend::execute` (and giving
-`OpDesc` attributes) is the work of **Phase 8 — Backend interface hardening**,
-whose Definition of Done already requires a stub backend that compiles against
-this interface alone. Until then, do not read `backend.h` as the live dispatch
-path; read it as the contract Phase 8 implements.
+refactors" rule: unifying the backends onto `Backend::execute` is the work of
+**Phase 8 — Backend interface hardening**, whose Definition of Done already
+requires a stub backend that compiles against this interface alone. Until then,
+do not read `backend.h` as the live dispatch path; read it as the contract Phase
+8 implements.
 
 ## Core Principles
 
@@ -81,6 +83,8 @@ Binary dtype mismatch             ValueError        dtype mismatch
 Matmul rank mismatch              ValueError        matmul requires rank-2
 Matmul shape mismatch             ValueError        matmul shape mismatch
 Matmul dtype mismatch             ValueError        matmul only supports float32
+Reduction axis out of range       ValueError        reduction axis is out of range
+Max over empty axis               ValueError        max reduction requires a non-empty axis
 Negative shape dimension          ValueError        shape dimensions must be non-negative
 Shape element-count overflow      ValueError        shape size overflow
 Shape stride overflow             ValueError        shape stride overflow

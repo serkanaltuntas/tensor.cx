@@ -132,3 +132,119 @@ def test_metal_fill_int32_matches_cpu():
 
     np.testing.assert_array_equal(zeros.cpu().numpy(), zeros_cpu.numpy())
     np.testing.assert_array_equal(ones.cpu().numpy(), ones_cpu.numpy())
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_sum_and_max_float32_match_cpu_on_non_trivial_axis():
+    x_cpu = cx.tensor(
+        [[1.0, -2.0, 3.0], [4.0, 5.0, -6.0]],
+        dtype=cx.float32,
+        device="cpu",
+    )
+    x_metal = x_cpu.to("metal")
+
+    cx.testing.assert_allclose(cx.sum(x_metal, axis=1).cpu(), cx.sum(x_cpu, axis=1), kind="reduction")
+    cx.testing.assert_allclose(x_metal.sum(axis=0).cpu(), x_cpu.sum(axis=0), kind="reduction")
+    cx.testing.assert_allclose(cx.max(x_metal, axis=1).cpu(), cx.max(x_cpu, axis=1), kind="reduction")
+    cx.testing.assert_allclose(x_metal.max(axis=0).cpu(), x_cpu.max(axis=0), kind="reduction")
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_reductions_support_negative_axis():
+    x_cpu = cx.tensor(
+        [[[1.0, 2.0], [3.0, 4.0]], [[-1.0, -2.0], [5.0, 6.0]]],
+        dtype=cx.float32,
+        device="cpu",
+    )
+    x_metal = x_cpu.to("metal")
+
+    cx.testing.assert_allclose(cx.sum(x_metal, axis=-1).cpu(), cx.sum(x_cpu, axis=-1), kind="reduction")
+    cx.testing.assert_allclose(cx.max(x_metal, axis=-2).cpu(), cx.max(x_cpu, axis=-2), kind="reduction")
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_sum_and_max_int32_match_cpu():
+    x_cpu = cx.tensor([[1, 2, 3], [4, 5, 6]], dtype=cx.int32, device="cpu")
+    x_metal = x_cpu.to("metal")
+
+    np.testing.assert_array_equal(cx.sum(x_metal, axis=1).cpu().numpy(), cx.sum(x_cpu, axis=1).numpy())
+    np.testing.assert_array_equal(cx.max(x_metal, axis=0).cpu().numpy(), cx.max(x_cpu, axis=0).numpy())
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_rank1_reduction_returns_rank0_scalar():
+    x_cpu = cx.tensor([1, 2, 3], dtype=cx.int32, device="cpu")
+    x_metal = x_cpu.to("metal")
+
+    summed = cx.sum(x_metal, axis=0).cpu()
+    maximum = cx.max(x_metal, axis=0).cpu()
+
+    assert summed.shape == ()
+    assert maximum.shape == ()
+    assert summed.numpy().item() == 6
+    assert maximum.numpy().item() == 3
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_rank0_scalar_reduction_returns_scalar():
+    x_cpu = cx.tensor(5, dtype=cx.int32, device="cpu")
+    x_metal = x_cpu.to("metal")
+
+    summed = cx.sum(x_metal, axis=0).cpu()
+    maximum = cx.max(x_metal, axis=-1).cpu()
+
+    assert summed.shape == ()
+    assert maximum.shape == ()
+    assert summed.numpy().item() == 5
+    assert maximum.numpy().item() == 5
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_max_float32_negative_infinity_matches_cpu():
+    x_cpu = cx.tensor([[-np.inf, -np.inf]], dtype=cx.float32, device="cpu")
+
+    cx.testing.assert_allclose(
+        cx.max(x_cpu.to("metal"), axis=1).cpu(),
+        cx.max(x_cpu, axis=1),
+        kind="reduction",
+    )
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_max_float32_nan_matches_cpu_and_numpy():
+    x_cpu = cx.tensor([[np.nan, -1.0], [1.0, 2.0]], dtype=cx.float32, device="cpu")
+
+    cx.testing.assert_allclose(
+        cx.max(x_cpu.to("metal"), axis=1).cpu(),
+        np.max(x_cpu.numpy(), axis=1),
+        kind="reduction",
+    )
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_sum_int32_wraps_like_cpu():
+    x_cpu = cx.tensor([[2**31 - 1, 1]], dtype=cx.int32, device="cpu")
+
+    np.testing.assert_array_equal(
+        cx.sum(x_cpu.to("metal"), axis=1).cpu().numpy(),
+        np.array([-(2**31)], dtype=np.int32),
+    )
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_sum_empty_axis_returns_zero_and_max_rejects_empty_axis():
+    x = cx.empty((2, 0), dtype=cx.float32, device="metal")
+
+    np.testing.assert_allclose(cx.sum(x, axis=1).cpu().numpy(), np.zeros((2,), dtype=np.float32))
+    with pytest.raises(ValueError, match="max reduction requires a non-empty axis"):
+        cx.max(x, axis=1)
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_reductions_reject_invalid_axis():
+    x = cx.ones((2, 3), dtype=cx.float32, device="metal")
+
+    with pytest.raises(ValueError, match="reduction axis is out of range"):
+        cx.sum(x, axis=2)
+    with pytest.raises(ValueError, match="reduction axis is out of range"):
+        cx.max(x, axis=-3)

@@ -47,11 +47,29 @@ Expected<const char*> fill_kernel_name(DType dtype) {
   return Status(StatusCode::kInvalidArgument, "unsupported Metal fill dtype");
 }
 
+Expected<const char*> reduction_kernel_name(OpKind kind, DType dtype) {
+  switch (kind) {
+    case OpKind::kSum:
+      return dtype == DType::kFloat32 ? "reduce_sum_f32" : "reduce_sum_i32";
+    case OpKind::kMax:
+      return dtype == DType::kFloat32 ? "reduce_max_f32" : "reduce_max_i32";
+    default:
+      return Status(StatusCode::kInvalidArgument, "unsupported Metal reduction operation");
+  }
+}
+
 struct MatmulDims {
   std::uint32_t m;
   std::uint32_t k;
   std::uint32_t n;
   std::int64_t output_elements;
+};
+
+struct ReductionDims {
+  Shape output_shape;
+  std::uint32_t output_elements;
+  std::uint32_t reduce_elements;
+  std::uint32_t inner_elements;
 };
 
 Expected<std::int64_t> checked_numel_for_metal(const Shape& shape) {
@@ -105,6 +123,101 @@ Expected<std::uint32_t> checked_dim_for_metal(Dim dim, const char* name) {
         std::string("Metal matmul dimension exceeds 2^32 - 1: ") + name);
   }
   return static_cast<std::uint32_t>(dim);
+}
+
+Expected<std::uint32_t> checked_reduction_extent_for_metal(Dim dim) {
+  if (dim < 0) {
+    return Status(StatusCode::kInvalidArgument, "shape dimensions must be non-negative");
+  }
+  if (dim > std::numeric_limits<std::uint32_t>::max()) {
+    return Status(
+        StatusCode::kInvalidArgument,
+        "Metal reduction axis exceeds 2^32 - 1 elements");
+  }
+  return static_cast<std::uint32_t>(dim);
+}
+
+Expected<std::int64_t> normalized_axis(std::int64_t axis, const std::size_t rank) {
+  if (rank == 0) {
+    if (axis == 0 || axis == -1) {
+      return 0;
+    }
+    return Status(StatusCode::kInvalidArgument, "reduction axis is out of range");
+  }
+  const auto signed_rank = static_cast<std::int64_t>(rank);
+  if (axis < 0) {
+    axis += signed_rank;
+  }
+  if (axis < 0 || axis >= signed_rank) {
+    return Status(StatusCode::kInvalidArgument, "reduction axis is out of range");
+  }
+  return axis;
+}
+
+Expected<ReductionDims> checked_reduction_dims(const MetalTensor& input, const OpDesc& op) {
+  if (op.kind != OpKind::kSum && op.kind != OpKind::kMax) {
+    return Status(StatusCode::kInvalidArgument, "unsupported Metal reduction operation");
+  }
+
+  auto input_count_result = checked_thread_count(input.size());
+  if (!input_count_result) {
+    return input_count_result.status();
+  }
+
+  auto axis_result = normalized_axis(op.axis, input.shape().size());
+  if (!axis_result) {
+    return axis_result.status();
+  }
+  const auto axis = static_cast<std::size_t>(axis_result.move_value());
+
+  if (input.shape().empty()) {
+    return ReductionDims{Shape{}, 1, 1, 1};
+  }
+
+  if (op.kind == OpKind::kMax && input.shape()[axis] == 0) {
+    return Status(StatusCode::kInvalidArgument, "max reduction requires a non-empty axis");
+  }
+
+  Shape output_shape;
+  output_shape.reserve(input.shape().size() - 1);
+  for (std::size_t index = 0; index < input.shape().size(); ++index) {
+    if (index != axis) {
+      output_shape.push_back(input.shape()[index]);
+    }
+  }
+
+  auto output_count_result = checked_shape_for_metal(output_shape);
+  if (!output_count_result) {
+    return output_count_result.status();
+  }
+  auto output_thread_count_result = checked_thread_count(output_count_result.move_value());
+  if (!output_thread_count_result) {
+    return output_thread_count_result.status();
+  }
+
+  std::int64_t inner = 1;
+  for (std::size_t index = axis + 1; index < input.shape().size(); ++index) {
+    inner *= input.shape()[index];
+  }
+  auto inner_result = checked_thread_count(inner);
+  if (!inner_result) {
+    return inner_result.status();
+  }
+  auto reduce_result = checked_reduction_extent_for_metal(input.shape()[axis]);
+  if (!reduce_result) {
+    return reduce_result.status();
+  }
+
+  const auto inner_elements = inner_result.move_value();
+  if (inner_elements == 0 && output_thread_count_result.value() > 0) {
+    return Status(StatusCode::kInvalidArgument, "reduction inner dimension must be non-zero");
+  }
+
+  return ReductionDims{
+      std::move(output_shape),
+      output_thread_count_result.move_value(),
+      reduce_result.move_value(),
+      inner_elements};
 }
 
 Expected<MatmulDims> checked_matmul_dims(const MetalTensor& lhs, const MetalTensor& rhs) {
@@ -192,6 +305,18 @@ class KernelRuntime {
     if (std::strcmp(name, "matmul_f32") == 0) {
       return pipeline_slot(matmul_f32_, name);
     }
+    if (std::strcmp(name, "reduce_sum_f32") == 0) {
+      return pipeline_slot(reduce_sum_f32_, name);
+    }
+    if (std::strcmp(name, "reduce_max_f32") == 0) {
+      return pipeline_slot(reduce_max_f32_, name);
+    }
+    if (std::strcmp(name, "reduce_sum_i32") == 0) {
+      return pipeline_slot(reduce_sum_i32_, name);
+    }
+    if (std::strcmp(name, "reduce_max_i32") == 0) {
+      return pipeline_slot(reduce_max_i32_, name);
+    }
     return Status(StatusCode::kInvalidArgument, "unknown Metal kernel name");
   }
 
@@ -258,6 +383,10 @@ class KernelRuntime {
   NS::SharedPtr<MTL::ComputePipelineState> mul_i32_;
   NS::SharedPtr<MTL::ComputePipelineState> fill_i32_;
   NS::SharedPtr<MTL::ComputePipelineState> matmul_f32_;
+  NS::SharedPtr<MTL::ComputePipelineState> reduce_sum_f32_;
+  NS::SharedPtr<MTL::ComputePipelineState> reduce_max_f32_;
+  NS::SharedPtr<MTL::ComputePipelineState> reduce_sum_i32_;
+  NS::SharedPtr<MTL::ComputePipelineState> reduce_max_i32_;
 };
 
 KernelRuntime& runtime() {
@@ -424,6 +553,46 @@ Expected<MetalTensor> fill(const OpDesc& op, Shape shape, DType dtype, double va
     }
     encoder.setBytes(&thread_count, sizeof(thread_count), 2);
   });
+  if (!run_status.ok()) {
+    return run_status;
+  }
+  return output;
+}
+
+Expected<MetalTensor> reduce(const OpDesc& op, const MetalTensor& input) {
+  auto dims_result = checked_reduction_dims(input, op);
+  if (!dims_result) {
+    return dims_result.status();
+  }
+  auto dims = dims_result.move_value();
+
+  auto output_buffer_result =
+      MetalBuffer::create(input.dtype(), static_cast<std::size_t>(dims.output_elements));
+  if (!output_buffer_result) {
+    return output_buffer_result.status();
+  }
+  auto output_buffer = output_buffer_result.move_value();
+  MetalTensor output(input.dtype(), dims.output_shape, output_buffer);
+  if (dims.output_elements == 0) {
+    return output;
+  }
+
+  auto kernel_name_result = reduction_kernel_name(op.kind, input.dtype());
+  if (!kernel_name_result) {
+    return kernel_name_result.status();
+  }
+  auto pipeline_result = runtime().pipeline(kernel_name_result.move_value());
+  if (!pipeline_result) {
+    return pipeline_result.status();
+  }
+  const Status run_status =
+      run_threads(*pipeline_result.move_value(), dims.output_elements, [&](MTL::ComputeCommandEncoder& encoder) {
+        encoder.setBuffer(input.buffer()->native(), 0, 0);
+        encoder.setBuffer(output_buffer->native(), 0, 1);
+        encoder.setBytes(&dims.output_elements, sizeof(dims.output_elements), 2);
+        encoder.setBytes(&dims.reduce_elements, sizeof(dims.reduce_elements), 3);
+        encoder.setBytes(&dims.inner_elements, sizeof(dims.inner_elements), 4);
+      });
   if (!run_status.ok()) {
     return run_status;
   }

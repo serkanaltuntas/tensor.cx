@@ -82,6 +82,90 @@ def test_add_and_multiply_cpu_float32():
     np.testing.assert_allclose((x * y).numpy(), np.array([1, 2, 3], dtype=np.float32))
 
 
+def test_sum_and_max_cpu_float32_match_numpy():
+    x = cx.tensor([[1.0, -2.0, 3.0], [4.0, 5.0, -6.0]], dtype=cx.float32, device="cpu")
+
+    cx.testing.assert_allclose(cx.sum(x, axis=1), np.sum(x.numpy(), axis=1), kind="reduction")
+    cx.testing.assert_allclose(x.sum(axis=0), np.sum(x.numpy(), axis=0), kind="reduction")
+    cx.testing.assert_allclose(cx.max(x, axis=1), np.max(x.numpy(), axis=1), kind="reduction")
+    cx.testing.assert_allclose(x.max(axis=0), np.max(x.numpy(), axis=0), kind="reduction")
+
+
+def test_max_cpu_float32_propagates_nan_like_numpy():
+    x = cx.tensor([[np.nan, -1.0], [1.0, 2.0]], dtype=cx.float32, device="cpu")
+
+    cx.testing.assert_allclose(cx.max(x, axis=1), np.max(x.numpy(), axis=1), kind="reduction")
+
+
+def test_sum_and_max_cpu_support_negative_axis():
+    x = cx.tensor(
+        [[[1.0, 2.0], [3.0, 4.0]], [[-1.0, -2.0], [5.0, 6.0]]],
+        dtype=cx.float32,
+        device="cpu",
+    )
+
+    cx.testing.assert_allclose(cx.sum(x, axis=-1), np.sum(x.numpy(), axis=-1), kind="reduction")
+    cx.testing.assert_allclose(cx.max(x, axis=-2), np.max(x.numpy(), axis=-2), kind="reduction")
+
+
+def test_sum_and_max_cpu_int32_exact():
+    x = cx.tensor([[1, 2, 3], [4, 5, 6]], dtype=cx.int32, device="cpu")
+
+    np.testing.assert_array_equal(cx.sum(x, axis=1).numpy(), np.array([6, 15], dtype=np.int32))
+    np.testing.assert_array_equal(cx.max(x, axis=0).numpy(), np.array([4, 5, 6], dtype=np.int32))
+
+
+def test_rank1_reduction_returns_rank0_scalar():
+    x = cx.tensor([1, 2, 3], dtype=cx.int32, device="cpu")
+
+    summed = cx.sum(x, axis=0)
+    maximum = cx.max(x, axis=0)
+
+    assert summed.shape == ()
+    assert maximum.shape == ()
+    assert summed.numpy().item() == 6
+    assert maximum.numpy().item() == 3
+
+
+def test_rank0_scalar_reduction_returns_scalar():
+    x = cx.tensor(5, dtype=cx.int32, device="cpu")
+
+    summed = cx.sum(x, axis=0)
+    maximum = cx.max(x, axis=-1)
+
+    assert summed.shape == ()
+    assert maximum.shape == ()
+    assert summed.numpy().item() == 5
+    assert maximum.numpy().item() == 5
+
+
+def test_sum_cpu_int32_wraps_two_complement():
+    x = cx.tensor([[2**31 - 1, 1]], dtype=cx.int32, device="cpu")
+
+    np.testing.assert_array_equal(cx.sum(x, axis=1).numpy(), np.array([-(2**31)], dtype=np.int32))
+
+
+def test_sum_empty_axis_returns_zero_and_max_rejects_empty_axis():
+    x = cx.empty((2, 0), dtype=cx.float32, device="cpu")
+
+    np.testing.assert_allclose(cx.sum(x, axis=1).numpy(), np.zeros((2,), dtype=np.float32))
+    with pytest.raises(ValueError, match="max reduction requires a non-empty axis"):
+        cx.max(x, axis=1)
+
+
+def test_reductions_reject_invalid_axis_and_non_tensor_input():
+    x = cx.ones((2, 3), dtype=cx.float32, device="cpu")
+
+    with pytest.raises(ValueError, match="reduction axis is out of range"):
+        cx.sum(x, axis=2)
+    with pytest.raises(ValueError, match="reduction axis is out of range"):
+        cx.max(x, axis=-3)
+    with pytest.raises(TypeError, match="sum expects a Tensor argument"):
+        cx.sum([1, 2, 3], axis=0)
+    with pytest.raises(TypeError, match="max expects a Tensor argument"):
+        cx.max([1, 2, 3], axis=0)
+
+
 def test_binary_ops_reject_shape_mismatch():
     x = cx.tensor([1, 2, 3], device="cpu")
     y = cx.tensor([1, 2], device="cpu")

@@ -14,7 +14,7 @@ metal   Apple Silicon backend for buffer ownership, copy round-trips, and first
 The CPU backend is the correctness reference for every operation. Metal behavior
 must be compared against CPU behavior before it is treated as complete.
 
-## Phase 5 Status
+## Current Status
 
 The Metal backend currently supports:
 
@@ -29,11 +29,14 @@ The Metal backend currently supports:
 - fill kernels for zeros/ones on float32 and int32 tensors
 - naive custom MSL matmul for float32 rank-2 tensors
 - MPSGraph matmul for float32 rank-2 tensors
+- reduction kernels for sum/max on float32 and int32 tensors
 ```
 
 CPU remains the correctness reference for every Metal operation.
 
 ## Phase 6 Direction
 
-Phase 6 should add reductions and neural-network primitives after the matmul
-paths remain stable under CPU-vs-Metal comparison.
+Phase 6 is in progress. The first reduction subset supports `sum` and `max`
+with explicit axes. Remaining Phase 6 work should continue with `mean`, `exp`,
+stable `softmax`, `rmsnorm`, `layernorm`, `gelu`, and `silu`, each with CPU
+references before or alongside Metal kernels.

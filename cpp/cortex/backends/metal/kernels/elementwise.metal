@@ -82,3 +82,88 @@ kernel void matmul_f32(device const float* lhs [[buffer(0)]],
   }
   out[id] = sum;
 }
+
+kernel void reduce_sum_f32(device const float* input [[buffer(0)]],
+                           device float* out [[buffer(1)]],
+                           constant uint& output_n [[buffer(2)]],
+                           constant uint& reduce_n [[buffer(3)]],
+                           constant uint& inner_n [[buffer(4)]],
+                           uint id [[thread_position_in_grid]]) {
+  if (id >= output_n) {
+    return;
+  }
+
+  const uint outer_index = id / inner_n;
+  const uint inner_index = id - outer_index * inner_n;
+  const uint base = outer_index * reduce_n * inner_n + inner_index;
+  float sum = 0.0f;
+  for (uint reduce_index = 0; reduce_index < reduce_n; ++reduce_index) {
+    sum += input[base + reduce_index * inner_n];
+  }
+  out[id] = sum;
+}
+
+kernel void reduce_max_f32(device const float* input [[buffer(0)]],
+                           device float* out [[buffer(1)]],
+                           constant uint& output_n [[buffer(2)]],
+                           constant uint& reduce_n [[buffer(3)]],
+                           constant uint& inner_n [[buffer(4)]],
+                           uint id [[thread_position_in_grid]]) {
+  if (id >= output_n) {
+    return;
+  }
+
+  const uint outer_index = id / inner_n;
+  const uint inner_index = id - outer_index * inner_n;
+  const uint base = outer_index * reduce_n * inner_n + inner_index;
+  float max_value = -INFINITY;
+  for (uint reduce_index = 0; reduce_index < reduce_n; ++reduce_index) {
+    const float value = input[base + reduce_index * inner_n];
+    if (isnan(value)) {
+      max_value = value;
+      break;
+    }
+    max_value = max(max_value, value);
+  }
+  out[id] = max_value;
+}
+
+kernel void reduce_sum_i32(device const int* input [[buffer(0)]],
+                           device int* out [[buffer(1)]],
+                           constant uint& output_n [[buffer(2)]],
+                           constant uint& reduce_n [[buffer(3)]],
+                           constant uint& inner_n [[buffer(4)]],
+                           uint id [[thread_position_in_grid]]) {
+  if (id >= output_n) {
+    return;
+  }
+
+  const uint outer_index = id / inner_n;
+  const uint inner_index = id - outer_index * inner_n;
+  const uint base = outer_index * reduce_n * inner_n + inner_index;
+  uint sum = 0;
+  for (uint reduce_index = 0; reduce_index < reduce_n; ++reduce_index) {
+    sum += uint(input[base + reduce_index * inner_n]);
+  }
+  out[id] = int(sum);
+}
+
+kernel void reduce_max_i32(device const int* input [[buffer(0)]],
+                           device int* out [[buffer(1)]],
+                           constant uint& output_n [[buffer(2)]],
+                           constant uint& reduce_n [[buffer(3)]],
+                           constant uint& inner_n [[buffer(4)]],
+                           uint id [[thread_position_in_grid]]) {
+  if (id >= output_n) {
+    return;
+  }
+
+  const uint outer_index = id / inner_n;
+  const uint inner_index = id - outer_index * inner_n;
+  const uint base = outer_index * reduce_n * inner_n + inner_index;
+  int max_value = -2147483647 - 1;
+  for (uint reduce_index = 0; reduce_index < reduce_n; ++reduce_index) {
+    max_value = max(max_value, input[base + reduce_index * inner_n]);
+  }
+  out[id] = max_value;
+}

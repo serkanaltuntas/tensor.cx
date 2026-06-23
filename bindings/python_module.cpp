@@ -203,6 +203,10 @@ CpuTensor binary_op(const CpuTensor& lhs, const CpuTensor& rhs, OpKind kind) {
   return cortex::cpu::execute_binary(OpDesc{kind}, lhs, rhs);
 }
 
+CpuTensor reduction_op(const CpuTensor& input, OpKind kind, std::int64_t axis) {
+  return cortex::cpu::reduce(OpDesc{kind, axis}, input);
+}
+
 CpuTensor matmul_cpu(const CpuTensor& lhs, const CpuTensor& rhs, const std::string& backend) {
   if (backend != "auto" && backend != "cpu" && backend != "reference") {
     throw std::invalid_argument("CPU matmul only supports backend='auto', 'cpu', or 'reference'");
@@ -326,6 +330,18 @@ NB_MODULE(_core, module) {
              },
              nb::arg("lhs"),
              nb::arg("rhs"));
+  module.def("sum",
+             [](const CpuTensor& input, std::int64_t axis) {
+               return reduction_op(input, OpKind::kSum, axis);
+             },
+             nb::arg("input"),
+             nb::arg("axis"));
+  module.def("max",
+             [](const CpuTensor& input, std::int64_t axis) {
+               return reduction_op(input, OpKind::kMax, axis);
+             },
+             nb::arg("input"),
+             nb::arg("axis"));
   module.def("matmul_backends",
              [](const std::string& device) {
                nb::list result;
@@ -439,6 +455,18 @@ NB_MODULE(_core, module) {
              },
              nb::arg("lhs"),
              nb::arg("rhs"));
+  module.def("sum",
+             [](const cortex::metal::MetalTensor& input, std::int64_t axis) {
+               return unwrap(cortex::metal::reduce(OpDesc{OpKind::kSum, axis}, input));
+             },
+             nb::arg("input"),
+             nb::arg("axis"));
+  module.def("max",
+             [](const cortex::metal::MetalTensor& input, std::int64_t axis) {
+               return unwrap(cortex::metal::reduce(OpDesc{OpKind::kMax, axis}, input));
+             },
+             nb::arg("input"),
+             nb::arg("axis"));
   module.def("matmul",
              [](const cortex::metal::MetalTensor& lhs,
                 const cortex::metal::MetalTensor& rhs,

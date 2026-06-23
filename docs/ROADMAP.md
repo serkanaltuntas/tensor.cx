@@ -14,14 +14,14 @@ acceptance criteria, and Definitions of Done also live in `PROJECT.md` (§14).
 [x] Phase 3   First Metal kernels        <- v0.1 ships here
 [x] Phase 4   Runtime polish
 [x] Phase 5   Matmul (custom MSL + MPSGraph)
-[ ] Phase 6   Reductions & NN primitives  <- next
+[ ] Phase 6   Reductions & NN primitives  <- in progress
 [ ] Phase 7   Experimental kernel DSL
 [ ] Phase 8   Backend interface hardening
 [ ] Phase 9   CUDA prototype
 [ ] Phase 10  MLIR exploration
 ```
 
-## What works today (through Phase 5)
+## What works today (through Phase 6 in progress)
 
 - CPU reference backend: `float32`/`int32`, contiguous 1-D/2-D, add / multiply /
   fill / zeros / ones / empty, exact NumPy round-trip.
@@ -31,6 +31,9 @@ acceptance criteria, and Definitions of Done also live in `PROJECT.md` (§14).
 - Matmul: a naive custom MSL `matmul_f32` (correctness-first) **and** an MPSGraph
   optimized path. Removing the MPSGraph path leaves a working slow matmul — the
   project is not an MPSGraph wrapper (PROJECT.md §9.2).
+- Reductions: `sum` and `max` on CPU and Metal for `float32` and `int32`, with
+  explicit `axis`, negative-axis support, and CPU-vs-Metal tests on non-trivial
+  axes.
 - Error taxonomy, CPU CI, benchmarks for copy / elementwise / matmul.
 
 ## Intentionally not implemented yet

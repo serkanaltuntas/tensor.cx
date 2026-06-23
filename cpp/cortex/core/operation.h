@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 namespace cortex {
 
 enum class OpKind {
@@ -7,15 +9,20 @@ enum class OpKind {
   kAdd,
   kMultiply,
   kMatmul,
+  kSum,
+  kMax,
 };
 
 // §5.6 specifies OpDesc as "an op enum plus attributes". Through Phase 5 it
-// carries only the kind: it tags the per-op entry points (execute_binary,
-// fill), while op parameters (fill value, matmul backend selection) are still
-// passed as explicit function arguments. Attributes are added here in Phase 8
-// when dispatch is unified onto Backend::execute (see backend.h).
+// carried only the kind: it tagged the per-op entry points (execute_binary,
+// fill), while op parameters (fill value, matmul backend selection) were still
+// passed as explicit function arguments. Phase 6 starts the minimal attribute
+// surface needed for reductions without taking the full Phase 8 dispatch
+// migration: axis is used by reduction entry points and ignored by ops that do
+// not need it.
 struct OpDesc {
   OpKind kind;
+  std::int64_t axis{0};
 };
 
 }  // namespace cortex

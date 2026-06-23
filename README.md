@@ -89,10 +89,12 @@ uv run python benchmarks/bench_matmul.py --sizes 16x16x16 --repeats 2
 
 ## Current Status
 
-Phase 5 provides CPU reference matmul, a correctness-first custom Metal matmul
-kernel, and an optimized Metal primitive path. The custom kernel remains
-available through `cx.matmul(a, b, backend="custom")`; `backend="optimized"`
-uses the Apple optimized primitive path when it is enabled.
+Phase 6 is in progress. Phase 5 provides CPU reference matmul, a
+correctness-first custom Metal matmul kernel, and an optimized Metal primitive
+path. The first Phase 6 subset adds `sum` and `max` reductions on CPU and Metal.
+The custom matmul kernel remains available through
+`cx.matmul(a, b, backend="custom")`; `backend="optimized"` uses the Apple
+optimized primitive path when it is enabled.
 
 ```python
 import cortex_runtime as cx
@@ -120,6 +122,14 @@ c = cx.matmul(a, b)
 
 print(c.shape)
 # (2, 4)
+
+r = cx.sum(c, axis=1)
+m = c.max(axis=0)
+
+print(r.cpu().numpy().shape)
+# (2,)
+print(m.cpu().numpy().shape)
+# (4,)
 ```
 
 ### Behavior notes
@@ -128,6 +138,9 @@ print(c.shape)
   `float32`, so values may lose precision or overflow to `inf`.
 - `int32` `add`/`multiply` overflow wraps (defined two's-complement), matching
   NumPy and identical on CPU and Metal.
+- `sum` and `max` require an explicit `axis`. Negative axes are supported.
+  `sum` over an empty axis returns zeros; `max` over an empty axis raises
+  `ValueError`.
 - Execution is synchronous and holds the Python GIL; the runtime is not yet safe
   for concurrent multi-threaded use (see `docs/METAL_BACKEND.md`).
 
