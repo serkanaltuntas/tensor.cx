@@ -211,6 +211,10 @@ CpuTensor axis_unary_op(const CpuTensor& input, OpKind kind, std::int64_t axis) 
   return cortex::cpu::execute_unary(OpDesc{kind, axis}, input);
 }
 
+CpuTensor norm_op(const CpuTensor& input, OpKind kind, std::int64_t axis, double epsilon) {
+  return cortex::cpu::execute_unary(OpDesc{kind, axis, epsilon}, input);
+}
+
 CpuTensor reduction_op(const CpuTensor& input, OpKind kind, std::int64_t axis) {
   return cortex::cpu::reduce(OpDesc{kind, axis}, input);
 }
@@ -359,6 +363,13 @@ NB_MODULE(_core, module) {
              },
              nb::arg("input"),
              nb::arg("axis"));
+  module.def("rmsnorm",
+             [](const CpuTensor& input, std::int64_t axis, double eps) {
+               return norm_op(input, OpKind::kRmsNorm, axis, eps);
+             },
+             nb::arg("input"),
+             nb::arg("axis"),
+             nb::arg("eps") = 1.0e-5);
   module.def("sum",
              [](const CpuTensor& input, std::int64_t axis) {
                return reduction_op(input, OpKind::kSum, axis);
@@ -511,6 +522,13 @@ NB_MODULE(_core, module) {
              },
              nb::arg("input"),
              nb::arg("axis"));
+  module.def("rmsnorm",
+             [](const cortex::metal::MetalTensor& input, std::int64_t axis, double eps) {
+               return unwrap(cortex::metal::execute_unary(OpDesc{OpKind::kRmsNorm, axis, eps}, input));
+             },
+             nb::arg("input"),
+             nb::arg("axis"),
+             nb::arg("eps") = 1.0e-5);
   module.def("sum",
              [](const cortex::metal::MetalTensor& input, std::int64_t axis) {
                return unwrap(cortex::metal::reduce(OpDesc{OpKind::kSum, axis}, input));

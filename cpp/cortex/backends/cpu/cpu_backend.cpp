@@ -16,6 +16,20 @@ namespace {
 constexpr float kGeluTanhCoefficient = 0.7978845608028654F;
 constexpr float kGeluCubicCoefficient = 0.044715F;
 
+float checked_epsilon(double epsilon) {
+  if (!std::isfinite(epsilon) || epsilon < 0.0 ||
+      epsilon > static_cast<double>(std::numeric_limits<float>::max())) {
+    throw std::invalid_argument(
+        "epsilon must be finite and non-negative and representable as float32");
+  }
+  const float rounded = static_cast<float>(epsilon);
+  if (epsilon > 0.0 && rounded == 0.0F) {
+    throw std::invalid_argument(
+        "epsilon must be finite and non-negative and representable as float32");
+  }
+  return rounded;
+}
+
 void validate_binary_inputs(const CpuTensor& lhs, const CpuTensor& rhs) {
   if (lhs.device().type != "cpu" || rhs.device().type != "cpu") {
     throw std::invalid_argument("CPU operations require CPU tensors");
@@ -119,6 +133,34 @@ void compute_softmax(const CpuTensor& input, CpuTensor& result, const ReductionD
   }
 }
 
+void compute_rmsnorm(
+    const CpuTensor& input,
+    CpuTensor& result,
+    const ReductionDims& dims,
+    float epsilon) {
+  const auto& input_data = input.float_data();
+  auto& out = result.mutable_float_data();
+
+  for (std::int64_t outer = 0; outer < dims.outer; ++outer) {
+    for (std::int64_t inner = 0; inner < dims.inner; ++inner) {
+      const auto base = outer * dims.reduce * dims.inner + inner;
+      float sum_squares = 0.0F;
+      for (std::int64_t reduce_index = 0; reduce_index < dims.reduce; ++reduce_index) {
+        const float value =
+            input_data[static_cast<std::size_t>(base + reduce_index * dims.inner)];
+        sum_squares += value * value;
+      }
+
+      const float scale =
+          1.0F / std::sqrt((sum_squares / static_cast<float>(dims.reduce)) + epsilon);
+      for (std::int64_t reduce_index = 0; reduce_index < dims.reduce; ++reduce_index) {
+        const auto index = static_cast<std::size_t>(base + reduce_index * dims.inner);
+        out[index] = input_data[index] * scale;
+      }
+    }
+  }
+}
+
 }  // namespace
 
 CpuTensor empty(Shape shape, DType dtype) {
@@ -150,7 +192,7 @@ CpuTensor execute_unary(const OpDesc& op, const CpuTensor& input) {
     throw std::invalid_argument("CPU operations require CPU tensors");
   }
   if (op.kind != OpKind::kExp && op.kind != OpKind::kGelu && op.kind != OpKind::kSilu &&
-      op.kind != OpKind::kSoftmax) {
+      op.kind != OpKind::kSoftmax && op.kind != OpKind::kRmsNorm) {
     throw std::invalid_argument("unsupported unary operation");
   }
   if (op.kind == OpKind::kSoftmax) {
@@ -162,6 +204,19 @@ CpuTensor execute_unary(const OpDesc& op, const CpuTensor& input) {
     compute_softmax(input, result, dims);
     return result;
   }
+  if (op.kind == OpKind::kRmsNorm) {
+    const ReductionDims dims = reduction_dims(input, op.axis);
+    const float epsilon = checked_epsilon(op.epsilon);
+    if (input.dtype() != DType::kFloat32) {
+      throw std::invalid_argument("rmsnorm only supports float32 tensors");
+    }
+    if (dims.reduce == 0) {
+      return CpuTensor(input.dtype(), input.shape());
+    }
+    CpuTensor result(input.dtype(), input.shape());
+    compute_rmsnorm(input, result, dims, epsilon);
+    return result;
+  }
   if (input.dtype() != DType::kFloat32) {
     switch (op.kind) {
       case OpKind::kExp:
@@ -170,6 +225,8 @@ CpuTensor execute_unary(const OpDesc& op, const CpuTensor& input) {
         throw std::invalid_argument("gelu only supports float32 tensors");
       case OpKind::kSilu:
         throw std::invalid_argument("silu only supports float32 tensors");
+      case OpKind::kRmsNorm:
+        throw std::invalid_argument("rmsnorm only supports float32 tensors");
       default:
         throw std::invalid_argument("unsupported unary operation");
     }

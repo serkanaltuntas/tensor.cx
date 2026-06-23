@@ -92,7 +92,7 @@ uv run python benchmarks/bench_matmul.py --sizes 16x16x16 --repeats 2
 Phase 6 is in progress. Phase 5 provides CPU reference matmul, a
 correctness-first custom Metal matmul kernel, and an optimized Metal primitive
 path. The first Phase 6 subset adds `sum`, `max`, `mean`, `exp`, `gelu`,
-`silu`, and `softmax` on CPU and Metal. The custom matmul kernel remains
+`silu`, `softmax`, and `rmsnorm` on CPU and Metal. The custom matmul kernel remains
 available through `cx.matmul(a, b, backend="custom")`;
 `backend="optimized"` uses the Apple optimized primitive path when it is
 enabled.
@@ -127,6 +127,7 @@ print(c.shape)
 r = cx.mean(c, axis=1)
 m = c.max(axis=0)
 s = cx.softmax(c, axis=1)
+rms = cx.rmsnorm(c, axis=1)
 e = cx.gelu(cx.silu(cx.exp(r)))
 
 print(r.cpu().numpy().shape)
@@ -136,6 +137,8 @@ print(m.cpu().numpy().shape)
 print(e.cpu().numpy().shape)
 # (2,)
 print(s.cpu().numpy().shape)
+# (2, 4)
+print(rms.cpu().numpy().shape)
 # (2, 4)
 ```
 
@@ -150,9 +153,12 @@ print(s.cpu().numpy().shape)
   returns NaNs, and `max` over an empty axis raises `ValueError`.
 - `softmax` requires an explicit `axis`, preserves the input shape, supports
   negative axes, and uses max-subtraction for numerical stability.
-- `mean`, `exp`, `gelu`, `silu`, and `softmax` currently support `float32`
-  tensors only; `int32` inputs are rejected instead of being implicitly cast.
-  `gelu` uses the common tanh approximation.
+- `rmsnorm` requires an explicit `axis`, preserves the input shape, supports
+  negative axes, and accepts `eps` with default `1e-5`. It computes
+  `x / sqrt(mean(x*x, axis, keepdims=True) + eps)` without affine weights.
+- `mean`, `exp`, `gelu`, `silu`, `softmax`, and `rmsnorm` currently support
+  `float32` tensors only; `int32` inputs are rejected instead of being
+  implicitly cast. `gelu` uses the common tanh approximation.
 - Execution is synchronous and holds the Python GIL; the runtime is not yet safe
   for concurrent multi-threaded use (see `docs/METAL_BACKEND.md`).
 

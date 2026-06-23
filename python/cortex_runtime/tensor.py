@@ -99,6 +99,9 @@ class Tensor:
     def softmax(self, axis: int) -> "Tensor":
         return softmax(self, axis=axis)
 
+    def rmsnorm(self, axis: int, eps: float = 1.0e-5) -> "Tensor":
+        return rmsnorm(self, axis=axis, eps=eps)
+
 
 def tensor(data, dtype: str | None = None, device: str | Device | None = None) -> Tensor:
     target = _normalize_device(device)
@@ -213,6 +216,12 @@ def softmax(input: Tensor, axis: int) -> Tensor:
     if not isinstance(input, Tensor):
         raise TypeError("softmax expects a Tensor argument")
     return Tensor(_core.softmax(input._impl, axis=axis))
+
+
+def rmsnorm(input: Tensor, axis: int, eps: float = 1.0e-5) -> Tensor:
+    if not isinstance(input, Tensor):
+        raise TypeError("rmsnorm expects a Tensor argument")
+    return Tensor(_core.rmsnorm(input._impl, axis=axis, eps=eps))
 
 
 def matmul_backends(device: str | Device = "cpu") -> list[str]:

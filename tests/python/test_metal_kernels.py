@@ -197,6 +197,29 @@ def test_metal_softmax_float32_matches_cpu_on_non_trivial_axis():
 
 
 @pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_rmsnorm_float32_matches_cpu_on_non_trivial_axis():
+    x_cpu = cx.tensor(
+        [[1.0, -2.0, 3.0], [4.0, 0.5, -6.0]],
+        dtype=cx.float32,
+        device="cpu",
+    )
+    x_metal = x_cpu.to("metal")
+
+    cx.testing.assert_allclose(cx.rmsnorm(x_metal, axis=1).cpu(), cx.rmsnorm(x_cpu, axis=1), kind="reduction")
+    cx.testing.assert_allclose(x_metal.rmsnorm(axis=0).cpu(), x_cpu.rmsnorm(axis=0), kind="reduction")
+    cx.testing.assert_allclose(
+        cx.rmsnorm(x_metal, axis=1, eps=1.0e-3).cpu(),
+        cx.rmsnorm(x_cpu, axis=1, eps=1.0e-3),
+        kind="reduction",
+    )
+    cx.testing.assert_allclose(
+        cx.rmsnorm(x_metal, axis=1, eps=0.0).cpu(),
+        cx.rmsnorm(x_cpu, axis=1, eps=0.0),
+        kind="reduction",
+    )
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
 def test_metal_reductions_support_negative_axis():
     x_cpu = cx.tensor(
         [[[1.0, 2.0], [3.0, 4.0]], [[-1.0, -2.0], [5.0, 6.0]]],
@@ -209,6 +232,7 @@ def test_metal_reductions_support_negative_axis():
     cx.testing.assert_allclose(cx.max(x_metal, axis=-2).cpu(), cx.max(x_cpu, axis=-2), kind="reduction")
     cx.testing.assert_allclose(cx.mean(x_metal, axis=-1).cpu(), cx.mean(x_cpu, axis=-1), kind="reduction")
     cx.testing.assert_allclose(cx.softmax(x_metal, axis=-1).cpu(), cx.softmax(x_cpu, axis=-1), kind="reduction")
+    cx.testing.assert_allclose(cx.rmsnorm(x_metal, axis=-1).cpu(), cx.rmsnorm(x_cpu, axis=-1), kind="reduction")
 
 
 @pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
@@ -288,6 +312,16 @@ def test_metal_softmax_rank0_scalar_returns_one():
 
 
 @pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_rmsnorm_rank0_scalar_returns_scalar():
+    x_cpu = cx.tensor(2.0, dtype=cx.float32, device="cpu")
+
+    actual = cx.rmsnorm(x_cpu.to("metal"), axis=0).cpu()
+
+    assert actual.shape == ()
+    cx.testing.assert_allclose(actual, cx.rmsnorm(x_cpu, axis=0), kind="reduction")
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
 def test_metal_unary_empty_tensor_returns_empty():
     x = cx.empty((0,), dtype=cx.float32, device="metal")
 
@@ -304,6 +338,16 @@ def test_metal_softmax_empty_tensor_returns_empty():
     x = cx.empty((2, 0), dtype=cx.float32, device="metal")
 
     actual = cx.softmax(x, axis=1).cpu()
+
+    assert actual.shape == (2, 0)
+    np.testing.assert_allclose(actual.numpy(), np.empty((2, 0), dtype=np.float32))
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_rmsnorm_empty_tensor_returns_empty():
+    x = cx.empty((2, 0), dtype=cx.float32, device="metal")
+
+    actual = cx.rmsnorm(x, axis=1).cpu()
 
     assert actual.shape == (2, 0)
     np.testing.assert_allclose(actual.numpy(), np.empty((2, 0), dtype=np.float32))
@@ -372,6 +416,10 @@ def test_metal_reductions_reject_invalid_axis():
         cx.softmax(x, axis=2)
     with pytest.raises(ValueError, match="reduction axis is out of range"):
         cx.softmax(int_x, axis=2)
+    with pytest.raises(ValueError, match="reduction axis is out of range"):
+        cx.rmsnorm(x, axis=2)
+    with pytest.raises(ValueError, match="reduction axis is out of range"):
+        cx.rmsnorm(int_x, axis=2)
 
 
 @pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
@@ -388,3 +436,21 @@ def test_metal_float32_only_ops_reject_int32():
         cx.silu(x)
     with pytest.raises(ValueError, match="softmax only supports float32"):
         cx.softmax(x, axis=0)
+    with pytest.raises(ValueError, match="rmsnorm only supports float32"):
+        cx.rmsnorm(x, axis=0)
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_rmsnorm_rejects_invalid_epsilon():
+    x = cx.ones((2, 3), dtype=cx.float32, device="metal")
+
+    with pytest.raises(ValueError, match="epsilon must be finite and non-negative"):
+        cx.rmsnorm(x, axis=1, eps=-1.0)
+    with pytest.raises(ValueError, match="epsilon must be finite and non-negative"):
+        cx.rmsnorm(x, axis=1, eps=np.inf)
+    with pytest.raises(ValueError, match="epsilon must be finite and non-negative"):
+        cx.rmsnorm(x, axis=1, eps=np.nan)
+    with pytest.raises(ValueError, match="epsilon must be finite and non-negative"):
+        cx.rmsnorm(x, axis=1, eps=float(np.finfo(np.float32).max) * 2.0)
+    with pytest.raises(ValueError, match="epsilon must be finite and non-negative"):
+        cx.rmsnorm(x, axis=1, eps=1.0e-50)
