@@ -6,6 +6,13 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Warning flags for the project's own translation units (not -Werror, and not
+# applied to third-party headers, which are marked SYSTEM below).
+set(CORTEX_WARNING_FLAGS)
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  set(CORTEX_WARNING_FLAGS -Wall -Wextra)
+endif()
+
 find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
 find_package(nanobind CONFIG REQUIRED)
 
@@ -23,6 +30,7 @@ add_library(cortex_core STATIC
   cpp/cortex/backends/cpu/cpu_tensor.cpp
 )
 target_compile_features(cortex_core PUBLIC cxx_std_20)
+target_compile_options(cortex_core PRIVATE ${CORTEX_WARNING_FLAGS})
 target_include_directories(cortex_core PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/cpp
 )
@@ -30,6 +38,22 @@ set_target_properties(cortex_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 if(CORTEX_ENABLE_METAL AND APPLE)
   find_program(XCRUN_EXECUTABLE xcrun REQUIRED)
+
+  # xcrun ships with the base Command Line Tools, but the Metal shader compiler
+  # only comes with the full Xcode + Metal toolchain. Probe it at configure time
+  # so a missing toolchain fails clearly (PROJECT.md §11) instead of erroring
+  # deep in a custom build command.
+  execute_process(
+    COMMAND ${XCRUN_EXECUTABLE} -sdk macosx --find metal
+    RESULT_VARIABLE CORTEX_METAL_FIND_RESULT
+    OUTPUT_QUIET ERROR_QUIET
+  )
+  if(NOT CORTEX_METAL_FIND_RESULT EQUAL 0)
+    message(FATAL_ERROR
+      "CORTEX_ENABLE_METAL is ON but the Metal shader compiler was not found "
+      "(`xcrun -sdk macosx --find metal` failed). Install Xcode and its Metal "
+      "toolchain, or reconfigure with -DCORTEX_ENABLE_METAL=OFF.")
+  endif()
 
   FetchContent_Declare(
     metal_cpp
@@ -106,8 +130,12 @@ if(CORTEX_ENABLE_METAL AND APPLE)
     ${CORTEX_METAL_SOURCES}
   )
   target_compile_features(cortex_metal PUBLIC cxx_std_20)
+  target_compile_options(cortex_metal PRIVATE ${CORTEX_WARNING_FLAGS})
   target_include_directories(cortex_metal PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/cpp
+  )
+  # metal-cpp is third-party; mark it SYSTEM so its headers don't trip our warnings.
+  target_include_directories(cortex_metal SYSTEM PUBLIC
     ${metal_cpp_SOURCE_DIR}
   )
   target_compile_definitions(cortex_metal PUBLIC

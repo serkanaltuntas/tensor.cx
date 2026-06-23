@@ -803,7 +803,7 @@ x = cx.tensor([1, 2, 3], dtype=cx.float32, device="metal")
 y = cx.ones((3,), dtype=cx.float32, device="metal")
 z = x + y
 
-assert z.device.type == "metal"
+assert z.device == "metal"
 print(z.cpu().numpy())
 ```
 

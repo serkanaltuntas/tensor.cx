@@ -84,11 +84,22 @@ Matmul dtype mismatch             ValueError        matmul only supports float32
 Negative shape dimension          ValueError        shape dimensions must be non-negative
 Shape element-count overflow      ValueError        shape size overflow
 Shape stride overflow             ValueError        shape stride overflow
+Int value out of int32 range      ValueError        out of range for int32
+Fill value out of int32 range     ValueError        fill value is out of range for int32
+Nested data to flat factory       ValueError        flat numeric sequence
 Unsupported dtype                 ValueError        unsupported dtype
+Empty device type                 ValueError        device type must be a non-empty string
+Invalid device index (parse)      ValueError        invalid device index
 Unsupported device index          ValueError        only device index 0 is supported
 Metal runtime unavailable         RuntimeError      Metal is not available
 Metal internal failure            RuntimeError      failed to
 ```
+
+`int32` overflow in elementwise `add`/`multiply` is **not** an error: it is
+defined two's-complement wraparound, identical on the CPU and Metal paths (both
+compute through `uint32`), matching NumPy. Float inputs are narrowed to
+`float32`, so values may lose precision or overflow to `inf` — this is a silent,
+intentional consequence of the float32-only v0.1 scope, not an error.
 
 Guidelines:
 

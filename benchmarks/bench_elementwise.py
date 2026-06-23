@@ -55,6 +55,9 @@ def bench_device(device: str, elements: int, repeats: int) -> Iterable[tuple[str
     y = cx.ones((elements,), dtype=cx.float32, device=device)
 
     operations = [
+        # NOTE: fill_ones includes the output allocation in the timed region, so
+        # its GiB/s is not directly comparable to add/multiply (which reuse
+        # pre-allocated operands). It is reported as an allocation+fill figure.
         ("fill_ones", lambda: cx.ones((elements,), dtype=cx.float32, device=device), 1),
         ("add", lambda: x + y, 3),
         ("multiply", lambda: x * y, 3),

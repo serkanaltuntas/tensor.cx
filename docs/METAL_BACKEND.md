@@ -37,6 +37,26 @@ Metal buffers use shared storage for the initial copy and kernel path. This is
 simple and correct for the first local runtime; future performance work may
 introduce private buffers, command encoders, and explicit synchronization.
 
+Each kernel launch wraps its command buffer/encoder in an `NS::AutoreleasePool`,
+since a Python C-extension call (and especially a worker thread) has no implicit
+pool to drain the autoreleased Metal objects.
+
+## Threading and the GIL (deferred)
+
+v0.1 execution is synchronous and effectively single-threaded: every Metal op
+encodes, commits, and **blocks** on `waitUntilCompleted` while holding the Python
+GIL. As a result:
+
+- Concurrent calls from multiple Python threads are serialized, not parallel.
+- The lazy `KernelRuntime` pipeline cache is therefore not yet guarded by a mutex
+  (the GIL is the de-facto lock).
+
+Releasing the GIL across the blocking submit — and the pipeline-cache locking it
+would then require — is intentionally deferred. It is concurrency/performance
+work beyond the synchronous v0.1 scope (AGENTS.md "Start with synchronous
+execution"; async/streams are out of scope). Do not release the GIL in the
+binding without first making the pipeline cache thread-safe.
+
 ## Current Limitations
 
 ```text
@@ -44,4 +64,6 @@ introduce private buffers, command encoders, and explicit synchronization.
 - Only contiguous tensors are supported.
 - Metal kernels currently support at most 2^32 - 1 elements per launch.
 - Matmul currently supports float32 rank-2 tensors only.
+- Execution is synchronous and holds the GIL; not safe for concurrent
+  multi-threaded use yet (see "Threading and the GIL" above).
 ```

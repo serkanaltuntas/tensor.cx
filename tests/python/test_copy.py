@@ -20,6 +20,15 @@ def test_devices_always_include_cpu():
         cx.device("cuda")
 
 
+def test_device_normalization_rejects_bad_inputs():
+    with pytest.raises(ValueError, match="device type must be a non-empty string"):
+        cx.tensor([1, 2, 3], device="")
+    with pytest.raises(ValueError, match="only device index 0 is supported"):
+        cx.tensor([1, 2, 3], device=cx.Device("cpu", 1))
+    with pytest.raises(ValueError, match="invalid device index"):
+        cx.tensor([1, 2, 3], device="cpu:x")
+
+
 @pytest.mark.skipif(cx.is_available("metal"), reason="Metal backend is available")
 def test_metal_transfer_reports_unavailable_when_backend_is_missing():
     x = cx.ones((1,), dtype=cx.float32, device="cpu")

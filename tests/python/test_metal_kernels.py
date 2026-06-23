@@ -80,6 +80,30 @@ def test_metal_fill_rejects_shapes_larger_than_thread_limit_before_allocation():
 
 
 @pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_fill_rejects_int32_value_out_of_range():
+    from cortex_runtime import _core
+
+    with pytest.raises(ValueError, match="fill value is out of range for int32"):
+        _core.fill((2,), dtype="int32", value=3e9, device="metal")
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_int32_overflow_wraps_like_cpu():
+    big = cx.tensor([2**31 - 1, 2**31 - 1], dtype=cx.int32, device="cpu")
+    addend = cx.tensor([1, 2], dtype=cx.int32, device="cpu")
+
+    metal_sum = (big.to("metal") + addend.to("metal")).cpu().numpy()
+    metal_prod = (big.to("metal") * addend.to("metal")).cpu().numpy()
+
+    # Pinned to literal two's-complement results so this is independent of the
+    # CPU path (both share the same uint round-trip).
+    # sum:  [(2^31-1)+1, (2^31-1)+2] wrap to [-2^31, -2^31+1]
+    # prod: [(2^31-1)*1, (2^31-1)*2] = [2^31-1, 4294967294 -> -2]
+    np.testing.assert_array_equal(metal_sum, np.array([-(2**31), -(2**31) + 1], dtype=np.int32))
+    np.testing.assert_array_equal(metal_prod, np.array([2**31 - 1, -2], dtype=np.int32))
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
 def test_metal_add_int32_matches_cpu():
     x_cpu = cx.tensor([1, 2, 3], dtype=cx.int32, device="cpu")
     y_cpu = cx.tensor([4, 5, 6], dtype=cx.int32, device="cpu")

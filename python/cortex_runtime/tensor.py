@@ -82,9 +82,12 @@ class Tensor:
 def tensor(data, dtype: str | None = None, device: str | Device | None = None) -> Tensor:
     target = _normalize_device(device)
     array = np.asarray(data)
-    if array.ndim <= 1:
+    if array.ndim == 1:
         cpu_tensor = Tensor(_core.tensor(array.reshape(-1).tolist(), dtype=dtype, device="cpu"))
     else:
+        # ndim == 0 (scalar) and ndim >= 2 both route through the flat factory so
+        # the original shape is preserved -- a scalar stays rank-0 instead of
+        # being silently promoted to (1,).
         actual_dtype = dtype
         if actual_dtype is None:
             actual_dtype = "float32" if np.issubdtype(array.dtype, np.floating) else "int32"
@@ -133,7 +136,11 @@ def randn(
 ) -> Tensor:
     if dtype != "float32":
         raise ValueError("randn only supports float32")
-    values = np.random.default_rng(seed).standard_normal(shape).astype(np.float32)
+    dims = (shape,) if isinstance(shape, int) else tuple(shape)
+    if any(int(dim) < 0 for dim in dims):
+        # Align with the core taxonomy message instead of NumPy's wording.
+        raise ValueError("shape dimensions must be non-negative")
+    values = np.random.default_rng(seed).standard_normal(dims).astype(np.float32)
     return tensor(values, dtype=dtype, device=device)
 
 

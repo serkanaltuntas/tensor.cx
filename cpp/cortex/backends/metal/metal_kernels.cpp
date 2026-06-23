@@ -14,6 +14,7 @@
 #include "cortex/backends/metal/metal_buffer.h"
 #include "cortex/backends/metal/metal_context.h"
 #include "cortex/backends/metal/metal_kernels_data.h"
+#include "cortex/core/dtype.h"
 
 namespace cortex::metal {
 namespace {
@@ -286,6 +287,14 @@ Status run_threads(MTL::ComputePipelineState& pipeline,
     return context.status();
   }
 
+  // Drain Metal's internally-autoreleased temporaries at function scope. (The
+  // command buffer and encoder below are explicitly RetainPtr-managed, but encode
+  // /commit create other +0 autoreleased objects.) A Python C-extension call has
+  // no implicit autorelease pool, and worker threads never get one, so without
+  // this they would accumulate under sustained or multi-threaded dispatch.
+  NS::SharedPtr<NS::AutoreleasePool> pool =
+      NS::TransferPtr(NS::AutoreleasePool::alloc()->init());
+
   NS::SharedPtr<MTL::CommandBuffer> command_buffer =
       NS::RetainPtr(context.command_queue().commandBuffer());
   if (!command_buffer) {
@@ -300,7 +309,11 @@ Status run_threads(MTL::ComputePipelineState& pipeline,
 
   encoder->setComputePipelineState(&pipeline);
   bind(*encoder.get());
-  const auto width = std::max<NS::UInteger>(1, pipeline.threadExecutionWidth());
+  // Threadgroup width = execution width, clamped to the pipeline's max so a
+  // future heavier kernel can never request more threads per group than allowed.
+  const auto exec_width = std::max<NS::UInteger>(1, pipeline.threadExecutionWidth());
+  const auto max_width = std::max<NS::UInteger>(1, pipeline.maxTotalThreadsPerThreadgroup());
+  const auto width = std::min<NS::UInteger>(exec_width, max_width);
   encoder->dispatchThreads(MTL::Size::Make(thread_count, 1, 1), MTL::Size::Make(width, 1, 1));
   encoder->endEncoding();
   command_buffer->commit();
@@ -360,6 +373,11 @@ Expected<MetalTensor> execute_binary(const OpDesc& op, const MetalTensor& lhs, c
 Expected<MetalTensor> fill(const OpDesc& op, Shape shape, DType dtype, double value) {
   if (op.kind != OpKind::kFill) {
     return Status(StatusCode::kInvalidArgument, "unsupported Metal fill operation");
+  }
+  // Reject non-representable int32 fill values before allocating, so the host
+  // double->int32 cast below is never UB and matches the CPU reference.
+  if (dtype == DType::kInt32 && !is_int32_representable(value)) {
+    return Status(StatusCode::kInvalidArgument, "fill value is out of range for int32");
   }
 
   auto element_count_result = checked_shape_for_metal(shape);

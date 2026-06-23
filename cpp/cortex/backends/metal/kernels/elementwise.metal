@@ -37,7 +37,9 @@ kernel void add_i32(device const int* lhs [[buffer(0)]],
                     constant uint& n [[buffer(3)]],
                     uint id [[thread_position_in_grid]]) {
   if (id < n) {
-    out[id] = lhs[id] + rhs[id];
+    // Wrap via uint so int32 overflow is defined two's-complement, matching the
+    // CPU reference (uint round-trip) and NumPy for the §12.3 exact contract.
+    out[id] = int(uint(lhs[id]) + uint(rhs[id]));
   }
 }
 
@@ -47,7 +49,7 @@ kernel void mul_i32(device const int* lhs [[buffer(0)]],
                     constant uint& n [[buffer(3)]],
                     uint id [[thread_position_in_grid]]) {
   if (id < n) {
-    out[id] = lhs[id] * rhs[id];
+    out[id] = int(uint(lhs[id]) * uint(rhs[id]));
   }
 }
 

@@ -58,6 +58,17 @@ void validate_cpu_device(const std::string& device) {
   }
 }
 
+// nanobind raises std::bad_cast (-> RuntimeError) when a Python int exceeds the
+// int32 range. Translate that into a clear ValueError matching the error
+// taxonomy instead of leaking an opaque "std::bad_cast".
+std::int32_t cast_int32_or_throw(nb::handle item) {
+  try {
+    return nb::cast<std::int32_t>(item);
+  } catch (const std::exception&) {
+    throw std::invalid_argument("integer value is out of range for int32 or is not an integer");
+  }
+}
+
 Shape parse_shape(nb::handle shape) {
   if (nb::isinstance<nb::int_>(shape)) {
     const auto dim = nb::cast<cortex::Dim>(shape);
@@ -105,7 +116,7 @@ CpuTensor tensor_from_sequence(nb::handle data, nb::handle dtype, const std::str
       std::vector<std::int32_t> values;
       values.reserve(items.size());
       for (const nb::object& item : items) {
-        values.push_back(nb::cast<std::int32_t>(item));
+        values.push_back(cast_int32_or_throw(item));
       }
       return CpuTensor(std::move(shape), std::move(values));
     }
@@ -138,7 +149,7 @@ CpuTensor tensor_from_flat_sequence(
     case DType::kInt32: {
       std::vector<std::int32_t> values;
       for (nb::handle item : nb::iter(data)) {
-        values.push_back(nb::cast<std::int32_t>(item));
+        values.push_back(cast_int32_or_throw(item));
       }
       if (static_cast<std::int64_t>(values.size()) != expected_size) {
         throw std::invalid_argument("tensor data length does not match shape");

@@ -122,6 +122,15 @@ print(c.shape)
 # (2, 4)
 ```
 
+### Behavior notes
+
+- Supported dtypes are `float32` and `int32`. Float inputs are narrowed to
+  `float32`, so values may lose precision or overflow to `inf`.
+- `int32` `add`/`multiply` overflow wraps (defined two's-complement), matching
+  NumPy and identical on CPU and Metal.
+- Execution is synchronous and holds the Python GIL; the runtime is not yet safe
+  for concurrent multi-threaded use (see `docs/METAL_BACKEND.md`).
+
 ## Naming
 
 ```text

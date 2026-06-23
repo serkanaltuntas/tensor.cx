@@ -45,3 +45,8 @@ their phases. See PROJECT.md §16 and AGENTS.md "Out Of Scope For Early Work".
   interface (`cpp/cortex/core/backend.h`) is defined but not yet wired; the live
   path is per-op typed entry points routed by the binding. See
   [`ARCHITECTURE.md`](ARCHITECTURE.md) → "Dispatch today vs. the Phase 8 target".
+- **GIL release + Metal thread-safety.** v0.1 is synchronous and holds the GIL
+  across blocking Metal submissions, so multi-threaded use is serialized and the
+  pipeline cache is intentionally unlocked. Releasing the GIL (and locking the
+  cache) is concurrency work beyond the synchronous v0.1 scope. See
+  [`METAL_BACKEND.md`](METAL_BACKEND.md) → "Threading and the GIL".

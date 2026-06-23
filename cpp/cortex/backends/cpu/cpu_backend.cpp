@@ -5,6 +5,8 @@
 #include <stdexcept>
 #include <utility>
 
+#include "cortex/core/dtype.h"
+
 namespace cortex::cpu {
 
 namespace {
@@ -36,6 +38,9 @@ CpuTensor fill(Shape shape, DType dtype, double value) {
       break;
     }
     case DType::kInt32: {
+      if (!is_int32_representable(value)) {
+        throw std::invalid_argument("fill value is out of range for int32");
+      }
       auto& data = result.mutable_int32_data();
       std::fill(data.begin(), data.end(), static_cast<std::int32_t>(value));
       break;
@@ -72,12 +77,18 @@ CpuTensor execute_binary(const OpDesc& op, const CpuTensor& lhs, const CpuTensor
       const auto& rhs_data = rhs.int32_data();
       auto& out = result.mutable_int32_data();
       for (std::size_t i = 0; i < out.size(); ++i) {
+        // Compute in uint32 and cast back so int32 overflow is defined
+        // two's-complement wraparound (matching NumPy), not signed-overflow UB.
+        // This keeps the §12.3 exact-equality contract identical to the Metal
+        // add_i32/mul_i32 kernels, which use the same uint round-trip.
+        const auto a = static_cast<std::uint32_t>(lhs_data[i]);
+        const auto b = static_cast<std::uint32_t>(rhs_data[i]);
         switch (op.kind) {
           case OpKind::kAdd:
-            out[i] = lhs_data[i] + rhs_data[i];
+            out[i] = static_cast<std::int32_t>(a + b);
             break;
           case OpKind::kMultiply:
-            out[i] = lhs_data[i] * rhs_data[i];
+            out[i] = static_cast<std::int32_t>(a * b);
             break;
           default:
             throw std::invalid_argument("unsupported binary int32 operation");

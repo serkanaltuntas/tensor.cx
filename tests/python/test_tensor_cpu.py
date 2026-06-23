@@ -126,6 +126,46 @@ def test_tensor_rejects_unsupported_device():
         cx.tensor([1, 2, 3], device="cuda")
 
 
+def test_tensor_rejects_int_out_of_int32_range():
+    with pytest.raises(ValueError, match="out of range for int32"):
+        cx.tensor([2**40])
+    with pytest.raises(ValueError, match="out of range for int32"):
+        cx.tensor([[2**40, 1], [2, 3]])
+
+
+def test_scalar_input_preserves_rank0():
+    assert cx.tensor(5).shape == ()
+    assert cx.tensor(2.5).shape == ()
+    assert cx.tensor(5).numpy().item() == 5
+
+
+def test_fill_rejects_int32_value_out_of_range():
+    from cortex_runtime import _core
+
+    with pytest.raises(ValueError, match="fill value is out of range for int32"):
+        _core.fill((2,), dtype="int32", value=3e9, device="cpu")
+    with pytest.raises(ValueError, match="fill value is out of range for int32"):
+        _core.fill((2,), dtype="int32", value=float("nan"), device="cpu")
+
+
+def test_int32_add_multiply_wrap_two_complement():
+    big = cx.tensor([2**31 - 1, 2**31 - 1], dtype=cx.int32, device="cpu")
+    addend = cx.tensor([1, 2], dtype=cx.int32, device="cpu")
+
+    np.testing.assert_array_equal(
+        (big + addend).numpy(), np.array([-(2**31), -(2**31) + 1], dtype=np.int32)
+    )
+    np.testing.assert_array_equal(
+        (big * cx.tensor([2, 2], dtype=cx.int32, device="cpu")).numpy(),
+        np.array([-2, -2], dtype=np.int32),
+    )
+
+
+def test_randn_rejects_negative_shape():
+    with pytest.raises(ValueError, match="shape dimensions must be non-negative"):
+        cx.randn((-1,))
+
+
 def test_rank0_scalar_numpy_round_trip():
     # Rank-0 tensors are reachable via the low-level factory; numpy() must emit a
     # 0-d array, not crash on the empty shape.

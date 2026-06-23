@@ -6,8 +6,12 @@ on:
 
 jobs:
   cpu:
-    name: CPU path
+    name: CPU path (py${{ matrix.python }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
 
     steps:
       - name: Check out repository
@@ -18,13 +22,8 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
       - name: Create virtual environment
-        run: uv venv --python 3.12
+        run: uv venv --python ${{ matrix.python }}
 
       - name: Install editable package
         run: CMAKE_ARGS="-DCORTEX_ENABLE_METAL=OFF" uv pip install -e ".[dev]"
@@ -44,11 +43,6 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
 
       - name: Create virtual environment
         run: uv venv --python 3.12

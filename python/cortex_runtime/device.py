@@ -22,15 +22,25 @@ class Device:
 def _normalize_device(value: str | Device | None) -> str:
     if value is None:
         return "cpu"
+
     if isinstance(value, Device):
-        return value.type if value.index == 0 else f"{value.type}:{value.index}"
-    if not isinstance(value, str):
+        device_type, index = value.type, value.index
+    elif isinstance(value, str):
+        device_type, separator, index_str = value.partition(":")
+        if separator:
+            try:
+                index = int(index_str)
+            except ValueError:
+                raise ValueError(f"invalid device index: {index_str!r}") from None
+        else:
+            index = 0
+    else:
         raise TypeError("device must be a string, Device, or None")
 
-    device_type, separator, index = value.partition(":")
-    if not separator:
-        return device_type
-    if index != "0":
+    if not device_type:
+        raise ValueError("device type must be a non-empty string")
+    # The index guard applies to both string and Device inputs.
+    if index != 0:
         raise ValueError("only device index 0 is supported")
     return device_type
 

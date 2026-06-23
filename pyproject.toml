@@ -24,7 +24,7 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-  "numpy>=2.0",
+  "numpy>=2.0,<3",
 ]
 
 [project.optional-dependencies]
@@ -34,6 +34,16 @@ dev = [
 
 [tool.scikit-build]
 wheel.packages = ["python/cortex_runtime"]
+
+# Explicitly include the native sources in the sdist so a source build works
+# regardless of scikit-build-core's git-vs-heuristic file discovery.
+sdist.include = [
+  "CMakeLists.txt",
+  "cmake/**",
+  "cpp/**",
+  "bindings/**",
+  "python/**",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests/python"]

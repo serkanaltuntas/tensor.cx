@@ -36,6 +36,12 @@ Expected<std::uint32_t> checked_dim(Dim dim, const char* name) {
   return static_cast<std::uint32_t>(dim);
 }
 
+// NOTE: This intentionally mirrors metal_kernels.cpp's checked_matmul_dims but
+// omits its per-operand (M*K, K*N) 2^32 guards. Those exist only because the
+// custom MSL kernel indexes operands with 32-bit uint arithmetic; MPSGraph uses
+// 64-bit MPSShape indexing, so the guards do not apply here. The k==0 path below
+// delegates to matmul_custom, which re-validates with the full guard set, so no
+// unguarded shape can reach the custom kernel through this function.
 Expected<MatmulDims> checked_matmul_dims(const MetalTensor& lhs, const MetalTensor& rhs) {
   if (lhs.dtype() != DType::kFloat32 || rhs.dtype() != DType::kFloat32) {
     return Status(StatusCode::kInvalidArgument, "MPSGraph matmul only supports float32 tensors");
