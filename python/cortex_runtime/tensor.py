@@ -90,6 +90,12 @@ class Tensor:
     def exp(self) -> "Tensor":
         return exp(self)
 
+    def gelu(self) -> "Tensor":
+        return gelu(self)
+
+    def silu(self) -> "Tensor":
+        return silu(self)
+
 
 def tensor(data, dtype: str | None = None, device: str | Device | None = None) -> Tensor:
     target = _normalize_device(device)
@@ -186,6 +192,18 @@ def exp(input: Tensor) -> Tensor:
     if not isinstance(input, Tensor):
         raise TypeError("exp expects a Tensor argument")
     return Tensor(_core.exp(input._impl))
+
+
+def gelu(input: Tensor) -> Tensor:
+    if not isinstance(input, Tensor):
+        raise TypeError("gelu expects a Tensor argument")
+    return Tensor(_core.gelu(input._impl))
+
+
+def silu(input: Tensor) -> Tensor:
+    if not isinstance(input, Tensor):
+        raise TypeError("silu expects a Tensor argument")
+    return Tensor(_core.silu(input._impl))
 
 
 def matmul_backends(device: str | Device = "cpu") -> list[str]:

@@ -172,6 +172,17 @@ def test_metal_exp_float32_matches_cpu():
 
 
 @pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_gelu_and_silu_float32_match_cpu():
+    x_cpu = cx.tensor([-4.0, -1.0, 0.0, 0.5, 2.0, 5.0], dtype=cx.float32, device="cpu")
+    x_metal = x_cpu.to("metal")
+
+    cx.testing.assert_allclose(cx.gelu(x_metal).cpu(), cx.gelu(x_cpu), kind="elementwise")
+    cx.testing.assert_allclose(x_metal.gelu().cpu(), x_cpu.gelu(), kind="elementwise")
+    cx.testing.assert_allclose(cx.silu(x_metal).cpu(), cx.silu(x_cpu), kind="elementwise")
+    cx.testing.assert_allclose(x_metal.silu().cpu(), x_cpu.silu(), kind="elementwise")
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
 def test_metal_reductions_support_negative_axis():
     x_cpu = cx.tensor(
         [[[1.0, 2.0], [3.0, 4.0]], [[-1.0, -2.0], [5.0, 6.0]]],
@@ -235,6 +246,32 @@ def test_metal_exp_rank0_scalar_returns_scalar():
 
     assert actual.shape == ()
     cx.testing.assert_allclose(actual, cx.exp(x_cpu), kind="elementwise")
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_gelu_and_silu_rank0_scalar_return_scalar():
+    x_cpu = cx.tensor(2.0, dtype=cx.float32, device="cpu")
+    x_metal = x_cpu.to("metal")
+
+    gelu = cx.gelu(x_metal).cpu()
+    silu = cx.silu(x_metal).cpu()
+
+    assert gelu.shape == ()
+    assert silu.shape == ()
+    cx.testing.assert_allclose(gelu, cx.gelu(x_cpu), kind="elementwise")
+    cx.testing.assert_allclose(silu, cx.silu(x_cpu), kind="elementwise")
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_unary_empty_tensor_returns_empty():
+    x = cx.empty((0,), dtype=cx.float32, device="metal")
+
+    assert cx.exp(x).shape == (0,)
+    assert cx.gelu(x).shape == (0,)
+    assert cx.silu(x).shape == (0,)
+    np.testing.assert_allclose(cx.exp(x).cpu().numpy(), np.array([], dtype=np.float32))
+    np.testing.assert_allclose(cx.gelu(x).cpu().numpy(), np.array([], dtype=np.float32))
+    np.testing.assert_allclose(cx.silu(x).cpu().numpy(), np.array([], dtype=np.float32))
 
 
 @pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
@@ -305,3 +342,7 @@ def test_metal_float32_only_ops_reject_int32():
         cx.mean(x, axis=0)
     with pytest.raises(ValueError, match="exp only supports float32"):
         cx.exp(x)
+    with pytest.raises(ValueError, match="gelu only supports float32"):
+        cx.gelu(x)
+    with pytest.raises(ValueError, match="silu only supports float32"):
+        cx.silu(x)

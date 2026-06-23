@@ -92,9 +92,10 @@ uv run python benchmarks/bench_matmul.py --sizes 16x16x16 --repeats 2
 Phase 6 is in progress. Phase 5 provides CPU reference matmul, a
 correctness-first custom Metal matmul kernel, and an optimized Metal primitive
 path. The first Phase 6 subset adds `sum`, `max`, `mean`, and `exp` on CPU and
-Metal. The custom matmul kernel remains available through
-`cx.matmul(a, b, backend="custom")`; `backend="optimized"` uses the Apple
-optimized primitive path when it is enabled.
+Metal, plus `gelu` and `silu` float32 activations. The custom matmul kernel
+remains available through `cx.matmul(a, b, backend="custom")`;
+`backend="optimized"` uses the Apple optimized primitive path when it is
+enabled.
 
 ```python
 import cortex_runtime as cx
@@ -125,7 +126,7 @@ print(c.shape)
 
 r = cx.mean(c, axis=1)
 m = c.max(axis=0)
-e = cx.exp(r)
+e = cx.gelu(cx.silu(cx.exp(r)))
 
 print(r.cpu().numpy().shape)
 # (2,)
@@ -144,8 +145,9 @@ print(e.cpu().numpy().shape)
 - `sum`, `max`, and `mean` require an explicit `axis`. Negative axes are
   supported. `sum` over an empty axis returns zeros, `mean` over an empty axis
   returns NaNs, and `max` over an empty axis raises `ValueError`.
-- `mean` and `exp` currently support `float32` tensors only; `int32` inputs are
-  rejected instead of being implicitly cast.
+- `mean`, `exp`, `gelu`, and `silu` currently support `float32` tensors only;
+  `int32` inputs are rejected instead of being implicitly cast. `gelu` uses the
+  common tanh approximation.
 - Execution is synchronous and holds the Python GIL; the runtime is not yet safe
   for concurrent multi-threaded use (see `docs/METAL_BACKEND.md`).
 

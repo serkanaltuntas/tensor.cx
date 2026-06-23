@@ -8,6 +8,21 @@ HUGE_SHAPE = (3_037_000_500, 3_037_000_500)
 STRIDE_OVERFLOW_SHAPE = (0, 9_223_372_036_854_775_807, 2)
 
 
+def _gelu_reference(values):
+    values = np.asarray(values, dtype=np.float32)
+    inner = np.float32(0.7978845608028654) * (
+        values + np.float32(0.044715) * values * values * values
+    )
+    return np.float32(0.5) * values * (
+        np.float32(1.0) + np.tanh(inner)
+    )
+
+
+def _silu_reference(values):
+    values = np.asarray(values, dtype=np.float32)
+    return values / (np.float32(1.0) + np.exp(-values))
+
+
 def test_tensor_infers_int32_for_integer_list():
     x = cx.tensor([1, 2, 3], device="cpu")
 
@@ -121,6 +136,15 @@ def test_exp_cpu_float32_matches_numpy():
     cx.testing.assert_allclose(x.exp(), np.exp(x.numpy()), kind="elementwise")
 
 
+def test_gelu_and_silu_cpu_float32_match_reference():
+    x = cx.tensor([-4.0, -1.0, 0.0, 0.5, 2.0, 5.0], dtype=cx.float32, device="cpu")
+
+    cx.testing.assert_allclose(cx.gelu(x), _gelu_reference(x.numpy()), kind="elementwise")
+    cx.testing.assert_allclose(x.gelu(), _gelu_reference(x.numpy()), kind="elementwise")
+    cx.testing.assert_allclose(cx.silu(x), _silu_reference(x.numpy()), kind="elementwise")
+    cx.testing.assert_allclose(x.silu(), _silu_reference(x.numpy()), kind="elementwise")
+
+
 def test_sum_and_max_cpu_support_negative_axis():
     x = cx.tensor(
         [[[1.0, 2.0], [3.0, 4.0]], [[-1.0, -2.0], [5.0, 6.0]]],
@@ -176,6 +200,29 @@ def test_exp_rank0_scalar_returns_scalar():
     cx.testing.assert_allclose(actual, np.exp(x.numpy()), kind="elementwise")
 
 
+def test_gelu_and_silu_rank0_scalar_return_scalar():
+    x = cx.tensor(2.0, dtype=cx.float32, device="cpu")
+
+    gelu = cx.gelu(x)
+    silu = cx.silu(x)
+
+    assert gelu.shape == ()
+    assert silu.shape == ()
+    cx.testing.assert_allclose(gelu, _gelu_reference(x.numpy()), kind="elementwise")
+    cx.testing.assert_allclose(silu, _silu_reference(x.numpy()), kind="elementwise")
+
+
+def test_unary_empty_tensor_returns_empty():
+    x = cx.empty((0,), dtype=cx.float32, device="cpu")
+
+    assert cx.exp(x).shape == (0,)
+    assert cx.gelu(x).shape == (0,)
+    assert cx.silu(x).shape == (0,)
+    np.testing.assert_allclose(cx.exp(x).numpy(), np.array([], dtype=np.float32))
+    np.testing.assert_allclose(cx.gelu(x).numpy(), np.array([], dtype=np.float32))
+    np.testing.assert_allclose(cx.silu(x).numpy(), np.array([], dtype=np.float32))
+
+
 def test_sum_cpu_int32_wraps_two_complement():
     x = cx.tensor([[2**31 - 1, 1]], dtype=cx.int32, device="cpu")
 
@@ -212,8 +259,16 @@ def test_float32_only_ops_reject_int32_and_non_tensor_input():
         cx.mean(x, axis=0)
     with pytest.raises(ValueError, match="exp only supports float32"):
         cx.exp(x)
+    with pytest.raises(ValueError, match="gelu only supports float32"):
+        cx.gelu(x)
+    with pytest.raises(ValueError, match="silu only supports float32"):
+        cx.silu(x)
     with pytest.raises(TypeError, match="exp expects a Tensor argument"):
         cx.exp([1, 2, 3])
+    with pytest.raises(TypeError, match="gelu expects a Tensor argument"):
+        cx.gelu([1, 2, 3])
+    with pytest.raises(TypeError, match="silu expects a Tensor argument"):
+        cx.silu([1, 2, 3])
 
 
 def test_binary_ops_reject_shape_mismatch():

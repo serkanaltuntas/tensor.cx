@@ -13,6 +13,9 @@ namespace cortex::cpu {
 
 namespace {
 
+constexpr float kGeluTanhCoefficient = 0.7978845608028654F;
+constexpr float kGeluCubicCoefficient = 0.044715F;
+
 void validate_binary_inputs(const CpuTensor& lhs, const CpuTensor& rhs) {
   if (lhs.device().type != "cpu" || rhs.device().type != "cpu") {
     throw std::invalid_argument("CPU operations require CPU tensors");
@@ -114,18 +117,43 @@ CpuTensor execute_unary(const OpDesc& op, const CpuTensor& input) {
   if (input.device().type != "cpu") {
     throw std::invalid_argument("CPU operations require CPU tensors");
   }
-  if (op.kind != OpKind::kExp) {
+  if (op.kind != OpKind::kExp && op.kind != OpKind::kGelu && op.kind != OpKind::kSilu) {
     throw std::invalid_argument("unsupported unary operation");
   }
   if (input.dtype() != DType::kFloat32) {
-    throw std::invalid_argument("exp only supports float32 tensors");
+    switch (op.kind) {
+      case OpKind::kExp:
+        throw std::invalid_argument("exp only supports float32 tensors");
+      case OpKind::kGelu:
+        throw std::invalid_argument("gelu only supports float32 tensors");
+      case OpKind::kSilu:
+        throw std::invalid_argument("silu only supports float32 tensors");
+      default:
+        throw std::invalid_argument("unsupported unary operation");
+    }
   }
 
   CpuTensor result(input.dtype(), input.shape());
   const auto& input_data = input.float_data();
   auto& out = result.mutable_float_data();
   for (std::size_t i = 0; i < out.size(); ++i) {
-    out[i] = std::exp(input_data[i]);
+    const float value = input_data[i];
+    switch (op.kind) {
+      case OpKind::kExp:
+        out[i] = std::exp(value);
+        break;
+      case OpKind::kGelu: {
+        const float inner =
+            kGeluTanhCoefficient * (value + kGeluCubicCoefficient * value * value * value);
+        out[i] = 0.5F * value * (1.0F + std::tanh(inner));
+        break;
+      }
+      case OpKind::kSilu:
+        out[i] = value / (1.0F + std::exp(-value));
+        break;
+      default:
+        throw std::invalid_argument("unsupported unary operation");
+    }
   }
   return result;
 }

@@ -71,6 +71,27 @@ kernel void exp_f32(device const float* input [[buffer(0)]],
   }
 }
 
+kernel void gelu_f32(device const float* input [[buffer(0)]],
+                     device float* out [[buffer(1)]],
+                     constant uint& n [[buffer(2)]],
+                     uint id [[thread_position_in_grid]]) {
+  if (id < n) {
+    const float x = input[id];
+    const float inner = 0.7978845608028654f * (x + 0.044715f * x * x * x);
+    out[id] = 0.5f * x * (1.0f + tanh(inner));
+  }
+}
+
+kernel void silu_f32(device const float* input [[buffer(0)]],
+                     device float* out [[buffer(1)]],
+                     constant uint& n [[buffer(2)]],
+                     uint id [[thread_position_in_grid]]) {
+  if (id < n) {
+    const float x = input[id];
+    out[id] = x / (1.0f + exp(-x));
+  }
+}
+
 kernel void matmul_f32(device const float* lhs [[buffer(0)]],
                        device const float* rhs [[buffer(1)]],
                        device float* out [[buffer(2)]],

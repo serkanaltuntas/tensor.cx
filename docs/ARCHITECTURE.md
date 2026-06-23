@@ -20,13 +20,13 @@ other Apple API types stay inside `cpp/cortex/backends/metal/`.
 
 Phase 5 completed the first matmul paths: CPU reference matmul, a
 correctness-first custom Metal matmul kernel, and an MPSGraph-backed Metal
-matmul path. Phase 6 is in progress, with `sum`, `max`, `mean`, and `exp`
-available on CPU and Metal.
+matmul path. Phase 6 is in progress, with `sum`, `max`, `mean`, `exp`, `gelu`,
+and `silu` available on CPU and Metal.
 
 The public Python `Tensor` wraps backend-specific native tensor objects. CPU and
 Metal tensors both support add and multiply; Metal tensors also support direct
 fill through `zeros` and `ones`, rank-2 float32 matmul, axis-based
-`sum`/`max`/`mean` reductions, and `exp`.
+`sum`/`max`/`mean` reductions, and `exp`/`gelu`/`silu`.
 
 Python binary operations dispatch through shared native `_core.add` and
 `_core.multiply` entrypoints with CPU and Metal overloads. The early fill path is

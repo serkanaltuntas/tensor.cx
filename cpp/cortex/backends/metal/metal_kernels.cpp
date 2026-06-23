@@ -55,6 +55,16 @@ Expected<const char*> unary_kernel_name(OpKind kind, DType dtype) {
         return Status(StatusCode::kInvalidArgument, "exp only supports float32 tensors");
       }
       return "exp_f32";
+    case OpKind::kGelu:
+      if (dtype != DType::kFloat32) {
+        return Status(StatusCode::kInvalidArgument, "gelu only supports float32 tensors");
+      }
+      return "gelu_f32";
+    case OpKind::kSilu:
+      if (dtype != DType::kFloat32) {
+        return Status(StatusCode::kInvalidArgument, "silu only supports float32 tensors");
+      }
+      return "silu_f32";
     default:
       return Status(StatusCode::kInvalidArgument, "unsupported Metal unary operation");
   }
@@ -359,6 +369,12 @@ class KernelRuntime {
     if (std::strcmp(name, "exp_f32") == 0) {
       return pipeline_slot(exp_f32_, name);
     }
+    if (std::strcmp(name, "gelu_f32") == 0) {
+      return pipeline_slot(gelu_f32_, name);
+    }
+    if (std::strcmp(name, "silu_f32") == 0) {
+      return pipeline_slot(silu_f32_, name);
+    }
     if (std::strcmp(name, "reduce_sum_f32") == 0) {
       return pipeline_slot(reduce_sum_f32_, name);
     }
@@ -441,6 +457,8 @@ class KernelRuntime {
   NS::SharedPtr<MTL::ComputePipelineState> fill_i32_;
   NS::SharedPtr<MTL::ComputePipelineState> matmul_f32_;
   NS::SharedPtr<MTL::ComputePipelineState> exp_f32_;
+  NS::SharedPtr<MTL::ComputePipelineState> gelu_f32_;
+  NS::SharedPtr<MTL::ComputePipelineState> silu_f32_;
   NS::SharedPtr<MTL::ComputePipelineState> reduce_sum_f32_;
   NS::SharedPtr<MTL::ComputePipelineState> reduce_max_f32_;
   NS::SharedPtr<MTL::ComputePipelineState> reduce_mean_f32_;

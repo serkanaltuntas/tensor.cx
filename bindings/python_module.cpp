@@ -339,6 +339,16 @@ NB_MODULE(_core, module) {
                return unary_op(input, OpKind::kExp);
              },
              nb::arg("input"));
+  module.def("gelu",
+             [](const CpuTensor& input) {
+               return unary_op(input, OpKind::kGelu);
+             },
+             nb::arg("input"));
+  module.def("silu",
+             [](const CpuTensor& input) {
+               return unary_op(input, OpKind::kSilu);
+             },
+             nb::arg("input"));
   module.def("sum",
              [](const CpuTensor& input, std::int64_t axis) {
                return reduction_op(input, OpKind::kSum, axis);
@@ -473,6 +483,16 @@ NB_MODULE(_core, module) {
   module.def("exp",
              [](const cortex::metal::MetalTensor& input) {
                return unwrap(cortex::metal::execute_unary(OpDesc{OpKind::kExp}, input));
+             },
+             nb::arg("input"));
+  module.def("gelu",
+             [](const cortex::metal::MetalTensor& input) {
+               return unwrap(cortex::metal::execute_unary(OpDesc{OpKind::kGelu}, input));
+             },
+             nb::arg("input"));
+  module.def("silu",
+             [](const cortex::metal::MetalTensor& input) {
+               return unwrap(cortex::metal::execute_unary(OpDesc{OpKind::kSilu}, input));
              },
              nb::arg("input"));
   module.def("sum",

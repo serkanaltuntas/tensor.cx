@@ -4,7 +4,22 @@ from __future__ import annotations
 
 from . import _core, testing
 from .device import Device, best_device, device, device_name, devices, is_available
-from .tensor import Tensor, empty, exp, matmul, matmul_backends, max, mean, ones, randn, sum, tensor, zeros
+from .tensor import (
+    Tensor,
+    empty,
+    exp,
+    gelu,
+    matmul,
+    matmul_backends,
+    max,
+    mean,
+    ones,
+    randn,
+    silu,
+    sum,
+    tensor,
+    zeros,
+)
 
 __version__ = _core.version()
 float32 = _core.float32
@@ -27,6 +42,7 @@ __all__ = [
     "empty",
     "exp",
     "float32",
+    "gelu",
     "int32",
     "is_available",
     "matmul",
@@ -35,6 +51,7 @@ __all__ = [
     "mean",
     "ones",
     "randn",
+    "silu",
     "sum",
     "tensor",
     "testing",

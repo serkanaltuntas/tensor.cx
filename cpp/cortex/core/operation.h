@@ -13,6 +13,8 @@ enum class OpKind {
   kMax,
   kMean,
   kExp,
+  kGelu,
+  kSilu,
 };
 
 // §5.6 specifies OpDesc as "an op enum plus attributes". Through Phase 5 it
