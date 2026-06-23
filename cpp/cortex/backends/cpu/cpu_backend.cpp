@@ -161,6 +161,63 @@ void compute_rmsnorm(
   }
 }
 
+void compute_layernorm(
+    const CpuTensor& input,
+    CpuTensor& result,
+    const ReductionDims& dims,
+    float epsilon) {
+  const auto& input_data = input.float_data();
+  auto& out = result.mutable_float_data();
+
+  for (std::int64_t outer = 0; outer < dims.outer; ++outer) {
+    for (std::int64_t inner = 0; inner < dims.inner; ++inner) {
+      const auto base = outer * dims.reduce * dims.inner + inner;
+      float sum = 0.0F;
+      const float first_value = input_data[static_cast<std::size_t>(base)];
+      bool all_equal = true;
+      for (std::int64_t reduce_index = 0; reduce_index < dims.reduce; ++reduce_index) {
+        const float value =
+            input_data[static_cast<std::size_t>(base + reduce_index * dims.inner)];
+        sum += value;
+        all_equal = all_equal && value == first_value;
+      }
+      if (all_equal && std::isfinite(first_value)) {
+        const float value =
+            epsilon == 0.0F ? std::numeric_limits<float>::quiet_NaN() : 0.0F;
+        for (std::int64_t reduce_index = 0; reduce_index < dims.reduce; ++reduce_index) {
+          const auto index = static_cast<std::size_t>(base + reduce_index * dims.inner);
+          out[index] = value;
+        }
+        continue;
+      }
+      const float mean = sum / static_cast<float>(dims.reduce);
+
+      float sum_squared_diff = 0.0F;
+      for (std::int64_t reduce_index = 0; reduce_index < dims.reduce; ++reduce_index) {
+        const float diff =
+            input_data[static_cast<std::size_t>(base + reduce_index * dims.inner)] - mean;
+        sum_squared_diff += diff * diff;
+      }
+
+      const float variance = sum_squared_diff / static_cast<float>(dims.reduce);
+      const float denom = variance + epsilon;
+      if (denom == 0.0F) {
+        for (std::int64_t reduce_index = 0; reduce_index < dims.reduce; ++reduce_index) {
+          const auto index = static_cast<std::size_t>(base + reduce_index * dims.inner);
+          out[index] = std::numeric_limits<float>::quiet_NaN();
+        }
+        continue;
+      }
+
+      const float scale = 1.0F / std::sqrt(denom);
+      for (std::int64_t reduce_index = 0; reduce_index < dims.reduce; ++reduce_index) {
+        const auto index = static_cast<std::size_t>(base + reduce_index * dims.inner);
+        out[index] = (input_data[index] - mean) * scale;
+      }
+    }
+  }
+}
+
 }  // namespace
 
 CpuTensor empty(Shape shape, DType dtype) {
@@ -192,7 +249,8 @@ CpuTensor execute_unary(const OpDesc& op, const CpuTensor& input) {
     throw std::invalid_argument("CPU operations require CPU tensors");
   }
   if (op.kind != OpKind::kExp && op.kind != OpKind::kGelu && op.kind != OpKind::kSilu &&
-      op.kind != OpKind::kSoftmax && op.kind != OpKind::kRmsNorm) {
+      op.kind != OpKind::kSoftmax && op.kind != OpKind::kRmsNorm &&
+      op.kind != OpKind::kLayerNorm) {
     throw std::invalid_argument("unsupported unary operation");
   }
   if (op.kind == OpKind::kSoftmax) {
@@ -217,6 +275,19 @@ CpuTensor execute_unary(const OpDesc& op, const CpuTensor& input) {
     compute_rmsnorm(input, result, dims, epsilon);
     return result;
   }
+  if (op.kind == OpKind::kLayerNorm) {
+    const ReductionDims dims = reduction_dims(input, op.axis);
+    const float epsilon = checked_epsilon(op.epsilon);
+    if (input.dtype() != DType::kFloat32) {
+      throw std::invalid_argument("layernorm only supports float32 tensors");
+    }
+    if (dims.reduce == 0) {
+      return CpuTensor(input.dtype(), input.shape());
+    }
+    CpuTensor result(input.dtype(), input.shape());
+    compute_layernorm(input, result, dims, epsilon);
+    return result;
+  }
   if (input.dtype() != DType::kFloat32) {
     switch (op.kind) {
       case OpKind::kExp:
@@ -227,6 +298,8 @@ CpuTensor execute_unary(const OpDesc& op, const CpuTensor& input) {
         throw std::invalid_argument("silu only supports float32 tensors");
       case OpKind::kRmsNorm:
         throw std::invalid_argument("rmsnorm only supports float32 tensors");
+      case OpKind::kLayerNorm:
+        throw std::invalid_argument("layernorm only supports float32 tensors");
       default:
         throw std::invalid_argument("unsupported unary operation");
     }

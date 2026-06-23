@@ -370,6 +370,13 @@ NB_MODULE(_core, module) {
              nb::arg("input"),
              nb::arg("axis"),
              nb::arg("eps") = 1.0e-5);
+  module.def("layernorm",
+             [](const CpuTensor& input, std::int64_t axis, double eps) {
+               return norm_op(input, OpKind::kLayerNorm, axis, eps);
+             },
+             nb::arg("input"),
+             nb::arg("axis"),
+             nb::arg("eps") = 1.0e-5);
   module.def("sum",
              [](const CpuTensor& input, std::int64_t axis) {
                return reduction_op(input, OpKind::kSum, axis);
@@ -525,6 +532,13 @@ NB_MODULE(_core, module) {
   module.def("rmsnorm",
              [](const cortex::metal::MetalTensor& input, std::int64_t axis, double eps) {
                return unwrap(cortex::metal::execute_unary(OpDesc{OpKind::kRmsNorm, axis, eps}, input));
+             },
+             nb::arg("input"),
+             nb::arg("axis"),
+             nb::arg("eps") = 1.0e-5);
+  module.def("layernorm",
+             [](const cortex::metal::MetalTensor& input, std::int64_t axis, double eps) {
+               return unwrap(cortex::metal::execute_unary(OpDesc{OpKind::kLayerNorm, axis, eps}, input));
              },
              nb::arg("input"),
              nb::arg("axis"),

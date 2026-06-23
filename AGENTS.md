@@ -232,21 +232,32 @@ Keep these conceptual boundaries even if filenames evolve.
 
 ## Development Phases
 
-Follow this sequence unless the user gives a narrower task:
+`PROJECT.md` is authoritative for the current phase checklist and phase status.
+Do not infer the current phase from this abbreviated sequence. After Phase 6
+completion, the next phase is Phase 7 — Experimental kernel DSL.
 
-1. Bootstrap the package, CMake, binding skeleton, tests, and docs.
-2. Implement dtype, shape, tensor metadata, and CPU tensors.
-3. Add CPU fill, zeros, ones, copy, add, and multiply.
-4. Add Metal device discovery and backend registration.
-5. Add Metal buffers and host/device copies.
-6. Add static MSL elementwise kernels for `float32` add, multiply, and fill.
-7. Add benchmarks for copies and elementwise operations.
-8. Document what works, what does not, and what is intentionally out of scope.
+Completed through Phase 6:
 
-Only move to reductions, matmul, MPSGraph, a kernel DSL, CUDA, ROCm, or MLIR
-after the earlier phases are working and tested. When Phase 5 begins, matmul
-must prove the custom MSL path first with a naive correctness-only kernel, then
-add MPSGraph as the fast primitive path.
+```text
+Phase 0   Project bootstrap
+Phase 1   CPU backend
+Phase 2   Metal backend foundation
+Phase 3   First Metal kernels
+Phase 4   Runtime polish
+Phase 5   MPSGraph matmul
+Phase 6   Reductions and NN primitives
+```
+
+Next planned phase:
+
+```text
+Phase 7   Experimental kernel DSL
+```
+
+Only move to CUDA, ROCm, Vulkan, MLIR, or broad compiler work after the earlier
+phases are working and tested. Phase 7 work must stay experimental, preserve the
+Phase 6 correctness contracts, and keep CPU references mandatory for generated
+or DSL-routed kernels.
 
 ## Architecture Rules
 

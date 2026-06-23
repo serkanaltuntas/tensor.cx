@@ -89,10 +89,10 @@ uv run python benchmarks/bench_matmul.py --sizes 16x16x16 --repeats 2
 
 ## Current Status
 
-Phase 6 is in progress. Phase 5 provides CPU reference matmul, a
+Phase 6 is complete. Phase 5 provides CPU reference matmul, a
 correctness-first custom Metal matmul kernel, and an optimized Metal primitive
-path. The first Phase 6 subset adds `sum`, `max`, `mean`, `exp`, `gelu`,
-`silu`, `softmax`, and `rmsnorm` on CPU and Metal. The custom matmul kernel remains
+path. Phase 6 adds `sum`, `max`, `mean`, `exp`, `gelu`, `silu`, `softmax`,
+`rmsnorm`, and `layernorm` on CPU and Metal. The custom matmul kernel remains
 available through `cx.matmul(a, b, backend="custom")`;
 `backend="optimized"` uses the Apple optimized primitive path when it is
 enabled.
@@ -128,6 +128,7 @@ r = cx.mean(c, axis=1)
 m = c.max(axis=0)
 s = cx.softmax(c, axis=1)
 rms = cx.rmsnorm(c, axis=1)
+ln = cx.layernorm(c, axis=1)
 e = cx.gelu(cx.silu(cx.exp(r)))
 
 print(r.cpu().numpy().shape)
@@ -139,6 +140,8 @@ print(e.cpu().numpy().shape)
 print(s.cpu().numpy().shape)
 # (2, 4)
 print(rms.cpu().numpy().shape)
+# (2, 4)
+print(ln.cpu().numpy().shape)
 # (2, 4)
 ```
 
@@ -156,9 +159,13 @@ print(rms.cpu().numpy().shape)
 - `rmsnorm` requires an explicit `axis`, preserves the input shape, supports
   negative axes, and accepts `eps` with default `1e-5`. It computes
   `x / sqrt(mean(x*x, axis, keepdims=True) + eps)` without affine weights.
-- `mean`, `exp`, `gelu`, `silu`, `softmax`, and `rmsnorm` currently support
-  `float32` tensors only; `int32` inputs are rejected instead of being
-  implicitly cast. `gelu` uses the common tanh approximation.
+- `layernorm` requires an explicit `axis`, preserves the input shape, supports
+  negative axes, and accepts `eps` with default `1e-5`. It computes
+  `(x - mean) / sqrt(variance + eps)`, with mean and variance taken along
+  `axis` as `keepdims=True`, without affine weights.
+- `mean`, `exp`, `gelu`, `silu`, `softmax`, `rmsnorm`, and `layernorm`
+  currently support `float32` tensors only; `int32` inputs are rejected instead
+  of being implicitly cast. `gelu` uses the common tanh approximation.
 - Execution is synchronous and holds the Python GIL; the runtime is not yet safe
   for concurrent multi-threaded use (see `docs/METAL_BACKEND.md`).
 

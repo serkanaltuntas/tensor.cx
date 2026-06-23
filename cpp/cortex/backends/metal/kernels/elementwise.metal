@@ -149,6 +149,52 @@ kernel void rmsnorm_f32(device const float* input [[buffer(0)]],
   out[id] = input[id] * scale;
 }
 
+kernel void layernorm_f32(device const float* input [[buffer(0)]],
+                          device float* out [[buffer(1)]],
+                          constant uint& total_n [[buffer(2)]],
+                          constant uint& reduce_n [[buffer(3)]],
+                          constant uint& inner_n [[buffer(4)]],
+                          constant float& epsilon [[buffer(5)]],
+                          uint id [[thread_position_in_grid]]) {
+  if (id >= total_n) {
+    return;
+  }
+
+  const uint slice_n = reduce_n * inner_n;
+  const uint outer_index = id / slice_n;
+  const uint inner_index = id % inner_n;
+  const uint base = outer_index * slice_n + inner_index;
+
+  float sum = 0.0f;
+  const float first_value = input[base];
+  bool all_equal = true;
+  for (uint reduce_index = 0; reduce_index < reduce_n; ++reduce_index) {
+    const float value = input[base + reduce_index * inner_n];
+    sum += value;
+    all_equal = all_equal && value == first_value;
+  }
+  if (all_equal && isfinite(first_value)) {
+    out[id] = epsilon == 0.0f ? as_type<float>(0x7fc00000u) : 0.0f;
+    return;
+  }
+  const float mean = sum / float(reduce_n);
+
+  float sum_squared_diff = 0.0f;
+  for (uint reduce_index = 0; reduce_index < reduce_n; ++reduce_index) {
+    const float diff = input[base + reduce_index * inner_n] - mean;
+    sum_squared_diff += diff * diff;
+  }
+  const float variance = sum_squared_diff / float(reduce_n);
+  const float denom = variance + epsilon;
+  if (denom == 0.0f) {
+    out[id] = as_type<float>(0x7fc00000u);
+    return;
+  }
+
+  const float scale = rsqrt(denom);
+  out[id] = (input[id] - mean) * scale;
+}
+
 kernel void matmul_f32(device const float* lhs [[buffer(0)]],
                        device const float* rhs [[buffer(1)]],
                        device float* out [[buffer(2)]],

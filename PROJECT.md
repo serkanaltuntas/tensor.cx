@@ -39,8 +39,8 @@ C++ namespace: cortex
 > CI (CPU) or on the local Mac (Metal).
 
 ```text
-Current phase:          Phase 6 — in progress
-Last verified milestone: Phase 5 — Matmul custom MSL + MPSGraph
+Current phase:          Phase 7 — ready to start
+Last verified milestone: Phase 6 — Reductions & NN primitives
 v0.1 target:            achieved at end of Phase 3
 Binding decided:        nanobind (see §5.6)
 Open decisions:         none
@@ -55,7 +55,7 @@ Phase checklist:
 [x] Phase 3   First Metal kernels        <- v0.1 ships here
 [x] Phase 4   Runtime polish
 [x] Phase 5   MPSGraph matmul
-[ ] Phase 6   Reductions & NN primitives
+[x] Phase 6   Reductions & NN primitives
 [ ] Phase 7   Experimental kernel DSL
 [ ] Phase 8   Backend interface hardening
 [ ] Phase 9   CUDA prototype
@@ -678,27 +678,31 @@ The C++ core should not expose Apple platform types directly. Metal-specific han
 
 ### 8.5 Operation
 
-Initial operations:
+Implemented operations through Phase 6:
 
 ```text
 copy
 fill
 add
 multiply
+sum
+max
+mean
+exp
+gelu
+silu
+matmul
+softmax
+rmsnorm
+layernorm
 ```
 
-Next operations:
+Future operation candidates:
 
 ```text
 subtract
 divide
 relu
-exp
-sum
-max
-matmul
-softmax
-rmsnorm
 ```
 
 Operations should first be implemented as direct runtime calls. A graph abstraction can come later.
@@ -1275,8 +1279,8 @@ Progress:
 
 ```text
 - sum and max are implemented for float32 and int32 on CPU and Metal.
-- mean, exp, gelu, silu, softmax, and rmsnorm are implemented for float32 on
-  CPU and Metal.
+- mean, exp, gelu, silu, softmax, rmsnorm, and layernorm are implemented for
+  float32 on CPU and Metal.
 - Reductions require an explicit axis, support negative axes, and remove the
   reduced axis from the output shape.
 - softmax requires an explicit axis, preserves the input shape, supports
@@ -1284,6 +1288,10 @@ Progress:
 - rmsnorm requires an explicit axis, preserves the input shape, supports
   negative axes, and computes x / sqrt(mean(x*x, axis, keepdims=True) + eps)
   without affine weights.
+- layernorm requires an explicit axis, preserves the input shape, supports
+  negative axes, and computes
+  (x - mean(x, axis, keepdims=True)) /
+  sqrt(mean((x - mean)^2, axis, keepdims=True) + eps) without affine weights.
 - sum over an empty axis returns zeros; mean over an empty axis returns NaNs;
   max over an empty axis is rejected.
 ```

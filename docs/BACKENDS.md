@@ -27,7 +27,7 @@ The Metal backend currently supports:
 - Python Tensor.cpu()
 - add and multiply kernels for float32 and int32 tensors
 - fill kernels for zeros/ones on float32 and int32 tensors
-- exp, gelu, silu, softmax, and rmsnorm kernels for float32 tensors
+- exp, gelu, silu, softmax, rmsnorm, and layernorm kernels for float32 tensors
 - naive custom MSL matmul for float32 rank-2 tensors
 - MPSGraph matmul for float32 rank-2 tensors
 - reduction kernels for sum/max on float32 and int32 tensors
@@ -38,7 +38,7 @@ CPU remains the correctness reference for every Metal operation.
 
 ## Phase 6 Direction
 
-Phase 6 is in progress. The current subset supports `sum`, `max`, `mean`,
-`exp`, `gelu`, `silu`, stable `softmax`, and `rmsnorm`. Remaining Phase 6 work
-should continue with `layernorm`, with a CPU reference before or alongside the
-Metal kernel.
+Phase 6 is complete. The current subset supports `sum`, `max`, `mean`, `exp`,
+`gelu`, `silu`, stable `softmax`, `rmsnorm`, and `layernorm` on CPU and Metal.
+Phase 7 should start the experimental kernel DSL without changing the Phase 6
+correctness contracts.

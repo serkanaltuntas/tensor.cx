@@ -20,13 +20,16 @@ other Apple API types stay inside `cpp/cortex/backends/metal/`.
 
 Phase 5 completed the first matmul paths: CPU reference matmul, a
 correctness-first custom Metal matmul kernel, and an MPSGraph-backed Metal
-matmul path. Phase 6 is in progress, with `sum`, `max`, `mean`, `exp`, `gelu`,
-`silu`, `softmax`, and `rmsnorm` available on CPU and Metal.
+matmul path. Phase 6 is complete, with `sum`, `max`, `mean`, `exp`, `gelu`,
+`silu`, `softmax`, `rmsnorm`, and `layernorm` available on CPU and Metal.
+Phase 7 is ready to start and should keep the experimental kernel DSL behind
+the existing backend-neutral runtime boundaries.
 
 The public Python `Tensor` wraps backend-specific native tensor objects. CPU and
 Metal tensors both support add and multiply; Metal tensors also support direct
 fill through `zeros` and `ones`, rank-2 float32 matmul, axis-based
-`sum`/`max`/`mean` reductions, `softmax`, `rmsnorm`, and `exp`/`gelu`/`silu`.
+`sum`/`max`/`mean` reductions, `softmax`, `rmsnorm`, `layernorm`, and
+`exp`/`gelu`/`silu`.
 
 Python binary operations dispatch through shared native `_core.add` and
 `_core.multiply` entrypoints with CPU and Metal overloads. The early fill path is
@@ -47,9 +50,10 @@ is a set of per-op typed entry points in each backend (`cpu::execute_binary`,
 the nanobind layer from the operand tensor type and device. `OpDesc` is passed
 to the unary, binary, and reduction entry points (and Metal's `fill`) and tags
 the op `kind`. Phase 6 adds a minimal `axis` attribute to `OpDesc` for
-reduction entry points and axis-aware transforms such as softmax and rmsnorm,
-plus an `epsilon` attribute for normalization ops. Other op parameters, such as
-fill's value and matmul's backend choice, still travel as ordinary arguments.
+reduction entry points and axis-aware transforms such as softmax, rmsnorm, and
+layernorm, plus an `epsilon` attribute for normalization ops. Other op
+parameters, such as fill's value and matmul's backend choice, still travel as
+ordinary arguments.
 
 This is a deliberate, documented deviation kept small per the "avoid unrelated
 refactors" rule: unifying the backends onto `Backend::execute` is the work of

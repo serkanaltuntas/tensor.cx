@@ -38,6 +38,16 @@ def _rmsnorm_reference(values, axis, eps=1.0e-5):
     return values / np.sqrt(mean_square + np.float32(eps))
 
 
+def _layernorm_reference(values, axis, eps=1.0e-5):
+    values = np.asarray(values, dtype=np.float32)
+    if values.ndim == 0:
+        return (values - values) / np.sqrt(np.float32(eps))
+    mean = np.mean(values, axis=axis, keepdims=True)
+    centered = values - mean
+    variance = np.mean(centered * centered, axis=axis, keepdims=True)
+    return centered / np.sqrt(variance + np.float32(eps))
+
+
 def test_tensor_infers_int32_for_integer_list():
     x = cx.tensor([1, 2, 3], device="cpu")
 
@@ -193,6 +203,38 @@ def test_rmsnorm_cpu_float32_matches_reference():
     )
 
 
+def test_layernorm_cpu_float32_matches_reference():
+    x = cx.tensor(
+        [[1.0, -2.0, 3.0], [4.0, 0.5, -6.0]],
+        dtype=cx.float32,
+        device="cpu",
+    )
+
+    cx.testing.assert_allclose(cx.layernorm(x, axis=1), _layernorm_reference(x.numpy(), axis=1), kind="reduction")
+    cx.testing.assert_allclose(x.layernorm(axis=0), _layernorm_reference(x.numpy(), axis=0), kind="reduction")
+    cx.testing.assert_allclose(
+        cx.layernorm(x, axis=1, eps=1.0e-3),
+        _layernorm_reference(x.numpy(), axis=1, eps=1.0e-3),
+        kind="reduction",
+    )
+    cx.testing.assert_allclose(
+        cx.layernorm(x, axis=1, eps=0.0),
+        _layernorm_reference(x.numpy(), axis=1, eps=0.0),
+        kind="reduction",
+    )
+
+    constant = cx.tensor([[3.0, 3.0, 3.0]], dtype=cx.float32, device="cpu")
+    cx.testing.assert_allclose(cx.layernorm(constant, axis=1), np.zeros((1, 3), dtype=np.float32), kind="reduction")
+    zero_eps_constant = cx.layernorm(constant, axis=1, eps=0.0)
+    assert zero_eps_constant.shape == (1, 3)
+    assert np.isnan(zero_eps_constant.numpy()).all()
+
+    nonfinite_constant = cx.tensor([[np.inf, np.inf]], dtype=cx.float32, device="cpu")
+    actual = cx.layernorm(nonfinite_constant, axis=1)
+    assert actual.shape == (1, 2)
+    assert np.isnan(actual.numpy()).all()
+
+
 def test_sum_and_max_cpu_support_negative_axis():
     x = cx.tensor(
         [[[1.0, 2.0], [3.0, 4.0]], [[-1.0, -2.0], [5.0, 6.0]]],
@@ -205,6 +247,7 @@ def test_sum_and_max_cpu_support_negative_axis():
     cx.testing.assert_allclose(cx.mean(x, axis=-1), np.mean(x.numpy(), axis=-1), kind="reduction")
     cx.testing.assert_allclose(cx.softmax(x, axis=-1), _softmax_reference(x.numpy(), axis=-1), kind="reduction")
     cx.testing.assert_allclose(cx.rmsnorm(x, axis=-1), _rmsnorm_reference(x.numpy(), axis=-1), kind="reduction")
+    cx.testing.assert_allclose(cx.layernorm(x, axis=-1), _layernorm_reference(x.numpy(), axis=-1), kind="reduction")
 
 
 def test_sum_and_max_cpu_int32_exact():
@@ -278,6 +321,14 @@ def test_rmsnorm_rank0_scalar_returns_scalar():
     cx.testing.assert_allclose(actual, _rmsnorm_reference(x.numpy(), axis=0), kind="reduction")
 
 
+def test_layernorm_rank0_scalar_returns_scalar():
+    x = cx.tensor(2.0, dtype=cx.float32, device="cpu")
+    actual = cx.layernorm(x, axis=0)
+
+    assert actual.shape == ()
+    cx.testing.assert_allclose(actual, _layernorm_reference(x.numpy(), axis=0), kind="reduction")
+
+
 def test_unary_empty_tensor_returns_empty():
     x = cx.empty((0,), dtype=cx.float32, device="cpu")
 
@@ -302,6 +353,15 @@ def test_rmsnorm_empty_tensor_returns_empty():
     x = cx.empty((2, 0), dtype=cx.float32, device="cpu")
 
     actual = cx.rmsnorm(x, axis=1)
+
+    assert actual.shape == (2, 0)
+    np.testing.assert_allclose(actual.numpy(), np.empty((2, 0), dtype=np.float32))
+
+
+def test_layernorm_empty_tensor_returns_empty():
+    x = cx.empty((2, 0), dtype=cx.float32, device="cpu")
+
+    actual = cx.layernorm(x, axis=1)
 
     assert actual.shape == (2, 0)
     np.testing.assert_allclose(actual.numpy(), np.empty((2, 0), dtype=np.float32))
@@ -337,6 +397,10 @@ def test_reductions_reject_invalid_axis_and_non_tensor_input():
         cx.rmsnorm(x, axis=2)
     with pytest.raises(ValueError, match="reduction axis is out of range"):
         cx.rmsnorm(int_x, axis=2)
+    with pytest.raises(ValueError, match="reduction axis is out of range"):
+        cx.layernorm(x, axis=2)
+    with pytest.raises(ValueError, match="reduction axis is out of range"):
+        cx.layernorm(int_x, axis=2)
     with pytest.raises(TypeError, match="sum expects a Tensor argument"):
         cx.sum([1, 2, 3], axis=0)
     with pytest.raises(TypeError, match="max expects a Tensor argument"):
@@ -347,6 +411,8 @@ def test_reductions_reject_invalid_axis_and_non_tensor_input():
         cx.softmax([1, 2, 3], axis=0)
     with pytest.raises(TypeError, match="rmsnorm expects a Tensor argument"):
         cx.rmsnorm([1, 2, 3], axis=0)
+    with pytest.raises(TypeError, match="layernorm expects a Tensor argument"):
+        cx.layernorm([1, 2, 3], axis=0)
 
 
 def test_float32_only_ops_reject_int32_and_non_tensor_input():
@@ -364,6 +430,8 @@ def test_float32_only_ops_reject_int32_and_non_tensor_input():
         cx.softmax(x, axis=0)
     with pytest.raises(ValueError, match="rmsnorm only supports float32"):
         cx.rmsnorm(x, axis=0)
+    with pytest.raises(ValueError, match="layernorm only supports float32"):
+        cx.layernorm(x, axis=0)
     with pytest.raises(TypeError, match="exp expects a Tensor argument"):
         cx.exp([1, 2, 3])
     with pytest.raises(TypeError, match="gelu expects a Tensor argument"):
@@ -385,6 +453,21 @@ def test_rmsnorm_rejects_invalid_epsilon():
         cx.rmsnorm(x, axis=1, eps=float(np.finfo(np.float32).max) * 2.0)
     with pytest.raises(ValueError, match="epsilon must be finite and non-negative"):
         cx.rmsnorm(x, axis=1, eps=1.0e-50)
+
+
+def test_layernorm_rejects_invalid_epsilon():
+    x = cx.ones((2, 3), dtype=cx.float32, device="cpu")
+
+    with pytest.raises(ValueError, match="epsilon must be finite and non-negative"):
+        cx.layernorm(x, axis=1, eps=-1.0)
+    with pytest.raises(ValueError, match="epsilon must be finite and non-negative"):
+        cx.layernorm(x, axis=1, eps=np.inf)
+    with pytest.raises(ValueError, match="epsilon must be finite and non-negative"):
+        cx.layernorm(x, axis=1, eps=np.nan)
+    with pytest.raises(ValueError, match="epsilon must be finite and non-negative"):
+        cx.layernorm(x, axis=1, eps=float(np.finfo(np.float32).max) * 2.0)
+    with pytest.raises(ValueError, match="epsilon must be finite and non-negative"):
+        cx.layernorm(x, axis=1, eps=1.0e-50)
 
 
 def test_binary_ops_reject_shape_mismatch():
