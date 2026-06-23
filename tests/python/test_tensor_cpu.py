@@ -88,6 +88,26 @@ def test_factory_rejects_shape_stride_overflow():
         cx.zeros(STRIDE_OVERFLOW_SHAPE, dtype=cx.float32, device="cpu")
 
 
+def test_factory_rejects_invalid_shape_types_as_value_error():
+    with pytest.raises(ValueError, match="shape dimension is out of range"):
+        cx.zeros((2**80,), dtype=cx.float32, device="cpu")
+    with pytest.raises(ValueError, match="shape dimension is out of range"):
+        cx.zeros((-(2**80),), dtype=cx.float32, device="cpu")
+    with pytest.raises(ValueError, match="shape dimensions must be integers"):
+        cx.zeros((1.5,), dtype=cx.float32, device="cpu")
+    with pytest.raises(ValueError, match="shape dimensions must be integers"):
+        cx.zeros("abc", dtype=cx.float32, device="cpu")
+    with pytest.raises(ValueError, match="shape must be an int or an iterable of ints"):
+        cx.zeros(1.5, dtype=cx.float32, device="cpu")
+
+
+def test_factory_rejects_invalid_dtype_type_as_value_error():
+    with pytest.raises(ValueError, match="unsupported dtype"):
+        cx.zeros((1,), dtype=123, device="cpu")
+    with pytest.raises(ValueError, match="unsupported dtype"):
+        cx.tensor([1], dtype=123, device="cpu")
+
+
 def test_numpy_preserves_tensor_shape():
     x = cx.zeros((2, 3), dtype=cx.float32, device="cpu")
 

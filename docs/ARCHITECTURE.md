@@ -93,6 +93,8 @@ Reduction axis out of range       ValueError        reduction axis is out of ran
 Max over empty axis               ValueError        max reduction requires a non-empty axis
 Float32-only op dtype mismatch    ValueError        only supports float32
 Negative shape dimension          ValueError        shape dimensions must be non-negative
+Non-integer shape dimension       ValueError        shape dimensions must be integers
+Shape dimension parse overflow    ValueError        shape dimension is out of range
 Shape element-count overflow      ValueError        shape size overflow
 Shape stride overflow             ValueError        shape stride overflow
 Int value out of int32 range      ValueError        out of range for int32

@@ -78,8 +78,9 @@ They may be considered later only for peripheral tooling.
 ledger. Update it only when a phase acceptance criteria and Definition of Done
 are actually satisfied.
 
-The current v0.1 target is the end of Phase 3: CPU backend, Metal buffer copies,
-and first static MSL elementwise kernels passing CPU-vs-Metal tests.
+The v0.1 target was achieved at the end of Phase 3: CPU backend, Metal buffer
+copies, and first static MSL elementwise kernels passing CPU-vs-Metal tests.
+Use the `PROJECT.md` Project Status block for the current phase.
 
 ## Codex / Claude Code Coordination
 

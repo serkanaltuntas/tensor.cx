@@ -42,6 +42,9 @@ DType parse_dtype(nb::handle dtype, DType inferred) {
     return inferred;
   }
 
+  if (!nb::isinstance<nb::str>(dtype)) {
+    throw std::invalid_argument("unsupported dtype: expected float32 or int32");
+  }
   const std::string name = nb::cast<std::string>(dtype);
   if (name == "float32") {
     return DType::kFloat32;
@@ -50,6 +53,19 @@ DType parse_dtype(nb::handle dtype, DType inferred) {
     return DType::kInt32;
   }
   throw std::invalid_argument("unsupported dtype: expected float32 or int32");
+}
+
+// Keep invalid shape input inside the public ValueError taxonomy instead of
+// letting nanobind expose std::bad_cast as RuntimeError.
+cortex::Dim cast_dim_or_throw(nb::handle item) {
+  if (!nb::isinstance<nb::int_>(item)) {
+    throw std::invalid_argument("shape dimensions must be integers");
+  }
+  try {
+    return nb::cast<cortex::Dim>(item);
+  } catch (const std::exception&) {
+    throw std::invalid_argument("shape dimension is out of range");
+  }
 }
 
 void validate_cpu_device(const std::string& device) {
@@ -71,13 +87,18 @@ std::int32_t cast_int32_or_throw(nb::handle item) {
 
 Shape parse_shape(nb::handle shape) {
   if (nb::isinstance<nb::int_>(shape)) {
-    const auto dim = nb::cast<cortex::Dim>(shape);
-    return Shape{dim};
+    return Shape{cast_dim_or_throw(shape)};
   }
 
   Shape result;
-  for (nb::handle item : nb::iter(shape)) {
-    result.push_back(nb::cast<cortex::Dim>(item));
+  try {
+    for (nb::handle item : nb::iter(shape)) {
+      result.push_back(cast_dim_or_throw(item));
+    }
+  } catch (const std::invalid_argument&) {
+    throw;
+  } catch (const std::exception&) {
+    throw std::invalid_argument("shape must be an int or an iterable of ints");
   }
   return result;
 }
