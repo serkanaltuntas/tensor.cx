@@ -8,8 +8,8 @@ with tests.
 
 Phase 7 has started, but no user-defined kernel is compiled or launched yet.
 The current API records kernel metadata, parses a small restricted Python AST
-subset into backend-neutral IR, and rejects launch/compile attempts with clear
-`NotImplementedError` messages.
+subset into backend-neutral IR, emits text MSL for the first subset, and rejects
+launch/compile attempts with clear `NotImplementedError` messages.
 
 ```python
 import cortex_runtime as cx
@@ -26,6 +26,7 @@ def add_kernel(a, b, out, n):
 print(add_kernel.name)
 print(add_kernel.parameters)
 print(add_kernel.parse_ir())
+print(add_kernel.emit_msl())
 ```
 
 Do not expose a top-level `cx.kernel` API until the experimental API has a
@@ -120,6 +121,25 @@ numeric constants
 Unsupported AST nodes must fail at compile time with a clear message naming the
 node type. Silent fallback or partial miscompilation is not acceptable.
 
+## MSL Emission Rules
+
+The current `emit_msl()` path is text-only. It is a golden-testable emitter, not
+a runtime compiler or launcher.
+
+It currently assumes:
+
+```text
+float32 tensor buffers
+one mutable output buffer
+const input buffers
+uint scalar parameters
+one-dimensional program_id/thread_id/block_size mapping
+```
+
+The generated MSL source is not compiled, cached, linked into a metallib, loaded
+by the Metal backend, or launched. Runtime compilation, buffer binding, launch
+configuration, and CPU-vs-Metal validation remain future Phase 7 work.
+
 ## API Rules
 
 The experimental API starts here:
@@ -131,9 +151,9 @@ cx.experimental.thread_id
 cx.experimental.block_size
 ```
 
-`@cx.experimental.kernel` currently returns a metadata wrapper with `parse_ir()`.
-Calling `compile()` or launching the wrapper is intentionally disabled until MSL
-generation and runtime launch exist.
+`@cx.experimental.kernel` currently returns a metadata wrapper with `parse_ir()`
+and text-only `emit_msl()`. Calling `compile()` or launching the wrapper is
+intentionally disabled until runtime compilation and launch exist.
 
 The public API should move slowly:
 

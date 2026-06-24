@@ -39,7 +39,7 @@ C++ namespace: cortex
 > CI (CPU) or on the local Mac (Metal).
 
 ```text
-Current phase:          Phase 7 — in progress (AST-to-IR parser scaffold)
+Current phase:          Phase 7 — in progress (AST-to-IR + text MSL emitter scaffold)
 Last verified milestone: Phase 6 — Reductions & NN primitives
 v0.1 target:            achieved at end of Phase 3
 Binding decided:        nanobind (see §5.6)
@@ -1326,10 +1326,11 @@ Start the Triton-like direction.
 Current status:
 
 ```text
-The experimental namespace, @cx.experimental.kernel metadata wrapper, and a
-restricted Python AST -> backend-neutral IR parser exist. No user-defined kernel
-emits MSL or launches yet. Keep Phase 7 under cx.experimental until the first
-AST -> IR -> MSL -> Metal path works.
+The experimental namespace, @cx.experimental.kernel metadata wrapper,
+restricted Python AST -> backend-neutral IR parser, and text-only MSL emitter
+exist for the first subset. No user-defined kernel compiles or launches yet.
+Keep Phase 7 under cx.experimental until the first AST -> IR -> MSL -> Metal
+path works.
 ```
 
 Initial design:

@@ -34,6 +34,20 @@ _SUPPORTED_INTRINSICS = {
     "cx.experimental.thread_id": 0,
     "cx.experimental.block_size": 0,
 }
+_MSL_BINARY_OPS = {
+    "add": "+",
+    "sub": "-",
+    "mul": "*",
+    "div": "/",
+}
+_MSL_COMPARE_OPS = {
+    "lt": "<",
+    "lte": "<=",
+    "gt": ">",
+    "gte": ">=",
+    "eq": "==",
+    "neq": "!=",
+}
 
 
 class KernelCompileError(ValueError):
@@ -142,6 +156,10 @@ class Kernel:
         """Parse this kernel into the Phase 7 backend-neutral IR subset."""
         return _parse_kernel_function(self.fn)
 
+    def emit_msl(self) -> str:
+        """Emit text MSL for the Phase 7 experimental kernel subset."""
+        return _emit_msl(self.parse_ir())
+
     def __call__(self, *args, **kwargs):
         raise NotImplementedError(
             "experimental kernel DSL launch is not implemented yet; "
@@ -188,7 +206,9 @@ def _parse_kernel_function(fn: Callable) -> IRKernel:
     parameters = tuple(inspect.signature(fn).parameters)
     body = _parse_statement_block(function.body)
     _validate_parameter_shadowing(body, parameters)
+    _validate_name_scopes(body, parameters)
     _validate_buffer_references(body, parameters)
+    _validate_buffer_scalar_usage(body)
     _validate_single_output(body)
     return IRKernel(
         name=function.name,
@@ -375,6 +395,18 @@ def _validate_buffer_references(
             )
 
 
+def _validate_buffer_scalar_usage(body: tuple[IRStatement, ...]) -> None:
+    buffer_names = set(_iter_buffer_references(body))
+    scalar_names = set(_iter_name_references(body))
+    invalid_names = sorted(buffer_names & scalar_names)
+    if invalid_names:
+        joined = ", ".join(invalid_names)
+        raise KernelCompileError(
+            "unsupported kernel syntax: buffer parameters cannot be used as "
+            f"scalar values: {joined}"
+        )
+
+
 def _validate_parameter_shadowing(
     body: tuple[IRStatement, ...],
     parameters: tuple[str, ...],
@@ -385,6 +417,55 @@ def _validate_parameter_shadowing(
             raise KernelCompileError(
                 "unsupported kernel syntax: assignments cannot shadow parameters"
             )
+
+
+def _validate_name_scopes(
+    body: tuple[IRStatement, ...],
+    parameters: tuple[str, ...],
+) -> None:
+    _validate_statement_names(body, defined=set(parameters))
+
+
+def _validate_statement_names(
+    statements: tuple[IRStatement, ...],
+    *,
+    defined: set[str],
+) -> set[str]:
+    current = set(defined)
+    for statement in statements:
+        if isinstance(statement, IRAssign):
+            _validate_expression_names(statement.value, current)
+            if statement.target in current:
+                raise KernelCompileError(
+                    "unsupported kernel syntax: local reassignment is not supported"
+                )
+            current.add(statement.target)
+        elif isinstance(statement, IRStore):
+            _validate_expression_names(statement.index, current)
+            _validate_expression_names(statement.value, current)
+        elif isinstance(statement, IRIf):
+            _validate_expression_names(statement.condition, current)
+            _validate_statement_names(statement.body, defined=set(current))
+    return current
+
+
+def _validate_expression_names(expression: IRExpression, defined: set[str]) -> None:
+    if isinstance(expression, IRName):
+        if expression.name not in defined:
+            raise KernelCompileError(
+                f"unsupported kernel syntax: undefined name {expression.name!r}"
+            )
+    elif isinstance(expression, IRLoad):
+        _validate_expression_names(expression.index, defined)
+    elif isinstance(expression, IRCall):
+        for argument in expression.args:
+            _validate_expression_names(argument, defined)
+    elif isinstance(expression, IRBinaryOp):
+        _validate_expression_names(expression.lhs, defined)
+        _validate_expression_names(expression.rhs, defined)
+    elif isinstance(expression, IRCompare):
+        _validate_expression_names(expression.lhs, defined)
+        _validate_expression_names(expression.rhs, defined)
 
 
 def _iter_store_buffers(statements: tuple[IRStatement, ...]):
@@ -431,6 +512,216 @@ def _iter_expression_buffers(expression: IRExpression):
         yield from _iter_expression_buffers(expression.rhs)
 
 
+def _iter_name_references(statements: tuple[IRStatement, ...]):
+    for statement in statements:
+        if isinstance(statement, IRStore):
+            yield from _iter_expression_names(statement.index)
+            yield from _iter_expression_names(statement.value)
+        elif isinstance(statement, IRAssign):
+            yield from _iter_expression_names(statement.value)
+        elif isinstance(statement, IRIf):
+            yield from _iter_expression_names(statement.condition)
+            yield from _iter_name_references(statement.body)
+
+
+def _iter_expression_names(expression: IRExpression):
+    if isinstance(expression, IRName):
+        yield expression.name
+    elif isinstance(expression, IRLoad):
+        yield from _iter_expression_names(expression.index)
+    elif isinstance(expression, IRCall):
+        for argument in expression.args:
+            yield from _iter_expression_names(argument)
+    elif isinstance(expression, IRBinaryOp):
+        yield from _iter_expression_names(expression.lhs)
+        yield from _iter_expression_names(expression.rhs)
+    elif isinstance(expression, IRCompare):
+        yield from _iter_expression_names(expression.lhs)
+        yield from _iter_expression_names(expression.rhs)
+
+
+def _emit_msl(kernel_ir: IRKernel) -> str:
+    store_buffers = tuple(dict.fromkeys(_iter_store_buffers(kernel_ir.body)))
+    if not store_buffers:
+        raise KernelCompileError("MSL emission requires one output buffer")
+
+    buffer_names = set(_iter_buffer_references(kernel_ir.body))
+    _validate_msl_parameter_usage(kernel_ir, buffer_names)
+    output_names = set(store_buffers)
+    lines = [
+        "#include <metal_stdlib>",
+        "using namespace metal;",
+        "",
+        f"kernel void {kernel_ir.name}(",
+    ]
+    lines.extend(_emit_msl_parameters(kernel_ir, buffer_names, output_names))
+    lines.extend(
+        [
+            ") {",
+            *_emit_msl_statement_block(kernel_ir.body, indent=1, context={}),
+            "}",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _emit_msl_parameters(
+    kernel_ir: IRKernel,
+    buffer_names: set[str],
+    output_names: set[str],
+) -> list[str]:
+    parameters: list[str] = []
+    buffer_index = 0
+    for parameter in kernel_ir.parameters:
+        if parameter in buffer_names:
+            qualifier = "device" if parameter in output_names else "const device"
+            parameters.append(
+                f"    {qualifier} float* {parameter} [[buffer({buffer_index})]],"
+            )
+        else:
+            parameters.append(
+                f"    constant uint& {parameter} [[buffer({buffer_index})]],"
+            )
+        buffer_index += 1
+
+    parameters.extend(
+        [
+            "    uint3 block_position [[threadgroup_position_in_grid]],",
+            "    uint3 local_position [[thread_position_in_threadgroup]],",
+            "    uint3 group_size [[threads_per_threadgroup]]",
+        ]
+    )
+    return parameters
+
+
+def _validate_msl_parameter_usage(
+    kernel_ir: IRKernel,
+    buffer_names: set[str],
+) -> None:
+    parameter_names = set(kernel_ir.parameters)
+    used_parameters = buffer_names & parameter_names
+    used_parameters.update(
+        name for name in _iter_name_references(kernel_ir.body) if name in parameter_names
+    )
+    unused_parameters = [
+        parameter
+        for parameter in kernel_ir.parameters
+        if parameter not in used_parameters
+    ]
+    if unused_parameters:
+        joined = ", ".join(unused_parameters)
+        raise KernelCompileError(
+            "MSL emission requires all parameters to be referenced: "
+            f"{joined}"
+        )
+
+
+def _emit_msl_statement_block(
+    statements: tuple[IRStatement, ...],
+    *,
+    indent: int,
+    context: dict[str, str],
+) -> list[str]:
+    lines: list[str] = []
+    for statement in statements:
+        lines.extend(_emit_msl_statement(statement, indent=indent, context=context))
+    return lines
+
+
+def _emit_msl_statement(
+    statement: IRStatement,
+    *,
+    indent: int,
+    context: dict[str, str],
+) -> list[str]:
+    prefix = "    " * indent
+    if isinstance(statement, IRAssign):
+        value_type = _infer_msl_type(statement.value, context)
+        context[statement.target] = value_type
+        return [
+            f"{prefix}{value_type} {statement.target} = "
+            f"{_emit_msl_expression(statement.value)};"
+        ]
+    if isinstance(statement, IRStore):
+        return [
+            f"{prefix}{statement.buffer}[{_emit_msl_expression(statement.index)}] = "
+            f"{_emit_msl_expression(statement.value)};"
+        ]
+    if isinstance(statement, IRIf):
+        nested_context = dict(context)
+        lines = [f"{prefix}if ({_emit_msl_expression(statement.condition)}) {{"]
+        lines.extend(
+            _emit_msl_statement_block(
+                statement.body,
+                indent=indent + 1,
+                context=nested_context,
+            )
+        )
+        lines.append(f"{prefix}}}")
+        return lines
+    raise TypeError(f"unhandled IR statement: {type(statement).__name__}")
+
+
+def _emit_msl_expression(expression: IRExpression) -> str:
+    if isinstance(expression, IRName):
+        return expression.name
+    if isinstance(expression, IRConstant):
+        return _emit_msl_constant(expression.value)
+    if isinstance(expression, IRCall):
+        return _emit_msl_call(expression)
+    if isinstance(expression, IRBinaryOp):
+        op = _MSL_BINARY_OPS[expression.op]
+        return (
+            f"({_emit_msl_expression(expression.lhs)} {op} "
+            f"{_emit_msl_expression(expression.rhs)})"
+        )
+    if isinstance(expression, IRCompare):
+        op = _MSL_COMPARE_OPS[expression.op]
+        return (
+            f"{_emit_msl_expression(expression.lhs)} {op} "
+            f"{_emit_msl_expression(expression.rhs)}"
+        )
+    if isinstance(expression, IRLoad):
+        return f"{expression.buffer}[{_emit_msl_expression(expression.index)}]"
+    raise TypeError(f"unhandled IR expression: {type(expression).__name__}")
+
+
+def _emit_msl_constant(value: int | float) -> str:
+    if isinstance(value, int):
+        return str(value)
+    return f"{value!r}f"
+
+
+def _emit_msl_call(call: IRCall) -> str:
+    if call.name == "program_id":
+        return "block_position.x"
+    if call.name == "thread_id":
+        return "local_position.x"
+    if call.name == "block_size":
+        return "group_size.x"
+    raise TypeError(f"unhandled IR call: {call.name}")
+
+
+def _infer_msl_type(expression: IRExpression, context: dict[str, str]) -> str:
+    if isinstance(expression, IRConstant):
+        return "float" if isinstance(expression.value, float) else "uint"
+    if isinstance(expression, IRCall):
+        return "uint"
+    if isinstance(expression, IRLoad):
+        return "float"
+    if isinstance(expression, IRName):
+        return context.get(expression.name, "uint")
+    if isinstance(expression, IRCompare):
+        return "bool"
+    if isinstance(expression, IRBinaryOp):
+        lhs_type = _infer_msl_type(expression.lhs, context)
+        rhs_type = _infer_msl_type(expression.rhs, context)
+        if "float" in {lhs_type, rhs_type}:
+            return "float"
+        return "uint"
+    raise TypeError(f"unhandled IR expression: {type(expression).__name__}")
+
+
 def _unsupported(node: ast.AST) -> NoReturn:
     raise KernelCompileError(f"unsupported kernel syntax: {type(node).__name__}")
 
@@ -439,7 +730,7 @@ def kernel(fn: Callable | None = None, *, target: str = "auto"):
     """Decorate a Python function as a Phase 7 experimental kernel.
 
     The decorator records stable metadata now. Compilation and launch are still
-    intentionally disabled until the AST -> IR -> MSL pipeline lands.
+    intentionally disabled until runtime compilation and launch exist.
     """
 
     selected_target = _validate_target(target)

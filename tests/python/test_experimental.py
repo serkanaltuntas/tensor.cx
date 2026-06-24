@@ -81,6 +81,66 @@ def test_experimental_kernel_parses_first_elementwise_ir_shape():
     assert store.value.rhs == cx.experimental.IRLoad("b", cx.experimental.IRName("i"))
 
 
+def test_experimental_kernel_emits_text_msl_for_first_elementwise_shape():
+    @cx.experimental.kernel
+    def add_kernel(a, b, out, n):
+        i = (
+            cx.experimental.program_id(0) * cx.experimental.block_size()
+            + cx.experimental.thread_id()
+        )
+        if i < n:
+            out[i] = a[i] + b[i]
+
+    assert add_kernel.emit_msl() == """#include <metal_stdlib>
+using namespace metal;
+
+kernel void add_kernel(
+    const device float* a [[buffer(0)]],
+    const device float* b [[buffer(1)]],
+    device float* out [[buffer(2)]],
+    constant uint& n [[buffer(3)]],
+    uint3 block_position [[threadgroup_position_in_grid]],
+    uint3 local_position [[thread_position_in_threadgroup]],
+    uint3 group_size [[threads_per_threadgroup]]
+) {
+    uint i = ((block_position.x * group_size.x) + local_position.x);
+    if (i < n) {
+        out[i] = (a[i] + b[i]);
+    }
+}"""
+
+
+def test_experimental_kernel_emit_msl_requires_output_store():
+    @cx.experimental.kernel
+    def bad_kernel(n):
+        i = cx.experimental.program_id(0)
+        if i < n:
+            value = 1
+
+    with pytest.raises(
+        cx.experimental.KernelCompileError,
+        match="MSL emission requires one output buffer",
+    ):
+        bad_kernel.emit_msl()
+
+
+def test_experimental_kernel_emit_msl_rejects_unused_parameters():
+    @cx.experimental.kernel
+    def bad_kernel(a, unused, out, n):
+        i = (
+            cx.experimental.program_id(0) * cx.experimental.block_size()
+            + cx.experimental.thread_id()
+        )
+        if i < n:
+            out[i] = a[i]
+
+    with pytest.raises(
+        cx.experimental.KernelCompileError,
+        match="all parameters to be referenced: unused",
+    ):
+        bad_kernel.emit_msl()
+
+
 def test_experimental_kernel_parse_rejects_unsupported_statement():
     @cx.experimental.kernel
     def bad_kernel(out):
@@ -330,6 +390,48 @@ def test_experimental_kernel_parse_rejects_local_buffer_alias_load():
         bad_kernel.parse_ir()
 
 
+def test_experimental_kernel_parse_rejects_buffer_scalar_use():
+    @cx.experimental.kernel
+    def bad_kernel(out):
+        i = cx.experimental.program_id(0)
+        out[i] = out
+
+    with pytest.raises(
+        cx.experimental.KernelCompileError,
+        match="buffer parameters cannot be used as scalar values: out",
+    ):
+        bad_kernel.parse_ir()
+
+
+def test_experimental_kernel_parse_rejects_buffer_used_as_scalar_and_buffer():
+    @cx.experimental.kernel
+    def bad_kernel(n, out):
+        i = cx.experimental.program_id(0)
+        if i < n:
+            out[i] = n[i]
+
+    with pytest.raises(
+        cx.experimental.KernelCompileError,
+        match="buffer parameters cannot be used as scalar values: n",
+    ):
+        bad_kernel.parse_ir()
+
+
+def test_experimental_kernel_parse_rejects_local_reassignment():
+    @cx.experimental.kernel
+    def bad_kernel(a, out):
+        i = cx.experimental.program_id(0)
+        value = 0
+        value = a[i]
+        out[i] = value
+
+    with pytest.raises(
+        cx.experimental.KernelCompileError,
+        match="local reassignment is not supported",
+    ):
+        bad_kernel.parse_ir()
+
+
 def test_experimental_kernel_parse_rejects_parameter_shadowing():
     @cx.experimental.kernel
     def bad_kernel(out):
@@ -340,6 +442,34 @@ def test_experimental_kernel_parse_rejects_parameter_shadowing():
     with pytest.raises(
         cx.experimental.KernelCompileError,
         match="assignments cannot shadow parameters",
+    ):
+        bad_kernel.parse_ir()
+
+
+def test_experimental_kernel_parse_rejects_undefined_names():
+    @cx.experimental.kernel
+    def bad_kernel(out):
+        i = cx.experimental.program_id(0)
+        out[i] = missing
+
+    with pytest.raises(
+        cx.experimental.KernelCompileError,
+        match="undefined name 'missing'",
+    ):
+        bad_kernel.parse_ir()
+
+
+def test_experimental_kernel_parse_rejects_branch_local_escape():
+    @cx.experimental.kernel
+    def bad_kernel(a, out, n):
+        i = cx.experimental.program_id(0)
+        if i < n:
+            value = a[i]
+        out[i] = value
+
+    with pytest.raises(
+        cx.experimental.KernelCompileError,
+        match="undefined name 'value'",
     ):
         bad_kernel.parse_ir()
 

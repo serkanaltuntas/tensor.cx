@@ -91,8 +91,8 @@ uv run python benchmarks/bench_matmul.py --sizes 16x16x16 --repeats 2
 
 Phase 6 is complete. Phase 7 has started with an experimental kernel DSL under
 `cx.experimental`; it can parse a restricted Python kernel into backend-neutral
-IR, but it does not emit MSL, compile, or launch user kernels yet. Phase 5
-provides CPU reference matmul, a
+IR and emit text MSL for the first subset, but it does not compile or launch
+user kernels yet. Phase 5 provides CPU reference matmul, a
 correctness-first custom Metal matmul kernel, and an optimized Metal primitive
 path. Phase 6 adds `sum`, `max`, `mean`, `exp`, `gelu`, `silu`, `softmax`,
 `rmsnorm`, and `layernorm` on CPU and Metal. The custom matmul kernel remains
@@ -169,9 +169,10 @@ print(ln.cpu().numpy().shape)
 - `mean`, `exp`, `gelu`, `silu`, `softmax`, `rmsnorm`, and `layernorm`
   currently support `float32` tensors only; `int32` inputs are rejected instead
   of being implicitly cast. `gelu` uses the common tanh approximation.
-- `cx.experimental.kernel` is a Phase 7 experimental parser scaffold. It exposes
-  `parse_ir()` for a small AST subset; calling `compile()` or launching a
-  decorated kernel raises `NotImplementedError`.
+- `cx.experimental.kernel` is a Phase 7 experimental parser/emitter scaffold. It
+  exposes `parse_ir()` and text-only `emit_msl()` for a small AST subset;
+  calling `compile()` or launching a decorated kernel raises
+  `NotImplementedError`.
 - Execution is synchronous and holds the Python GIL; the runtime is not yet safe
   for concurrent multi-threaded use (see `docs/METAL_BACKEND.md`).
 
