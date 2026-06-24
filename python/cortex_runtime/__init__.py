@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from . import _core, testing
+from . import _core, experimental, testing
 from .device import Device, best_device, device, device_name, devices, is_available
 from .tensor import (
     Tensor,
@@ -44,6 +44,7 @@ __all__ = [
     "devices",
     "empty",
     "exp",
+    "experimental",
     "float32",
     "gelu",
     "int32",

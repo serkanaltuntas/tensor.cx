@@ -36,9 +36,10 @@ The Metal backend currently supports:
 
 CPU remains the correctness reference for every Metal operation.
 
-## Phase 6 Direction
+## Current Direction
 
 Phase 6 is complete. The current subset supports `sum`, `max`, `mean`, `exp`,
 `gelu`, `silu`, stable `softmax`, `rmsnorm`, and `layernorm` on CPU and Metal.
-Phase 7 should start the experimental kernel DSL without changing the Phase 6
-correctness contracts.
+Phase 7 has started with a `cx.experimental.kernel` metadata scaffold. The DSL
+must not change the Phase 6 correctness contracts, and generated kernels must
+keep CPU reference behavior before Metal launch is considered complete.

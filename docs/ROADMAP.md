@@ -21,6 +21,11 @@ acceptance criteria, and Definitions of Done also live in `PROJECT.md` (§14).
 [ ] Phase 10  MLIR exploration
 ```
 
+Phase 7 is now in progress. The current implementation is only a
+`cx.experimental.kernel` metadata scaffold; it does not compile or launch
+user-defined kernels yet. The experimental kernel DSL namespace and metadata
+wrapper live under `cx.experimental`. See [`KERNEL_DSL.md`](KERNEL_DSL.md).
+
 ## What works today (through Phase 6)
 
 - CPU reference backend: `float32`/`int32`, contiguous 1-D/2-D, add / multiply /
@@ -45,8 +50,9 @@ acceptance criteria, and Definitions of Done also live in `PROJECT.md` (§14).
 ## Intentionally not implemented yet
 
 Autograd, training, streams/async, broadcasting, non-contiguous execution, wide
-dtypes, a kernel DSL, and the CUDA/ROCm/MLIR backends are out of scope until
-their phases. See PROJECT.md §16 and AGENTS.md "Out Of Scope For Early Work".
+dtypes, the working kernel compilation/launch path, and the CUDA/ROCm/MLIR
+backends are out of scope until their phases. See PROJECT.md §16 and AGENTS.md
+"Out Of Scope For Early Work".
 
 ## Known deferred design work
 

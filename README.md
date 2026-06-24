@@ -89,7 +89,9 @@ uv run python benchmarks/bench_matmul.py --sizes 16x16x16 --repeats 2
 
 ## Current Status
 
-Phase 6 is complete. Phase 5 provides CPU reference matmul, a
+Phase 6 is complete. Phase 7 has started with an experimental kernel DSL
+scaffold under `cx.experimental`; it does not compile or launch user kernels
+yet. Phase 5 provides CPU reference matmul, a
 correctness-first custom Metal matmul kernel, and an optimized Metal primitive
 path. Phase 6 adds `sum`, `max`, `mean`, `exp`, `gelu`, `silu`, `softmax`,
 `rmsnorm`, and `layernorm` on CPU and Metal. The custom matmul kernel remains
@@ -166,6 +168,8 @@ print(ln.cpu().numpy().shape)
 - `mean`, `exp`, `gelu`, `silu`, `softmax`, `rmsnorm`, and `layernorm`
   currently support `float32` tensors only; `int32` inputs are rejected instead
   of being implicitly cast. `gelu` uses the common tanh approximation.
+- `cx.experimental.kernel` is a Phase 7 metadata scaffold only. Calling
+  `compile()` or launching a decorated kernel raises `NotImplementedError`.
 - Execution is synchronous and holds the Python GIL; the runtime is not yet safe
   for concurrent multi-threaded use (see `docs/METAL_BACKEND.md`).
 

@@ -39,7 +39,7 @@ C++ namespace: cortex
 > CI (CPU) or on the local Mac (Metal).
 
 ```text
-Current phase:          Phase 7 — ready to start
+Current phase:          Phase 7 — in progress (experimental DSL scaffold)
 Last verified milestone: Phase 6 — Reductions & NN primitives
 v0.1 target:            achieved at end of Phase 3
 Binding decided:        nanobind (see §5.6)
@@ -1323,12 +1323,20 @@ Goal:
 Start the Triton-like direction.
 ```
 
+Current status:
+
+```text
+The experimental namespace and @cx.experimental.kernel metadata scaffold exist.
+No user-defined kernel compiles or launches yet. Keep Phase 7 under
+cx.experimental until the first AST -> IR -> MSL -> Metal path works.
+```
+
 Initial design:
 
 ```python
-@cx.kernel
+@cx.experimental.kernel
 def add_kernel(a, b, out, n):
-    i = cx.program_id(0) * cx.block_size() + cx.thread_id()
+    i = cx.experimental.program_id(0) * cx.experimental.block_size() + cx.experimental.thread_id()
     if i < n:
         out[i] = a[i] + b[i]
 ```
@@ -1367,8 +1375,8 @@ A user-defined Python kernel can be compiled to MSL, launched on Metal, and test
 Definition of Done:
 
 ```text
-- A @cx.kernel elementwise add compiles Python AST -> Cortex Runtime IR -> MSL, launches on
-  Metal, and matches CPU.
+- A @cx.experimental.kernel elementwise add compiles Python AST -> Cortex
+  Runtime IR -> MSL, launches on Metal, and matches CPU.
 - Unsupported Python constructs raise a clear compile-time error naming the
   offending node — never silently miscompile.
 - The IR is documented in docs/ and is backend-agnostic (no MSL assumptions baked

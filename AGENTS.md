@@ -234,8 +234,8 @@ Keep these conceptual boundaries even if filenames evolve.
 ## Development Phases
 
 `PROJECT.md` is authoritative for the current phase checklist and phase status.
-Do not infer the current phase from this abbreviated sequence. After Phase 6
-completion, the next phase is Phase 7 — Experimental kernel DSL.
+Do not infer the current phase from this abbreviated sequence. Phase 7 —
+Experimental kernel DSL is now in progress.
 
 Completed through Phase 6:
 
@@ -249,7 +249,7 @@ Phase 5   MPSGraph matmul
 Phase 6   Reductions and NN primitives
 ```
 
-Next planned phase:
+Current phase:
 
 ```text
 Phase 7   Experimental kernel DSL
@@ -257,8 +257,8 @@ Phase 7   Experimental kernel DSL
 
 Only move to CUDA, ROCm, Vulkan, MLIR, or broad compiler work after the earlier
 phases are working and tested. Phase 7 work must stay experimental, preserve the
-Phase 6 correctness contracts, and keep CPU references mandatory for generated
-or DSL-routed kernels.
+Phase 6 correctness contracts, stay under `cx.experimental`, and keep CPU
+references mandatory for generated or DSL-routed kernels.
 
 ## Architecture Rules
 
