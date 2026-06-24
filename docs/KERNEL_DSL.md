@@ -7,19 +7,25 @@ with tests.
 ## Status
 
 Phase 7 has started, but no user-defined kernel is compiled or launched yet.
-The current API records kernel metadata and rejects launch/compile attempts with
-clear `NotImplementedError` messages.
+The current API records kernel metadata, parses a small restricted Python AST
+subset into backend-neutral IR, and rejects launch/compile attempts with clear
+`NotImplementedError` messages.
 
 ```python
 import cortex_runtime as cx
 
 @cx.experimental.kernel(target="metal")
 def add_kernel(a, b, out, n):
-    # Future syntax. The function body is not compiled yet.
-    pass
+    i = (
+        cx.experimental.program_id(0) * cx.experimental.block_size()
+        + cx.experimental.thread_id()
+    )
+    if i < n:
+        out[i] = a[i] + b[i]
 
 print(add_kernel.name)
 print(add_kernel.parameters)
+print(add_kernel.parse_ir())
 ```
 
 Do not expose a top-level `cx.kernel` API until the experimental API has a
@@ -85,16 +91,30 @@ Expected first IR nodes:
 
 ```text
 Kernel
-Parameter
-ProgramId
-ThreadId
-BlockSize
+Name
+Call
 BinaryOp
 Compare
 If
 Load
 Store
+Assign
 Constant
+```
+
+The current parser supports this intentionally small syntax subset:
+
+```text
+assignment to a local name
+single-output store through one-dimensional subscript syntax
+one-dimensional tensor load syntax
+cx.experimental.program_id(0)
+cx.experimental.thread_id()
+cx.experimental.block_size()
++, -, *, /
+single comparisons: <, <=, >, >=, ==, !=
+if blocks without else
+numeric constants
 ```
 
 Unsupported AST nodes must fail at compile time with a clear message naming the
@@ -111,9 +131,9 @@ cx.experimental.thread_id
 cx.experimental.block_size
 ```
 
-`@cx.experimental.kernel` currently returns a metadata wrapper. Calling
-`compile()` or launching the wrapper is intentionally disabled until the
-compiler path exists.
+`@cx.experimental.kernel` currently returns a metadata wrapper with `parse_ir()`.
+Calling `compile()` or launching the wrapper is intentionally disabled until MSL
+generation and runtime launch exist.
 
 The public API should move slowly:
 

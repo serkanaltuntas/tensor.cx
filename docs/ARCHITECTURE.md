@@ -22,9 +22,10 @@ Phase 5 completed the first matmul paths: CPU reference matmul, a
 correctness-first custom Metal matmul kernel, and an MPSGraph-backed Metal
 matmul path. Phase 6 is complete, with `sum`, `max`, `mean`, `exp`, `gelu`,
 `silu`, `softmax`, `rmsnorm`, and `layernorm` available on CPU and Metal.
-Phase 7 is in progress with a `cx.experimental.kernel` metadata scaffold; it
-does not compile or launch user-defined kernels yet. Keep the experimental
-kernel DSL behind the existing backend-neutral runtime boundaries. See
+Phase 7 is in progress with a `cx.experimental.kernel` metadata wrapper and a
+restricted Python AST -> backend-neutral IR parser; it does not emit MSL,
+compile, or launch user-defined kernels yet. Keep the experimental kernel DSL
+behind the existing backend-neutral runtime boundaries. See
 [`KERNEL_DSL.md`](KERNEL_DSL.md).
 
 The public Python `Tensor` wraps backend-specific native tensor objects. CPU and

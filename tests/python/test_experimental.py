@@ -32,6 +32,348 @@ def test_experimental_kernel_compile_and_launch_are_not_implemented():
         add_kernel(None, None, None, 0)
 
 
+def test_experimental_kernel_parses_first_elementwise_ir_shape():
+    @cx.experimental.kernel
+    def add_kernel(a, b, out, n):
+        i = (
+            cx.experimental.program_id(0) * cx.experimental.block_size()
+            + cx.experimental.thread_id()
+        )
+        if i < n:
+            out[i] = a[i] + b[i]
+
+    ir = add_kernel.parse_ir()
+
+    assert ir.name == "add_kernel"
+    assert ir.parameters == ("a", "b", "out", "n")
+    assert len(ir.body) == 2
+
+    assign = ir.body[0]
+    assert isinstance(assign, cx.experimental.IRAssign)
+    assert assign.target == "i"
+    assert isinstance(assign.value, cx.experimental.IRBinaryOp)
+    assert assign.value.op == "add"
+    assert isinstance(assign.value.lhs, cx.experimental.IRBinaryOp)
+    assert assign.value.lhs.op == "mul"
+    assert isinstance(assign.value.lhs.lhs, cx.experimental.IRCall)
+    assert assign.value.lhs.lhs.name == "program_id"
+    assert assign.value.lhs.lhs.args == (cx.experimental.IRConstant(0),)
+    assert isinstance(assign.value.lhs.rhs, cx.experimental.IRCall)
+    assert assign.value.lhs.rhs.name == "block_size"
+    assert isinstance(assign.value.rhs, cx.experimental.IRCall)
+    assert assign.value.rhs.name == "thread_id"
+
+    branch = ir.body[1]
+    assert isinstance(branch, cx.experimental.IRIf)
+    assert isinstance(branch.condition, cx.experimental.IRCompare)
+    assert branch.condition.op == "lt"
+    assert branch.condition.lhs == cx.experimental.IRName("i")
+    assert branch.condition.rhs == cx.experimental.IRName("n")
+    assert len(branch.body) == 1
+
+    store = branch.body[0]
+    assert isinstance(store, cx.experimental.IRStore)
+    assert store.buffer == "out"
+    assert store.index == cx.experimental.IRName("i")
+    assert isinstance(store.value, cx.experimental.IRBinaryOp)
+    assert store.value.op == "add"
+    assert store.value.lhs == cx.experimental.IRLoad("a", cx.experimental.IRName("i"))
+    assert store.value.rhs == cx.experimental.IRLoad("b", cx.experimental.IRName("i"))
+
+
+def test_experimental_kernel_parse_rejects_unsupported_statement():
+    @cx.experimental.kernel
+    def bad_kernel(out):
+        for i in range(1):
+            out[i] = i
+
+    with pytest.raises(cx.experimental.KernelCompileError, match="For"):
+        bad_kernel.parse_ir()
+
+
+def test_experimental_kernel_parse_rejects_unsupported_subscript_shape():
+    @cx.experimental.kernel
+    def bad_kernel(a, out):
+        i = cx.experimental.program_id(0)
+        out[i, 0] = a[i]
+
+    with pytest.raises(cx.experimental.KernelCompileError, match="Tuple"):
+        bad_kernel.parse_ir()
+
+
+def test_experimental_kernel_parse_rejects_unknown_calls():
+    @cx.experimental.kernel
+    def bad_kernel(out):
+        i = range(1)
+        out[i] = 1
+
+    with pytest.raises(cx.experimental.KernelCompileError, match="Call"):
+        bad_kernel.parse_ir()
+
+
+def _program_id_nonzero_axis_kernel():
+    @cx.experimental.kernel
+    def bad_kernel(out, axis):
+        i = cx.experimental.program_id(1)
+        out[i] = 1
+
+    return bad_kernel
+
+
+def _program_id_dynamic_axis_kernel():
+    @cx.experimental.kernel
+    def bad_kernel(out, axis):
+        i = cx.experimental.program_id(axis)
+        out[i] = 1
+
+    return bad_kernel
+
+
+def _program_id_float_axis_kernel():
+    @cx.experimental.kernel
+    def bad_kernel(out, axis):
+        i = cx.experimental.program_id(0.5)
+        out[i] = 1
+
+    return bad_kernel
+
+
+def _program_id_bool_axis_kernel():
+    @cx.experimental.kernel
+    def bad_kernel(out, axis):
+        i = cx.experimental.program_id(True)
+        out[i] = 1
+
+    return bad_kernel
+
+
+@pytest.mark.parametrize(
+    "kernel_factory",
+    [
+        _program_id_nonzero_axis_kernel,
+        _program_id_dynamic_axis_kernel,
+        _program_id_float_axis_kernel,
+        _program_id_bool_axis_kernel,
+    ],
+)
+def test_experimental_kernel_parse_rejects_unsupported_program_id_axis(
+    kernel_factory,
+):
+    with pytest.raises(
+        cx.experimental.KernelCompileError,
+        match="program_id expects literal axis 0",
+    ):
+        kernel_factory().parse_ir()
+
+
+def test_experimental_kernel_parse_rejects_intrinsic_keywords():
+    @cx.experimental.kernel
+    def bad_kernel(out):
+        i = cx.experimental.program_id(axis=0)
+        out[i] = 1
+
+    with pytest.raises(cx.experimental.KernelCompileError, match="Call"):
+        bad_kernel.parse_ir()
+
+
+@pytest.mark.parametrize(
+    "kernel_factory, expected",
+    [
+        (
+            lambda: _program_id_missing_axis_kernel(),
+            "program_id expects 1 argument",
+        ),
+        (
+            lambda: _thread_id_extra_arg_kernel(),
+            "thread_id expects 0 argument",
+        ),
+        (
+            lambda: _block_size_extra_arg_kernel(),
+            "block_size expects 0 argument",
+        ),
+    ],
+)
+def test_experimental_kernel_parse_rejects_intrinsic_arity(
+    kernel_factory,
+    expected,
+):
+    with pytest.raises(cx.experimental.KernelCompileError, match=expected):
+        kernel_factory().parse_ir()
+
+
+def _program_id_missing_axis_kernel():
+    @cx.experimental.kernel
+    def bad_kernel(out):
+        i = cx.experimental.program_id()
+        out[i] = 1
+
+    return bad_kernel
+
+
+def _thread_id_extra_arg_kernel():
+    @cx.experimental.kernel
+    def bad_kernel(out):
+        i = cx.experimental.thread_id(0)
+        out[i] = 1
+
+    return bad_kernel
+
+
+def _block_size_extra_arg_kernel():
+    @cx.experimental.kernel
+    def bad_kernel(out):
+        i = cx.experimental.block_size(1)
+        out[i] = 1
+
+    return bad_kernel
+
+
+def test_experimental_kernel_parse_rejects_if_else():
+    @cx.experimental.kernel
+    def bad_kernel(out, n):
+        i = cx.experimental.program_id(0)
+        if i < n:
+            out[i] = 1
+        else:
+            out[i] = 0
+
+    with pytest.raises(cx.experimental.KernelCompileError, match="If with else"):
+        bad_kernel.parse_ir()
+
+
+def test_experimental_kernel_parse_rejects_multiple_output_buffers():
+    @cx.experimental.kernel
+    def bad_kernel(a, out, other):
+        i = cx.experimental.program_id(0)
+        out[i] = a[i]
+        other[i] = a[i]
+
+    with pytest.raises(
+        cx.experimental.KernelCompileError,
+        match="multiple output buffers",
+    ):
+        bad_kernel.parse_ir()
+
+
+def test_experimental_kernel_parse_accepts_float_constants():
+    @cx.experimental.kernel
+    def fill_kernel(out):
+        i = cx.experimental.program_id(0)
+        out[i] = 1.5
+
+    ir = fill_kernel.parse_ir()
+
+    assert isinstance(ir.body[1], cx.experimental.IRStore)
+    assert ir.body[1].value == cx.experimental.IRConstant(1.5)
+
+
+@pytest.mark.parametrize(
+    "kernel_factory, expected",
+    [
+        (lambda: _negative_constant_kernel(), cx.experimental.IRConstant(-1.5)),
+        (lambda: _positive_constant_kernel(), cx.experimental.IRConstant(2)),
+    ],
+)
+def test_experimental_kernel_parse_accepts_signed_numeric_constants(
+    kernel_factory,
+    expected,
+):
+    ir = kernel_factory().parse_ir()
+
+    assert isinstance(ir.body[1], cx.experimental.IRStore)
+    assert ir.body[1].value == expected
+
+
+def _negative_constant_kernel():
+    @cx.experimental.kernel
+    def fill_kernel(out):
+        i = cx.experimental.program_id(0)
+        out[i] = -1.5
+
+    return fill_kernel
+
+
+def _positive_constant_kernel():
+    @cx.experimental.kernel
+    def fill_kernel(out):
+        i = cx.experimental.program_id(0)
+        out[i] = +2
+
+    return fill_kernel
+
+
+def test_experimental_kernel_parse_rejects_local_buffer_alias_store():
+    @cx.experimental.kernel
+    def bad_kernel(out):
+        i = cx.experimental.program_id(0)
+        tmp = out
+        tmp[i] = 1
+
+    with pytest.raises(
+        cx.experimental.KernelCompileError,
+        match="buffer references must be parameters",
+    ):
+        bad_kernel.parse_ir()
+
+
+def test_experimental_kernel_parse_rejects_local_buffer_alias_load():
+    @cx.experimental.kernel
+    def bad_kernel(a, out):
+        i = cx.experimental.program_id(0)
+        tmp = a
+        out[i] = tmp[i]
+
+    with pytest.raises(
+        cx.experimental.KernelCompileError,
+        match="buffer references must be parameters",
+    ):
+        bad_kernel.parse_ir()
+
+
+def test_experimental_kernel_parse_rejects_parameter_shadowing():
+    @cx.experimental.kernel
+    def bad_kernel(out):
+        i = cx.experimental.program_id(0)
+        out = 0
+        out[i] = 1
+
+    with pytest.raises(
+        cx.experimental.KernelCompileError,
+        match="assignments cannot shadow parameters",
+    ):
+        bad_kernel.parse_ir()
+
+
+def _bool_constant_kernel():
+    @cx.experimental.kernel
+    def bad_kernel(out):
+        i = cx.experimental.program_id(0)
+        out[i] = True
+
+    return bad_kernel
+
+
+def _string_constant_kernel():
+    @cx.experimental.kernel
+    def bad_kernel(out):
+        i = cx.experimental.program_id(0)
+        out[i] = "text"
+
+    return bad_kernel
+
+
+@pytest.mark.parametrize(
+    "kernel_factory",
+    [
+        _bool_constant_kernel,
+        _string_constant_kernel,
+    ],
+)
+def test_experimental_kernel_parse_rejects_unsupported_constants(kernel_factory):
+    with pytest.raises(cx.experimental.KernelCompileError, match="Constant"):
+        kernel_factory().parse_ir()
+
+
 def test_experimental_kernel_rejects_invalid_inputs():
     with pytest.raises(TypeError, match="expects a Python function"):
         cx.experimental.kernel(123)
@@ -69,6 +411,12 @@ def test_experimental_kernel_rejects_unsupported_signature_shapes():
 
         @cx.experimental.kernel
         def keyword_only_kernel(a, *, b):
+            pass
+
+    with pytest.raises(ValueError, match="async functions"):
+
+        @cx.experimental.kernel
+        async def async_kernel(out):
             pass
 
 
