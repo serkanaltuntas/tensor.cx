@@ -58,14 +58,27 @@ DType parse_dtype(nb::handle dtype, DType inferred) {
   throw std::invalid_argument("unsupported dtype: expected float32 or int32");
 }
 
+bool is_index_like(nb::handle item) {
+  return PyBool_Check(item.ptr()) || PyIndex_Check(item.ptr());
+}
+
 // Keep invalid shape input inside the public ValueError taxonomy instead of
-// letting nanobind expose std::bad_cast as RuntimeError.
+// letting nanobind expose std::bad_cast as RuntimeError. Use Python's index
+// protocol so NumPy integer scalars behave like Python ints, while bools stay
+// rejected as shape dimensions.
 cortex::Dim cast_dim_or_throw(nb::handle item) {
-  if (!nb::isinstance<nb::int_>(item)) {
+  if (PyBool_Check(item.ptr())) {
     throw std::invalid_argument("shape dimensions must be integers");
   }
+
+  PyObject* index_value = PyNumber_Index(item.ptr());
+  if (index_value == nullptr) {
+    PyErr_Clear();
+    throw std::invalid_argument("shape dimensions must be integers");
+  }
+  nb::object index = nb::steal<nb::object>(index_value);
   try {
-    return nb::cast<cortex::Dim>(item);
+    return nb::cast<cortex::Dim>(index);
   } catch (const std::exception&) {
     throw std::invalid_argument("shape dimension is out of range");
   }
@@ -89,7 +102,7 @@ std::int32_t cast_int32_or_throw(nb::handle item) {
 }
 
 Shape parse_shape(nb::handle shape) {
-  if (nb::isinstance<nb::int_>(shape)) {
+  if (is_index_like(shape)) {
     return Shape{cast_dim_or_throw(shape)};
   }
 

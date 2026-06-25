@@ -97,8 +97,17 @@ def test_factory_rejects_invalid_shape_types_as_value_error():
         cx.zeros((1.5,), dtype=cx.float32, device="cpu")
     with pytest.raises(ValueError, match="shape dimensions must be integers"):
         cx.zeros("abc", dtype=cx.float32, device="cpu")
+    with pytest.raises(ValueError, match="shape dimensions must be integers"):
+        cx.zeros(True, dtype=cx.float32, device="cpu")
+    with pytest.raises(ValueError, match="shape dimensions must be integers"):
+        cx.zeros((True,), dtype=cx.float32, device="cpu")
     with pytest.raises(ValueError, match="shape must be an int or an iterable of ints"):
         cx.zeros(1.5, dtype=cx.float32, device="cpu")
+
+
+def test_factory_accepts_numpy_integer_shape_dims():
+    assert cx.zeros(np.int64(2), dtype=cx.float32, device="cpu").shape == (2,)
+    assert cx.zeros((np.int64(2),), dtype=cx.float32, device="cpu").shape == (2,)
 
 
 def test_factory_rejects_invalid_dtype_type_as_value_error():
@@ -556,6 +565,8 @@ def test_fill_rejects_int32_value_out_of_range():
         _core.fill((2,), dtype="int32", value=float("nan"), device="cpu")
     with pytest.raises(ValueError, match="fill value is out of range for int32"):
         _core.fill((2,), dtype="int32", value=1.9, device="cpu")
+    with pytest.raises(ValueError, match="fill value is out of range for int32"):
+        _core.fill((2**62,), dtype="int32", value=1.9, device="cpu")
 
 
 def test_int32_add_multiply_wrap_two_complement():

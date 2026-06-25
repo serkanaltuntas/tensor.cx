@@ -225,6 +225,10 @@ CpuTensor empty(Shape shape, DType dtype) {
 }
 
 CpuTensor fill(Shape shape, DType dtype, double value) {
+  if (dtype == DType::kInt32 && !is_int32_representable(value)) {
+    throw std::invalid_argument("fill value is out of range for int32");
+  }
+
   CpuTensor result(dtype, std::move(shape));
   switch (dtype) {
     case DType::kFloat32: {
@@ -233,9 +237,6 @@ CpuTensor fill(Shape shape, DType dtype, double value) {
       break;
     }
     case DType::kInt32: {
-      if (!is_int32_representable(value)) {
-        throw std::invalid_argument("fill value is out of range for int32");
-      }
       auto& data = result.mutable_int32_data();
       std::fill(data.begin(), data.end(), static_cast<std::int32_t>(value));
       break;
