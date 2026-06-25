@@ -1,7 +1,5 @@
 #include "cortex/backends/metal/metal_kernels.h"
 
-#include <dispatch/dispatch.h>
-
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -15,6 +13,7 @@
 
 #include "cortex/backends/metal/metal_buffer.h"
 #include "cortex/backends/metal/metal_context.h"
+#include "cortex/backends/metal/metal_dispatch_data.h"
 #include "cortex/backends/metal/metal_kernels_data.h"
 #include "cortex/core/dtype.h"
 
@@ -27,27 +26,6 @@ std::string error_message(const char* prefix, NS::Error* error) {
   }
   return prefix;
 }
-
-class DispatchData final {
- public:
-  DispatchData() = default;
-  DispatchData(const DispatchData&) = delete;
-  DispatchData& operator=(const DispatchData&) = delete;
-
-  ~DispatchData() { reset(); }
-
-  void reset(dispatch_data_t data = nullptr) {
-    if (data_) {
-      dispatch_release(data_);
-    }
-    data_ = data;
-  }
-
-  dispatch_data_t get() const { return data_; }
-
- private:
-  dispatch_data_t data_{nullptr};
-};
 
 Expected<const char*> binary_kernel_name(OpKind kind, DType dtype) {
   switch (kind) {
@@ -561,7 +539,7 @@ class KernelRuntime {
   }
 
   NS::SharedPtr<MTL::Library> library_;
-  DispatchData library_data_;
+  detail::DispatchData library_data_;
   Status status_;
   NS::SharedPtr<MTL::ComputePipelineState> add_f32_;
   NS::SharedPtr<MTL::ComputePipelineState> mul_f32_;

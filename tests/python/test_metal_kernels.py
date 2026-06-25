@@ -86,7 +86,26 @@ def test_metal_fill_rejects_int32_value_out_of_range():
     with pytest.raises(ValueError, match="fill value is out of range for int32"):
         _core.fill((2,), dtype="int32", value=3e9, device="metal")
     with pytest.raises(ValueError, match="fill value is out of range for int32"):
+        _core.fill((2,), dtype="int32", value=float("nan"), device="metal")
+    with pytest.raises(ValueError, match="fill value is out of range for int32"):
         _core.fill((2,), dtype="int32", value=1.9, device="metal")
+    with pytest.raises(ValueError, match="fill value is out of range for int32"):
+        _core.fill((2,), dtype="int32", value=-1.9, device="metal")
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_fill_accepts_int32_boundary_values():
+    from cortex_runtime import _core
+
+    lower = _core.fill((2,), dtype="int32", value=-(2**31), device="metal")
+    upper = _core.fill((2,), dtype="int32", value=2**31 - 1, device="metal")
+
+    np.testing.assert_array_equal(
+        _core.metal_to_cpu(lower).numpy(), np.array([-(2**31), -(2**31)], dtype=np.int32)
+    )
+    np.testing.assert_array_equal(
+        _core.metal_to_cpu(upper).numpy(), np.array([2**31 - 1, 2**31 - 1], dtype=np.int32)
+    )
 
 
 @pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")

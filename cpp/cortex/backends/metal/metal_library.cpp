@@ -1,33 +1,14 @@
 #include "cortex/backends/metal/metal_library.h"
 
-#include <dispatch/dispatch.h>
-
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
 
 #include "cortex/backends/metal/metal_context.h"
+#include "cortex/backends/metal/metal_dispatch_data.h"
 #include "cortex/core/status.h"
 
 namespace cortex::metal {
 namespace {
-
-class DispatchData final {
- public:
-  explicit DispatchData(dispatch_data_t data) : data_(data) {}
-  DispatchData(const DispatchData&) = delete;
-  DispatchData& operator=(const DispatchData&) = delete;
-
-  ~DispatchData() {
-    if (data_) {
-      dispatch_release(data_);
-    }
-  }
-
-  dispatch_data_t get() const { return data_; }
-
- private:
-  dispatch_data_t data_{nullptr};
-};
 
 std::string error_message(const char* prefix, NS::Error* error) {
   if (error && error->localizedDescription()) {
@@ -59,7 +40,7 @@ Expected<std::string> validate_library_function(
     return context.status();
   }
 
-  DispatchData library_data(dispatch_data_create(
+  detail::DispatchData library_data(dispatch_data_create(
       metallib.data(),
       metallib.size(),
       nullptr,

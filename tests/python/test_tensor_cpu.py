@@ -566,7 +566,23 @@ def test_fill_rejects_int32_value_out_of_range():
     with pytest.raises(ValueError, match="fill value is out of range for int32"):
         _core.fill((2,), dtype="int32", value=1.9, device="cpu")
     with pytest.raises(ValueError, match="fill value is out of range for int32"):
+        _core.fill((2,), dtype="int32", value=-1.9, device="cpu")
+    with pytest.raises(ValueError, match="fill value is out of range for int32"):
         _core.fill((2**62,), dtype="int32", value=1.9, device="cpu")
+
+
+def test_fill_accepts_int32_boundary_values():
+    from cortex_runtime import _core
+
+    lower = _core.fill((2,), dtype="int32", value=-(2**31), device="cpu")
+    upper = _core.fill((2,), dtype="int32", value=2**31 - 1, device="cpu")
+
+    np.testing.assert_array_equal(
+        lower.numpy(), np.array([-(2**31), -(2**31)], dtype=np.int32)
+    )
+    np.testing.assert_array_equal(
+        upper.numpy(), np.array([2**31 - 1, 2**31 - 1], dtype=np.int32)
+    )
 
 
 def test_int32_add_multiply_wrap_two_complement():
