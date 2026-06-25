@@ -9,6 +9,10 @@ from __future__ import annotations
 import ast
 from dataclasses import dataclass
 import inspect
+from pathlib import Path
+import shutil
+import subprocess
+import tempfile
 import textwrap
 from types import FunctionType
 from typing import Callable, NoReturn, TypeAlias
@@ -61,6 +65,17 @@ class IRKernel:
     name: str
     parameters: tuple[str, ...]
     body: tuple[IRStatement, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class CompiledKernel:
+    """Compiled artifact for a Phase 7 experimental kernel."""
+
+    name: str
+    target: str
+    ir: IRKernel
+    msl_source: str
+    metallib: bytes
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,11 +160,23 @@ class Kernel:
     def parameters(self) -> tuple[str, ...]:
         return tuple(inspect.signature(self.fn).parameters)
 
-    def compile(self, *, target: str | None = None):
+    def compile(self, *, target: str | None = None) -> CompiledKernel:
         selected = self.target if target is None else _validate_target(target)
-        raise NotImplementedError(
-            "experimental kernel DSL compilation is not implemented yet "
-            f"for target {selected!r}"
+        resolved = "metal" if selected == "auto" else selected
+        if resolved != "metal":
+            raise NotImplementedError(
+                "experimental kernel DSL compilation is only implemented "
+                "for target 'metal'"
+            )
+
+        ir = self.parse_ir()
+        msl_source = _emit_msl(ir)
+        return CompiledKernel(
+            name=ir.name,
+            target=resolved,
+            ir=ir,
+            msl_source=msl_source,
+            metallib=_compile_msl_to_metallib(ir.name, msl_source),
         )
 
     def parse_ir(self) -> IRKernel:
@@ -565,6 +592,64 @@ def _emit_msl(kernel_ir: IRKernel) -> str:
     return "\n".join(lines)
 
 
+def _compile_msl_to_metallib(name: str, msl_source: str) -> bytes:
+    xcrun = shutil.which("xcrun")
+    if xcrun is None:
+        raise KernelCompileError(
+            "Metal compiler toolchain is unavailable: xcrun was not found"
+        )
+
+    with tempfile.TemporaryDirectory(prefix="cortex_runtime_kernel_") as temp_dir:
+        root = Path(temp_dir)
+        source_path = root / f"{name}.metal"
+        air_path = root / f"{name}.air"
+        metallib_path = root / f"{name}.metallib"
+        source_path.write_text(msl_source, encoding="utf-8")
+        _run_metal_tool(
+            [
+                xcrun,
+                "-sdk",
+                "macosx",
+                "metal",
+                "-c",
+                str(source_path),
+                "-o",
+                str(air_path),
+            ]
+        )
+        _run_metal_tool(
+            [
+                xcrun,
+                "-sdk",
+                "macosx",
+                "metallib",
+                str(air_path),
+                "-o",
+                str(metallib_path),
+            ]
+        )
+        return metallib_path.read_bytes()
+
+
+def _run_metal_tool(command: list[str]) -> None:
+    try:
+        result = subprocess.run(
+            command,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError as exc:
+        raise KernelCompileError(
+            f"Metal compiler tool failed to start: {exc}"
+        ) from exc
+    if result.returncode != 0:
+        message = (result.stderr or result.stdout).strip()
+        if not message:
+            message = f"command exited with status {result.returncode}"
+        raise KernelCompileError(f"Metal compiler failed: {message}")
+
+
 def _emit_msl_parameters(
     kernel_ir: IRKernel,
     buffer_names: set[str],
@@ -729,8 +814,9 @@ def _unsupported(node: ast.AST) -> NoReturn:
 def kernel(fn: Callable | None = None, *, target: str = "auto"):
     """Decorate a Python function as a Phase 7 experimental kernel.
 
-    The decorator records stable metadata now. Compilation and launch are still
-    intentionally disabled until runtime compilation and launch exist.
+    The decorator records stable metadata now. ``compile(target="metal")``
+    produces an unloaded metallib artifact. Launch is intentionally disabled
+    until runtime library loading, buffer binding, and launch exist.
     """
 
     selected_target = _validate_target(target)
@@ -758,6 +844,7 @@ def block_size() -> int:
 
 
 __all__ = [
+    "CompiledKernel",
     "IRAssign",
     "IRBinaryOp",
     "IRCall",

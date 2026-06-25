@@ -23,9 +23,10 @@ acceptance criteria, and Definitions of Done also live in `PROJECT.md` (§14).
 
 Phase 7 is now in progress. The current implementation has the
 `cx.experimental.kernel` metadata wrapper, a restricted AST-to-IR parser, and a
-text-only MSL emitter for the first subset; it does not compile or launch
-user-defined kernels yet. The experimental kernel DSL namespace and
-parser/emitter scaffold live under `cx.experimental`. See
+text MSL emitter plus in-memory metallib compile artifact for the first subset;
+it does not load or launch user-defined kernels yet. The experimental kernel DSL
+namespace and parser/emitter/compiler-artifact scaffold live under
+`cx.experimental`. See
 [`KERNEL_DSL.md`](KERNEL_DSL.md).
 
 ## What works today (through Phase 6)

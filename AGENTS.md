@@ -252,7 +252,7 @@ Phase 6   Reductions and NN primitives
 Current phase:
 
 ```text
-Phase 7   Experimental kernel DSL (AST-to-IR + text MSL emitter scaffold in progress)
+Phase 7   Experimental kernel DSL (AST-to-IR + Metal compile artifact scaffold in progress)
 ```
 
 Only move to CUDA, ROCm, Vulkan, MLIR, or broad compiler work after the earlier

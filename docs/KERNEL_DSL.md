@@ -6,10 +6,12 @@ with tests.
 
 ## Status
 
-Phase 7 has started, but no user-defined kernel is compiled or launched yet.
+Phase 7 has started, but no user-defined kernel is loaded or launched yet.
 The current API records kernel metadata, parses a small restricted Python AST
-subset into backend-neutral IR, emits text MSL for the first subset, and rejects
-launch/compile attempts with clear `NotImplementedError` messages.
+subset into backend-neutral IR, emits text MSL for the first subset, and can
+compile that MSL into an in-memory metallib artifact when Apple Metal
+command-line tools are available. Launch attempts still raise clear
+`NotImplementedError` messages.
 
 ```python
 import cortex_runtime as cx
@@ -27,6 +29,8 @@ print(add_kernel.name)
 print(add_kernel.parameters)
 print(add_kernel.parse_ir())
 print(add_kernel.emit_msl())
+compiled = add_kernel.compile(target="metal")
+print(len(compiled.metallib))
 ```
 
 Do not expose a top-level `cx.kernel` API until the experimental API has a
@@ -121,10 +125,11 @@ numeric constants
 Unsupported AST nodes must fail at compile time with a clear message naming the
 node type. Silent fallback or partial miscompilation is not acceptable.
 
-## MSL Emission Rules
+## MSL Emission And Compile Rules
 
-The current `emit_msl()` path is text-only. It is a golden-testable emitter, not
-a runtime compiler or launcher.
+The current `emit_msl()` path is golden-testable text generation. The current
+`compile(target="metal")` path shells out to the Apple command-line Metal tools
+to produce an in-memory metallib artifact.
 
 It currently assumes:
 
@@ -136,8 +141,8 @@ uint scalar parameters
 one-dimensional program_id/thread_id/block_size mapping
 ```
 
-The generated MSL source is not compiled, cached, linked into a metallib, loaded
-by the Metal backend, or launched. Runtime compilation, buffer binding, launch
+The compiled metallib is not cached, loaded by the Metal backend, bound to
+runtime buffers, or launched. Runtime library loading, buffer binding, launch
 configuration, and CPU-vs-Metal validation remain future Phase 7 work.
 
 ## API Rules
@@ -151,9 +156,10 @@ cx.experimental.thread_id
 cx.experimental.block_size
 ```
 
-`@cx.experimental.kernel` currently returns a metadata wrapper with `parse_ir()`
-and text-only `emit_msl()`. Calling `compile()` or launching the wrapper is
-intentionally disabled until runtime compilation and launch exist.
+`@cx.experimental.kernel` currently returns a metadata wrapper with `parse_ir()`,
+text-only `emit_msl()`, and `compile(target="metal")` for an in-memory metallib
+artifact. Launching the wrapper is intentionally disabled until runtime library
+loading, buffer binding, and launch exist.
 
 The public API should move slowly:
 

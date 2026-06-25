@@ -1,6 +1,24 @@
+import shutil
+import subprocess
+
 import pytest
 
 import cortex_runtime as cx
+
+
+def _has_metal_compiler() -> bool:
+    if shutil.which("xcrun") is None:
+        return False
+    for tool in ("metal", "metallib"):
+        result = subprocess.run(
+            ["xcrun", "-sdk", "macosx", "--find", tool],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            return False
+    return True
 
 
 def test_experimental_kernel_decorator_records_metadata():
@@ -21,13 +39,13 @@ def test_experimental_kernel_decorator_accepts_explicit_target():
     assert add_kernel.target == "metal"
 
 
-def test_experimental_kernel_compile_and_launch_are_not_implemented():
+def test_experimental_kernel_compile_rejects_unsupported_target_and_launch_is_disabled():
     @cx.experimental.kernel
     def add_kernel(a, b, out, n):
         pass
 
-    with pytest.raises(NotImplementedError, match="compilation is not implemented"):
-        add_kernel.compile(target="metal")
+    with pytest.raises(NotImplementedError, match="only implemented"):
+        add_kernel.compile(target="cpu")
     with pytest.raises(NotImplementedError, match="launch is not implemented"):
         add_kernel(None, None, None, 0)
 
@@ -122,6 +140,53 @@ def test_experimental_kernel_emit_msl_requires_output_store():
         match="MSL emission requires one output buffer",
     ):
         bad_kernel.emit_msl()
+
+
+def test_experimental_kernel_compile_reports_missing_xcrun(monkeypatch):
+    @cx.experimental.kernel
+    def add_kernel(a, b, out, n):
+        i = (
+            cx.experimental.program_id(0) * cx.experimental.block_size()
+            + cx.experimental.thread_id()
+        )
+        if i < n:
+            out[i] = a[i] + b[i]
+
+    monkeypatch.setattr(cx.experimental.shutil, "which", lambda name: None)
+
+    with pytest.raises(
+        cx.experimental.KernelCompileError,
+        match="xcrun was not found",
+    ):
+        add_kernel.compile(target="metal")
+
+
+@pytest.mark.skipif(
+    not _has_metal_compiler(),
+    reason="Apple Metal command-line compiler tools are unavailable",
+)
+def test_experimental_kernel_compile_returns_in_memory_metallib_artifact():
+    @cx.experimental.kernel
+    def add_kernel(a, b, out, n):
+        i = (
+            cx.experimental.program_id(0) * cx.experimental.block_size()
+            + cx.experimental.thread_id()
+        )
+        if i < n:
+            out[i] = a[i] + b[i]
+
+    compiled = add_kernel.compile()
+    explicit = add_kernel.compile(target="metal")
+
+    assert isinstance(compiled, cx.experimental.CompiledKernel)
+    assert compiled.name == "add_kernel"
+    assert compiled.target == "metal"
+    assert compiled.ir == add_kernel.parse_ir()
+    assert compiled.msl_source == add_kernel.emit_msl()
+    assert compiled.metallib.startswith(b"MTLB")
+    assert explicit.target == "metal"
+    assert explicit.msl_source == compiled.msl_source
+    assert explicit.metallib.startswith(b"MTLB")
 
 
 def test_experimental_kernel_emit_msl_rejects_unused_parameters():
