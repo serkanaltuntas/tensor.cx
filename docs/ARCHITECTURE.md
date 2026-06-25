@@ -44,35 +44,36 @@ type.
 ### Dispatch today vs. the Phase 8 target
 
 `§5.6` settles a data-driven dispatch design: a single
-`Backend::execute(OpDesc, inputs, outputs)` per backend, switching on the op
-enum, rather than one method per operation. That interface exists in
-`cpp/cortex/core/backend.h`, but through Phase 5 it is a **design placeholder —
-no backend implements it and nothing calls it.** The dispatch that actually runs
-is a set of per-op typed entry points in each backend (`cpu::execute_binary`,
-`cpu::execute_unary`, `cpu::reduce`, `cpu::matmul`, `cpu::fill`,
-`metal::execute_binary`, `metal::execute_unary`, `metal::reduce`,
-`metal::matmul_custom`, `metal::matmul_mpsgraph`, `metal::fill`), selected by
-the nanobind layer from the operand tensor type and device. `OpDesc` is passed
-to the unary, binary, and reduction entry points (and Metal's `fill`) and tags
-the op `kind`. Phase 6 adds a minimal `axis` attribute to `OpDesc` for
-reduction entry points and axis-aware transforms such as softmax, rmsnorm, and
-layernorm, plus an `epsilon` attribute for normalization ops. Other op
-parameters, such as fill's value and matmul's backend choice, still travel as
-ordinary arguments.
+`Backend::execute(BackendExecution)` per backend, switching on `OpDesc`, rather
+than one virtual method per operation. Phase 8 has started that hardening work:
+`cpp/cortex/core/backend.h` now defines the execution contract, separates
+primitive operations from kernel launches, and carries optional launch and
+compilation-target metadata. `cpp/cortex/backends/null/` compiles against that
+interface alone and exists to prove the contract has no Metal dependency.
 
-This is a deliberate, documented deviation kept small per the "avoid unrelated
-refactors" rule: unifying the backends onto `Backend::execute` is the work of
-**Phase 8 — Backend interface hardening**, whose Definition of Done already
-requires a stub backend that compiles against this interface alone. Until then,
-do not read `backend.h` as the live dispatch path; read it as the contract Phase
-8 implements.
+The dispatch that actually runs is still the existing typed entry points in each
+backend (`cpu::execute_binary`, `cpu::execute_unary`, `cpu::reduce`,
+`cpu::matmul`, `cpu::fill`, `metal::execute_binary`, `metal::execute_unary`,
+`metal::reduce`, `metal::matmul_custom`, `metal::matmul_mpsgraph`,
+`metal::fill`), selected by the nanobind layer from the operand tensor type and
+device. `OpDesc` is passed to the unary, binary, and reduction entry points (and
+Metal's `fill`) and tags the op `kind`. Phase 6 adds a minimal `axis` attribute
+to `OpDesc` for reduction entry points and axis-aware transforms such as
+softmax, rmsnorm, and layernorm, plus an `epsilon` attribute for normalization
+ops. Other op parameters, such as fill's value and matmul's backend choice,
+still travel as ordinary arguments.
+
+This is a deliberate, documented transition kept small per the "avoid unrelated
+refactors" rule: Phase 8 should harden the ABI first, then migrate live dispatch
+without changing public Python semantics.
 
 ## Core Principles
 
 - CPU reference behavior is mandatory for every future GPU operation.
 - Operation dispatch is moving toward the data-driven `OpDesc` model (single
-  `Backend::execute`, no per-op virtual method). The unified interface is
-  defined but not yet wired; see "Dispatch today vs. the Phase 8 target" above.
+  `Backend::execute`, no per-op virtual method). The ABI is defined and backed
+  by a null backend scaffold, but live CPU/Metal dispatch is not yet migrated;
+  see "Dispatch today vs. the Phase 8 target" above.
 - Metal backend errors return `Status` / `Expected<T>` and are translated to
   Python exceptions at the nanobind layer.
 - Python and NumPy types stay outside `cpp/cortex/core/` and all backends.

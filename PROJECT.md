@@ -39,7 +39,7 @@ C++ namespace: cortex
 > CI (CPU) or on the local Mac (Metal).
 
 ```text
-Current phase:          Phase 8 — pending (backend interface hardening)
+Current phase:          Phase 8 — in progress (Backend ABI + null backend scaffold)
 Last verified milestone: Phase 7 — Experimental kernel DSL
 v0.1 target:            achieved at end of Phase 3
 Binding decided:        nanobind (see §5.6)

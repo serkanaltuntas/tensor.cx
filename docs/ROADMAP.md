@@ -21,13 +21,11 @@ acceptance criteria, and Definitions of Done also live in `PROJECT.md` (§14).
 [ ] Phase 10  MLIR exploration
 ```
 
-Phase 7 is complete. The current implementation has the `cx.experimental.kernel`
-metadata wrapper, a restricted AST-to-IR parser, a text MSL emitter,
-in-memory metallib compile artifacts, native Metal function validation, and a
-narrow synchronous launch path for the first float32 elementwise subset. A
-generated add kernel now launches on Metal and matches the CPU reference. The
-experimental kernel DSL namespace remains under `cx.experimental`. See
-[`KERNEL_DSL.md`](KERNEL_DSL.md).
+Phase 7 is complete. Phase 8 is in progress: the backend execution ABI now
+separates primitive operations from kernel launches, carries explicit launch and
+compilation-target metadata, and has a null backend scaffold that compiles
+without Metal. The live CPU/Metal dispatch path is still the existing typed
+entry points while Phase 8 hardening proceeds.
 
 ## What works today (through Phase 7)
 
@@ -66,9 +64,10 @@ and AGENTS.md "Out Of Scope For Early Work".
   independent from PyTorch, but a future integration can be staged through a
   custom-op bridge before considering a full PyTorch / ATen backend. See
   [`PYTORCH_PORTABILITY_ROADMAP.md`](PYTORCH_PORTABILITY_ROADMAP.md).
-- **Unified `Backend::execute` dispatch (Phase 8).** The data-driven dispatch
-  interface (`cpp/cortex/core/backend.h`) is defined but not yet wired; the live
-  path is per-op typed entry points routed by the binding. See
+- **Unified `Backend::execute` dispatch (Phase 8).** The data-driven backend
+  ABI (`cpp/cortex/core/backend.h`) is defined and exercised by the null backend
+  scaffold, but the live CPU/Metal path is still per-op typed entry points
+  routed by the binding. See
   [`ARCHITECTURE.md`](ARCHITECTURE.md) → "Dispatch today vs. the Phase 8 target".
 - **GIL release + Metal thread-safety.** v0.1 is synchronous and holds the GIL
   across blocking Metal submissions, so multi-threaded use is serialized and the

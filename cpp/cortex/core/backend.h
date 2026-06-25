@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+#include <optional>
 #include <span>
 #include <string>
 
@@ -9,26 +11,49 @@
 
 namespace cortex {
 
-// PHASE 8 TARGET — NOT YET WIRED.
-//
-// This is the single data-driven dispatch entry point §5.6 mandates: one
-// execute() per backend, switching on OpDesc, instead of one virtual method per
-// op. It is defined now to fix the shape of the contract, but no backend
-// implements it and nothing calls it yet. Through Phase 5 the live dispatch is
-// the per-op typed entry points in each backend (cortex::cpu::execute_binary,
-// cortex::metal::execute_binary, matmul_custom, fill, ...), routed by the
-// nanobind layer. Backends are migrated onto this interface in Phase 8
-// ("Backend interface hardening"), where the stub-backend Definition of Done
-// also requires OpDesc to carry op attributes (see operation.h). Until then,
-// treat this header as a design placeholder, not the running code path.
+enum class BackendOpClass {
+  kPrimitive,
+  kKernel,
+};
+
+enum class KernelArtifactKind {
+  kNone,
+  kStaticLibrary,
+  kSource,
+  kBinary,
+  kIntermediateRepresentation,
+};
+
+struct LaunchConfig {
+  std::uint32_t grid_x{0};
+  std::uint32_t grid_y{1};
+  std::uint32_t grid_z{1};
+  std::uint32_t threads_per_group_x{0};
+  std::uint32_t threads_per_group_y{1};
+  std::uint32_t threads_per_group_z{1};
+};
+
+struct CompilationTarget {
+  KernelArtifactKind artifact_kind{KernelArtifactKind::kNone};
+  std::string artifact;
+  std::string entry_point;
+};
+
+struct BackendExecution {
+  BackendOpClass op_class{BackendOpClass::kPrimitive};
+  OpDesc op;
+  std::span<const Tensor> inputs;
+  std::span<Tensor> outputs;
+  std::optional<LaunchConfig> launch;
+  std::optional<CompilationTarget> compilation_target;
+};
+
 class Backend {
  public:
   virtual ~Backend() = default;
 
   virtual std::string name() const = 0;
-  virtual Status execute(const OpDesc& op,
-                         std::span<const Tensor> inputs,
-                         std::span<Tensor> outputs) = 0;
+  virtual Status execute(const BackendExecution& execution) = 0;
 };
 
 }  // namespace cortex

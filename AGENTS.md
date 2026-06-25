@@ -235,7 +235,7 @@ Keep these conceptual boundaries even if filenames evolve.
 
 `PROJECT.md` is authoritative for the current phase checklist and phase status.
 Do not infer the current phase from this abbreviated sequence. Phase 8 —
-Backend interface hardening is the next phase.
+Backend interface hardening is in progress.
 
 Completed through Phase 7:
 
@@ -253,7 +253,7 @@ Phase 7   Experimental kernel DSL
 Current phase:
 
 ```text
-Phase 8   Backend interface hardening (pending)
+Phase 8   Backend interface hardening (Backend ABI + null backend scaffold)
 ```
 
 Only move to CUDA, ROCm, Vulkan, MLIR, or broad compiler work after the earlier

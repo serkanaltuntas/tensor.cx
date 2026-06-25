@@ -29,7 +29,7 @@ enum class OpKind {
 // such as softmax/rmsnorm/layernorm, epsilon is used by normalization ops, and
 // both are ignored by ops that do not need them.
 struct OpDesc {
-  OpKind kind;
+  OpKind kind{OpKind::kFill};
   std::int64_t axis{0};
   double epsilon{1.0e-5};
 };

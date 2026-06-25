@@ -13,6 +13,7 @@
 
 #include "cortex/backends/cpu/cpu_backend.h"
 #include "cortex/backends/cpu/cpu_tensor.h"
+#include "cortex/backends/null/null_backend.h"
 #include "cortex/core/dtype.h"
 #include "cortex/core/shape.h"
 #include "cortex/core/status.h"
@@ -351,6 +352,13 @@ NB_MODULE(_core, module) {
   module.def("version", []() { return CORTEX_RUNTIME_VERSION; });
   module.attr("float32") = "float32";
   module.attr("int32") = "int32";
+  module.def("_backend_contract_smoke_test", []() {
+    const auto status = cortex::null_backend::contract_smoke_test();
+    if (!status.ok()) {
+      throw std::runtime_error(status.message());
+    }
+    return true;
+  });
 
   nb::class_<CpuTensor>(module, "CpuTensor")
       .def_prop_ro("shape", [](const CpuTensor& tensor) { return shape_tuple(tensor.shape()); })

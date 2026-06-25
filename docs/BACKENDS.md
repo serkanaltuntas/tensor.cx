@@ -9,6 +9,8 @@ places backend-specific implementation under `cpp/cortex/backends/`.
 cpu     Required reference backend.
 metal   Apple Silicon backend for buffer ownership, copy round-trips, and first
         elementwise kernels.
+null    Phase 8 contract scaffold. Compiles against the backend ABI without
+        Metal and intentionally does not execute operations.
 ```
 
 The CPU backend is the correctness reference for every operation. Metal behavior
@@ -38,12 +40,72 @@ The Metal backend currently supports:
 
 CPU remains the correctness reference for every Metal operation.
 
+## Backend ABI
+
+Phase 8 defines the backend ABI in `cpp/cortex/core/backend.h`. The ABI is the
+contract future backends should compile against before they are wired into live
+dispatch.
+
+### Lifecycle
+
+Each backend owns its device/context resources and exposes a stable `name()`.
+Execution uses `Status` return values; backend implementations must not rely on
+exceptions crossing backend boundaries. The Python binding remains the single
+place where runtime status becomes Python exceptions.
+
+### Execution Contract
+
+`Backend::execute(const BackendExecution&)` is the single backend entry point.
+`BackendExecution` carries:
+
+```text
+op_class            BackendOpClass::kPrimitive or BackendOpClass::kKernel
+op                  OpDesc operation descriptor and attributes
+inputs              input tensor metadata span
+outputs             mutable output tensor metadata span
+launch              optional LaunchConfig, required only for kernel launches
+compilation_target  optional CompilationTarget, required only for kernel launches
+```
+
+Primitive operations are library/runtime operations such as matmul or reductions
+that a backend may route through platform primitives. They must not carry kernel
+launch metadata. Kernel operations are project-owned static or generated kernels;
+they require an explicit launch configuration and compilation target.
+
+### Launch Abstraction
+
+`LaunchConfig` describes grid dimensions and threads-per-group dimensions. The
+fields are intentionally backend-neutral so Metal, CUDA, ROCm, Vulkan/SPIR-V,
+and MLIR-generated paths can map them to their native launch concepts later.
+Synchronous execution remains the project default.
+
+### Compilation Target
+
+`CompilationTarget` identifies a backend-local artifact and entry point for
+kernel execution. `KernelArtifactKind` stays backend-neutral: static library,
+source text, binary module, or intermediate representation. The core does not
+name Metal, MSL, PTX, SPIR-V, MLIR, or other concrete formats here; each backend
+maps the neutral artifact class and opaque artifact string to its own compiled
+library, generated source cache, binary blob, or IR module. Primitive operations
+should leave `compilation_target` unset.
+
+### Buffer Ownership
+
+The core owns backend-neutral tensor and buffer abstractions. Backend-specific
+buffer handles stay inside their backend directories. The core must not expose
+Metal, MPSGraph, CUDA, ROCm, Vulkan, or platform API handles.
+
+### Null Backend Scaffold
+
+`cpp/cortex/backends/null/` validates the ABI shape without executing work. It
+returns `kUnavailable` for valid execution requests and `kInvalidArgument` for
+contract violations such as kernel execution without launch metadata or a
+compilation target. The Python test hook `_backend_contract_smoke_test` proves
+the scaffold builds and links with the extension.
+
 ## Current Direction
 
-Phase 7 is complete. The current subset supports `sum`, `max`, `mean`, `exp`,
-`gelu`, `silu`, stable `softmax`, `rmsnorm`, and `layernorm` on CPU and Metal.
-The `cx.experimental.kernel` DSL now has a restricted AST-to-IR parser, text MSL
-emitter, in-memory metallib compile artifact, native Metal function validation,
-and a narrow synchronous launch path for the first float32 elementwise subset.
-The DSL must not change the Phase 6 correctness contracts, and generated kernels
-must keep CPU reference behavior.
+Phase 8 is in progress. The backend ABI and null backend scaffold exist, but
+live CPU/Metal dispatch still uses the existing typed entry points while the
+interface is hardened. The next Phase 8 work should migrate one narrow operation
+through `Backend::execute` without changing public Python behavior.

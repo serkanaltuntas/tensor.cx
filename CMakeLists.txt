@@ -28,6 +28,7 @@ add_library(cortex_core STATIC
   cpp/cortex/backends/cpu/cpu_backend.cpp
   cpp/cortex/backends/cpu/cpu_buffer.cpp
   cpp/cortex/backends/cpu/cpu_tensor.cpp
+  cpp/cortex/backends/null/null_backend.cpp
 )
 target_compile_features(cortex_core PUBLIC cxx_std_20)
 target_compile_options(cortex_core PRIVATE ${CORTEX_WARNING_FLAGS})
