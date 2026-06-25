@@ -118,6 +118,7 @@ if(CORTEX_ENABLE_METAL AND APPLE)
     cpp/cortex/backends/metal/metal_context.cpp
     cpp/cortex/backends/metal/metal_cpp.cpp
     cpp/cortex/backends/metal/metal_kernels.cpp
+    cpp/cortex/backends/metal/metal_library.cpp
     cpp/cortex/backends/metal/metal_tensor.cpp
   )
   if(CORTEX_ENABLE_MPSGRAPH)

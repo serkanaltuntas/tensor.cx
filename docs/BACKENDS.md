@@ -42,6 +42,7 @@ Phase 6 is complete. The current subset supports `sum`, `max`, `mean`, `exp`,
 `gelu`, `silu`, stable `softmax`, `rmsnorm`, and `layernorm` on CPU and Metal.
 Phase 7 has started with a `cx.experimental.kernel` metadata wrapper and
 restricted AST-to-IR parser plus a text MSL emitter and in-memory metallib
-compile artifact. The DSL must not change the Phase 6 correctness contracts,
-and generated kernels must keep CPU reference behavior before Metal launch is
+compile artifact that can be validated through native Metal library load and
+function lookup. The DSL must not change the Phase 6 correctness contracts, and
+generated kernels must keep CPU reference behavior before Metal launch is
 considered complete.

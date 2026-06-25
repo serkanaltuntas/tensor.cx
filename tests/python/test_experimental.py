@@ -189,6 +189,84 @@ def test_experimental_kernel_compile_returns_in_memory_metallib_artifact():
     assert explicit.metallib.startswith(b"MTLB")
 
 
+def test_experimental_compiled_kernel_validate_rejects_invalid_python_inputs():
+    compiled = cx.experimental.CompiledKernel(
+        name="add_kernel",
+        target="metal",
+        ir=cx.experimental.IRKernel("add_kernel", (), ()),
+        msl_source="",
+        metallib=b"",
+    )
+
+    with pytest.raises(TypeError, match="function name must be a string"):
+        compiled.validate_metal_function(1)
+    with pytest.raises(ValueError, match="function name cannot be empty"):
+        compiled.validate_metal_function("")
+    with pytest.raises(ValueError, match="function name cannot contain null bytes"):
+        compiled.validate_metal_function("add_kernel\x00suffix")
+
+    cpu_compiled = cx.experimental.CompiledKernel(
+        name="add_kernel",
+        target="cpu",
+        ir=cx.experimental.IRKernel("add_kernel", (), ()),
+        msl_source="",
+        metallib=b"",
+    )
+    with pytest.raises(ValueError, match="requires target 'metal'"):
+        cpu_compiled.validate_metal_function()
+
+
+@pytest.mark.skipif(
+    not _has_metal_compiler(),
+    reason="Apple Metal command-line compiler tools are unavailable",
+)
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_experimental_compiled_kernel_validates_metal_function_lookup():
+    @cx.experimental.kernel
+    def add_kernel(a, b, out, n):
+        i = (
+            cx.experimental.program_id(0) * cx.experimental.block_size()
+            + cx.experimental.thread_id()
+        )
+        if i < n:
+            out[i] = a[i] + b[i]
+
+    compiled = add_kernel.compile(target="metal")
+
+    assert compiled.validate_metal_function() == "add_kernel"
+    assert compiled.validate_metal_function("add_kernel") == "add_kernel"
+    with pytest.raises(ValueError, match="does not contain function: missing_kernel"):
+        compiled.validate_metal_function("missing_kernel")
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_experimental_compiled_kernel_validate_rejects_empty_metallib():
+    compiled = cx.experimental.CompiledKernel(
+        name="add_kernel",
+        target="metal",
+        ir=cx.experimental.IRKernel("add_kernel", (), ()),
+        msl_source="",
+        metallib=b"",
+    )
+
+    with pytest.raises(ValueError, match="Metal library data is empty"):
+        compiled.validate_metal_function()
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_experimental_compiled_kernel_validate_rejects_malformed_metallib():
+    compiled = cx.experimental.CompiledKernel(
+        name="add_kernel",
+        target="metal",
+        ir=cx.experimental.IRKernel("add_kernel", (), ()),
+        msl_source="",
+        metallib=b"not-a-metallib",
+    )
+
+    with pytest.raises(ValueError, match="failed to load Metal library"):
+        compiled.validate_metal_function()
+
+
 def test_experimental_kernel_emit_msl_rejects_unused_parameters():
     @cx.experimental.kernel
     def bad_kernel(a, unused, out, n):

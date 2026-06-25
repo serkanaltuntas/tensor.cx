@@ -39,7 +39,7 @@ C++ namespace: cortex
 > CI (CPU) or on the local Mac (Metal).
 
 ```text
-Current phase:          Phase 7 — in progress (AST-to-IR + Metal compile artifact scaffold)
+Current phase:          Phase 7 — in progress (AST-to-IR + Metal library validation scaffold)
 Last verified milestone: Phase 6 — Reductions & NN primitives
 v0.1 target:            achieved at end of Phase 3
 Binding decided:        nanobind (see §5.6)
@@ -1327,10 +1327,11 @@ Current status:
 
 ```text
 The experimental namespace, @cx.experimental.kernel metadata wrapper,
-restricted Python AST -> backend-neutral IR parser, text MSL emitter, and
-in-memory metallib compile artifact exist for the first subset. No user-defined
-kernel is loaded into the Metal backend or launched yet. Keep Phase 7 under
-cx.experimental until the first AST -> IR -> MSL -> Metal path works.
+restricted Python AST -> backend-neutral IR parser, text MSL emitter, in-memory
+metallib compile artifact, and native Metal library load/function lookup
+validation exist for the first subset. No user-defined kernel is bound to
+runtime buffers or launched yet. Keep Phase 7 under cx.experimental until the
+first AST -> IR -> MSL -> Metal path works.
 ```
 
 Initial design:

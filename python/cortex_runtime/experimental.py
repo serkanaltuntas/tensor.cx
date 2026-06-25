@@ -77,6 +77,23 @@ class CompiledKernel:
     msl_source: str
     metallib: bytes
 
+    def validate_metal_function(self, function_name: str | None = None) -> str:
+        """Load this metallib through Metal and verify a function exists."""
+        if self.target != "metal":
+            raise ValueError("compiled kernel validation requires target 'metal'")
+
+        selected = self.name if function_name is None else function_name
+        if not isinstance(selected, str):
+            raise TypeError("Metal function name must be a string")
+        if not selected:
+            raise ValueError("Metal function name cannot be empty")
+        if "\x00" in selected:
+            raise ValueError("Metal function name cannot contain null bytes")
+
+        from . import _core
+
+        return _core.validate_metal_library_function(self.metallib, selected)
+
 
 @dataclass(frozen=True, slots=True)
 class IRName:
@@ -815,8 +832,9 @@ def kernel(fn: Callable | None = None, *, target: str = "auto"):
     """Decorate a Python function as a Phase 7 experimental kernel.
 
     The decorator records stable metadata now. ``compile(target="metal")``
-    produces an unloaded metallib artifact. Launch is intentionally disabled
-    until runtime library loading, buffer binding, and launch exist.
+    produces an in-memory metallib artifact that can be validated through the
+    native Metal backend. Launch is intentionally disabled until buffer binding
+    and launch exist.
     """
 
     selected_target = _validate_target(target)

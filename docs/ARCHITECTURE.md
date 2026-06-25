@@ -24,8 +24,9 @@ matmul path. Phase 6 is complete, with `sum`, `max`, `mean`, `exp`, `gelu`,
 `silu`, `softmax`, `rmsnorm`, and `layernorm` available on CPU and Metal.
 Phase 7 is in progress with a `cx.experimental.kernel` metadata wrapper and a
 restricted Python AST -> backend-neutral IR parser, text MSL emitter, and
-in-memory metallib compile artifact; it does not load or launch user-defined
-kernels yet. Keep the experimental kernel DSL behind the existing
+in-memory metallib compile artifact plus native Metal library load/function
+lookup validation; it does not launch user-defined kernels yet. Keep the
+experimental kernel DSL behind the existing
 backend-neutral runtime boundaries. See
 [`KERNEL_DSL.md`](KERNEL_DSL.md).
 

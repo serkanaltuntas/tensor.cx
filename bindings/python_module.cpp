@@ -1,3 +1,5 @@
+#include <Python.h>
+
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
 #include <nanobind/stl/string.h>
@@ -17,6 +19,7 @@
 #if CORTEX_ENABLE_METAL
 #include "cortex/backends/metal/metal_backend.h"
 #include "cortex/backends/metal/metal_kernels.h"
+#include "cortex/backends/metal/metal_library.h"
 #if CORTEX_ENABLE_MPSGRAPH
 #include "cortex/backends/metal/metal_mpsgraph.h"
 #endif
@@ -218,6 +221,19 @@ nb::object tensor_to_numpy(const CpuTensor& tensor) {
       return make_numpy_array<std::int32_t>(tensor.int32_data(), tensor.shape());
   }
   throw std::invalid_argument("unsupported dtype");
+}
+
+std::vector<std::uint8_t> bytes_to_vector(nb::bytes data) {
+  char* buffer = nullptr;
+  Py_ssize_t size = 0;
+  if (PyBytes_AsStringAndSize(data.ptr(), &buffer, &size) != 0) {
+    throw std::invalid_argument("metallib must be bytes");
+  }
+  if (size == 0) {
+    return {};
+  }
+  const auto* first = reinterpret_cast<const std::uint8_t*>(buffer);
+  return std::vector<std::uint8_t>(first, first + size);
 }
 
 CpuTensor binary_op(const CpuTensor& lhs, const CpuTensor& rhs, OpKind kind) {
@@ -482,6 +498,19 @@ NB_MODULE(_core, module) {
                throw std::invalid_argument("device is not available: " + device);
              },
              nb::arg("device"));
+  module.def("validate_metal_library_function",
+             [](nb::bytes metallib, const std::string& function_name) {
+#if CORTEX_ENABLE_METAL
+               return unwrap(cortex::metal::validate_library_function(
+                   bytes_to_vector(metallib), function_name));
+#else
+               (void)metallib;
+               (void)function_name;
+               throw std::runtime_error("Metal is not available on this system");
+#endif
+             },
+             nb::arg("metallib"),
+             nb::arg("function_name"));
 
 #if CORTEX_ENABLE_METAL
   nb::class_<cortex::metal::MetalTensor>(module, "MetalTensor")

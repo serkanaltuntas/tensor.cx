@@ -38,6 +38,11 @@ core and Python binding surface do not expose MPSGraph or Objective-C types.
 Building with `-DCORTEX_ENABLE_MPSGRAPH=OFF` removes the MPSGraph path while
 leaving the custom MSL matmul path available.
 
+Phase 7 also has a narrow experimental library-validation hook for
+`cx.experimental`: an in-memory metallib can be loaded through the Metal backend
+and checked for a named function. This does not create a compute pipeline, bind
+runtime buffers, or launch generated kernels yet.
+
 Metal buffers use shared storage for the initial copy and kernel path. This is
 simple and correct for the first local runtime; future performance work may
 introduce private buffers, command encoders, and explicit synchronization.
