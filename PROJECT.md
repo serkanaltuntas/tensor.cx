@@ -39,8 +39,8 @@ C++ namespace: cortex
 > CI (CPU) or on the local Mac (Metal).
 
 ```text
-Current phase:          Phase 7 — in progress (AST-to-IR + Metal library validation scaffold)
-Last verified milestone: Phase 6 — Reductions & NN primitives
+Current phase:          Phase 8 — pending (backend interface hardening)
+Last verified milestone: Phase 7 — Experimental kernel DSL
 v0.1 target:            achieved at end of Phase 3
 Binding decided:        nanobind (see §5.6)
 Open decisions:         none
@@ -56,7 +56,7 @@ Phase checklist:
 [x] Phase 4   Runtime polish
 [x] Phase 5   MPSGraph matmul
 [x] Phase 6   Reductions & NN primitives
-[ ] Phase 7   Experimental kernel DSL
+[x] Phase 7   Experimental kernel DSL
 [ ] Phase 8   Backend interface hardening
 [ ] Phase 9   CUDA prototype
 [ ] Phase 10  MLIR exploration
@@ -1328,10 +1328,11 @@ Current status:
 ```text
 The experimental namespace, @cx.experimental.kernel metadata wrapper,
 restricted Python AST -> backend-neutral IR parser, text MSL emitter, in-memory
-metallib compile artifact, and native Metal library load/function lookup
-validation exist for the first subset. No user-defined kernel is bound to
-runtime buffers or launched yet. Keep Phase 7 under cx.experimental until the
-first AST -> IR -> MSL -> Metal path works.
+metallib compile artifact, native Metal library load/function lookup validation,
+and a narrow synchronous Metal launch hook exist for the first elementwise
+float32 subset. A generated add kernel now binds runtime buffers, launches on
+Metal, and matches the CPU reference. Keep the DSL under cx.experimental until
+the semantics are broader and stable enough for a public top-level API.
 ```
 
 Initial design:

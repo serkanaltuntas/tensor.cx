@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -99,6 +100,28 @@ std::int32_t cast_int32_or_throw(nb::handle item) {
   } catch (const std::exception&) {
     throw std::invalid_argument("integer value is out of range for int32 or is not an integer");
   }
+}
+
+std::uint32_t cast_uint32_or_throw(nb::handle item, const char* message) {
+  if (PyBool_Check(item.ptr())) {
+    throw std::invalid_argument(message);
+  }
+
+  PyObject* index_value = PyNumber_Index(item.ptr());
+  if (index_value == nullptr) {
+    PyErr_Clear();
+    throw std::invalid_argument(message);
+  }
+  nb::object index = nb::steal<nb::object>(index_value);
+  const auto value = PyLong_AsUnsignedLongLong(index.ptr());
+  if (PyErr_Occurred()) {
+    PyErr_Clear();
+    throw std::invalid_argument(message);
+  }
+  if (value > std::numeric_limits<std::uint32_t>::max()) {
+    throw std::invalid_argument(message);
+  }
+  return static_cast<std::uint32_t>(value);
 }
 
 Shape parse_shape(nb::handle shape) {
@@ -277,6 +300,28 @@ CpuTensor matmul_cpu(const CpuTensor& lhs, const CpuTensor& rhs, const std::stri
 }
 
 #if CORTEX_ENABLE_METAL
+std::vector<cortex::metal::KernelArgument> parse_metal_kernel_arguments(nb::sequence arguments) {
+  std::vector<cortex::metal::KernelArgument> parsed;
+  parsed.reserve(nb::len(arguments));
+  for (nb::handle item : arguments) {
+    if (nb::isinstance<cortex::metal::MetalTensor>(item)) {
+      const auto& tensor = nb::cast<const cortex::metal::MetalTensor&>(item);
+      parsed.push_back(cortex::metal::KernelArgument{
+          cortex::metal::KernelArgument::Kind::kTensor,
+          &tensor,
+          0,
+      });
+      continue;
+    }
+    parsed.push_back(cortex::metal::KernelArgument{
+        cortex::metal::KernelArgument::Kind::kUInt32,
+        nullptr,
+        cast_uint32_or_throw(item, "kernel scalar arguments must be uint32"),
+    });
+  }
+  return parsed;
+}
+
 void throw_status(const cortex::Status& status) {
   switch (status.code()) {
     case cortex::StatusCode::kInvalidArgument:
@@ -524,6 +569,35 @@ NB_MODULE(_core, module) {
              },
              nb::arg("metallib"),
              nb::arg("function_name"));
+  module.def("launch_metal_library_function",
+             [](nb::bytes metallib,
+                const std::string& function_name,
+                nb::sequence arguments,
+                nb::handle thread_count,
+                nb::handle threads_per_threadgroup) {
+#if CORTEX_ENABLE_METAL
+               return unwrap(cortex::metal::launch_library_function(
+                   bytes_to_vector(metallib),
+                   function_name,
+                   parse_metal_kernel_arguments(arguments),
+                   cast_uint32_or_throw(thread_count, "thread count must be uint32"),
+                   cast_uint32_or_throw(
+                       threads_per_threadgroup,
+                       "threads per threadgroup must be uint32")));
+#else
+               (void)metallib;
+               (void)function_name;
+               (void)arguments;
+               (void)thread_count;
+               (void)threads_per_threadgroup;
+               throw std::runtime_error("Metal is not available on this system");
+#endif
+             },
+             nb::arg("metallib"),
+             nb::arg("function_name"),
+             nb::arg("arguments"),
+             nb::arg("thread_count"),
+             nb::arg("threads_per_threadgroup"));
 
 #if CORTEX_ENABLE_METAL
   nb::class_<cortex::metal::MetalTensor>(module, "MetalTensor")

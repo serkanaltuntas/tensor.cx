@@ -6,14 +6,12 @@ with tests.
 
 ## Status
 
-Phase 7 has started, but no user-defined kernel is launched yet.
-The current API records kernel metadata, parses a small restricted Python AST
-subset into backend-neutral IR, emits text MSL for the first subset, and can
-compile that MSL into an in-memory metallib artifact when Apple Metal
-command-line tools are available. The compiled artifact can be validated by
-loading it through a build with native Metal support and checking that the
-generated function exists on a machine with a Metal runtime. Launch attempts
-still raise clear `NotImplementedError` messages.
+Phase 7 is complete for the first narrow slice. The current API records kernel
+metadata, parses a small restricted Python AST subset into backend-neutral IR,
+emits text MSL, compiles that MSL into an in-memory metallib artifact when Apple
+Metal command-line tools are available, validates generated functions through
+native Metal library lookup, and can launch the first float32 elementwise subset
+on Metal.
 
 ```python
 import cortex_runtime as cx
@@ -34,6 +32,13 @@ print(add_kernel.emit_msl())
 compiled = add_kernel.compile(target="metal")
 print(len(compiled.metallib))
 print(compiled.validate_metal_function())
+
+x = cx.ones((4,), dtype=cx.float32, device="metal")
+y = cx.ones((4,), dtype=cx.float32, device="metal")
+out = cx.empty((4,), dtype=cx.float32, device="metal")
+
+add_kernel(x, y, out, 4, block_size=2)
+print(out.cpu().numpy())
 ```
 
 Do not expose a top-level `cx.kernel` API until the experimental API has a
@@ -146,9 +151,14 @@ uint scalar parameters
 one-dimensional program_id/thread_id/block_size mapping
 ```
 
-The compiled metallib is not cached, bound to runtime buffers, or launched.
-Pipeline creation, buffer binding, launch configuration, and CPU-vs-Metal
-validation remain future Phase 7 work.
+The compiled metallib is not cached. The current launch path creates a pipeline,
+binds runtime buffers and uint32 scalar arguments in source-parameter order,
+dispatches synchronously, and returns the single output tensor object supplied by
+the caller. It is intentionally limited to float32 Metal tensors, one output
+buffer, exact tensor shape matches, one-dimensional dispatch, and buffer
+loads/stores guarded by a scalar bound such as `if i < n:`. The guard bound must
+match the launch `thread_count`, and `thread_count` must not exceed the output
+tensor size.
 
 ## API Rules
 
@@ -162,10 +172,10 @@ cx.experimental.block_size
 ```
 
 `@cx.experimental.kernel` currently returns a metadata wrapper with `parse_ir()`,
-text-only `emit_msl()`, and `compile(target="metal")` for an in-memory metallib
-artifact. `CompiledKernel.validate_metal_function()` is the first native Metal
-runtime hook, limited to library load and function lookup. Launching the wrapper
-is intentionally disabled until buffer binding and launch exist.
+text-only `emit_msl()`, `compile(target="metal")` for an in-memory metallib
+artifact, and experimental call-through launch. `CompiledKernel` exposes
+`validate_metal_function()` for library load/function lookup and `launch(...)`
+for the first synchronous Metal execution path.
 
 The public API should move slowly:
 
@@ -173,12 +183,13 @@ The public API should move slowly:
 1. Keep all Phase 7 work under cx.experimental.
 2. Add docs and tests with each supported syntax feature.
 3. Keep CPU reference behavior available before enabling Metal launch.
-4. Only consider cx.kernel after a real add kernel compiles and launches.
+4. Only consider cx.kernel after generated-kernel semantics are broader and
+   stable enough for a non-experimental API.
 ```
 
 ## Acceptance Bar
 
-Phase 7 is not complete until:
+Phase 7 is complete for the first accepted slice:
 
 ```text
 - A Python elementwise add kernel is parsed into backend-neutral IR.
@@ -188,4 +199,5 @@ Phase 7 is not complete until:
 - Unsupported syntax produces stable compile-time errors.
 ```
 
-Until then, the project status should remain Phase 7 in progress.
+Broader DSL semantics, caching, non-elementwise kernels, CPU execution for DSL
+kernels, and top-level `cx.kernel` remain future work.

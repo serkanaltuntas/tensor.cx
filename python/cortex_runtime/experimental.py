@@ -9,6 +9,7 @@ from __future__ import annotations
 import ast
 from dataclasses import dataclass
 import inspect
+import operator
 from pathlib import Path
 import shutil
 import subprocess
@@ -91,6 +92,63 @@ class CompiledKernel:
         from . import _core
 
         return _core.validate_metal_library_function(self.metallib, selected)
+
+    def launch(
+        self,
+        *args,
+        thread_count: int | None = None,
+        block_size: int = 256,
+    ):
+        """Launch this compiled Phase 7 kernel on Metal.
+
+        This is intentionally narrow: float32 Metal tensors, uint32 scalar
+        arguments, exact shape matches, one output buffer, synchronous execution.
+        """
+        if self.target != "metal":
+            raise ValueError("compiled kernel launch requires target 'metal'")
+
+        normalized_block_size = _normalize_uint32(
+            block_size,
+            "block_size must be a positive uint32",
+            allow_zero=False,
+        )
+        if thread_count is None:
+            normalized_thread_count = None
+        else:
+            normalized_thread_count = _normalize_uint32(
+                thread_count,
+                "thread_count must be a uint32",
+                allow_zero=True,
+            )
+        output_param = _single_output_parameter(self.ir)
+        guard_param = _launch_store_guard_parameter(self.ir, output_param)
+        (
+            native_arguments,
+            output_tensor,
+            inferred_thread_count,
+            scalar_arguments,
+        ) = _prepare_launch_arguments(
+            self.ir,
+            output_param,
+            args,
+        )
+        if normalized_thread_count is None:
+            normalized_thread_count = inferred_thread_count
+        if normalized_thread_count > inferred_thread_count:
+            raise ValueError("thread_count cannot exceed output tensor size")
+        if scalar_arguments[guard_param] != normalized_thread_count:
+            raise ValueError("kernel guard bound must match thread_count")
+
+        from . import _core
+
+        _core.launch_metal_library_function(
+            self.metallib,
+            self.name,
+            native_arguments,
+            normalized_thread_count,
+            normalized_block_size,
+        )
+        return output_tensor
 
 
 @dataclass(frozen=True, slots=True)
@@ -202,10 +260,17 @@ class Kernel:
         """Emit text MSL for the Phase 7 experimental kernel subset."""
         return _emit_msl(self.parse_ir())
 
-    def __call__(self, *args, **kwargs):
-        raise NotImplementedError(
-            "experimental kernel DSL launch is not implemented yet; "
-            "use this scaffold only for Phase 7 metadata and validation"
+    def __call__(
+        self,
+        *args,
+        thread_count: int | None = None,
+        block_size: int = 256,
+        target: str | None = None,
+    ):
+        return self.compile(target=target).launch(
+            *args,
+            thread_count=thread_count,
+            block_size=block_size,
         )
 
 
@@ -215,6 +280,267 @@ def _validate_target(target: str) -> str:
     if target not in _SUPPORTED_TARGETS:
         raise ValueError("experimental kernel target must be 'auto', 'cpu', or 'metal'")
     return target
+
+
+def _normalize_uint32(value, message: str, *, allow_zero: bool) -> int:
+    if isinstance(value, bool):
+        raise ValueError(message)
+    try:
+        normalized = operator.index(value)
+    except TypeError:
+        raise ValueError(message) from None
+    if normalized < 0 or normalized > 2**32 - 1:
+        raise ValueError(message)
+    if not allow_zero and normalized == 0:
+        raise ValueError(message)
+    return int(normalized)
+
+
+def _numel(shape: tuple[int, ...]) -> int:
+    total = 1
+    for dim in shape:
+        total *= dim
+    return total
+
+
+def _single_output_parameter(kernel_ir: IRKernel) -> str:
+    output_names = tuple(dict.fromkeys(_iter_store_buffers(kernel_ir.body)))
+    if len(output_names) != 1:
+        raise KernelCompileError("kernel launch requires exactly one output buffer")
+    return output_names[0]
+
+
+def _launch_store_guard_parameter(kernel_ir: IRKernel, output_param: str) -> str:
+    buffer_names = set(_iter_buffer_references(kernel_ir.body))
+    parameter_names = set(kernel_ir.parameters)
+    guard_params: set[str] = set()
+
+    def visit(statements: tuple[IRStatement, ...], guard: IRExpression | None) -> None:
+        for statement in statements:
+            if isinstance(statement, IRAssign):
+                guard_params.update(
+                    _expression_guard_parameters(
+                        statement.value,
+                        guard,
+                        buffer_names=buffer_names,
+                        parameter_names=parameter_names,
+                    )
+                )
+            elif isinstance(statement, IRStore):
+                guard_param = _store_guard_parameter(
+                    statement,
+                    guard,
+                    output_param=output_param,
+                    buffer_names=buffer_names,
+                    parameter_names=parameter_names,
+                )
+                guard_params.add(guard_param)
+                guard_params.update(
+                    _expression_guard_parameters(
+                        statement.index,
+                        guard,
+                        buffer_names=buffer_names,
+                        parameter_names=parameter_names,
+                    )
+                )
+                guard_params.update(
+                    _expression_guard_parameters(
+                        statement.value,
+                        guard,
+                        buffer_names=buffer_names,
+                        parameter_names=parameter_names,
+                    )
+                )
+            elif isinstance(statement, IRIf):
+                guard_params.update(
+                    _expression_guard_parameters(
+                        statement.condition,
+                        guard,
+                        buffer_names=buffer_names,
+                        parameter_names=parameter_names,
+                    )
+                )
+                visit(statement.body, statement.condition)
+
+    visit(kernel_ir.body, guard=None)
+    if len(guard_params) != 1:
+        raise KernelCompileError(
+            "kernel launch requires all stores to share one scalar guard"
+        )
+    return next(iter(guard_params))
+
+
+def _expression_guard_parameters(
+    expression: IRExpression,
+    guard: IRExpression | None,
+    *,
+    buffer_names: set[str],
+    parameter_names: set[str],
+) -> set[str]:
+    if isinstance(expression, IRLoad):
+        guard_param = _load_guard_parameter(
+            expression,
+            guard,
+            buffer_names=buffer_names,
+            parameter_names=parameter_names,
+        )
+        nested = _expression_guard_parameters(
+            expression.index,
+            guard,
+            buffer_names=buffer_names,
+            parameter_names=parameter_names,
+        )
+        return {guard_param, *nested}
+    if isinstance(expression, IRCall):
+        result: set[str] = set()
+        for argument in expression.args:
+            result.update(
+                _expression_guard_parameters(
+                    argument,
+                    guard,
+                    buffer_names=buffer_names,
+                    parameter_names=parameter_names,
+                )
+            )
+        return result
+    if isinstance(expression, IRBinaryOp):
+        return {
+            *_expression_guard_parameters(
+                expression.lhs,
+                guard,
+                buffer_names=buffer_names,
+                parameter_names=parameter_names,
+            ),
+            *_expression_guard_parameters(
+                expression.rhs,
+                guard,
+                buffer_names=buffer_names,
+                parameter_names=parameter_names,
+            ),
+        }
+    if isinstance(expression, IRCompare):
+        return {
+            *_expression_guard_parameters(
+                expression.lhs,
+                guard,
+                buffer_names=buffer_names,
+                parameter_names=parameter_names,
+            ),
+            *_expression_guard_parameters(
+                expression.rhs,
+                guard,
+                buffer_names=buffer_names,
+                parameter_names=parameter_names,
+            ),
+        }
+    return set()
+
+
+def _load_guard_parameter(
+    load: IRLoad,
+    guard: IRExpression | None,
+    *,
+    buffer_names: set[str],
+    parameter_names: set[str],
+) -> str:
+    if not isinstance(load.index, IRName):
+        raise KernelCompileError(
+            "kernel launch requires buffer loads indexed by a guarded local name"
+        )
+    if not isinstance(guard, IRCompare) or guard.op != "lt":
+        raise KernelCompileError(
+            "kernel launch requires buffer loads to be guarded by index < scalar_limit"
+        )
+    if guard.lhs != load.index or not isinstance(guard.rhs, IRName):
+        raise KernelCompileError(
+            "kernel launch requires buffer loads to be guarded by index < scalar_limit"
+        )
+    if guard.rhs.name in buffer_names or guard.rhs.name not in parameter_names:
+        raise KernelCompileError(
+            "kernel launch guard limit must be a scalar parameter"
+        )
+    return guard.rhs.name
+
+
+def _store_guard_parameter(
+    store: IRStore,
+    guard: IRExpression | None,
+    *,
+    output_param: str,
+    buffer_names: set[str],
+    parameter_names: set[str],
+) -> str:
+    if store.buffer != output_param:
+        raise KernelCompileError("kernel launch requires exactly one output buffer")
+    if not isinstance(store.index, IRName):
+        raise KernelCompileError(
+            "kernel launch requires stores indexed by a guarded local name"
+        )
+    if not isinstance(guard, IRCompare) or guard.op != "lt":
+        raise KernelCompileError(
+            "kernel launch requires stores to be guarded by index < scalar_limit"
+        )
+    if guard.lhs != store.index or not isinstance(guard.rhs, IRName):
+        raise KernelCompileError(
+            "kernel launch requires stores to be guarded by index < scalar_limit"
+        )
+    if guard.rhs.name in buffer_names or guard.rhs.name not in parameter_names:
+        raise KernelCompileError(
+            "kernel launch guard limit must be a scalar parameter"
+        )
+    return guard.rhs.name
+
+
+def _prepare_launch_arguments(
+    kernel_ir: IRKernel,
+    output_param: str,
+    args: tuple[object, ...],
+):
+    if len(args) != len(kernel_ir.parameters):
+        raise TypeError(
+            f"{kernel_ir.name} expects {len(kernel_ir.parameters)} argument(s), "
+            f"got {len(args)}"
+        )
+
+    from .tensor import Tensor
+
+    buffer_names = set(_iter_buffer_references(kernel_ir.body))
+    native_arguments = []
+    scalar_arguments: dict[str, int] = {}
+    tensor_shapes: list[tuple[int, ...]] = []
+    output_tensor = None
+
+    for parameter, argument in zip(kernel_ir.parameters, args, strict=True):
+        if parameter in buffer_names:
+            if not isinstance(argument, Tensor):
+                raise TypeError(
+                    "experimental Metal kernel buffer arguments must be Tensor objects"
+                )
+            if argument.device != "metal":
+                raise ValueError("experimental Metal kernel launch requires Metal tensors")
+            if argument.dtype != "float32":
+                raise ValueError(
+                    "experimental Metal kernels currently support float32 tensor buffers"
+                )
+            tensor_shapes.append(argument.shape)
+            native_arguments.append(argument._impl)
+            if parameter == output_param:
+                output_tensor = argument
+        else:
+            scalar_value = _normalize_uint32(
+                argument,
+                "kernel scalar arguments must be uint32",
+                allow_zero=True,
+            )
+            scalar_arguments[parameter] = scalar_value
+            native_arguments.append(scalar_value)
+
+    if output_tensor is None:
+        raise KernelCompileError("kernel launch requires exactly one output buffer")
+    if any(shape != output_tensor.shape for shape in tensor_shapes):
+        raise ValueError("experimental Metal kernel tensor shapes must match")
+
+    return native_arguments, output_tensor, _numel(output_tensor.shape), scalar_arguments
 
 
 def _validate_kernel_function(fn: Callable) -> None:
@@ -829,10 +1155,9 @@ def _unsupported(node: ast.AST) -> NoReturn:
 def kernel(fn: Callable | None = None, *, target: str = "auto"):
     """Decorate a Python function as a Phase 7 experimental kernel.
 
-    The decorator records stable metadata now. ``compile(target="metal")``
-    produces an in-memory metallib artifact that can be validated through the
-    native Metal backend. Launch is intentionally disabled until buffer binding
-    and launch exist.
+    The decorator records metadata, ``compile(target="metal")`` produces an
+    in-memory metallib artifact, and calling the decorated kernel compiles and
+    launches the first narrow Metal subset.
     """
 
     selected_target = _validate_target(target)

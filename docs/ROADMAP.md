@@ -15,22 +15,21 @@ acceptance criteria, and Definitions of Done also live in `PROJECT.md` (§14).
 [x] Phase 4   Runtime polish
 [x] Phase 5   Matmul (custom MSL + MPSGraph)
 [x] Phase 6   Reductions & NN primitives
-[ ] Phase 7   Experimental kernel DSL
+[x] Phase 7   Experimental kernel DSL
 [ ] Phase 8   Backend interface hardening
 [ ] Phase 9   CUDA prototype
 [ ] Phase 10  MLIR exploration
 ```
 
-Phase 7 is now in progress. The current implementation has the
-`cx.experimental.kernel` metadata wrapper, a restricted AST-to-IR parser, and a
-text MSL emitter plus in-memory metallib compile artifact for the first subset;
-it can validate that artifact through native Metal library load/function lookup,
-but it does not launch user-defined kernels yet. The experimental kernel DSL
-namespace and parser/emitter/compiler-artifact validation scaffold live under
-`cx.experimental`. See
+Phase 7 is complete. The current implementation has the `cx.experimental.kernel`
+metadata wrapper, a restricted AST-to-IR parser, a text MSL emitter,
+in-memory metallib compile artifacts, native Metal function validation, and a
+narrow synchronous launch path for the first float32 elementwise subset. A
+generated add kernel now launches on Metal and matches the CPU reference. The
+experimental kernel DSL namespace remains under `cx.experimental`. See
 [`KERNEL_DSL.md`](KERNEL_DSL.md).
 
-## What works today (through Phase 6)
+## What works today (through Phase 7)
 
 - CPU reference backend: `float32`/`int32`, contiguous 1-D/2-D, add / multiply /
   fill / zeros / ones / empty, exact NumPy round-trip.
@@ -49,14 +48,17 @@ namespace and parser/emitter/compiler-artifact validation scaffold live under
 - Stable axis-based `softmax` for `float32` on CPU and Metal.
 - Axis-based `rmsnorm` for `float32` on CPU and Metal.
 - Axis-based `layernorm` for `float32` on CPU and Metal.
+- Experimental kernel DSL: restricted Python AST -> backend-neutral IR -> text
+  MSL -> in-memory metallib -> synchronous Metal launch for the first float32
+  elementwise add subset, tested against the CPU reference.
 - Error taxonomy, CPU CI, benchmarks for copy / elementwise / matmul.
 
 ## Intentionally not implemented yet
 
 Autograd, training, streams/async, broadcasting, non-contiguous execution, wide
-dtypes, the working kernel compilation/launch path, and the CUDA/ROCm/MLIR
-backends are out of scope until their phases. See PROJECT.md §16 and AGENTS.md
-"Out Of Scope For Early Work".
+dtypes, broad generated-kernel semantics, top-level kernel APIs, and the
+CUDA/ROCm/MLIR backends are out of scope until their phases. See PROJECT.md §16
+and AGENTS.md "Out Of Scope For Early Work".
 
 ## Known deferred design work
 

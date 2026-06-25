@@ -32,17 +32,18 @@ The Metal backend currently supports:
 - MPSGraph matmul for float32 rank-2 tensors
 - reduction kernels for sum/max on float32 and int32 tensors
 - reduction kernel for mean on float32 tensors
+- experimental generated-kernel validation and synchronous launch for the first
+  float32 elementwise subset
 ```
 
 CPU remains the correctness reference for every Metal operation.
 
 ## Current Direction
 
-Phase 6 is complete. The current subset supports `sum`, `max`, `mean`, `exp`,
+Phase 7 is complete. The current subset supports `sum`, `max`, `mean`, `exp`,
 `gelu`, `silu`, stable `softmax`, `rmsnorm`, and `layernorm` on CPU and Metal.
-Phase 7 has started with a `cx.experimental.kernel` metadata wrapper and
-restricted AST-to-IR parser plus a text MSL emitter and in-memory metallib
-compile artifact that can be validated through native Metal library load and
-function lookup. The DSL must not change the Phase 6 correctness contracts, and
-generated kernels must keep CPU reference behavior before Metal launch is
-considered complete.
+The `cx.experimental.kernel` DSL now has a restricted AST-to-IR parser, text MSL
+emitter, in-memory metallib compile artifact, native Metal function validation,
+and a narrow synchronous launch path for the first float32 elementwise subset.
+The DSL must not change the Phase 6 correctness contracts, and generated kernels
+must keep CPU reference behavior.

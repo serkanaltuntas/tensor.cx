@@ -1,6 +1,7 @@
 import shutil
 import subprocess
 
+import numpy as np
 import pytest
 
 import cortex_runtime as cx
@@ -39,15 +40,13 @@ def test_experimental_kernel_decorator_accepts_explicit_target():
     assert add_kernel.target == "metal"
 
 
-def test_experimental_kernel_compile_rejects_unsupported_target_and_launch_is_disabled():
+def test_experimental_kernel_compile_rejects_unsupported_target():
     @cx.experimental.kernel
     def add_kernel(a, b, out, n):
         pass
 
     with pytest.raises(NotImplementedError, match="only implemented"):
         add_kernel.compile(target="cpu")
-    with pytest.raises(NotImplementedError, match="launch is not implemented"):
-        add_kernel(None, None, None, 0)
 
 
 def test_experimental_kernel_parses_first_elementwise_ir_shape():
@@ -214,6 +213,224 @@ def test_experimental_compiled_kernel_validate_rejects_invalid_python_inputs():
     )
     with pytest.raises(ValueError, match="requires target 'metal'"):
         cpu_compiled.validate_metal_function()
+
+
+def test_experimental_compiled_kernel_launch_rejects_invalid_python_inputs():
+    @cx.experimental.kernel
+    def add_kernel(a, b, out, n):
+        i = (
+            cx.experimental.program_id(0) * cx.experimental.block_size()
+            + cx.experimental.thread_id()
+        )
+        if i < n:
+            out[i] = a[i] + b[i]
+
+    compiled = cx.experimental.CompiledKernel(
+        name="add_kernel",
+        target="metal",
+        ir=add_kernel.parse_ir(),
+        msl_source="",
+        metallib=b"",
+    )
+    cpu_compiled = cx.experimental.CompiledKernel(
+        name="add_kernel",
+        target="cpu",
+        ir=add_kernel.parse_ir(),
+        msl_source="",
+        metallib=b"",
+    )
+
+    with pytest.raises(ValueError, match="requires target 'metal'"):
+        cpu_compiled.launch()
+    with pytest.raises(ValueError, match="block_size must be a positive uint32"):
+        compiled.launch(block_size=0)
+    with pytest.raises(ValueError, match="thread_count must be a uint32"):
+        compiled.launch(thread_count=-1)
+    with pytest.raises(TypeError, match="expects 4 argument"):
+        compiled.launch(block_size=32)
+
+    x = cx.ones((2,), dtype=cx.float32, device="cpu")
+    with pytest.raises(ValueError, match="requires Metal tensors"):
+        compiled.launch(x, x, x, 2, block_size=32)
+
+
+def test_experimental_compiled_kernel_launch_requires_guarded_stores():
+    @cx.experimental.kernel
+    def bad_kernel(out):
+        i = (
+            cx.experimental.program_id(0) * cx.experimental.block_size()
+            + cx.experimental.thread_id()
+        )
+        out[i] = 1.0
+
+    compiled = cx.experimental.CompiledKernel(
+        name="bad_kernel",
+        target="metal",
+        ir=bad_kernel.parse_ir(),
+        msl_source="",
+        metallib=b"",
+    )
+
+    with pytest.raises(
+        cx.experimental.KernelCompileError,
+        match="stores to be guarded by index < scalar_limit",
+    ):
+        compiled.launch()
+
+
+def test_experimental_compiled_kernel_launch_requires_guarded_loads():
+    @cx.experimental.kernel
+    def bad_kernel(a, out, n):
+        i = (
+            cx.experimental.program_id(0) * cx.experimental.block_size()
+            + cx.experimental.thread_id()
+        )
+        value = a[i]
+        if i < n:
+            out[i] = value
+
+    compiled = cx.experimental.CompiledKernel(
+        name="bad_kernel",
+        target="metal",
+        ir=bad_kernel.parse_ir(),
+        msl_source="",
+        metallib=b"",
+    )
+
+    with pytest.raises(
+        cx.experimental.KernelCompileError,
+        match="buffer loads to be guarded by index < scalar_limit",
+    ):
+        compiled.launch()
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_experimental_compiled_kernel_launch_rejects_tensor_contract_violations():
+    @cx.experimental.kernel
+    def add_kernel(a, b, out, n):
+        i = (
+            cx.experimental.program_id(0) * cx.experimental.block_size()
+            + cx.experimental.thread_id()
+        )
+        if i < n:
+            out[i] = a[i] + b[i]
+
+    compiled = cx.experimental.CompiledKernel(
+        name="add_kernel",
+        target="metal",
+        ir=add_kernel.parse_ir(),
+        msl_source="",
+        metallib=b"",
+    )
+
+    x = cx.ones((2,), dtype=cx.float32, device="metal")
+    y = cx.ones((3,), dtype=cx.float32, device="metal")
+    out = cx.empty((2,), dtype=cx.float32, device="metal")
+    with pytest.raises(ValueError, match="tensor shapes must match"):
+        compiled.launch(x, y, out, 2, block_size=32)
+
+    xi = cx.ones((2,), dtype=cx.int32, device="metal")
+    with pytest.raises(ValueError, match="support float32 tensor buffers"):
+        compiled.launch(xi, xi, xi, 2, block_size=32)
+    with pytest.raises(ValueError, match="kernel scalar arguments must be uint32"):
+        compiled.launch(x, x, out, True, block_size=32)
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_experimental_compiled_kernel_launch_rejects_guard_contract_violations():
+    @cx.experimental.kernel
+    def add_kernel(a, b, out, n):
+        i = (
+            cx.experimental.program_id(0) * cx.experimental.block_size()
+            + cx.experimental.thread_id()
+        )
+        if i < n:
+            out[i] = a[i] + b[i]
+
+    compiled = cx.experimental.CompiledKernel(
+        name="add_kernel",
+        target="metal",
+        ir=add_kernel.parse_ir(),
+        msl_source="",
+        metallib=b"",
+    )
+
+    x = cx.ones((2,), dtype=cx.float32, device="metal")
+    out = cx.empty((2,), dtype=cx.float32, device="metal")
+
+    with pytest.raises(ValueError, match="kernel guard bound must match thread_count"):
+        compiled.launch(x, x, out, 1, thread_count=2, block_size=32)
+    with pytest.raises(ValueError, match="thread_count cannot exceed output tensor size"):
+        compiled.launch(x, x, out, 3, thread_count=3, block_size=32)
+
+
+@pytest.mark.skipif(
+    not _has_metal_compiler(),
+    reason="Apple Metal command-line compiler tools are unavailable",
+)
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_experimental_kernel_launches_add_and_matches_cpu():
+    @cx.experimental.kernel(target="metal")
+    def add_kernel(a, b, out, n):
+        i = (
+            cx.experimental.program_id(0) * cx.experimental.block_size()
+            + cx.experimental.thread_id()
+        )
+        if i < n:
+            out[i] = a[i] + b[i]
+
+    x_cpu = cx.tensor([1.0, 2.0, 3.0, 4.0, 5.0], dtype=cx.float32, device="cpu")
+    y_cpu = cx.tensor([5.0, 6.0, 7.0, 8.0, 9.0], dtype=cx.float32, device="cpu")
+    x = x_cpu.to("metal")
+    y = y_cpu.to("metal")
+    out = cx.empty(x.shape, dtype=cx.float32, device="metal")
+
+    returned = add_kernel(x, y, out, x.shape[0], block_size=2)
+
+    assert returned is out
+    cx.testing.assert_allclose(out.cpu(), x_cpu + y_cpu, kind="elementwise")
+
+    compiled = add_kernel.compile(target="metal")
+    out2 = cx.empty(x.shape, dtype=cx.float32, device="metal")
+
+    returned2 = compiled.launch(
+        x,
+        y,
+        out2,
+        x.shape[0],
+        thread_count=x.shape[0],
+        block_size=2,
+    )
+
+    assert returned2 is out2
+    cx.testing.assert_allclose(out2.cpu(), x_cpu + y_cpu, kind="elementwise")
+
+
+@pytest.mark.skipif(
+    not _has_metal_compiler(),
+    reason="Apple Metal command-line compiler tools are unavailable",
+)
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_experimental_kernel_launch_handles_default_block_size_tail():
+    @cx.experimental.kernel(target="metal")
+    def add_kernel(a, b, out, n):
+        i = (
+            cx.experimental.program_id(0) * cx.experimental.block_size()
+            + cx.experimental.thread_id()
+        )
+        if i < n:
+            out[i] = a[i] + b[i]
+
+    values = np.arange(257, dtype=np.float32)
+    x_cpu = cx.tensor(values, dtype=cx.float32, device="cpu")
+    y_cpu = cx.ones(values.shape, dtype=cx.float32, device="cpu")
+    x = x_cpu.to("metal")
+    y = y_cpu.to("metal")
+    out = cx.empty(x.shape, dtype=cx.float32, device="metal")
+
+    add_kernel(x, y, out, x.shape[0])
+
+    cx.testing.assert_allclose(out.cpu(), x_cpu + y_cpu, kind="elementwise")
 
 
 @pytest.mark.skipif(

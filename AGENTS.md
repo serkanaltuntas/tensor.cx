@@ -234,10 +234,10 @@ Keep these conceptual boundaries even if filenames evolve.
 ## Development Phases
 
 `PROJECT.md` is authoritative for the current phase checklist and phase status.
-Do not infer the current phase from this abbreviated sequence. Phase 7 —
-Experimental kernel DSL is now in progress.
+Do not infer the current phase from this abbreviated sequence. Phase 8 —
+Backend interface hardening is the next phase.
 
-Completed through Phase 6:
+Completed through Phase 7:
 
 ```text
 Phase 0   Project bootstrap
@@ -247,17 +247,18 @@ Phase 3   First Metal kernels
 Phase 4   Runtime polish
 Phase 5   MPSGraph matmul
 Phase 6   Reductions and NN primitives
+Phase 7   Experimental kernel DSL
 ```
 
 Current phase:
 
 ```text
-Phase 7   Experimental kernel DSL (AST-to-IR + Metal library validation scaffold in progress)
+Phase 8   Backend interface hardening (pending)
 ```
 
 Only move to CUDA, ROCm, Vulkan, MLIR, or broad compiler work after the earlier
-phases are working and tested. Phase 7 work must stay experimental, preserve the
-Phase 6 correctness contracts, stay under `cx.experimental`, and keep CPU
+phases are working and tested. Experimental DSL work must stay under
+`cx.experimental`, preserve the Phase 6 correctness contracts, and keep CPU
 references mandatory for generated or DSL-routed kernels.
 
 ## Architecture Rules
