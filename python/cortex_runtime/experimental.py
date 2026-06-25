@@ -23,7 +23,6 @@ _SUPPORTED_BINARY_OPS = {
     ast.Add: "add",
     ast.Sub: "sub",
     ast.Mult: "mul",
-    ast.Div: "div",
 }
 _SUPPORTED_COMPARE_OPS = {
     ast.Lt: "lt",
@@ -42,7 +41,6 @@ _MSL_BINARY_OPS = {
     "add": "+",
     "sub": "-",
     "mul": "*",
-    "div": "/",
 }
 _MSL_COMPARE_OPS = {
     "lt": "<",

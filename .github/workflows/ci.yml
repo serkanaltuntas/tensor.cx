@@ -57,3 +57,28 @@ jobs:
 
       - name: Run tests
         run: uv run pytest
+
+  macos-mpsgraph:
+    name: macOS build (Metal on, MPSGraph on)
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Create virtual environment
+        run: uv venv --python 3.12
+
+      # Builds the default Apple path with MPSGraph enabled. Hosted runners may
+      # not expose a usable Metal device, so runtime Metal tests can still skip;
+      # this job exists to catch Objective-C++/framework compile and link breaks.
+      - name: Install editable package
+        run: uv pip install -e ".[dev]"
+
+      - name: Run tests
+        run: uv run pytest

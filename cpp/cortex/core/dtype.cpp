@@ -16,8 +16,10 @@ bool is_int32_representable(double value) {
   // bound, which is the cleanest way to admit exactly [INT32_MIN, INT32_MAX].
   constexpr double kMin = static_cast<double>(std::numeric_limits<std::int32_t>::min());
   constexpr double kUpperExclusive = 2147483648.0;  // 2^31
-  const double truncated = std::trunc(value);
-  return truncated >= kMin && truncated < kUpperExclusive;
+  if (std::trunc(value) != value) {
+    return false;
+  }
+  return value >= kMin && value < kUpperExclusive;
 }
 
 std::string_view dtype_name(DType dtype) {

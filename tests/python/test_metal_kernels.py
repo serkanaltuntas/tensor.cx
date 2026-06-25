@@ -85,6 +85,8 @@ def test_metal_fill_rejects_int32_value_out_of_range():
 
     with pytest.raises(ValueError, match="fill value is out of range for int32"):
         _core.fill((2,), dtype="int32", value=3e9, device="metal")
+    with pytest.raises(ValueError, match="fill value is out of range for int32"):
+        _core.fill((2,), dtype="int32", value=1.9, device="metal")
 
 
 @pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")

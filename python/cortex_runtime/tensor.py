@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import operator
 from typing import Any
 
 import numpy as np
@@ -106,6 +107,38 @@ class Tensor:
         return layernorm(self, axis=axis, eps=eps)
 
 
+def _normalize_shape(shape) -> tuple[int, ...]:
+    try:
+        return (_normalize_shape_dim(shape),)
+    except TypeError:
+        pass
+
+    try:
+        iterator = iter(shape)
+    except TypeError:
+        raise ValueError("shape must be an int or an iterable of ints") from None
+
+    dims = []
+    for dim in iterator:
+        try:
+            dims.append(_normalize_shape_dim(dim))
+        except TypeError:
+            raise ValueError("shape dimensions must be integers") from None
+    return tuple(dims)
+
+
+def _normalize_shape_dim(dim) -> int:
+    if isinstance(dim, (bool, np.bool_)):
+        raise ValueError("shape dimensions must be integers")
+    try:
+        value = operator.index(dim)
+    except TypeError:
+        raise TypeError from None
+    if value < 0:
+        raise ValueError("shape dimensions must be non-negative")
+    return int(value)
+
+
 def tensor(data, dtype: str | None = None, device: str | Device | None = None) -> Tensor:
     target = _normalize_device(device)
     array = np.asarray(data)
@@ -163,10 +196,7 @@ def randn(
 ) -> Tensor:
     if dtype != "float32":
         raise ValueError("randn only supports float32")
-    dims = (shape,) if isinstance(shape, int) else tuple(shape)
-    if any(int(dim) < 0 for dim in dims):
-        # Align with the core taxonomy message instead of NumPy's wording.
-        raise ValueError("shape dimensions must be non-negative")
+    dims = _normalize_shape(shape)
     values = np.random.default_rng(seed).standard_normal(dims).astype(np.float32)
     return tensor(values, dtype=dtype, device=device)
 

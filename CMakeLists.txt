@@ -54,6 +54,17 @@ if(CORTEX_ENABLE_METAL AND APPLE)
       "(`xcrun -sdk macosx --find metal` failed). Install Xcode and its Metal "
       "toolchain, or reconfigure with -DCORTEX_ENABLE_METAL=OFF.")
   endif()
+  execute_process(
+    COMMAND ${XCRUN_EXECUTABLE} -sdk macosx --find metallib
+    RESULT_VARIABLE CORTEX_METALLIB_FIND_RESULT
+    OUTPUT_QUIET ERROR_QUIET
+  )
+  if(NOT CORTEX_METALLIB_FIND_RESULT EQUAL 0)
+    message(FATAL_ERROR
+      "CORTEX_ENABLE_METAL is ON but the Metal library compiler was not found "
+      "(`xcrun -sdk macosx --find metallib` failed). Install Xcode and its Metal "
+      "toolchain, or reconfigure with -DCORTEX_ENABLE_METAL=OFF.")
+  endif()
 
   FetchContent_Declare(
     metal_cpp

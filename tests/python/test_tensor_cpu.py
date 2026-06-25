@@ -554,6 +554,8 @@ def test_fill_rejects_int32_value_out_of_range():
         _core.fill((2,), dtype="int32", value=3e9, device="cpu")
     with pytest.raises(ValueError, match="fill value is out of range for int32"):
         _core.fill((2,), dtype="int32", value=float("nan"), device="cpu")
+    with pytest.raises(ValueError, match="fill value is out of range for int32"):
+        _core.fill((2,), dtype="int32", value=1.9, device="cpu")
 
 
 def test_int32_add_multiply_wrap_two_complement():
@@ -572,6 +574,23 @@ def test_int32_add_multiply_wrap_two_complement():
 def test_randn_rejects_negative_shape():
     with pytest.raises(ValueError, match="shape dimensions must be non-negative"):
         cx.randn((-1,))
+
+
+def test_randn_shape_uses_project_error_taxonomy():
+    with pytest.raises(ValueError, match="shape must be an int or an iterable of ints"):
+        cx.randn(1.5)
+    with pytest.raises(ValueError, match="shape dimensions must be integers"):
+        cx.randn((1.5,))
+    with pytest.raises(ValueError, match="shape dimensions must be integers"):
+        cx.randn("abc")
+    with pytest.raises(ValueError, match="shape dimensions must be integers"):
+        cx.randn((True,))
+
+
+def test_randn_accepts_numpy_integer_shape():
+    x = cx.randn((np.int64(2),), seed=1)
+
+    assert x.shape == (2,)
 
 
 def test_rank0_scalar_numpy_round_trip():

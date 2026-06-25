@@ -314,6 +314,16 @@ def test_experimental_kernel_parse_rejects_unknown_calls():
         bad_kernel.parse_ir()
 
 
+def test_experimental_kernel_parse_rejects_true_division():
+    @cx.experimental.kernel
+    def bad_kernel(out):
+        i = cx.experimental.thread_id() / 2
+        out[i] = 1
+
+    with pytest.raises(cx.experimental.KernelCompileError, match="Div"):
+        bad_kernel.parse_ir()
+
+
 def _program_id_nonzero_axis_kernel():
     @cx.experimental.kernel
     def bad_kernel(out, axis):

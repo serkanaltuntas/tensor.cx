@@ -119,7 +119,7 @@ one-dimensional tensor load syntax
 cx.experimental.program_id(0)
 cx.experimental.thread_id()
 cx.experimental.block_size()
-+, -, *, /
++, -, *
 single comparisons: <, <=, >, >=, ==, !=
 if blocks without else
 numeric constants

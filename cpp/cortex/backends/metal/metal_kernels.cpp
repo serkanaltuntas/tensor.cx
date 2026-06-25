@@ -28,6 +28,27 @@ std::string error_message(const char* prefix, NS::Error* error) {
   return prefix;
 }
 
+class DispatchData final {
+ public:
+  DispatchData() = default;
+  DispatchData(const DispatchData&) = delete;
+  DispatchData& operator=(const DispatchData&) = delete;
+
+  ~DispatchData() { reset(); }
+
+  void reset(dispatch_data_t data = nullptr) {
+    if (data_) {
+      dispatch_release(data_);
+    }
+    data_ = data;
+  }
+
+  dispatch_data_t get() const { return data_; }
+
+ private:
+  dispatch_data_t data_{nullptr};
+};
+
 Expected<const char*> binary_kernel_name(OpKind kind, DType dtype) {
   switch (kind) {
     case OpKind::kAdd:
@@ -492,17 +513,17 @@ class KernelRuntime {
     if (!context.ready()) {
       return context.status();
     }
-    library_data_ = dispatch_data_create(
+    library_data_.reset(dispatch_data_create(
         kElementwiseMetallib,
         kElementwiseMetallibSize,
         nullptr,
-        DISPATCH_DATA_DESTRUCTOR_DEFAULT);
-    if (!library_data_) {
+        DISPATCH_DATA_DESTRUCTOR_DEFAULT));
+    if (!library_data_.get()) {
       return Status(StatusCode::kInternal, "failed to create embedded Metal library data");
     }
 
     NS::Error* error = nullptr;
-    library_ = NS::TransferPtr(context.device().newLibrary(library_data_, &error));
+    library_ = NS::TransferPtr(context.device().newLibrary(library_data_.get(), &error));
     if (!library_) {
       return Status(
           StatusCode::kInternal,
@@ -540,7 +561,7 @@ class KernelRuntime {
   }
 
   NS::SharedPtr<MTL::Library> library_;
-  dispatch_data_t library_data_{nullptr};
+  DispatchData library_data_;
   Status status_;
   NS::SharedPtr<MTL::ComputePipelineState> add_f32_;
   NS::SharedPtr<MTL::ComputePipelineState> mul_f32_;
