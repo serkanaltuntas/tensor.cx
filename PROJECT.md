@@ -871,7 +871,9 @@ MSL kernels if needed
 Python extension module
 ```
 
-The build should fail clearly if Metal is unavailable.
+The default build may fall back to CPU-only when the Metal command-line
+toolchain is unavailable. A build explicitly configured with
+`-DCORTEX_ENABLE_METAL=ON` must fail clearly if Metal is unavailable.
 
 ---
 

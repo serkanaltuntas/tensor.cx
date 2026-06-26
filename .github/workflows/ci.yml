@@ -39,9 +39,9 @@ jobs:
       matrix:
         include:
           - variant: Metal on, MPSGraph off
-            cmake_args: "-DCORTEX_ENABLE_MPSGRAPH=OFF"
+            cmake_args: "-DCORTEX_ENABLE_METAL=ON -DCORTEX_ENABLE_MPSGRAPH=OFF"
           - variant: Metal on, MPSGraph on
-            cmake_args: ""
+            cmake_args: "-DCORTEX_ENABLE_METAL=ON"
 
     steps:
       - name: Check out repository

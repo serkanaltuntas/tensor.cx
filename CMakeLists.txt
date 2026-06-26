@@ -18,7 +18,71 @@ find_package(nanobind CONFIG REQUIRED)
 
 include(FetchContent)
 
-option(CORTEX_ENABLE_METAL "Enable the Apple Metal backend" ${APPLE})
+set(CORTEX_ENABLE_METAL "AUTO" CACHE STRING "Enable the Apple Metal backend: AUTO, ON, or OFF")
+set_property(CACHE CORTEX_ENABLE_METAL PROPERTY STRINGS AUTO ON OFF)
+string(TOUPPER "${CORTEX_ENABLE_METAL}" CORTEX_ENABLE_METAL_REQUEST)
+if(CORTEX_ENABLE_METAL_REQUEST STREQUAL "TRUE" OR
+   CORTEX_ENABLE_METAL_REQUEST STREQUAL "YES" OR
+   CORTEX_ENABLE_METAL_REQUEST STREQUAL "Y" OR
+   CORTEX_ENABLE_METAL_REQUEST STREQUAL "1")
+  set(CORTEX_ENABLE_METAL_REQUEST "ON")
+elseif(CORTEX_ENABLE_METAL_REQUEST STREQUAL "FALSE" OR
+       CORTEX_ENABLE_METAL_REQUEST STREQUAL "NO" OR
+       CORTEX_ENABLE_METAL_REQUEST STREQUAL "N" OR
+       CORTEX_ENABLE_METAL_REQUEST STREQUAL "0")
+  set(CORTEX_ENABLE_METAL_REQUEST "OFF")
+endif()
+
+set(CORTEX_METAL_TOOLCHAIN_AVAILABLE OFF)
+if(APPLE)
+  find_program(XCRUN_EXECUTABLE xcrun)
+  if(XCRUN_EXECUTABLE)
+    execute_process(
+      COMMAND ${XCRUN_EXECUTABLE} -sdk macosx --find metal
+      RESULT_VARIABLE CORTEX_METAL_FIND_RESULT
+      OUTPUT_QUIET ERROR_QUIET
+    )
+    execute_process(
+      COMMAND ${XCRUN_EXECUTABLE} -sdk macosx --find metallib
+      RESULT_VARIABLE CORTEX_METALLIB_FIND_RESULT
+      OUTPUT_QUIET ERROR_QUIET
+    )
+    if(CORTEX_METAL_FIND_RESULT EQUAL 0 AND CORTEX_METALLIB_FIND_RESULT EQUAL 0)
+      set(CORTEX_METAL_TOOLCHAIN_AVAILABLE ON)
+    endif()
+  endif()
+endif()
+
+if(CORTEX_ENABLE_METAL_REQUEST STREQUAL "AUTO")
+  if(APPLE AND CORTEX_METAL_TOOLCHAIN_AVAILABLE)
+    set(CORTEX_ENABLE_METAL ON)
+  else()
+    set(CORTEX_ENABLE_METAL OFF)
+    if(APPLE)
+      message(STATUS
+        "Apple Metal toolchain is incomplete; defaulting CORTEX_ENABLE_METAL=OFF. "
+        "Install Xcode's metal/metallib tools or configure with "
+        "-DCORTEX_ENABLE_METAL=ON to require Metal.")
+    endif()
+  endif()
+elseif(CORTEX_ENABLE_METAL_REQUEST STREQUAL "ON")
+  if(NOT APPLE)
+    message(FATAL_ERROR "CORTEX_ENABLE_METAL=ON requires Apple platform support.")
+  endif()
+  if(NOT CORTEX_METAL_TOOLCHAIN_AVAILABLE)
+    message(FATAL_ERROR
+      "CORTEX_ENABLE_METAL=ON but the Metal command-line toolchain is incomplete "
+      "(`xcrun -sdk macosx --find metal` and `xcrun -sdk macosx --find metallib` "
+      "must both succeed). Install Xcode and its Metal toolchain, or configure "
+      "with -DCORTEX_ENABLE_METAL=OFF.")
+  endif()
+  set(CORTEX_ENABLE_METAL ON)
+elseif(CORTEX_ENABLE_METAL_REQUEST STREQUAL "OFF")
+  set(CORTEX_ENABLE_METAL OFF)
+else()
+  message(FATAL_ERROR "CORTEX_ENABLE_METAL must be AUTO, ON, or OFF.")
+endif()
+
 option(CORTEX_ENABLE_MPSGRAPH "Enable the MPSGraph Metal matmul path" ${CORTEX_ENABLE_METAL})
 
 add_library(cortex_core STATIC
@@ -37,36 +101,7 @@ target_include_directories(cortex_core PUBLIC
 )
 set_target_properties(cortex_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-if(CORTEX_ENABLE_METAL AND APPLE)
-  find_program(XCRUN_EXECUTABLE xcrun REQUIRED)
-
-  # xcrun ships with the base Command Line Tools, but the Metal shader compiler
-  # only comes with the full Xcode + Metal toolchain. Probe it at configure time
-  # so a missing toolchain fails clearly (PROJECT.md §11) instead of erroring
-  # deep in a custom build command.
-  execute_process(
-    COMMAND ${XCRUN_EXECUTABLE} -sdk macosx --find metal
-    RESULT_VARIABLE CORTEX_METAL_FIND_RESULT
-    OUTPUT_QUIET ERROR_QUIET
-  )
-  if(NOT CORTEX_METAL_FIND_RESULT EQUAL 0)
-    message(FATAL_ERROR
-      "CORTEX_ENABLE_METAL is ON but the Metal shader compiler was not found "
-      "(`xcrun -sdk macosx --find metal` failed). Install Xcode and its Metal "
-      "toolchain, or reconfigure with -DCORTEX_ENABLE_METAL=OFF.")
-  endif()
-  execute_process(
-    COMMAND ${XCRUN_EXECUTABLE} -sdk macosx --find metallib
-    RESULT_VARIABLE CORTEX_METALLIB_FIND_RESULT
-    OUTPUT_QUIET ERROR_QUIET
-  )
-  if(NOT CORTEX_METALLIB_FIND_RESULT EQUAL 0)
-    message(FATAL_ERROR
-      "CORTEX_ENABLE_METAL is ON but the Metal library compiler was not found "
-      "(`xcrun -sdk macosx --find metallib` failed). Install Xcode and its Metal "
-      "toolchain, or reconfigure with -DCORTEX_ENABLE_METAL=OFF.")
-  endif()
-
+if(CORTEX_ENABLE_METAL)
   FetchContent_Declare(
     metal_cpp
     GIT_REPOSITORY https://github.com/bkaradzic/metal-cpp.git

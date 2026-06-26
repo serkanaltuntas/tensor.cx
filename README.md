@@ -12,14 +12,12 @@ Python API -> C++20 core -> Metal backend -> static MSL add kernel -> correct re
 
 ## Development Setup
 
-Cortex Runtime is developed first on Apple Silicon macOS. The default Apple
-build enables Metal and requires the Apple Metal command-line tools.
+Cortex Runtime is developed first on Apple Silicon macOS. The default build uses
+`CORTEX_ENABLE_METAL=AUTO`: it enables Metal when the Apple Metal command-line
+tools are available and otherwise falls back to a CPU-only build.
 
 ```bash
 command -v uv
-xcode-select -p
-xcrun --find metal
-xcrun --find metallib
 ```
 
 Use `uv` for Python environments and commands:
@@ -36,6 +34,12 @@ On a machine without Metal, or when validating the CPU-only path:
 ```bash
 CMAKE_ARGS="-DCORTEX_ENABLE_METAL=OFF" uv pip install -e ".[dev]"
 uv run pytest
+```
+
+To require Metal and fail clearly if the command-line tools are missing:
+
+```bash
+CMAKE_ARGS="-DCORTEX_ENABLE_METAL=ON" uv pip install -e ".[dev]"
 ```
 
 Run the basic local benchmark with:
@@ -65,7 +69,10 @@ uv run pytest
 Local Metal verification should be run on Apple Silicon macOS:
 
 ```bash
-uv pip install -e ".[dev]"
+xcode-select -p
+xcrun -sdk macosx --find metal
+xcrun -sdk macosx --find metallib
+CMAKE_ARGS="-DCORTEX_ENABLE_METAL=ON" uv pip install -e ".[dev]"
 uv run pytest
 uv run python benchmarks/bench_elementwise.py
 uv run python benchmarks/bench_copy.py
@@ -75,7 +82,7 @@ uv run python benchmarks/bench_matmul.py
 To verify that custom Metal matmul works without the optimized primitive path:
 
 ```bash
-CMAKE_ARGS="-DCORTEX_ENABLE_MPSGRAPH=OFF" uv pip install -e ".[dev]"
+CMAKE_ARGS="-DCORTEX_ENABLE_METAL=ON -DCORTEX_ENABLE_MPSGRAPH=OFF" uv pip install -e ".[dev]"
 uv run pytest tests/python/test_matmul.py
 ```
 
