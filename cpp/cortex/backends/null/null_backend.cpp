@@ -1,7 +1,6 @@
 #include "cortex/backends/null/null_backend.h"
 
 #include <array>
-#include <exception>
 #include <optional>
 #include <span>
 #include <string>
@@ -12,65 +11,9 @@
 namespace cortex::null_backend {
 namespace {
 
-Status validate_fill_output_descriptor(const Tensor& output) {
-  if (output.device.type.empty()) {
-    return Status(
-        StatusCode::kInvalidArgument,
-        "fill output descriptor requires a device type");
-  }
-  if (output.device.index != 0) {
-    return Status(
-        StatusCode::kInvalidArgument,
-        "fill output descriptor requires device index 0");
-  }
-  if (output.offset != 0) {
-    return Status(StatusCode::kInvalidArgument, "fill output descriptor requires offset 0");
-  }
-  try {
-    static_cast<void>(numel(output.shape));
-    if (output.strides != contiguous_strides(output.shape)) {
-      return Status(
-          StatusCode::kInvalidArgument,
-          "fill output descriptor must be contiguous");
-    }
-  } catch (const std::exception& error) {
-    return Status(StatusCode::kInvalidArgument, error.what());
-  }
-  if (output.buffer) {
-    return Status(
-        StatusCode::kInvalidArgument,
-        "fill output descriptor must not include a buffer");
-  }
-  return Status::Ok();
-}
-
 Status validate_execution_contract(const BackendExecution& execution) {
   if (execution.op_class == BackendOpClass::kPrimitive) {
-    if (execution.launch.has_value() || execution.compilation_target.has_value()) {
-      return Status(
-          StatusCode::kInvalidArgument,
-          "primitive backend execution cannot include kernel launch metadata");
-    }
-    const auto schema = primitive_op_schema(execution.op.kind);
-    if (!schema.has_value()) {
-      return Status(
-          StatusCode::kInvalidArgument,
-          "primitive operation is not expressible by BackendExecution");
-    }
-    if (execution.inputs.size() != schema->input_count) {
-      return Status(
-          StatusCode::kInvalidArgument,
-          "primitive backend execution input count mismatch");
-    }
-    if (execution.outputs.size() != schema->output_count) {
-      return Status(
-          StatusCode::kInvalidArgument,
-          "primitive backend execution output count mismatch");
-    }
-    if (execution.op.kind == OpKind::kFill) {
-      return validate_fill_output_descriptor(execution.outputs[0]);
-    }
-    return Status::Ok();
+    return validate_primitive_execution_contract(execution);
   }
 
   if (execution.outputs.empty()) {

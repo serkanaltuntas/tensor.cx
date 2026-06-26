@@ -85,11 +85,12 @@ kernel argument channel and explicit output ownership semantics for
 caller-provided outputs.
 
 Primitive requests must match the core `primitive_op_schema`: the op kind
-defines the expected input and output tensor metadata counts. The null backend
-uses this schema to reject malformed requests before returning `kUnavailable`.
-CPU `fill` now routes through `BackendExecution` using `OpDesc.scalar_value` and
-an output allocation descriptor. Constructor-style `empty` allocation and Metal
-fill remain on typed paths until their ownership semantics are migrated.
+defines the expected input and output tensor metadata counts. The shared core
+primitive contract validator rejects malformed primitive requests before a
+backend executes them; CPU and null backend both use that validator. CPU `fill`
+now routes through `BackendExecution` using `OpDesc.scalar_value` and an output
+allocation descriptor. Constructor-style `empty` allocation and Metal fill
+remain on typed paths until their ownership semantics are migrated.
 
 ### Launch Abstraction
 
@@ -118,10 +119,11 @@ Metal, MPSGraph, CUDA, ROCm, Vulkan, or platform API handles.
 
 `cpp/cortex/backends/null/` validates the ABI shape without executing work. It
 returns `kUnavailable` for valid execution requests and `kInvalidArgument` for
-contract violations such as primitive input/output count mismatches or kernel
-execution without launch metadata or a compilation target. The Python test hook
-`_backend_contract_smoke_test` proves the scaffold builds and links with the
-extension.
+contract violations such as primitive input/output count mismatches, invalid
+fill allocation descriptors, or kernel execution without launch metadata or a
+compilation target. Primitive validation uses the same core helper as CPU
+execution. The Python test hook `_backend_contract_smoke_test` proves the
+scaffold builds and links with the extension.
 
 ## Current Direction
 

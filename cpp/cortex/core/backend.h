@@ -4,6 +4,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 
 #include "cortex/core/operation.h"
 #include "cortex/core/status.h"
@@ -55,5 +56,13 @@ class Backend {
   virtual std::string name() const = 0;
   virtual Status execute(const BackendExecution& execution) = 0;
 };
+
+Status validate_fill_output_descriptor(
+    const Tensor& output,
+    std::string_view expected_device_type = {});
+
+Status validate_primitive_execution_contract(
+    const BackendExecution& execution,
+    std::string_view fill_device_type = {});
 
 }  // namespace cortex

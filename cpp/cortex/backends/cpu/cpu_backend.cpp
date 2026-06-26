@@ -47,25 +47,6 @@ void validate_binary_inputs(const CpuTensor& lhs, const CpuTensor& rhs) {
   }
 }
 
-void validate_fill_output_descriptor(const Tensor& output) {
-  if (output.device.type != "cpu") {
-    throw std::invalid_argument("CPU fill output descriptor requires device='cpu'");
-  }
-  if (output.device.index != 0) {
-    throw std::invalid_argument("CPU fill output descriptor requires device index 0");
-  }
-  if (output.offset != 0) {
-    throw std::invalid_argument("CPU fill output descriptor requires offset 0");
-  }
-  static_cast<void>(numel(output.shape));
-  if (output.strides != contiguous_strides(output.shape)) {
-    throw std::invalid_argument("CPU fill output descriptor must be contiguous");
-  }
-  if (output.buffer) {
-    throw std::invalid_argument("CPU fill output descriptor must not include a buffer");
-  }
-}
-
 Status invalid_argument_status(const char* message) {
   return Status(StatusCode::kInvalidArgument, message);
 }
@@ -264,23 +245,14 @@ std::string CpuBackend::name() const { return "cpu"; }
 
 Status CpuBackend::execute(const BackendExecution& execution) {
   try {
-    if (execution.op_class != BackendOpClass::kPrimitive) {
-      return invalid_argument_status("CPU backend only supports primitive execution");
-    }
-    if (execution.launch.has_value() || execution.compilation_target.has_value()) {
-      return invalid_argument_status("CPU primitive execution cannot include kernel metadata");
-    }
-    if (execution.outputs.size() != 1) {
-      return invalid_argument_status("CPU backend execution requires exactly one output");
+    const Status contract = validate_primitive_execution_contract(execution, "cpu");
+    if (!contract.ok()) {
+      return contract;
     }
 
     switch (execution.op.kind) {
       case OpKind::kFill: {
-        if (!execution.inputs.empty()) {
-          return invalid_argument_status("CPU fill execution requires no inputs");
-        }
         const Tensor descriptor = execution.outputs[0];
-        validate_fill_output_descriptor(descriptor);
         execution.outputs[0] =
             to_core_tensor(fill(descriptor.shape, descriptor.dtype, execution.op.scalar_value));
         return Status::Ok();
@@ -291,9 +263,6 @@ Status CpuBackend::execute(const BackendExecution& execution) {
       case OpKind::kSoftmax:
       case OpKind::kRmsNorm:
       case OpKind::kLayerNorm: {
-        if (execution.inputs.size() != 1) {
-          return invalid_argument_status("CPU unary execution requires exactly one input");
-        }
         const CpuTensor input = from_core_tensor(execution.inputs[0]);
         execution.outputs[0] = to_core_tensor(execute_unary(execution.op, input));
         return Status::Ok();
@@ -301,27 +270,18 @@ Status CpuBackend::execute(const BackendExecution& execution) {
       case OpKind::kSum:
       case OpKind::kMax:
       case OpKind::kMean: {
-        if (execution.inputs.size() != 1) {
-          return invalid_argument_status("CPU reduction execution requires exactly one input");
-        }
         const CpuTensor input = from_core_tensor(execution.inputs[0]);
         execution.outputs[0] = to_core_tensor(reduce(execution.op, input));
         return Status::Ok();
       }
       case OpKind::kAdd:
       case OpKind::kMultiply: {
-        if (execution.inputs.size() != 2) {
-          return invalid_argument_status("CPU binary execution requires exactly two inputs");
-        }
         const CpuTensor lhs = from_core_tensor(execution.inputs[0]);
         const CpuTensor rhs = from_core_tensor(execution.inputs[1]);
         execution.outputs[0] = to_core_tensor(execute_binary(execution.op, lhs, rhs));
         return Status::Ok();
       }
       case OpKind::kMatmul: {
-        if (execution.inputs.size() != 2) {
-          return invalid_argument_status("CPU matmul execution requires exactly two inputs");
-        }
         const CpuTensor lhs = from_core_tensor(execution.inputs[0]);
         const CpuTensor rhs = from_core_tensor(execution.inputs[1]);
         execution.outputs[0] = to_core_tensor(matmul(lhs, rhs));
@@ -446,6 +406,25 @@ Status contract_smoke_test() {
   if (Status status = expect_status_code(
           "fill with preallocated output",
           backend.execute(fill_with_preallocated_output),
+          StatusCode::kInvalidArgument);
+      !status.ok()) {
+    return status;
+  }
+
+  std::array<Tensor, 1> wrong_device_fill_outputs{Tensor{
+      DType::kFloat32,
+      fill_shape,
+      contiguous_strides(fill_shape),
+      Device{"metal", 0},
+      nullptr,
+      0,
+  }};
+  BackendExecution fill_with_wrong_device = valid_fill;
+  fill_with_wrong_device.outputs =
+      std::span<Tensor>(wrong_device_fill_outputs.data(), wrong_device_fill_outputs.size());
+  if (Status status = expect_status_code(
+          "fill with wrong device descriptor",
+          backend.execute(fill_with_wrong_device),
           StatusCode::kInvalidArgument);
       !status.ok()) {
     return status;

@@ -86,6 +86,7 @@ endif()
 option(CORTEX_ENABLE_MPSGRAPH "Enable the MPSGraph Metal matmul path" ${CORTEX_ENABLE_METAL})
 
 add_library(cortex_core STATIC
+  cpp/cortex/core/backend.cpp
   cpp/cortex/core/dtype.cpp
   cpp/cortex/core/operation.cpp
   cpp/cortex/core/shape.cpp
