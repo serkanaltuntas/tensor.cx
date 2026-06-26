@@ -380,6 +380,13 @@ NB_MODULE(_core, module) {
     }
     return true;
   });
+  module.def("_cpu_backend_contract_smoke_test", []() {
+    const auto status = cortex::cpu::contract_smoke_test();
+    if (!status.ok()) {
+      throw std::runtime_error(status.message());
+    }
+    return true;
+  });
 
   nb::class_<CpuTensor>(module, "CpuTensor")
       .def_prop_ro("shape", [](const CpuTensor& tensor) { return shape_tuple(tensor.shape()); })

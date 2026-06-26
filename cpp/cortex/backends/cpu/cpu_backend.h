@@ -21,5 +21,6 @@ CpuTensor matmul(const CpuTensor& lhs, const CpuTensor& rhs);
 
 Tensor to_core_tensor(const CpuTensor& tensor);
 CpuTensor from_core_tensor(const Tensor& tensor);
+Status contract_smoke_test();
 
 }  // namespace cortex::cpu

@@ -1,11 +1,15 @@
 #include "cortex/backends/cpu/cpu_backend.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <optional>
+#include <span>
 #include <stdexcept>
+#include <string>
 #include <utility>
 
 #include "cortex/core/dtype.h"
@@ -45,6 +49,18 @@ void validate_binary_inputs(const CpuTensor& lhs, const CpuTensor& rhs) {
 
 Status invalid_argument_status(const char* message) {
   return Status(StatusCode::kInvalidArgument, message);
+}
+
+Status expect_status_code(const char* scenario, const Status& status, StatusCode expected) {
+  if (status.code() == expected) {
+    return Status::Ok();
+  }
+  return Status(
+      StatusCode::kInternal,
+      std::string("CPU backend contract smoke test failed: ") + scenario +
+          " expected status " + std::to_string(static_cast<int>(expected)) +
+          " got status " + std::to_string(static_cast<int>(status.code())) +
+          " message: " + status.message());
 }
 
 struct ReductionDims {
@@ -285,6 +301,174 @@ CpuTensor from_core_tensor(const Tensor& tensor) {
     throw std::invalid_argument("CPU tensor metadata requires a CPU buffer");
   }
   return CpuTensor(tensor.dtype, tensor.shape, std::move(buffer));
+}
+
+Status contract_smoke_test() {
+  CpuBackend backend;
+  if (backend.name() != "cpu") {
+    return Status(StatusCode::kInternal, "CPU backend contract smoke test failed: backend name");
+  }
+
+  CpuTensor lhs(Shape{2}, std::vector<float>{1.0F, 2.0F});
+  CpuTensor rhs(Shape{2}, std::vector<float>{3.0F, 4.0F});
+  std::array<Tensor, 2> inputs{to_core_tensor(lhs), to_core_tensor(rhs)};
+  std::array<Tensor, 1> outputs{};
+  const BackendExecution valid_add{
+      BackendOpClass::kPrimitive,
+      OpDesc{OpKind::kAdd},
+      std::span<const Tensor>(inputs.data(), inputs.size()),
+      std::span<Tensor>(outputs.data(), outputs.size()),
+      std::nullopt,
+      std::nullopt,
+  };
+
+  if (Status status =
+          expect_status_code("valid add", backend.execute(valid_add), StatusCode::kOk);
+      !status.ok()) {
+    return status;
+  }
+  const CpuTensor add_result = from_core_tensor(outputs[0]);
+  if (add_result.float_data() != std::vector<float>{4.0F, 6.0F}) {
+    return Status(StatusCode::kInternal, "CPU backend contract smoke test failed: add result");
+  }
+
+  BackendExecution valid_multiply = valid_add;
+  valid_multiply.op = OpDesc{OpKind::kMultiply};
+  outputs = {};
+  valid_multiply.outputs = std::span<Tensor>(outputs.data(), outputs.size());
+  if (Status status =
+          expect_status_code("valid multiply", backend.execute(valid_multiply), StatusCode::kOk);
+      !status.ok()) {
+    return status;
+  }
+  const CpuTensor multiply_result = from_core_tensor(outputs[0]);
+  if (multiply_result.float_data() != std::vector<float>{3.0F, 8.0F}) {
+    return Status(
+        StatusCode::kInternal,
+        "CPU backend contract smoke test failed: multiply result");
+  }
+
+  BackendExecution kernel_op = valid_add;
+  kernel_op.op_class = BackendOpClass::kKernel;
+  if (Status status =
+          expect_status_code("kernel op class", backend.execute(kernel_op), StatusCode::kInvalidArgument);
+      !status.ok()) {
+    return status;
+  }
+
+  BackendExecution primitive_with_launch = valid_add;
+  primitive_with_launch.launch = LaunchConfig{1, 1, 1, 1, 1, 1};
+  if (Status status = expect_status_code(
+          "primitive with launch metadata",
+          backend.execute(primitive_with_launch),
+          StatusCode::kInvalidArgument);
+      !status.ok()) {
+    return status;
+  }
+
+  BackendExecution primitive_with_target = valid_add;
+  primitive_with_target.compilation_target =
+      CompilationTarget{KernelArtifactKind::kStaticLibrary, "noop_library", "noop"};
+  if (Status status = expect_status_code(
+          "primitive with compilation target",
+          backend.execute(primitive_with_target),
+          StatusCode::kInvalidArgument);
+      !status.ok()) {
+    return status;
+  }
+
+  BackendExecution missing_output = valid_add;
+  missing_output.outputs = {};
+  if (Status status = expect_status_code(
+          "missing output",
+          backend.execute(missing_output),
+          StatusCode::kInvalidArgument);
+      !status.ok()) {
+    return status;
+  }
+
+  std::array<Tensor, 2> two_outputs{};
+  BackendExecution too_many_outputs = valid_add;
+  too_many_outputs.outputs = std::span<Tensor>(two_outputs.data(), two_outputs.size());
+  if (Status status = expect_status_code(
+          "too many outputs",
+          backend.execute(too_many_outputs),
+          StatusCode::kInvalidArgument);
+      !status.ok()) {
+    return status;
+  }
+
+  BackendExecution wrong_input_count = valid_add;
+  wrong_input_count.inputs = std::span<const Tensor>(inputs.data(), 1);
+  if (Status status = expect_status_code(
+          "wrong input count",
+          backend.execute(wrong_input_count),
+          StatusCode::kInvalidArgument);
+      !status.ok()) {
+    return status;
+  }
+
+  BackendExecution unsupported_op = valid_add;
+  unsupported_op.op = OpDesc{OpKind::kMatmul};
+  if (Status status = expect_status_code(
+          "unsupported op",
+          backend.execute(unsupported_op),
+          StatusCode::kInvalidArgument);
+      !status.ok()) {
+    return status;
+  }
+
+  std::array<Tensor, 2> non_cpu_inputs{inputs[0], inputs[1]};
+  non_cpu_inputs[0].device.type = "metal";
+  BackendExecution non_cpu_device = valid_add;
+  non_cpu_device.inputs = std::span<const Tensor>(non_cpu_inputs.data(), non_cpu_inputs.size());
+  if (Status status = expect_status_code(
+          "non-CPU device",
+          backend.execute(non_cpu_device),
+          StatusCode::kInvalidArgument);
+      !status.ok()) {
+    return status;
+  }
+
+  std::array<Tensor, 2> non_zero_offset_inputs{inputs[0], inputs[1]};
+  non_zero_offset_inputs[0].offset = 1;
+  BackendExecution non_zero_offset = valid_add;
+  non_zero_offset.inputs =
+      std::span<const Tensor>(non_zero_offset_inputs.data(), non_zero_offset_inputs.size());
+  if (Status status = expect_status_code(
+          "non-zero offset",
+          backend.execute(non_zero_offset),
+          StatusCode::kInvalidArgument);
+      !status.ok()) {
+    return status;
+  }
+
+  std::array<Tensor, 2> non_contiguous_inputs{inputs[0], inputs[1]};
+  non_contiguous_inputs[0].strides = Shape{2};
+  BackendExecution non_contiguous = valid_add;
+  non_contiguous.inputs =
+      std::span<const Tensor>(non_contiguous_inputs.data(), non_contiguous_inputs.size());
+  if (Status status = expect_status_code(
+          "non-contiguous tensor",
+          backend.execute(non_contiguous),
+          StatusCode::kInvalidArgument);
+      !status.ok()) {
+    return status;
+  }
+
+  std::array<Tensor, 2> null_buffer_inputs{inputs[0], inputs[1]};
+  null_buffer_inputs[0].buffer.reset();
+  BackendExecution null_buffer = valid_add;
+  null_buffer.inputs = std::span<const Tensor>(null_buffer_inputs.data(), null_buffer_inputs.size());
+  if (Status status = expect_status_code(
+          "null CPU buffer",
+          backend.execute(null_buffer),
+          StatusCode::kInvalidArgument);
+      !status.ok()) {
+    return status;
+  }
+
+  return Status::Ok();
 }
 
 CpuTensor empty(Shape shape, DType dtype) {
