@@ -38,9 +38,10 @@ fill through `zeros` and `ones`, rank-2 float32 matmul, axis-based
 
 Python binary operations dispatch through shared native `_core.add` and
 `_core.multiply` entrypoints with CPU and Metal overloads. The CPU overload now
-routes add and multiply through `cpu::CpuBackend::execute`; the Metal overload
-still uses typed backend entry points. The early fill path is still explicit
-because constructors must choose a backend-specific native tensor type.
+routes add and multiply through `cpu::CpuBackend::execute`; CPU float32
+`exp`/`gelu`/`silu` also route through that execution contract. The Metal
+overload still uses typed backend entry points. The early fill path is still
+explicit because constructors must choose a backend-specific native tensor type.
 
 ### Dispatch today vs. the Phase 8 target
 
@@ -53,9 +54,10 @@ compilation-target metadata. `cpp/cortex/backends/null/` compiles against that
 interface alone and exists to prove the contract has no Metal dependency.
 
 The dispatch that actually runs is now mixed while Phase 8 proceeds. CPU
-add/multiply are routed through `CpuBackend::execute(BackendExecution)`, which
-adapts existing `CpuTensor` values to backend-neutral `Tensor` metadata and then
-reuses `cpu::execute_binary`. Other CPU operations still use typed entry points
+add/multiply and float32 `exp`/`gelu`/`silu` are routed through
+`CpuBackend::execute(BackendExecution)`, which adapts existing `CpuTensor`
+values to backend-neutral `Tensor` metadata and then reuses the existing CPU
+operation implementations. Other CPU operations still use typed entry points
 (`cpu::execute_unary`, `cpu::reduce`, `cpu::matmul`, `cpu::fill`). Metal still
 uses typed entry points (`metal::execute_binary`, `metal::execute_unary`,
 `metal::reduce`, `metal::matmul_custom`, `metal::matmul_mpsgraph`,
@@ -75,8 +77,9 @@ without changing public Python semantics.
 - CPU reference behavior is mandatory for every future GPU operation.
 - Operation dispatch is moving toward the data-driven `OpDesc` model (single
   `Backend::execute`, no per-op virtual method). The ABI is defined and backed
-  by a null backend scaffold; CPU add/multiply have been migrated, while other
-  CPU operations and Metal dispatch still use typed entry points.
+  by a null backend scaffold; CPU add/multiply and float32 `exp`/`gelu`/`silu`
+  have been migrated, while other CPU operations and Metal dispatch still use
+  typed entry points.
 - Metal backend errors return `Status` / `Expected<T>` and are translated to
   Python exceptions at the nanobind layer.
 - Python and NumPy types stay outside `cpp/cortex/core/` and all backends.

@@ -256,6 +256,16 @@ Status CpuBackend::execute(const BackendExecution& execution) {
     }
 
     switch (execution.op.kind) {
+      case OpKind::kExp:
+      case OpKind::kGelu:
+      case OpKind::kSilu: {
+        if (execution.inputs.size() != 1) {
+          return invalid_argument_status("CPU unary execution requires exactly one input");
+        }
+        const CpuTensor input = from_core_tensor(execution.inputs[0]);
+        execution.outputs[0] = to_core_tensor(execute_unary(execution.op, input));
+        return Status::Ok();
+      }
       case OpKind::kAdd:
       case OpKind::kMultiply: {
         if (execution.inputs.size() != 2) {
@@ -346,6 +356,42 @@ Status contract_smoke_test() {
     return Status(
         StatusCode::kInternal,
         "CPU backend contract smoke test failed: multiply result");
+  }
+
+  CpuTensor unary_input(Shape{2}, std::vector<float>{0.0F, 1.0F});
+  std::array<Tensor, 1> unary_inputs{to_core_tensor(unary_input)};
+  std::array<Tensor, 1> unary_outputs{};
+  const BackendExecution valid_exp{
+      BackendOpClass::kPrimitive,
+      OpDesc{OpKind::kExp},
+      std::span<const Tensor>(unary_inputs.data(), unary_inputs.size()),
+      std::span<Tensor>(unary_outputs.data(), unary_outputs.size()),
+      std::nullopt,
+      std::nullopt,
+  };
+
+  if (Status status =
+          expect_status_code("valid exp", backend.execute(valid_exp), StatusCode::kOk);
+      !status.ok()) {
+    return status;
+  }
+  const CpuTensor exp_result = from_core_tensor(unary_outputs[0]);
+  const auto& exp_data = exp_result.float_data();
+  if (exp_data.size() != 2 || std::abs(exp_data[0] - 1.0F) > 1e-6F ||
+      std::abs(exp_data[1] - std::exp(1.0F)) > 1e-6F) {
+    return Status(
+        StatusCode::kInternal,
+        "CPU backend contract smoke test failed: exp result");
+  }
+
+  BackendExecution unary_wrong_input_count = valid_exp;
+  unary_wrong_input_count.inputs = std::span<const Tensor>(inputs.data(), inputs.size());
+  if (Status status = expect_status_code(
+          "unary wrong input count",
+          backend.execute(unary_wrong_input_count),
+          StatusCode::kInvalidArgument);
+      !status.ok()) {
+    return status;
   }
 
   BackendExecution kernel_op = valid_add;

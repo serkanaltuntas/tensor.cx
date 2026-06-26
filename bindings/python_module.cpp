@@ -312,7 +312,24 @@ CpuTensor binary_op(const CpuTensor& lhs, const CpuTensor& rhs, OpKind kind) {
 }
 
 CpuTensor unary_op(const CpuTensor& input, OpKind kind) {
-  return cortex::cpu::execute_unary(OpDesc{kind}, input);
+  cortex::cpu::CpuBackend backend;
+  std::array<cortex::Tensor, 1> inputs{
+      cortex::cpu::to_core_tensor(input),
+  };
+  std::array<cortex::Tensor, 1> outputs{};
+  const cortex::BackendExecution execution{
+      cortex::BackendOpClass::kPrimitive,
+      OpDesc{kind},
+      std::span<const cortex::Tensor>(inputs.data(), inputs.size()),
+      std::span<cortex::Tensor>(outputs.data(), outputs.size()),
+      std::nullopt,
+      std::nullopt,
+  };
+  const auto status = backend.execute(execution);
+  if (!status.ok()) {
+    throw_status(status);
+  }
+  return cortex::cpu::from_core_tensor(outputs[0]);
 }
 
 CpuTensor axis_unary_op(const CpuTensor& input, OpKind kind, std::int64_t axis) {
