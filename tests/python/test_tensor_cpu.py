@@ -550,6 +550,19 @@ def test_tensor_rejects_int_out_of_int32_range():
         cx.tensor([[2**40, 1], [2, 3]])
 
 
+def test_tensor_rejects_float32_values_that_cannot_be_cast():
+    from cortex_runtime import _core
+
+    with pytest.raises(ValueError, match="not convertible to float32"):
+        cx.tensor([object()], dtype=cx.float32)
+    with pytest.raises(ValueError, match="not convertible to float32"):
+        cx.tensor(["not-a-number"], dtype=cx.float32)
+    with pytest.raises(ValueError, match="not convertible to float32"):
+        cx.tensor([10**400], dtype=cx.float32)
+    with pytest.raises(ValueError, match="not convertible to float32"):
+        _core.tensor_from_flat([object()], shape=(1,), dtype="float32", device="cpu")
+
+
 def test_scalar_input_preserves_rank0():
     assert cx.tensor(5).shape == ()
     assert cx.tensor(2.5).shape == ()

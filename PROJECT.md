@@ -39,7 +39,7 @@ C++ namespace: cortex
 > CI (CPU) or on the local Mac (Metal).
 
 ```text
-Current phase:          Phase 8 — in progress (CPU binary/unary Backend::execute migration)
+Current phase:          Phase 8 — in progress (CPU Backend::execute migration and schema hardening)
 Last verified milestone: Phase 7 — Experimental kernel DSL
 v0.1 target:            achieved at end of Phase 3
 Binding decided:        nanobind (see §5.6)

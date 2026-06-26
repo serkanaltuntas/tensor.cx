@@ -106,6 +106,14 @@ std::int32_t cast_int32_or_throw(nb::handle item) {
   }
 }
 
+float cast_float32_or_throw(nb::handle item) {
+  try {
+    return nb::cast<float>(item);
+  } catch (const std::exception&) {
+    throw std::invalid_argument("float value is not convertible to float32");
+  }
+}
+
 std::uint32_t cast_uint32_or_throw(nb::handle item, const char* message) {
   if (PyBool_Check(item.ptr())) {
     throw std::invalid_argument(message);
@@ -172,7 +180,7 @@ CpuTensor tensor_from_sequence(nb::handle data, nb::handle dtype, const std::str
       std::vector<float> values;
       values.reserve(items.size());
       for (const nb::object& item : items) {
-        values.push_back(nb::cast<float>(item));
+        values.push_back(cast_float32_or_throw(item));
       }
       return CpuTensor(std::move(shape), std::move(values));
     }
@@ -203,7 +211,7 @@ CpuTensor tensor_from_flat_sequence(
     case DType::kFloat32: {
       std::vector<float> values;
       for (nb::handle item : nb::iter(data)) {
-        values.push_back(nb::cast<float>(item));
+        values.push_back(cast_float32_or_throw(item));
       }
       if (static_cast<std::int64_t>(values.size()) != expected_size) {
         throw std::invalid_argument("tensor data length does not match shape");
@@ -311,7 +319,7 @@ CpuTensor binary_op(const CpuTensor& lhs, const CpuTensor& rhs, OpKind kind) {
   return cortex::cpu::from_core_tensor(outputs[0]);
 }
 
-CpuTensor unary_op(const CpuTensor& input, OpKind kind) {
+CpuTensor cpu_unary_backend_op(const CpuTensor& input, const OpDesc& op) {
   cortex::cpu::CpuBackend backend;
   std::array<cortex::Tensor, 1> inputs{
       cortex::cpu::to_core_tensor(input),
@@ -319,7 +327,7 @@ CpuTensor unary_op(const CpuTensor& input, OpKind kind) {
   std::array<cortex::Tensor, 1> outputs{};
   const cortex::BackendExecution execution{
       cortex::BackendOpClass::kPrimitive,
-      OpDesc{kind},
+      op,
       std::span<const cortex::Tensor>(inputs.data(), inputs.size()),
       std::span<cortex::Tensor>(outputs.data(), outputs.size()),
       std::nullopt,
@@ -332,12 +340,16 @@ CpuTensor unary_op(const CpuTensor& input, OpKind kind) {
   return cortex::cpu::from_core_tensor(outputs[0]);
 }
 
+CpuTensor unary_op(const CpuTensor& input, OpKind kind) {
+  return cpu_unary_backend_op(input, OpDesc{kind});
+}
+
 CpuTensor axis_unary_op(const CpuTensor& input, OpKind kind, std::int64_t axis) {
-  return cortex::cpu::execute_unary(OpDesc{kind, axis}, input);
+  return cpu_unary_backend_op(input, OpDesc{kind, axis});
 }
 
 CpuTensor norm_op(const CpuTensor& input, OpKind kind, std::int64_t axis, double epsilon) {
-  return cortex::cpu::execute_unary(OpDesc{kind, axis, epsilon}, input);
+  return cpu_unary_backend_op(input, OpDesc{kind, axis, epsilon});
 }
 
 CpuTensor reduction_op(const CpuTensor& input, OpKind kind, std::int64_t axis) {

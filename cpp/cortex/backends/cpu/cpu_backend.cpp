@@ -258,7 +258,10 @@ Status CpuBackend::execute(const BackendExecution& execution) {
     switch (execution.op.kind) {
       case OpKind::kExp:
       case OpKind::kGelu:
-      case OpKind::kSilu: {
+      case OpKind::kSilu:
+      case OpKind::kSoftmax:
+      case OpKind::kRmsNorm:
+      case OpKind::kLayerNorm: {
         if (execution.inputs.size() != 1) {
           return invalid_argument_status("CPU unary execution requires exactly one input");
         }
@@ -392,6 +395,31 @@ Status contract_smoke_test() {
           StatusCode::kInvalidArgument);
       !status.ok()) {
     return status;
+  }
+
+  CpuTensor axis_input(Shape{2}, std::vector<float>{1.0F, 2.0F});
+  std::array<Tensor, 1> axis_inputs{to_core_tensor(axis_input)};
+  std::array<Tensor, 1> axis_outputs{};
+  const BackendExecution valid_softmax{
+      BackendOpClass::kPrimitive,
+      OpDesc{OpKind::kSoftmax, 0},
+      std::span<const Tensor>(axis_inputs.data(), axis_inputs.size()),
+      std::span<Tensor>(axis_outputs.data(), axis_outputs.size()),
+      std::nullopt,
+      std::nullopt,
+  };
+  if (Status status =
+          expect_status_code("valid softmax", backend.execute(valid_softmax), StatusCode::kOk);
+      !status.ok()) {
+    return status;
+  }
+  const CpuTensor softmax_result = from_core_tensor(axis_outputs[0]);
+  const auto& softmax_data = softmax_result.float_data();
+  if (softmax_data.size() != 2 ||
+      std::abs((softmax_data[0] + softmax_data[1]) - 1.0F) > 1e-6F) {
+    return Status(
+        StatusCode::kInternal,
+        "CPU backend contract smoke test failed: softmax result");
   }
 
   BackendExecution kernel_op = valid_add;

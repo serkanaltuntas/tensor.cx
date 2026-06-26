@@ -9,18 +9,36 @@ namespace cortex::null_backend {
 namespace {
 
 Status validate_execution_contract(const BackendExecution& execution) {
-  if (execution.outputs.empty()) {
-    return Status(StatusCode::kInvalidArgument, "backend execution requires at least one output");
-  }
   if (execution.op_class == BackendOpClass::kPrimitive) {
     if (execution.launch.has_value() || execution.compilation_target.has_value()) {
       return Status(
           StatusCode::kInvalidArgument,
           "primitive backend execution cannot include kernel launch metadata");
     }
+    const auto schema = primitive_op_schema(execution.op.kind);
+    if (!schema.has_value()) {
+      return Status(
+          StatusCode::kInvalidArgument,
+          "primitive operation is not expressible by BackendExecution");
+    }
+    if (execution.inputs.size() != schema->input_count) {
+      return Status(
+          StatusCode::kInvalidArgument,
+          "primitive backend execution input count mismatch");
+    }
+    if (execution.outputs.size() != schema->output_count) {
+      return Status(
+          StatusCode::kInvalidArgument,
+          "primitive backend execution output count mismatch");
+    }
     return Status::Ok();
   }
 
+  if (execution.outputs.empty()) {
+    return Status(
+        StatusCode::kInvalidArgument,
+        "kernel backend execution requires output metadata");
+  }
   if (!execution.launch.has_value()) {
     return Status(StatusCode::kInvalidArgument, "kernel backend execution requires launch metadata");
   }
@@ -72,26 +90,76 @@ Status contract_smoke_test() {
     return Status(StatusCode::kInternal, "null backend contract smoke test failed: backend name");
   }
 
+  std::array<Tensor, 2> binary_inputs{};
+  const std::span<const Tensor> binary_input_span(binary_inputs.data(), binary_inputs.size());
   std::array<Tensor, 1> outputs{};
   const std::span<Tensor> output_span(outputs.data(), outputs.size());
   const BackendExecution valid_primitive{
       BackendOpClass::kPrimitive,
       OpDesc{OpKind::kAdd},
-      {},
+      binary_input_span,
       output_span,
       std::nullopt,
       std::nullopt,
   };
-  if (Status status =
-          expect_status_code("valid primitive", backend.execute(valid_primitive), StatusCode::kUnavailable);
+  if (Status status = expect_status_code(
+          "valid primitive",
+          backend.execute(valid_primitive),
+          StatusCode::kUnavailable);
+      !status.ok()) {
+    return status;
+  }
+
+  BackendExecution missing_input = valid_primitive;
+  missing_input.inputs = {};
+  if (Status status = expect_status_code(
+          "missing primitive input",
+          backend.execute(missing_input),
+          StatusCode::kInvalidArgument);
       !status.ok()) {
     return status;
   }
 
   BackendExecution empty_outputs = valid_primitive;
   empty_outputs.outputs = {};
-  if (Status status =
-          expect_status_code("empty outputs", backend.execute(empty_outputs), StatusCode::kInvalidArgument);
+  if (Status status = expect_status_code(
+          "empty primitive outputs",
+          backend.execute(empty_outputs),
+          StatusCode::kInvalidArgument);
+      !status.ok()) {
+    return status;
+  }
+
+  std::array<Tensor, 2> two_outputs{};
+  BackendExecution too_many_outputs = valid_primitive;
+  too_many_outputs.outputs = std::span<Tensor>(two_outputs.data(), two_outputs.size());
+  if (Status status = expect_status_code(
+          "too many primitive outputs",
+          backend.execute(too_many_outputs),
+          StatusCode::kInvalidArgument);
+      !status.ok()) {
+    return status;
+  }
+
+  std::array<Tensor, 1> unary_inputs{};
+  BackendExecution valid_unary = valid_primitive;
+  valid_unary.op = OpDesc{OpKind::kSoftmax, 0};
+  valid_unary.inputs = std::span<const Tensor>(unary_inputs.data(), unary_inputs.size());
+  if (Status status = expect_status_code(
+          "valid unary primitive",
+          backend.execute(valid_unary),
+          StatusCode::kUnavailable);
+      !status.ok()) {
+    return status;
+  }
+
+  BackendExecution unsupported_fill = valid_primitive;
+  unsupported_fill.op = OpDesc{OpKind::kFill};
+  unsupported_fill.inputs = {};
+  if (Status status = expect_status_code(
+          "unsupported fill primitive",
+          backend.execute(unsupported_fill),
+          StatusCode::kInvalidArgument);
       !status.ok()) {
     return status;
   }

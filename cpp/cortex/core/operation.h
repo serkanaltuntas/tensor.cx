@@ -1,6 +1,8 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <optional>
 
 namespace cortex {
 
@@ -33,5 +35,15 @@ struct OpDesc {
   std::int64_t axis{0};
   double epsilon{1.0e-5};
 };
+
+struct PrimitiveOpSchema {
+  std::size_t input_count{0};
+  std::size_t output_count{0};
+};
+
+// Returns the primitive operation shape expressible by BackendExecution today.
+// Factory/fill operations are intentionally excluded until the ABI carries
+// backend-neutral output allocation and scalar-value attributes.
+std::optional<PrimitiveOpSchema> primitive_op_schema(OpKind kind);
 
 }  // namespace cortex

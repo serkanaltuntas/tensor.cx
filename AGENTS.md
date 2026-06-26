@@ -253,7 +253,7 @@ Phase 7   Experimental kernel DSL
 Current phase:
 
 ```text
-Phase 8   Backend interface hardening (CPU binary/unary Backend::execute migration)
+Phase 8   Backend interface hardening (CPU Backend::execute migration and schema hardening)
 ```
 
 Only move to CUDA, ROCm, Vulkan, MLIR, or broad compiler work after the earlier

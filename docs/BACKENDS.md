@@ -72,6 +72,13 @@ that a backend may route through platform primitives. They must not carry kernel
 launch metadata. Kernel operations are project-owned static or generated kernels;
 they require an explicit launch configuration and compilation target.
 
+Primitive requests must match the core `primitive_op_schema`: the op kind
+defines the expected input and output tensor metadata counts. The null backend
+uses this schema to reject malformed requests before returning `kUnavailable`.
+`fill` and constructor-style allocation remain outside `BackendExecution` until
+the ABI has explicit backend-neutral output allocation and scalar-value
+attributes.
+
 ### Launch Abstraction
 
 `LaunchConfig` describes grid dimensions and threads-per-group dimensions. The
@@ -99,14 +106,15 @@ Metal, MPSGraph, CUDA, ROCm, Vulkan, or platform API handles.
 
 `cpp/cortex/backends/null/` validates the ABI shape without executing work. It
 returns `kUnavailable` for valid execution requests and `kInvalidArgument` for
-contract violations such as kernel execution without launch metadata or a
-compilation target. The Python test hook `_backend_contract_smoke_test` proves
-the scaffold builds and links with the extension.
+contract violations such as primitive input/output count mismatches or kernel
+execution without launch metadata or a compilation target. The Python test hook
+`_backend_contract_smoke_test` proves the scaffold builds and links with the
+extension.
 
 ## Current Direction
 
 Phase 8 is in progress. The backend ABI and null backend scaffold exist, and
-CPU add/multiply plus float32 `exp`/`gelu`/`silu` now route through
-`CpuBackend::execute` without changing public Python behavior. Other CPU
-operations and Metal dispatch still use the existing typed entry points while
-the interface is hardened.
+CPU add/multiply plus unary transforms now route through `CpuBackend::execute`
+without changing public Python behavior. CPU reductions, matmul, fill, and
+Metal dispatch still use the existing typed entry points while the interface is
+hardened.
