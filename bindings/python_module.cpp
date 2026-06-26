@@ -4,9 +4,12 @@
 #include <nanobind/ndarray.h>
 #include <nanobind/stl/string.h>
 
+#include <array>
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <optional>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -273,8 +276,39 @@ std::vector<std::uint8_t> bytes_to_vector(nb::bytes data) {
   return std::vector<std::uint8_t>(first, first + size);
 }
 
+void throw_status(const cortex::Status& status) {
+  switch (status.code()) {
+    case cortex::StatusCode::kInvalidArgument:
+      throw std::invalid_argument(status.message());
+    case cortex::StatusCode::kUnavailable:
+    case cortex::StatusCode::kInternal:
+      throw std::runtime_error(status.message());
+    case cortex::StatusCode::kOk:
+      break;
+  }
+  throw std::runtime_error(status.message());
+}
+
 CpuTensor binary_op(const CpuTensor& lhs, const CpuTensor& rhs, OpKind kind) {
-  return cortex::cpu::execute_binary(OpDesc{kind}, lhs, rhs);
+  cortex::cpu::CpuBackend backend;
+  std::array<cortex::Tensor, 2> inputs{
+      cortex::cpu::to_core_tensor(lhs),
+      cortex::cpu::to_core_tensor(rhs),
+  };
+  std::array<cortex::Tensor, 1> outputs{};
+  const cortex::BackendExecution execution{
+      cortex::BackendOpClass::kPrimitive,
+      OpDesc{kind},
+      std::span<const cortex::Tensor>(inputs.data(), inputs.size()),
+      std::span<cortex::Tensor>(outputs.data(), outputs.size()),
+      std::nullopt,
+      std::nullopt,
+  };
+  const auto status = backend.execute(execution);
+  if (!status.ok()) {
+    throw_status(status);
+  }
+  return cortex::cpu::from_core_tensor(outputs[0]);
 }
 
 CpuTensor unary_op(const CpuTensor& input, OpKind kind) {
@@ -321,19 +355,6 @@ std::vector<cortex::metal::KernelArgument> parse_metal_kernel_arguments(nb::sequ
     });
   }
   return parsed;
-}
-
-void throw_status(const cortex::Status& status) {
-  switch (status.code()) {
-    case cortex::StatusCode::kInvalidArgument:
-      throw std::invalid_argument(status.message());
-    case cortex::StatusCode::kUnavailable:
-    case cortex::StatusCode::kInternal:
-      throw std::runtime_error(status.message());
-    case cortex::StatusCode::kOk:
-      break;
-  }
-  throw std::runtime_error(status.message());
 }
 
 template <typename T>

@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "cortex/backends/cpu/cpu_buffer.h"
@@ -14,6 +15,7 @@ namespace cortex::cpu {
 class CpuTensor {
  public:
   CpuTensor(DType dtype, Shape shape);
+  CpuTensor(DType dtype, Shape shape, std::shared_ptr<CpuBuffer> buffer);
   CpuTensor(Shape shape, std::vector<float> values);
   CpuTensor(Shape shape, std::vector<std::int32_t> values);
 

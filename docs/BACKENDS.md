@@ -105,7 +105,7 @@ the scaffold builds and links with the extension.
 
 ## Current Direction
 
-Phase 8 is in progress. The backend ABI and null backend scaffold exist, but
-live CPU/Metal dispatch still uses the existing typed entry points while the
-interface is hardened. The next Phase 8 work should migrate one narrow operation
-through `Backend::execute` without changing public Python behavior.
+Phase 8 is in progress. The backend ABI and null backend scaffold exist, and
+CPU add/multiply now route through `CpuBackend::execute` without changing public
+Python behavior. Other CPU operations and Metal dispatch still use the existing
+typed entry points while the interface is hardened.

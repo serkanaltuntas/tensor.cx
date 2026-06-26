@@ -16,6 +16,23 @@ CpuTensor::CpuTensor(DType dtype, Shape shape)
   buffer_ = std::make_shared<CpuBuffer>(dtype_, static_cast<std::size_t>(size_));
 }
 
+CpuTensor::CpuTensor(DType dtype, Shape shape, std::shared_ptr<CpuBuffer> buffer)
+    : dtype_(dtype),
+      shape_(std::move(shape)),
+      size_(numel(shape_)),
+      strides_(contiguous_strides(shape_)),
+      buffer_(std::move(buffer)) {
+  if (!buffer_) {
+    throw std::invalid_argument("CPU tensor requires a buffer");
+  }
+  if (buffer_->dtype() != dtype_) {
+    throw std::invalid_argument("CPU buffer dtype mismatch");
+  }
+  if (buffer_->nbytes() != static_cast<std::size_t>(size_) * dtype_size(dtype_)) {
+    throw std::invalid_argument("CPU buffer size does not match tensor shape");
+  }
+}
+
 CpuTensor::CpuTensor(Shape shape, std::vector<float> values)
     : dtype_(DType::kFloat32),
       shape_(std::move(shape)),

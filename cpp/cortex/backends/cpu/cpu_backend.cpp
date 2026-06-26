@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <stdexcept>
 #include <utility>
 
@@ -40,6 +41,10 @@ void validate_binary_inputs(const CpuTensor& lhs, const CpuTensor& rhs) {
   if (lhs.shape() != rhs.shape()) {
     throw std::invalid_argument("shape mismatch for binary operation");
   }
+}
+
+Status invalid_argument_status(const char* message) {
+  return Status(StatusCode::kInvalidArgument, message);
 }
 
 struct ReductionDims {
@@ -219,6 +224,68 @@ void compute_layernorm(
 }
 
 }  // namespace
+
+std::string CpuBackend::name() const { return "cpu"; }
+
+Status CpuBackend::execute(const BackendExecution& execution) {
+  try {
+    if (execution.op_class != BackendOpClass::kPrimitive) {
+      return invalid_argument_status("CPU backend only supports primitive execution");
+    }
+    if (execution.launch.has_value() || execution.compilation_target.has_value()) {
+      return invalid_argument_status("CPU primitive execution cannot include kernel metadata");
+    }
+    if (execution.outputs.size() != 1) {
+      return invalid_argument_status("CPU backend execution requires exactly one output");
+    }
+
+    switch (execution.op.kind) {
+      case OpKind::kAdd:
+      case OpKind::kMultiply: {
+        if (execution.inputs.size() != 2) {
+          return invalid_argument_status("CPU binary execution requires exactly two inputs");
+        }
+        const CpuTensor lhs = from_core_tensor(execution.inputs[0]);
+        const CpuTensor rhs = from_core_tensor(execution.inputs[1]);
+        execution.outputs[0] = to_core_tensor(execute_binary(execution.op, lhs, rhs));
+        return Status::Ok();
+      }
+      default:
+        return invalid_argument_status("unsupported CPU backend execution operation");
+    }
+  } catch (const std::invalid_argument& error) {
+    return Status(StatusCode::kInvalidArgument, error.what());
+  } catch (const std::exception& error) {
+    return Status(StatusCode::kInternal, error.what());
+  }
+}
+
+Tensor to_core_tensor(const CpuTensor& tensor) {
+  return Tensor{
+      tensor.dtype(),
+      tensor.shape(),
+      tensor.strides(),
+      tensor.device(),
+      std::static_pointer_cast<Buffer>(tensor.buffer()),
+      0};
+}
+
+CpuTensor from_core_tensor(const Tensor& tensor) {
+  if (tensor.device.type != "cpu") {
+    throw std::invalid_argument("CPU tensor metadata requires device='cpu'");
+  }
+  if (tensor.offset != 0) {
+    throw std::invalid_argument("CPU tensor metadata with non-zero offset is unsupported");
+  }
+  if (tensor.strides != contiguous_strides(tensor.shape)) {
+    throw std::invalid_argument("CPU tensor metadata must be contiguous");
+  }
+  auto buffer = std::dynamic_pointer_cast<CpuBuffer>(tensor.buffer);
+  if (!buffer) {
+    throw std::invalid_argument("CPU tensor metadata requires a CPU buffer");
+  }
+  return CpuTensor(tensor.dtype, tensor.shape, std::move(buffer));
+}
 
 CpuTensor empty(Shape shape, DType dtype) {
   return CpuTensor(dtype, std::move(shape));

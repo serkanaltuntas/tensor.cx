@@ -39,7 +39,7 @@ C++ namespace: cortex
 > CI (CPU) or on the local Mac (Metal).
 
 ```text
-Current phase:          Phase 8 — in progress (Backend ABI + null backend scaffold)
+Current phase:          Phase 8 — in progress (CPU binary Backend::execute migration)
 Last verified milestone: Phase 7 — Experimental kernel DSL
 v0.1 target:            achieved at end of Phase 3
 Binding decided:        nanobind (see §5.6)
@@ -342,15 +342,15 @@ document as resolved to nanobind.
 `relu`, …). It exposes a single execution entry point:
 
 ```cpp
-Status execute(const OpDesc& op,
-               std::span<const Tensor> inputs,
-               std::span<Tensor>       outputs);
+Status execute(const BackendExecution& execution);
 ```
 
-`OpDesc` carries an op enum plus attributes; backends switch on the enum. This
-keeps Phase 6 (15+ ops) and Phase 8 (primitive vs kernel ops) from becoming a
-rewrite. The per-op method sketch in §8.2 is illustrative only and must not be
-implemented literally.
+`BackendExecution` carries the op class, `OpDesc`, input tensor metadata,
+mutable output tensor metadata, and optional launch / compilation-target
+metadata for kernel execution. `OpDesc` carries an op enum plus attributes;
+backends switch on the enum. This keeps Phase 6 (15+ ops) and Phase 8
+(primitive vs kernel ops) from becoming a rewrite. The per-op method sketch in
+§8.2 is illustrative only and must not be implemented literally.
 
 **Error handling: `expected`, no exceptions across the Metal boundary.** Core
 functions return `Status` or `expected<T, Status>` (use `tl::expected` until
