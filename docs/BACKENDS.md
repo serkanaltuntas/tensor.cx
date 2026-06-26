@@ -136,8 +136,8 @@ extension.
 
 ## Current Direction
 
-Phase 8 is in progress. The backend ABI and null backend scaffold exist, and
-CPU fill, add/multiply, unary transforms, reductions, and matmul now route
-through `CpuBackend::execute` without changing public Python behavior. Metal
-dispatch still uses the existing typed entry points while the interface is
-hardened.
+Phase 8 is complete. The backend ABI and null backend scaffold exist, and CPU
+fill, add/multiply, unary transforms, reductions, and matmul route through
+`CpuBackend::execute` without changing public Python behavior. Metal dispatch
+still uses the existing typed entry points. Phase 9 has not started and requires
+a CUDA hardware or cloud development environment decision before implementation.

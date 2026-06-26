@@ -39,11 +39,11 @@ C++ namespace: cortex
 > CI (CPU) or on the local Mac (Metal).
 
 ```text
-Current phase:          Phase 8 — in progress (CPU Backend::execute migration and schema hardening)
-Last verified milestone: Phase 7 — Experimental kernel DSL
+Current phase:          Phase 9 — not started (CUDA prototype; CUDA environment decision required)
+Last verified milestone: Phase 8 — Backend interface hardening
 v0.1 target:            achieved at end of Phase 3
 Binding decided:        nanobind (see §5.6)
-Open decisions:         none
+Open decisions:         Phase 9 CUDA hardware/cloud development environment
 ```
 
 Phase checklist:
@@ -57,7 +57,7 @@ Phase checklist:
 [x] Phase 5   MPSGraph matmul
 [x] Phase 6   Reductions & NN primitives
 [x] Phase 7   Experimental kernel DSL
-[ ] Phase 8   Backend interface hardening
+[x] Phase 8   Backend interface hardening
 [ ] Phase 9   CUDA prototype
 [ ] Phase 10  MLIR exploration
 ```

@@ -46,11 +46,12 @@ split: CPU fill routes through `CpuBackend::execute`, while Metal fill and
 constructor-style `empty` allocation still use typed paths because they must
 choose backend-specific native tensor types.
 
-### Dispatch today vs. the Phase 8 target
+### Dispatch after Phase 8
 
 `§5.6` settles a data-driven dispatch design: a single
 `Backend::execute(BackendExecution)` per backend, switching on `OpDesc`, rather
-than one virtual method per operation. Phase 8 has started that hardening work:
+than one virtual method per operation. Phase 8 completed the backend ABI
+hardening work:
 `cpp/cortex/core/backend.h` now defines the execution contract, separates
 primitive operations from kernel launches, and carries optional launch and
 compilation-target metadata. `cpp/cortex/backends/null/` compiles against that
@@ -67,7 +68,7 @@ backend fills with produced tensor metadata. Allocation-style primitives such as
 the live ABI for the experimental generated-kernel launcher because that path
 still needs ordered tensor/scalar arguments and caller-owned output tensors.
 
-The dispatch that actually runs is now mixed while Phase 8 proceeds. CPU
+The dispatch that actually runs is still mixed after Phase 8. CPU
 add/multiply, unary transforms, reductions, and matmul are routed through
 `CpuBackend::execute(BackendExecution)`, which adapts existing `CpuTensor`
 values to backend-neutral `Tensor` metadata and then reuses the existing CPU
@@ -83,8 +84,8 @@ layernorm, plus an `epsilon` attribute for normalization ops. Phase 8 adds
 `Backend::execute` for now.
 
 This is a deliberate, documented transition kept small per the "avoid unrelated
-refactors" rule: Phase 8 should harden the ABI first, then migrate live dispatch
-without changing public Python semantics.
+refactors" rule: Phase 8 hardened the ABI first; later backend migration work
+can move live dispatch without changing public Python semantics.
 
 ## Core Principles
 

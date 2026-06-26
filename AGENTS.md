@@ -235,9 +235,10 @@ Keep these conceptual boundaries even if filenames evolve.
 
 `PROJECT.md` is authoritative for the current phase checklist and phase status.
 Do not infer the current phase from this abbreviated sequence. Phase 8 —
-Backend interface hardening is in progress.
+Backend interface hardening is complete. Phase 9 has not started and requires a
+CUDA hardware or cloud development environment decision before implementation.
 
-Completed through Phase 7:
+Completed through Phase 8:
 
 ```text
 Phase 0   Project bootstrap
@@ -248,16 +249,18 @@ Phase 4   Runtime polish
 Phase 5   MPSGraph matmul
 Phase 6   Reductions and NN primitives
 Phase 7   Experimental kernel DSL
+Phase 8   Backend interface hardening
 ```
 
 Current phase:
 
 ```text
-Phase 8   Backend interface hardening (CPU Backend::execute migration and schema hardening)
+Phase 9   CUDA prototype — not started (environment decision required)
 ```
 
-Only move to CUDA, ROCm, Vulkan, MLIR, or broad compiler work after the earlier
-phases are working and tested. Experimental DSL work must stay under
+Do not start CUDA implementation until the Phase 9 development environment is
+chosen and documented. Only move to ROCm, Vulkan, MLIR, or broad compiler work
+after the earlier phases are working and tested. Experimental DSL work must stay under
 `cx.experimental`, preserve the Phase 6 correctness contracts, and keep CPU
 references mandatory for generated or DSL-routed kernels.
 

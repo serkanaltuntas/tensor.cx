@@ -16,21 +16,22 @@ acceptance criteria, and Definitions of Done also live in `PROJECT.md` (§14).
 [x] Phase 5   Matmul (custom MSL + MPSGraph)
 [x] Phase 6   Reductions & NN primitives
 [x] Phase 7   Experimental kernel DSL
-[ ] Phase 8   Backend interface hardening
+[x] Phase 8   Backend interface hardening
 [ ] Phase 9   CUDA prototype
 [ ] Phase 10  MLIR exploration
 ```
 
-Phase 7 is complete. Phase 8 is in progress: the backend execution ABI now
+Phase 8 is complete: the backend execution ABI now
 separates primitive operations from kernel launches, carries explicit launch and
 compilation-target metadata, and has a null backend scaffold that compiles
 without Metal. CPU and null backend now use the shared primitive contract
 validator for input/output schema and fill allocation descriptors; null backend
 also uses the shared kernel contract validator. CPU fill, add/multiply, unary
 transforms, reductions, and matmul now route through `CpuBackend::execute`;
-Metal dispatch still uses typed entry points while Phase 8 hardening proceeds.
+Metal dispatch still uses typed entry points. Phase 9 has not started; it
+requires a CUDA hardware or cloud development environment decision first.
 
-## What works today (through Phase 7)
+## What works today (through Phase 8)
 
 - CPU reference backend: `float32`/`int32`, contiguous 1-D/2-D, add / multiply /
   fill / zeros / ones / empty, exact NumPy round-trip.
@@ -52,6 +53,10 @@ Metal dispatch still uses typed entry points while Phase 8 hardening proceeds.
 - Experimental kernel DSL: restricted Python AST -> backend-neutral IR -> text
   MSL -> in-memory metallib -> synchronous Metal launch for the first float32
   elementwise add subset, tested against the CPU reference.
+- Backend ABI: `Backend::execute`, primitive/kernel execution classes,
+  backend-neutral launch and compilation target metadata, shared primitive and
+  kernel contract validators, and a null backend scaffold that builds without
+  Metal.
 - Error taxonomy, CPU CI, benchmarks for copy / elementwise / matmul.
 
 ## Intentionally not implemented yet
@@ -67,12 +72,11 @@ and AGENTS.md "Out Of Scope For Early Work".
   independent from PyTorch, but a future integration can be staged through a
   custom-op bridge before considering a full PyTorch / ATen backend. See
   [`PYTORCH_PORTABILITY_ROADMAP.md`](PYTORCH_PORTABILITY_ROADMAP.md).
-- **Unified `Backend::execute` dispatch (Phase 8).** The data-driven backend
-  ABI (`cpp/cortex/core/backend.h`) is defined and exercised by the null backend
-  scaffold. CPU fill, add/multiply, unary transforms, reductions, and matmul now
-  use the ABI; Metal is still routed through per-op typed entry points. Fill uses
-  `OpDesc.scalar_value` plus an output allocation descriptor. See
-  [`ARCHITECTURE.md`](ARCHITECTURE.md) → "Dispatch today vs. the Phase 8 target".
+- **CUDA environment for Phase 9.** The next phase needs a CUDA-capable local or
+  cloud development environment before implementation starts.
+- **Metal dispatch migration.** The Phase 8 ABI is defined and exercised by CPU
+  and the null backend, but Metal is still routed through per-op typed entry
+  points. See [`ARCHITECTURE.md`](ARCHITECTURE.md) → "Dispatch after Phase 8".
 - **GIL release + Metal thread-safety.** v0.1 is synchronous and holds the GIL
   across blocking Metal submissions, so multi-threaded use is serialized and the
   pipeline cache is intentionally unlocked. Releasing the GIL (and locking the

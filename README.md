@@ -100,14 +100,15 @@ Phase 7 is complete. The experimental kernel DSL under `cx.experimental` can
 parse a restricted Python kernel into backend-neutral IR, emit text MSL, compile
 that MSL into an in-memory Metal library artifact, validate the generated
 function through native Metal library lookup, and launch the first float32
-elementwise kernel on Metal. Phase 8 is in progress: the backend ABI and null
-backend scaffold exist, and CPU fill, add/multiply, unary transforms,
-reductions, and matmul now route through `CpuBackend::execute`. Metal dispatch
-still uses typed paths while the ABI is hardened. Phase 5 provides CPU reference
-matmul, a correctness-first custom Metal matmul kernel, and an optimized Metal
-primitive path. Phase 6 adds `sum`, `max`, `mean`, `exp`, `gelu`, `silu`,
-`softmax`, `rmsnorm`, and `layernorm` on CPU and Metal. The custom matmul kernel
-remains available through `cx.matmul(a, b, backend="custom")`;
+elementwise kernel on Metal. Phase 8 is complete: the backend ABI, shared
+primitive/kernel contract validators, and null backend scaffold exist, and CPU
+fill, add/multiply, unary transforms, reductions, and matmul route through
+`CpuBackend::execute`. Metal dispatch still uses typed paths. Phase 9 has not
+started; it requires a CUDA hardware or cloud development environment decision
+first. Phase 5 provides CPU reference matmul, a correctness-first custom Metal
+matmul kernel, and an optimized Metal primitive path. Phase 6 adds `sum`, `max`,
+`mean`, `exp`, `gelu`, `silu`, `softmax`, `rmsnorm`, and `layernorm` on CPU and
+Metal. The custom matmul kernel remains available through `cx.matmul(a, b, backend="custom")`;
 `backend="optimized"` uses the Apple optimized primitive path when it is
 enabled.
 
