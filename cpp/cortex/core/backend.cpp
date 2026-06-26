@@ -73,4 +73,35 @@ Status validate_primitive_execution_contract(
   return Status::Ok();
 }
 
+Status validate_kernel_execution_contract(const BackendExecution& execution) {
+  if (execution.op_class != BackendOpClass::kKernel) {
+    return invalid_argument_status("kernel backend execution requires kernel op class");
+  }
+  if (execution.outputs.empty()) {
+    return invalid_argument_status("kernel backend execution requires output metadata");
+  }
+  if (!execution.launch.has_value()) {
+    return invalid_argument_status("kernel backend execution requires launch metadata");
+  }
+  const LaunchConfig& launch = *execution.launch;
+  if (launch.grid_x == 0 || launch.grid_y == 0 || launch.grid_z == 0 ||
+      launch.threads_per_group_x == 0 || launch.threads_per_group_y == 0 ||
+      launch.threads_per_group_z == 0) {
+    return invalid_argument_status("kernel launch dimensions must be non-zero");
+  }
+  if (!execution.compilation_target.has_value()) {
+    return invalid_argument_status("kernel backend execution requires a compilation target");
+  }
+  if (execution.compilation_target->entry_point.empty()) {
+    return invalid_argument_status("kernel compilation target requires an entry point");
+  }
+  if (execution.compilation_target->artifact_kind == KernelArtifactKind::kNone) {
+    return invalid_argument_status("kernel compilation target requires an artifact kind");
+  }
+  if (execution.compilation_target->artifact.empty()) {
+    return invalid_argument_status("kernel compilation target requires an artifact");
+  }
+  return Status::Ok();
+}
+
 }  // namespace cortex

@@ -65,4 +65,6 @@ Status validate_primitive_execution_contract(
     const BackendExecution& execution,
     std::string_view fill_device_type = {});
 
+Status validate_kernel_execution_contract(const BackendExecution& execution);
+
 }  // namespace cortex

@@ -15,34 +15,7 @@ Status validate_execution_contract(const BackendExecution& execution) {
   if (execution.op_class == BackendOpClass::kPrimitive) {
     return validate_primitive_execution_contract(execution);
   }
-
-  if (execution.outputs.empty()) {
-    return Status(
-        StatusCode::kInvalidArgument,
-        "kernel backend execution requires output metadata");
-  }
-  if (!execution.launch.has_value()) {
-    return Status(StatusCode::kInvalidArgument, "kernel backend execution requires launch metadata");
-  }
-  if (!execution.compilation_target.has_value()) {
-    return Status(
-        StatusCode::kInvalidArgument,
-        "kernel backend execution requires a compilation target");
-  }
-  if (execution.compilation_target->entry_point.empty()) {
-    return Status(StatusCode::kInvalidArgument, "kernel compilation target requires an entry point");
-  }
-  if (execution.compilation_target->artifact_kind == KernelArtifactKind::kNone) {
-    return Status(
-        StatusCode::kInvalidArgument,
-        "kernel compilation target requires an artifact kind");
-  }
-  if (execution.compilation_target->artifact.empty()) {
-    return Status(
-        StatusCode::kInvalidArgument,
-        "kernel compilation target requires an artifact");
-  }
-  return Status::Ok();
+  return validate_kernel_execution_contract(execution);
 }
 
 Status expect_status_code(const char* scenario, const Status& status, StatusCode expected) {
@@ -210,12 +183,35 @@ Status contract_smoke_test() {
     return status;
   }
 
+  BackendExecution kernel_missing_output = kernel_missing_launch;
+  kernel_missing_output.launch = LaunchConfig{1, 1, 1, 1, 1, 1};
+  kernel_missing_output.outputs = {};
+  if (Status status = expect_status_code(
+          "kernel missing output metadata",
+          backend.execute(kernel_missing_output),
+          StatusCode::kInvalidArgument);
+      !status.ok()) {
+    return status;
+  }
+
   BackendExecution kernel_missing_target = valid_primitive;
   kernel_missing_target.op_class = BackendOpClass::kKernel;
   kernel_missing_target.launch = LaunchConfig{1, 1, 1, 1, 1, 1};
   if (Status status = expect_status_code(
           "kernel missing compilation target",
           backend.execute(kernel_missing_target),
+          StatusCode::kInvalidArgument);
+      !status.ok()) {
+    return status;
+  }
+
+  BackendExecution kernel_zero_launch_dimension = kernel_missing_target;
+  kernel_zero_launch_dimension.launch = LaunchConfig{};
+  kernel_zero_launch_dimension.compilation_target =
+      CompilationTarget{KernelArtifactKind::kStaticLibrary, "noop_library", "noop"};
+  if (Status status = expect_status_code(
+          "kernel zero launch dimension",
+          backend.execute(kernel_zero_launch_dimension),
           StatusCode::kInvalidArgument);
       !status.ok()) {
     return status;

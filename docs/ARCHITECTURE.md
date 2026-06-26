@@ -55,9 +55,10 @@ than one virtual method per operation. Phase 8 has started that hardening work:
 primitive operations from kernel launches, and carries optional launch and
 compilation-target metadata. `cpp/cortex/backends/null/` compiles against that
 interface alone and exists to prove the contract has no Metal dependency. The
-core also exposes the primitive op input/output schema and shared primitive
-contract validator that CPU and null backend use to reject malformed primitive
-execution requests.
+core also exposes the primitive op input/output schema plus shared primitive
+and kernel contract validators. CPU currently uses the primitive validator for
+its migrated execution path; the null backend uses both validators to reject
+malformed primitive and kernel scaffold requests.
 
 For primitive execution, `BackendExecution.outputs` are result slots that the
 backend fills with produced tensor metadata. Allocation-style primitives such as

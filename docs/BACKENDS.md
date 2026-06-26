@@ -92,12 +92,20 @@ now routes through `BackendExecution` using `OpDesc.scalar_value` and an output
 allocation descriptor. Constructor-style `empty` allocation and Metal fill
 remain on typed paths until their ownership semantics are migrated.
 
+Kernel requests must pass the shared core kernel contract validator before a
+backend executes them: they require output metadata, launch metadata, a
+launch whose grid and thread-group dimensions are all non-zero, a compilation
+target, a non-empty entry point, a concrete artifact kind, and a non-empty
+artifact identifier. This is still a contract scaffold, not the live
+generated-kernel ABI.
+
 ### Launch Abstraction
 
 `LaunchConfig` describes grid dimensions and threads-per-group dimensions. The
 fields are intentionally backend-neutral so Metal, CUDA, ROCm, Vulkan/SPIR-V,
 and MLIR-generated paths can map them to their native launch concepts later.
-Synchronous execution remains the project default.
+All six launch dimensions must be non-zero. Synchronous execution remains the
+project default.
 
 ### Compilation Target
 
@@ -121,9 +129,10 @@ Metal, MPSGraph, CUDA, ROCm, Vulkan, or platform API handles.
 returns `kUnavailable` for valid execution requests and `kInvalidArgument` for
 contract violations such as primitive input/output count mismatches, invalid
 fill allocation descriptors, or kernel execution without launch metadata or a
-compilation target. Primitive validation uses the same core helper as CPU
-execution. The Python test hook `_backend_contract_smoke_test` proves the
-scaffold builds and links with the extension.
+compilation target. Primitive and kernel validation use the same core helpers
+that future real backends should use. The Python test hook
+`_backend_contract_smoke_test` proves the scaffold builds and links with the
+extension.
 
 ## Current Direction
 

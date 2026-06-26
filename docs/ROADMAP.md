@@ -25,10 +25,10 @@ Phase 7 is complete. Phase 8 is in progress: the backend execution ABI now
 separates primitive operations from kernel launches, carries explicit launch and
 compilation-target metadata, and has a null backend scaffold that compiles
 without Metal. CPU and null backend now use the shared primitive contract
-validator for input/output schema and fill allocation descriptors. CPU fill,
-add/multiply, unary transforms, reductions, and matmul now route through
-`CpuBackend::execute`; Metal dispatch still uses typed entry points while Phase
-8 hardening proceeds.
+validator for input/output schema and fill allocation descriptors; null backend
+also uses the shared kernel contract validator. CPU fill, add/multiply, unary
+transforms, reductions, and matmul now route through `CpuBackend::execute`;
+Metal dispatch still uses typed entry points while Phase 8 hardening proceeds.
 
 ## What works today (through Phase 7)
 
