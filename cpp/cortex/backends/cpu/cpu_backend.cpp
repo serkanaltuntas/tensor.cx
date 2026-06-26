@@ -322,6 +322,9 @@ CpuTensor from_core_tensor(const Tensor& tensor) {
   if (tensor.device.type != "cpu") {
     throw std::invalid_argument("CPU tensor metadata requires device='cpu'");
   }
+  if (tensor.device.index != 0) {
+    throw std::invalid_argument("CPU tensor metadata requires device index 0");
+  }
   if (tensor.offset != 0) {
     throw std::invalid_argument("CPU tensor metadata with non-zero offset is unsupported");
   }
@@ -573,6 +576,21 @@ Status contract_smoke_test() {
   if (Status status = expect_status_code(
           "non-CPU device",
           backend.execute(non_cpu_device),
+          StatusCode::kInvalidArgument);
+      !status.ok()) {
+    return status;
+  }
+
+  std::array<Tensor, 2> non_zero_device_index_inputs{inputs[0], inputs[1]};
+  non_zero_device_index_inputs[0].device.index = 1;
+  BackendExecution non_zero_device_index = valid_add;
+  non_zero_device_index.inputs =
+      std::span<const Tensor>(
+          non_zero_device_index_inputs.data(),
+          non_zero_device_index_inputs.size());
+  if (Status status = expect_status_code(
+          "non-zero CPU device index",
+          backend.execute(non_zero_device_index),
           StatusCode::kInvalidArgument);
       !status.ok()) {
     return status;

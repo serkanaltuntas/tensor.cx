@@ -139,6 +139,18 @@ def _normalize_shape_dim(dim) -> int:
     return int(value)
 
 
+def _normalize_axis(axis) -> int:
+    if isinstance(axis, (bool, np.bool_)):
+        raise ValueError("axis must be an integer")
+    try:
+        value = operator.index(axis)
+    except TypeError:
+        raise ValueError("axis must be an integer") from None
+    if value < -(2**63) or value > 2**63 - 1:
+        raise ValueError("axis is out of range")
+    return int(value)
+
+
 def tensor(data, dtype: str | None = None, device: str | Device | None = None) -> Tensor:
     target = _normalize_device(device)
     array = np.asarray(data)
@@ -212,19 +224,19 @@ def matmul(lhs: Tensor, rhs: Tensor, backend: str = "auto") -> Tensor:
 def sum(input: Tensor, axis: int) -> Tensor:
     if not isinstance(input, Tensor):
         raise TypeError("sum expects a Tensor argument")
-    return Tensor(_core.sum(input._impl, axis=axis))
+    return Tensor(_core.sum(input._impl, axis=_normalize_axis(axis)))
 
 
 def max(input: Tensor, axis: int) -> Tensor:
     if not isinstance(input, Tensor):
         raise TypeError("max expects a Tensor argument")
-    return Tensor(_core.max(input._impl, axis=axis))
+    return Tensor(_core.max(input._impl, axis=_normalize_axis(axis)))
 
 
 def mean(input: Tensor, axis: int) -> Tensor:
     if not isinstance(input, Tensor):
         raise TypeError("mean expects a Tensor argument")
-    return Tensor(_core.mean(input._impl, axis=axis))
+    return Tensor(_core.mean(input._impl, axis=_normalize_axis(axis)))
 
 
 def exp(input: Tensor) -> Tensor:
@@ -248,19 +260,19 @@ def silu(input: Tensor) -> Tensor:
 def softmax(input: Tensor, axis: int) -> Tensor:
     if not isinstance(input, Tensor):
         raise TypeError("softmax expects a Tensor argument")
-    return Tensor(_core.softmax(input._impl, axis=axis))
+    return Tensor(_core.softmax(input._impl, axis=_normalize_axis(axis)))
 
 
 def rmsnorm(input: Tensor, axis: int, eps: float = 1.0e-5) -> Tensor:
     if not isinstance(input, Tensor):
         raise TypeError("rmsnorm expects a Tensor argument")
-    return Tensor(_core.rmsnorm(input._impl, axis=axis, eps=eps))
+    return Tensor(_core.rmsnorm(input._impl, axis=_normalize_axis(axis), eps=eps))
 
 
 def layernorm(input: Tensor, axis: int, eps: float = 1.0e-5) -> Tensor:
     if not isinstance(input, Tensor):
         raise TypeError("layernorm expects a Tensor argument")
-    return Tensor(_core.layernorm(input._impl, axis=axis, eps=eps))
+    return Tensor(_core.layernorm(input._impl, axis=_normalize_axis(axis), eps=eps))
 
 
 def matmul_backends(device: str | Device = "cpu") -> list[str]:

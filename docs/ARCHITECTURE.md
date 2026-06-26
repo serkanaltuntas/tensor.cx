@@ -56,6 +56,11 @@ compilation-target metadata. `cpp/cortex/backends/null/` compiles against that
 interface alone and exists to prove the contract has no Metal dependency. The
 core also exposes the primitive op input/output schema that the null backend
 uses to reject malformed primitive execution requests.
+For primitive execution, `BackendExecution.outputs` are result slots that the
+backend fills with produced tensor metadata. The `BackendOpClass::kKernel` form
+is only a contract scaffold today: it is not yet the live ABI for the
+experimental generated-kernel launcher because that path still needs ordered
+tensor/scalar arguments and caller-owned output tensors.
 
 The dispatch that actually runs is now mixed while Phase 8 proceeds. CPU
 add/multiply, unary transforms, reductions, and matmul are routed through
@@ -105,6 +110,8 @@ Binary dtype mismatch             ValueError        dtype mismatch
 Matmul rank mismatch              ValueError        matmul requires rank-2
 Matmul shape mismatch             ValueError        matmul shape mismatch
 Matmul dtype mismatch             ValueError        matmul only supports float32
+Non-integer axis                  ValueError        axis must be an integer
+Axis parse overflow               ValueError        axis is out of range
 Reduction axis out of range       ValueError        reduction axis is out of range
 Max over empty axis               ValueError        max reduction requires a non-empty axis
 Float32-only op dtype mismatch    ValueError        only supports float32

@@ -62,15 +62,25 @@ place where runtime status becomes Python exceptions.
 op_class            BackendOpClass::kPrimitive or BackendOpClass::kKernel
 op                  OpDesc operation descriptor and attributes
 inputs              input tensor metadata span
-outputs             mutable output tensor metadata span
+outputs             mutable output tensor metadata/result-slot span
 launch              optional LaunchConfig, required only for kernel launches
 compilation_target  optional CompilationTarget, required only for kernel launches
 ```
 
 Primitive operations are library/runtime operations such as matmul or reductions
 that a backend may route through platform primitives. They must not carry kernel
-launch metadata. Kernel operations are project-owned static or generated kernels;
-they require an explicit launch configuration and compilation target.
+launch metadata. For primitive execution, `outputs` are result slots: callers
+may pass default-constructed `Tensor` metadata, and the backend writes the output
+metadata after allocating or producing the result buffer.
+
+`BackendOpClass::kKernel` is the Phase 8 scaffold for future project-owned
+static or generated kernel execution. It validates launch and compilation-target
+metadata, but it is not yet the live ABI for `cx.experimental` generated
+kernels. The generated DSL still uses the typed Metal launch path with ordered
+`KernelArgument` tensor/scalar values and caller-owned output tensors. Before
+generated kernels migrate to `BackendExecution`, the ABI must gain an ordered
+kernel argument channel and explicit output ownership semantics for
+caller-provided outputs.
 
 Primitive requests must match the core `primitive_op_schema`: the op kind
 defines the expected input and output tensor metadata counts. The null backend

@@ -444,6 +444,28 @@ def test_reductions_reject_invalid_axis_and_non_tensor_input():
         cx.layernorm([1, 2, 3], axis=0)
 
 
+@pytest.mark.parametrize(
+    "op",
+    [cx.sum, cx.max, cx.mean, cx.softmax, cx.rmsnorm, cx.layernorm],
+)
+@pytest.mark.parametrize(
+    ("axis", "message"),
+    [
+        (True, "axis must be an integer"),
+        (np.bool_(True), "axis must be an integer"),
+        ("1", "axis must be an integer"),
+        (1.5, "axis must be an integer"),
+        (2**80, "axis is out of range"),
+        (-(2**80), "axis is out of range"),
+    ],
+)
+def test_axis_ops_reject_invalid_axis_types_before_native_dispatch(op, axis, message):
+    x = cx.ones((2, 3), dtype=cx.float32, device="cpu")
+
+    with pytest.raises(ValueError, match=message):
+        op(x, axis=axis)
+
+
 def test_float32_only_ops_reject_int32_and_non_tensor_input():
     x = cx.tensor([1, 2, 3], dtype=cx.int32, device="cpu")
 
