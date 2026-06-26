@@ -269,6 +269,16 @@ Status CpuBackend::execute(const BackendExecution& execution) {
         execution.outputs[0] = to_core_tensor(execute_unary(execution.op, input));
         return Status::Ok();
       }
+      case OpKind::kSum:
+      case OpKind::kMax:
+      case OpKind::kMean: {
+        if (execution.inputs.size() != 1) {
+          return invalid_argument_status("CPU reduction execution requires exactly one input");
+        }
+        const CpuTensor input = from_core_tensor(execution.inputs[0]);
+        execution.outputs[0] = to_core_tensor(reduce(execution.op, input));
+        return Status::Ok();
+      }
       case OpKind::kAdd:
       case OpKind::kMultiply: {
         if (execution.inputs.size() != 2) {
@@ -420,6 +430,32 @@ Status contract_smoke_test() {
     return Status(
         StatusCode::kInternal,
         "CPU backend contract smoke test failed: softmax result");
+  }
+
+  CpuTensor reduction_input(
+      Shape{2, 3},
+      std::vector<float>{1.0F, 2.0F, 3.0F, 4.0F, 5.0F, 6.0F});
+  std::array<Tensor, 1> reduction_inputs{to_core_tensor(reduction_input)};
+  std::array<Tensor, 1> reduction_outputs{};
+  const BackendExecution valid_sum{
+      BackendOpClass::kPrimitive,
+      OpDesc{OpKind::kSum, 1},
+      std::span<const Tensor>(reduction_inputs.data(), reduction_inputs.size()),
+      std::span<Tensor>(reduction_outputs.data(), reduction_outputs.size()),
+      std::nullopt,
+      std::nullopt,
+  };
+  if (Status status =
+          expect_status_code("valid sum", backend.execute(valid_sum), StatusCode::kOk);
+      !status.ok()) {
+    return status;
+  }
+  const CpuTensor sum_result = from_core_tensor(reduction_outputs[0]);
+  if (sum_result.shape() != Shape{2} ||
+      sum_result.float_data() != std::vector<float>{6.0F, 15.0F}) {
+    return Status(
+        StatusCode::kInternal,
+        "CPU backend contract smoke test failed: sum result");
   }
 
   BackendExecution kernel_op = valid_add;

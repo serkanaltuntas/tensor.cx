@@ -114,7 +114,7 @@ extension.
 ## Current Direction
 
 Phase 8 is in progress. The backend ABI and null backend scaffold exist, and
-CPU add/multiply plus unary transforms now route through `CpuBackend::execute`
-without changing public Python behavior. CPU reductions, matmul, fill, and
-Metal dispatch still use the existing typed entry points while the interface is
-hardened.
+CPU add/multiply plus unary transforms and reductions now route through
+`CpuBackend::execute` without changing public Python behavior. CPU matmul,
+fill, and Metal dispatch still use the existing typed entry points while the
+interface is hardened.

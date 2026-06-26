@@ -319,7 +319,7 @@ CpuTensor binary_op(const CpuTensor& lhs, const CpuTensor& rhs, OpKind kind) {
   return cortex::cpu::from_core_tensor(outputs[0]);
 }
 
-CpuTensor cpu_unary_backend_op(const CpuTensor& input, const OpDesc& op) {
+CpuTensor cpu_single_input_backend_op(const CpuTensor& input, const OpDesc& op) {
   cortex::cpu::CpuBackend backend;
   std::array<cortex::Tensor, 1> inputs{
       cortex::cpu::to_core_tensor(input),
@@ -341,19 +341,19 @@ CpuTensor cpu_unary_backend_op(const CpuTensor& input, const OpDesc& op) {
 }
 
 CpuTensor unary_op(const CpuTensor& input, OpKind kind) {
-  return cpu_unary_backend_op(input, OpDesc{kind});
+  return cpu_single_input_backend_op(input, OpDesc{kind});
 }
 
 CpuTensor axis_unary_op(const CpuTensor& input, OpKind kind, std::int64_t axis) {
-  return cpu_unary_backend_op(input, OpDesc{kind, axis});
+  return cpu_single_input_backend_op(input, OpDesc{kind, axis});
 }
 
 CpuTensor norm_op(const CpuTensor& input, OpKind kind, std::int64_t axis, double epsilon) {
-  return cpu_unary_backend_op(input, OpDesc{kind, axis, epsilon});
+  return cpu_single_input_backend_op(input, OpDesc{kind, axis, epsilon});
 }
 
 CpuTensor reduction_op(const CpuTensor& input, OpKind kind, std::int64_t axis) {
-  return cortex::cpu::reduce(OpDesc{kind, axis}, input);
+  return cpu_single_input_backend_op(input, OpDesc{kind, axis});
 }
 
 CpuTensor matmul_cpu(const CpuTensor& lhs, const CpuTensor& rhs, const std::string& backend) {

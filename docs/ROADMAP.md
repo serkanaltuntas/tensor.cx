@@ -25,9 +25,9 @@ Phase 7 is complete. Phase 8 is in progress: the backend execution ABI now
 separates primitive operations from kernel launches, carries explicit launch and
 compilation-target metadata, and has a null backend scaffold that compiles
 without Metal. The null backend now validates primitive input/output schema.
-CPU add/multiply plus unary transforms now route through `CpuBackend::execute`;
-CPU reductions, matmul, fill, and Metal dispatch still use typed entry points
-while Phase 8 hardening proceeds.
+CPU add/multiply plus unary transforms and reductions now route through
+`CpuBackend::execute`; CPU matmul, fill, and Metal dispatch still use typed
+entry points while Phase 8 hardening proceeds.
 
 ## What works today (through Phase 7)
 
@@ -68,9 +68,9 @@ and AGENTS.md "Out Of Scope For Early Work".
   [`PYTORCH_PORTABILITY_ROADMAP.md`](PYTORCH_PORTABILITY_ROADMAP.md).
 - **Unified `Backend::execute` dispatch (Phase 8).** The data-driven backend
   ABI (`cpp/cortex/core/backend.h`) is defined and exercised by the null backend
-  scaffold. CPU add/multiply and unary transforms now use the ABI; CPU
-  reductions, matmul, fill, and Metal are still per-op typed entry points routed
-  by the binding. Fill remains outside `BackendExecution` until the ABI carries
+  scaffold. CPU add/multiply, unary transforms, and reductions now use the ABI;
+  CPU matmul, fill, and Metal are still per-op typed entry points routed by the
+  binding. Fill remains outside `BackendExecution` until the ABI carries
   explicit output allocation and scalar-value attributes. See
   [`ARCHITECTURE.md`](ARCHITECTURE.md) → "Dispatch today vs. the Phase 8 target".
 - **GIL release + Metal thread-safety.** v0.1 is synchronous and holds the GIL
