@@ -19,7 +19,7 @@ std::optional<PrimitiveOpSchema> primitive_op_schema(OpKind kind) {
     case OpKind::kLayerNorm:
       return PrimitiveOpSchema{1, 1};
     case OpKind::kFill:
-      return std::nullopt;
+      return PrimitiveOpSchema{0, 1};
   }
   return std::nullopt;
 }

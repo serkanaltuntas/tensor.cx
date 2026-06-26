@@ -12,6 +12,7 @@
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "cortex/backends/cpu/cpu_backend.h"
@@ -356,6 +357,35 @@ CpuTensor reduction_op(const CpuTensor& input, OpKind kind, std::int64_t axis) {
   return cpu_single_input_backend_op(input, OpDesc{kind, axis});
 }
 
+CpuTensor fill_op(Shape shape, DType dtype, double value) {
+  cortex::cpu::CpuBackend backend;
+  static_cast<void>(cortex::numel(shape));
+  const Shape strides = cortex::contiguous_strides(shape);
+  std::array<cortex::Tensor, 1> outputs{cortex::Tensor{
+      dtype,
+      std::move(shape),
+      strides,
+      cortex::Device{"cpu", 0},
+      nullptr,
+      0,
+  }};
+  OpDesc op{OpKind::kFill};
+  op.scalar_value = value;
+  const cortex::BackendExecution execution{
+      cortex::BackendOpClass::kPrimitive,
+      op,
+      std::span<const cortex::Tensor>(),
+      std::span<cortex::Tensor>(outputs.data(), outputs.size()),
+      std::nullopt,
+      std::nullopt,
+  };
+  const auto status = backend.execute(execution);
+  if (!status.ok()) {
+    throw_status(status);
+  }
+  return cortex::cpu::from_core_tensor(outputs[0]);
+}
+
 CpuTensor matmul_cpu(const CpuTensor& lhs, const CpuTensor& rhs, const std::string& backend) {
   if (backend != "auto" && backend != "cpu" && backend != "reference") {
     throw std::invalid_argument("CPU matmul only supports backend='auto', 'cpu', or 'reference'");
@@ -457,7 +487,7 @@ NB_MODULE(_core, module) {
   module.def("zeros",
              [](nb::handle shape, nb::handle dtype, const std::string& device) {
                validate_cpu_device(device);
-               return cortex::cpu::fill(parse_shape(shape), parse_dtype(dtype, DType::kFloat32), 0.0);
+               return fill_op(parse_shape(shape), parse_dtype(dtype, DType::kFloat32), 0.0);
              },
              nb::arg("shape"),
              nb::arg("dtype") = "float32",
@@ -465,7 +495,7 @@ NB_MODULE(_core, module) {
   module.def("ones",
              [](nb::handle shape, nb::handle dtype, const std::string& device) {
                validate_cpu_device(device);
-               return cortex::cpu::fill(parse_shape(shape), parse_dtype(dtype, DType::kFloat32), 1.0);
+               return fill_op(parse_shape(shape), parse_dtype(dtype, DType::kFloat32), 1.0);
              },
              nb::arg("shape"),
              nb::arg("dtype") = "float32",
@@ -475,7 +505,7 @@ NB_MODULE(_core, module) {
                const Shape parsed_shape = parse_shape(shape);
                const DType parsed_dtype = parse_dtype(dtype, DType::kFloat32);
                if (device == "cpu") {
-                 return nb::cast(cortex::cpu::fill(parsed_shape, parsed_dtype, value));
+                 return nb::cast(fill_op(parsed_shape, parsed_dtype, value));
                }
 #if CORTEX_ENABLE_METAL
                if (device == "metal") {

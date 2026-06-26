@@ -1,12 +1,48 @@
 #include "cortex/backends/null/null_backend.h"
 
 #include <array>
+#include <exception>
 #include <optional>
 #include <span>
 #include <string>
 
+#include "cortex/core/dtype.h"
+#include "cortex/core/shape.h"
+
 namespace cortex::null_backend {
 namespace {
+
+Status validate_fill_output_descriptor(const Tensor& output) {
+  if (output.device.type.empty()) {
+    return Status(
+        StatusCode::kInvalidArgument,
+        "fill output descriptor requires a device type");
+  }
+  if (output.device.index != 0) {
+    return Status(
+        StatusCode::kInvalidArgument,
+        "fill output descriptor requires device index 0");
+  }
+  if (output.offset != 0) {
+    return Status(StatusCode::kInvalidArgument, "fill output descriptor requires offset 0");
+  }
+  try {
+    static_cast<void>(numel(output.shape));
+    if (output.strides != contiguous_strides(output.shape)) {
+      return Status(
+          StatusCode::kInvalidArgument,
+          "fill output descriptor must be contiguous");
+    }
+  } catch (const std::exception& error) {
+    return Status(StatusCode::kInvalidArgument, error.what());
+  }
+  if (output.buffer) {
+    return Status(
+        StatusCode::kInvalidArgument,
+        "fill output descriptor must not include a buffer");
+  }
+  return Status::Ok();
+}
 
 Status validate_execution_contract(const BackendExecution& execution) {
   if (execution.op_class == BackendOpClass::kPrimitive) {
@@ -30,6 +66,9 @@ Status validate_execution_contract(const BackendExecution& execution) {
       return Status(
           StatusCode::kInvalidArgument,
           "primitive backend execution output count mismatch");
+    }
+    if (execution.op.kind == OpKind::kFill) {
+      return validate_fill_output_descriptor(execution.outputs[0]);
     }
     return Status::Ok();
   }
@@ -92,6 +131,15 @@ Status contract_smoke_test() {
 
   std::array<Tensor, 2> binary_inputs{};
   const std::span<const Tensor> binary_input_span(binary_inputs.data(), binary_inputs.size());
+  const Shape fill_shape{2};
+  const Tensor fill_descriptor{
+      DType::kFloat32,
+      fill_shape,
+      contiguous_strides(fill_shape),
+      Device{"null", 0},
+      nullptr,
+      0,
+  };
   std::array<Tensor, 1> outputs{};
   const std::span<Tensor> output_span(outputs.data(), outputs.size());
   const BackendExecution valid_primitive{
@@ -153,12 +201,34 @@ Status contract_smoke_test() {
     return status;
   }
 
-  BackendExecution unsupported_fill = valid_primitive;
-  unsupported_fill.op = OpDesc{OpKind::kFill};
-  unsupported_fill.inputs = {};
+  BackendExecution valid_fill = valid_primitive;
+  valid_fill.op = OpDesc{OpKind::kFill};
+  valid_fill.inputs = {};
+  outputs[0] = fill_descriptor;
   if (Status status = expect_status_code(
-          "unsupported fill primitive",
-          backend.execute(unsupported_fill),
+          "valid fill primitive",
+          backend.execute(valid_fill),
+          StatusCode::kUnavailable);
+      !status.ok()) {
+    return status;
+  }
+
+  BackendExecution fill_default_output = valid_fill;
+  outputs[0] = Tensor{};
+  if (Status status = expect_status_code(
+          "fill default output descriptor",
+          backend.execute(fill_default_output),
+          StatusCode::kInvalidArgument);
+      !status.ok()) {
+    return status;
+  }
+
+  outputs[0] = fill_descriptor;
+  BackendExecution fill_with_input = valid_fill;
+  fill_with_input.inputs = binary_input_span;
+  if (Status status = expect_status_code(
+          "fill primitive with input",
+          backend.execute(fill_with_input),
           StatusCode::kInvalidArgument);
       !status.ok()) {
     return status;

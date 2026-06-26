@@ -41,9 +41,10 @@ Python binary operations dispatch through shared native `_core.add` and
 routes add and multiply through `cpu::CpuBackend::execute`; CPU unary transforms
 `exp`/`gelu`/`silu`/`softmax`/`rmsnorm`/`layernorm` and CPU reductions
 `sum`/`max`/`mean` plus CPU matmul also route through that execution contract.
-The Metal overload still uses typed backend entry points. The early fill path is
-still explicit because constructors must choose a backend-specific native tensor
-type.
+The Metal overload still uses typed backend entry points. Fill dispatch is now
+split: CPU fill routes through `CpuBackend::execute`, while Metal fill and
+constructor-style `empty` allocation still use typed paths because they must
+choose backend-specific native tensor types.
 
 ### Dispatch today vs. the Phase 8 target
 
@@ -56,26 +57,28 @@ compilation-target metadata. `cpp/cortex/backends/null/` compiles against that
 interface alone and exists to prove the contract has no Metal dependency. The
 core also exposes the primitive op input/output schema that the null backend
 uses to reject malformed primitive execution requests.
+
 For primitive execution, `BackendExecution.outputs` are result slots that the
-backend fills with produced tensor metadata. The `BackendOpClass::kKernel` form
-is only a contract scaffold today: it is not yet the live ABI for the
-experimental generated-kernel launcher because that path still needs ordered
-tensor/scalar arguments and caller-owned output tensors.
+backend fills with produced tensor metadata. Allocation-style primitives such as
+`fill` use an output allocation descriptor and `OpDesc.scalar_value`. The
+`BackendOpClass::kKernel` form is only a contract scaffold today: it is not yet
+the live ABI for the experimental generated-kernel launcher because that path
+still needs ordered tensor/scalar arguments and caller-owned output tensors.
 
 The dispatch that actually runs is now mixed while Phase 8 proceeds. CPU
 add/multiply, unary transforms, reductions, and matmul are routed through
 `CpuBackend::execute(BackendExecution)`, which adapts existing `CpuTensor`
 values to backend-neutral `Tensor` metadata and then reuses the existing CPU
-operation implementations. CPU fill still uses a typed entry point
-(`cpu::fill`). Metal still uses typed entry points (`metal::execute_binary`,
-`metal::execute_unary`, `metal::reduce`, `metal::matmul_custom`,
-`metal::matmul_mpsgraph`, `metal::fill`). `OpDesc` is
+operation implementations. CPU fill also routes through `CpuBackend::execute`
+using an output allocation descriptor. Metal still uses typed entry points
+(`metal::execute_binary`, `metal::execute_unary`, `metal::reduce`,
+`metal::matmul_custom`, `metal::matmul_mpsgraph`, `metal::fill`). `OpDesc` is
 passed to the unary, binary, and reduction entry points (and Metal's `fill`) and
 tags the op `kind`. Phase 6 adds a minimal `axis` attribute to `OpDesc` for
 reduction entry points and axis-aware transforms such as softmax, rmsnorm, and
-layernorm, plus an `epsilon` attribute for normalization ops. Fill remains
-outside `Backend::execute` for now because the ABI does not yet carry
-backend-neutral output allocation and scalar-value attributes.
+layernorm, plus an `epsilon` attribute for normalization ops. Phase 8 adds
+`scalar_value` for fill. Constructor-style `empty` allocation remains outside
+`Backend::execute` for now.
 
 This is a deliberate, documented transition kept small per the "avoid unrelated
 refactors" rule: Phase 8 should harden the ABI first, then migrate live dispatch
@@ -87,8 +90,8 @@ without changing public Python semantics.
 - Operation dispatch is moving toward the data-driven `OpDesc` model (single
   `Backend::execute`, no per-op virtual method). The ABI is defined and backed
   by a null backend scaffold; CPU add/multiply, unary transforms, reductions,
-  and matmul have been migrated, while CPU fill and Metal dispatch still use
-  typed entry points.
+  matmul, and fill have been migrated, while Metal dispatch still uses typed
+  entry points.
 - Metal backend errors return `Status` / `Expected<T>` and are translated to
   Python exceptions at the nanobind layer.
 - Python and NumPy types stay outside `cpp/cortex/core/` and all backends.

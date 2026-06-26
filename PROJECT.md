@@ -346,11 +346,13 @@ Status execute(const BackendExecution& execution);
 ```
 
 `BackendExecution` carries the op class, `OpDesc`, input tensor metadata,
-mutable output tensor metadata, and optional launch / compilation-target
-metadata for kernel execution. `OpDesc` carries an op enum plus attributes;
-backends switch on the enum. This keeps Phase 6 (15+ ops) and Phase 8
-(primitive vs kernel ops) from becoming a rewrite. The per-op method sketch in
-§8.2 is illustrative only and must not be implemented literally.
+mutable output tensor metadata/result slots, and optional launch /
+compilation-target metadata for kernel execution. Allocation-style primitives
+such as `fill` use output metadata as an allocation descriptor. `OpDesc` carries
+an op enum plus attributes, including scalar values for primitive operations
+that need them; backends switch on the enum. This keeps Phase 6 (15+ ops) and
+Phase 8 (primitive vs kernel ops) from becoming a rewrite. The per-op method
+sketch in §8.2 is illustrative only and must not be implemented literally.
 
 **Error handling: `expected`, no exceptions across the Metal boundary.** Core
 functions return `Status` or `expected<T, Status>` (use `tl::expected` until

@@ -69,9 +69,11 @@ compilation_target  optional CompilationTarget, required only for kernel launche
 
 Primitive operations are library/runtime operations such as matmul or reductions
 that a backend may route through platform primitives. They must not carry kernel
-launch metadata. For primitive execution, `outputs` are result slots: callers
-may pass default-constructed `Tensor` metadata, and the backend writes the output
-metadata after allocating or producing the result buffer.
+launch metadata. For ordinary primitive execution, `outputs` are result slots:
+callers may pass default-constructed `Tensor` metadata, and the backend writes
+the output metadata after allocating or producing the result buffer.
+Allocation-style primitives such as `fill` use `outputs[0]` as an allocation
+descriptor: dtype, shape, device, contiguous strides, no buffer, and offset 0.
 
 `BackendOpClass::kKernel` is the Phase 8 scaffold for future project-owned
 static or generated kernel execution. It validates launch and compilation-target
@@ -85,9 +87,9 @@ caller-provided outputs.
 Primitive requests must match the core `primitive_op_schema`: the op kind
 defines the expected input and output tensor metadata counts. The null backend
 uses this schema to reject malformed requests before returning `kUnavailable`.
-`fill` and constructor-style allocation remain outside `BackendExecution` until
-the ABI has explicit backend-neutral output allocation and scalar-value
-attributes.
+CPU `fill` now routes through `BackendExecution` using `OpDesc.scalar_value` and
+an output allocation descriptor. Constructor-style `empty` allocation and Metal
+fill remain on typed paths until their ownership semantics are migrated.
 
 ### Launch Abstraction
 
@@ -124,7 +126,7 @@ extension.
 ## Current Direction
 
 Phase 8 is in progress. The backend ABI and null backend scaffold exist, and
-CPU add/multiply, unary transforms, reductions, and matmul now route through
-`CpuBackend::execute` without changing public Python behavior. CPU fill and
-Metal dispatch still use the existing typed entry points while the interface is
+CPU fill, add/multiply, unary transforms, reductions, and matmul now route
+through `CpuBackend::execute` without changing public Python behavior. Metal
+dispatch still uses the existing typed entry points while the interface is
 hardened.

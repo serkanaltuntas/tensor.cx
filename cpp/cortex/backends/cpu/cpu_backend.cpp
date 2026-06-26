@@ -47,6 +47,25 @@ void validate_binary_inputs(const CpuTensor& lhs, const CpuTensor& rhs) {
   }
 }
 
+void validate_fill_output_descriptor(const Tensor& output) {
+  if (output.device.type != "cpu") {
+    throw std::invalid_argument("CPU fill output descriptor requires device='cpu'");
+  }
+  if (output.device.index != 0) {
+    throw std::invalid_argument("CPU fill output descriptor requires device index 0");
+  }
+  if (output.offset != 0) {
+    throw std::invalid_argument("CPU fill output descriptor requires offset 0");
+  }
+  static_cast<void>(numel(output.shape));
+  if (output.strides != contiguous_strides(output.shape)) {
+    throw std::invalid_argument("CPU fill output descriptor must be contiguous");
+  }
+  if (output.buffer) {
+    throw std::invalid_argument("CPU fill output descriptor must not include a buffer");
+  }
+}
+
 Status invalid_argument_status(const char* message) {
   return Status(StatusCode::kInvalidArgument, message);
 }
@@ -256,6 +275,16 @@ Status CpuBackend::execute(const BackendExecution& execution) {
     }
 
     switch (execution.op.kind) {
+      case OpKind::kFill: {
+        if (!execution.inputs.empty()) {
+          return invalid_argument_status("CPU fill execution requires no inputs");
+        }
+        const Tensor descriptor = execution.outputs[0];
+        validate_fill_output_descriptor(descriptor);
+        execution.outputs[0] =
+            to_core_tensor(fill(descriptor.shape, descriptor.dtype, execution.op.scalar_value));
+        return Status::Ok();
+      }
       case OpKind::kExp:
       case OpKind::kGelu:
       case OpKind::kSilu:
@@ -381,6 +410,45 @@ Status contract_smoke_test() {
     return Status(
         StatusCode::kInternal,
         "CPU backend contract smoke test failed: multiply result");
+  }
+
+  const Shape fill_shape{3};
+  std::array<Tensor, 1> fill_outputs{Tensor{
+      DType::kInt32,
+      fill_shape,
+      contiguous_strides(fill_shape),
+      Device{"cpu", 0},
+      nullptr,
+      0,
+  }};
+  const BackendExecution valid_fill{
+      BackendOpClass::kPrimitive,
+      OpDesc{OpKind::kFill, 0, 1.0e-5, 7.0},
+      std::span<const Tensor>(),
+      std::span<Tensor>(fill_outputs.data(), fill_outputs.size()),
+      std::nullopt,
+      std::nullopt,
+  };
+  if (Status status =
+          expect_status_code("valid fill", backend.execute(valid_fill), StatusCode::kOk);
+      !status.ok()) {
+    return status;
+  }
+  const CpuTensor fill_result = from_core_tensor(fill_outputs[0]);
+  if (fill_result.int32_data() != std::vector<std::int32_t>{7, 7, 7}) {
+    return Status(StatusCode::kInternal, "CPU backend contract smoke test failed: fill result");
+  }
+
+  std::array<Tensor, 1> preallocated_fill_outputs{to_core_tensor(lhs)};
+  BackendExecution fill_with_preallocated_output = valid_fill;
+  fill_with_preallocated_output.outputs =
+      std::span<Tensor>(preallocated_fill_outputs.data(), preallocated_fill_outputs.size());
+  if (Status status = expect_status_code(
+          "fill with preallocated output",
+          backend.execute(fill_with_preallocated_output),
+          StatusCode::kInvalidArgument);
+      !status.ok()) {
+    return status;
   }
 
   CpuTensor unary_input(Shape{2}, std::vector<float>{0.0F, 1.0F});
@@ -559,11 +627,20 @@ Status contract_smoke_test() {
     return status;
   }
 
-  BackendExecution unsupported_op = valid_add;
-  unsupported_op.op = OpDesc{OpKind::kFill};
+  BackendExecution fill_with_input = valid_fill;
+  fill_with_input.inputs = std::span<const Tensor>(inputs.data(), 1);
+  fill_outputs[0] = Tensor{
+      DType::kFloat32,
+      fill_shape,
+      contiguous_strides(fill_shape),
+      Device{"cpu", 0},
+      nullptr,
+      0,
+  };
+  fill_with_input.outputs = std::span<Tensor>(fill_outputs.data(), fill_outputs.size());
   if (Status status = expect_status_code(
-          "unsupported op",
-          backend.execute(unsupported_op),
+          "fill with input",
+          backend.execute(fill_with_input),
           StatusCode::kInvalidArgument);
       !status.ok()) {
     return status;
