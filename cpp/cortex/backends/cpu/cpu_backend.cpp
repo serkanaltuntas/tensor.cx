@@ -289,6 +289,15 @@ Status CpuBackend::execute(const BackendExecution& execution) {
         execution.outputs[0] = to_core_tensor(execute_binary(execution.op, lhs, rhs));
         return Status::Ok();
       }
+      case OpKind::kMatmul: {
+        if (execution.inputs.size() != 2) {
+          return invalid_argument_status("CPU matmul execution requires exactly two inputs");
+        }
+        const CpuTensor lhs = from_core_tensor(execution.inputs[0]);
+        const CpuTensor rhs = from_core_tensor(execution.inputs[1]);
+        execution.outputs[0] = to_core_tensor(matmul(lhs, rhs));
+        return Status::Ok();
+      }
       default:
         return invalid_argument_status("unsupported CPU backend execution operation");
     }
@@ -458,6 +467,35 @@ Status contract_smoke_test() {
         "CPU backend contract smoke test failed: sum result");
   }
 
+  CpuTensor matmul_lhs(Shape{2, 2}, std::vector<float>{1.0F, 2.0F, 3.0F, 4.0F});
+  CpuTensor matmul_rhs(Shape{2, 2}, std::vector<float>{5.0F, 6.0F, 7.0F, 8.0F});
+  std::array<Tensor, 2> matmul_inputs{
+      to_core_tensor(matmul_lhs),
+      to_core_tensor(matmul_rhs)};
+  std::array<Tensor, 1> matmul_outputs{};
+  const BackendExecution valid_matmul{
+      BackendOpClass::kPrimitive,
+      OpDesc{OpKind::kMatmul},
+      std::span<const Tensor>(matmul_inputs.data(), matmul_inputs.size()),
+      std::span<Tensor>(matmul_outputs.data(), matmul_outputs.size()),
+      std::nullopt,
+      std::nullopt,
+  };
+  if (Status status = expect_status_code(
+          "valid matmul",
+          backend.execute(valid_matmul),
+          StatusCode::kOk);
+      !status.ok()) {
+    return status;
+  }
+  const CpuTensor matmul_result = from_core_tensor(matmul_outputs[0]);
+  if (matmul_result.shape() != Shape{2, 2} ||
+      matmul_result.float_data() != std::vector<float>{19.0F, 22.0F, 43.0F, 50.0F}) {
+    return Status(
+        StatusCode::kInternal,
+        "CPU backend contract smoke test failed: matmul result");
+  }
+
   BackendExecution kernel_op = valid_add;
   kernel_op.op_class = BackendOpClass::kKernel;
   if (Status status =
@@ -519,7 +557,7 @@ Status contract_smoke_test() {
   }
 
   BackendExecution unsupported_op = valid_add;
-  unsupported_op.op = OpDesc{OpKind::kMatmul};
+  unsupported_op.op = OpDesc{OpKind::kFill};
   if (Status status = expect_status_code(
           "unsupported op",
           backend.execute(unsupported_op),

@@ -360,7 +360,7 @@ CpuTensor matmul_cpu(const CpuTensor& lhs, const CpuTensor& rhs, const std::stri
   if (backend != "auto" && backend != "cpu" && backend != "reference") {
     throw std::invalid_argument("CPU matmul only supports backend='auto', 'cpu', or 'reference'");
   }
-  return cortex::cpu::matmul(lhs, rhs);
+  return binary_op(lhs, rhs, OpKind::kMatmul);
 }
 
 #if CORTEX_ENABLE_METAL

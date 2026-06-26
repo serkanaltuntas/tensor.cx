@@ -40,9 +40,10 @@ Python binary operations dispatch through shared native `_core.add` and
 `_core.multiply` entrypoints with CPU and Metal overloads. The CPU overload now
 routes add and multiply through `cpu::CpuBackend::execute`; CPU unary transforms
 `exp`/`gelu`/`silu`/`softmax`/`rmsnorm`/`layernorm` and CPU reductions
-`sum`/`max`/`mean` also route through that execution contract. The Metal
-overload still uses typed backend entry points. The early fill path is still
-explicit because constructors must choose a backend-specific native tensor type.
+`sum`/`max`/`mean` plus CPU matmul also route through that execution contract.
+The Metal overload still uses typed backend entry points. The early fill path is
+still explicit because constructors must choose a backend-specific native tensor
+type.
 
 ### Dispatch today vs. the Phase 8 target
 
@@ -57,13 +58,13 @@ core also exposes the primitive op input/output schema that the null backend
 uses to reject malformed primitive execution requests.
 
 The dispatch that actually runs is now mixed while Phase 8 proceeds. CPU
-add/multiply, unary transforms, and reductions are routed through
+add/multiply, unary transforms, reductions, and matmul are routed through
 `CpuBackend::execute(BackendExecution)`, which adapts existing `CpuTensor`
 values to backend-neutral `Tensor` metadata and then reuses the existing CPU
-operation implementations. CPU matmul and fill still use typed entry points
-(`cpu::matmul`, `cpu::fill`). Metal still uses typed entry points
-(`metal::execute_binary`, `metal::execute_unary`, `metal::reduce`,
-`metal::matmul_custom`, `metal::matmul_mpsgraph`, `metal::fill`). `OpDesc` is
+operation implementations. CPU fill still uses a typed entry point
+(`cpu::fill`). Metal still uses typed entry points (`metal::execute_binary`,
+`metal::execute_unary`, `metal::reduce`, `metal::matmul_custom`,
+`metal::matmul_mpsgraph`, `metal::fill`). `OpDesc` is
 passed to the unary, binary, and reduction entry points (and Metal's `fill`) and
 tags the op `kind`. Phase 6 adds a minimal `axis` attribute to `OpDesc` for
 reduction entry points and axis-aware transforms such as softmax, rmsnorm, and
@@ -80,9 +81,9 @@ without changing public Python semantics.
 - CPU reference behavior is mandatory for every future GPU operation.
 - Operation dispatch is moving toward the data-driven `OpDesc` model (single
   `Backend::execute`, no per-op virtual method). The ABI is defined and backed
-  by a null backend scaffold; CPU add/multiply, unary transforms, and reductions
-  have been migrated, while CPU matmul/fill and Metal dispatch still use typed
-  entry points.
+  by a null backend scaffold; CPU add/multiply, unary transforms, reductions,
+  and matmul have been migrated, while CPU fill and Metal dispatch still use
+  typed entry points.
 - Metal backend errors return `Status` / `Expected<T>` and are translated to
   Python exceptions at the nanobind layer.
 - Python and NumPy types stay outside `cpp/cortex/core/` and all backends.
