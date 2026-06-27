@@ -105,12 +105,13 @@ primitive/kernel contract validators, and null backend scaffold exist, and CPU
 fill, add/multiply, unary transforms, reductions, and matmul route through
 `CpuBackend::execute`. Metal dispatch still uses typed paths. Phase 9 has not
 started; it requires a CUDA hardware or cloud development environment decision
-first. Phase 5 provides CPU reference matmul, a correctness-first custom Metal
-matmul kernel, and an optimized Metal primitive path. Phase 6 adds `sum`, `max`,
-`mean`, `exp`, `gelu`, `silu`, `softmax`, `rmsnorm`, and `layernorm` on CPU and
-Metal. The custom matmul kernel remains available through `cx.matmul(a, b, backend="custom")`;
-`backend="optimized"` uses the Apple optimized primitive path when it is
-enabled.
+first. The Phase 9 decision gate is documented in
+`docs/CUDA_PHASE9_ENVIRONMENT.md`. Phase 5 provides CPU reference matmul, a
+correctness-first custom Metal matmul kernel, and an optimized Metal primitive
+path. Phase 6 adds `sum`, `max`, `mean`, `exp`, `gelu`, `silu`, `softmax`,
+`rmsnorm`, and `layernorm` on CPU and Metal. The custom matmul kernel remains
+available through `cx.matmul(a, b, backend="custom")`; `backend="optimized"`
+uses the Apple optimized primitive path when it is enabled.
 
 ```python
 import cortex_runtime as cx

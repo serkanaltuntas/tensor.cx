@@ -259,10 +259,11 @@ Phase 9   CUDA prototype — not started (environment decision required)
 ```
 
 Do not start CUDA implementation until the Phase 9 development environment is
-chosen and documented. Only move to ROCm, Vulkan, MLIR, or broad compiler work
-after the earlier phases are working and tested. Experimental DSL work must stay under
-`cx.experimental`, preserve the Phase 6 correctness contracts, and keep CPU
-references mandatory for generated or DSL-routed kernels.
+chosen and documented using `docs/CUDA_PHASE9_ENVIRONMENT.md`. Only move to
+ROCm, Vulkan, MLIR, or broad compiler work after the earlier phases are working
+and tested. Experimental DSL work must stay under `cx.experimental`, preserve
+the Phase 6 correctness contracts, and keep CPU references mandatory for
+generated or DSL-routed kernels.
 
 ## Architecture Rules
 

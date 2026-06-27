@@ -73,7 +73,9 @@ and AGENTS.md "Out Of Scope For Early Work".
   custom-op bridge before considering a full PyTorch / ATen backend. See
   [`PYTORCH_PORTABILITY_ROADMAP.md`](PYTORCH_PORTABILITY_ROADMAP.md).
 - **CUDA environment for Phase 9.** The next phase needs a CUDA-capable local or
-  cloud development environment before implementation starts.
+  cloud development environment before implementation starts. The decision gate
+  and validation checklist are documented in
+  [`CUDA_PHASE9_ENVIRONMENT.md`](CUDA_PHASE9_ENVIRONMENT.md).
 - **Metal dispatch migration.** The Phase 8 ABI is defined and exercised by CPU
   and the null backend, but Metal is still routed through per-op typed entry
   points. See [`ARCHITECTURE.md`](ARCHITECTURE.md) → "Dispatch after Phase 8".

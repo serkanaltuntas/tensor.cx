@@ -36,14 +36,14 @@ C++ namespace: cortex
 
 > Update this block at the end of every phase. It is the single source of truth
 > for "where are we." A phase is only `done` when its acceptance criteria pass in
-> CI (CPU) or on the local Mac (Metal).
+> CI (CPU), on the local Mac (Metal), or on the selected CUDA host (CUDA phases).
 
 ```text
 Current phase:          Phase 9 — not started (CUDA prototype; CUDA environment decision required)
 Last verified milestone: Phase 8 — Backend interface hardening
 v0.1 target:            achieved at end of Phase 3
 Binding decided:        nanobind (see §5.6)
-Open decisions:         Phase 9 CUDA hardware/cloud development environment
+Open decisions:         Phase 9 CUDA hardware/cloud development environment (decision gate documented)
 ```
 
 Phase checklist:
@@ -1479,8 +1479,8 @@ Definition of Done:
   match the CPU reference.
 - The SAME pytest test body runs against both metal and cuda (parametrized),
   proving API parity.
-- Requires CUDA hardware/cloud access — that environment is documented before the
-  phase starts (see §2 review note on hardware procurement).
+- Requires CUDA hardware/cloud access — that environment is selected and
+  validated using `docs/CUDA_PHASE9_ENVIRONMENT.md` before implementation starts.
 ```
 
 ---

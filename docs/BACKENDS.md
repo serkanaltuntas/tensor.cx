@@ -140,4 +140,5 @@ Phase 8 is complete. The backend ABI and null backend scaffold exist, and CPU
 fill, add/multiply, unary transforms, reductions, and matmul route through
 `CpuBackend::execute` without changing public Python behavior. Metal dispatch
 still uses the existing typed entry points. Phase 9 has not started and requires
-a CUDA hardware or cloud development environment decision before implementation.
+a CUDA hardware or cloud development environment decision before implementation;
+see [`CUDA_PHASE9_ENVIRONMENT.md`](CUDA_PHASE9_ENVIRONMENT.md).
