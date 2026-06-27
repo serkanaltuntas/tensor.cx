@@ -107,6 +107,30 @@ class Tensor:
         return layernorm(self, axis=axis, eps=eps)
 
 
+def _validate_creation_device(target: str) -> None:
+    if target == "cpu":
+        return
+    if target == "metal":
+        if not _core.is_available("metal"):
+            raise ValueError("Metal is not available on this system")
+        return
+    raise ValueError(f"device is not available: {target}")
+
+
+def _contains_bool_data(data) -> bool:
+    if isinstance(data, (bool, np.bool_)):
+        return True
+    if isinstance(data, np.ndarray):
+        if data.dtype.kind == "b":
+            return True
+        if data.dtype.kind == "O":
+            return any(_contains_bool_data(item) for item in data.flat)
+        return False
+    if isinstance(data, (list, tuple)):
+        return any(_contains_bool_data(item) for item in data)
+    return False
+
+
 def _normalize_shape(shape) -> tuple[int, ...]:
     try:
         return (_normalize_shape_dim(shape),)
@@ -153,6 +177,9 @@ def _normalize_axis(axis) -> int:
 
 def tensor(data, dtype: str | None = None, device: str | Device | None = None) -> Tensor:
     target = _normalize_device(device)
+    _validate_creation_device(target)
+    if _contains_bool_data(data):
+        raise ValueError("bool tensor data is not supported")
     array = np.asarray(data)
     if array.ndim == 1:
         cpu_tensor = Tensor(_core.tensor(array.reshape(-1).tolist(), dtype=dtype, device="cpu"))
@@ -176,15 +203,15 @@ def tensor(data, dtype: str | None = None, device: str | Device | None = None) -
 
 def empty(shape, dtype: str = "float32", device: str | Device = "cpu") -> Tensor:
     target = _normalize_device(device)
+    _validate_creation_device(target)
     cpu_tensor = Tensor(_core.empty(shape, dtype=dtype, device="cpu"))
     return cpu_tensor if target == "cpu" else cpu_tensor.to(target)
 
 
 def zeros(shape, dtype: str = "float32", device: str | Device = "cpu") -> Tensor:
     target = _normalize_device(device)
+    _validate_creation_device(target)
     if target == "metal" and hasattr(_core, "fill"):
-        if not _core.is_available("metal"):
-            raise ValueError("Metal is not available on this system")
         return Tensor(_core.fill(shape, dtype=dtype, value=0.0, device=target))
     cpu_tensor = Tensor(_core.zeros(shape, dtype=dtype, device="cpu"))
     return cpu_tensor if target == "cpu" else cpu_tensor.to(target)
@@ -192,9 +219,8 @@ def zeros(shape, dtype: str = "float32", device: str | Device = "cpu") -> Tensor
 
 def ones(shape, dtype: str = "float32", device: str | Device = "cpu") -> Tensor:
     target = _normalize_device(device)
+    _validate_creation_device(target)
     if target == "metal" and hasattr(_core, "fill"):
-        if not _core.is_available("metal"):
-            raise ValueError("Metal is not available on this system")
         return Tensor(_core.fill(shape, dtype=dtype, value=1.0, device=target))
     cpu_tensor = Tensor(_core.ones(shape, dtype=dtype, device="cpu"))
     return cpu_tensor if target == "cpu" else cpu_tensor.to(target)

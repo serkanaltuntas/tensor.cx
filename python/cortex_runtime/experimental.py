@@ -1130,7 +1130,9 @@ def _emit_msl_call(call: IRCall) -> str:
 
 def _infer_msl_type(expression: IRExpression, context: dict[str, str]) -> str:
     if isinstance(expression, IRConstant):
-        return "float" if isinstance(expression.value, float) else "uint"
+        if isinstance(expression.value, float):
+            return "float"
+        return "int" if expression.value < 0 else "uint"
     if isinstance(expression, IRCall):
         return "uint"
     if isinstance(expression, IRLoad):
@@ -1144,6 +1146,8 @@ def _infer_msl_type(expression: IRExpression, context: dict[str, str]) -> str:
         rhs_type = _infer_msl_type(expression.rhs, context)
         if "float" in {lhs_type, rhs_type}:
             return "float"
+        if "int" in {lhs_type, rhs_type}:
+            return "int"
         return "uint"
     raise TypeError(f"unhandled IR expression: {type(expression).__name__}")
 

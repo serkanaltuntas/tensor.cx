@@ -73,7 +73,7 @@ Python API
 C++20 core runtime
 Metal-cpp/C++ Apple Metal bridge
 MSL custom kernels
-nanobind or pybind11 Python binding
+nanobind Python binding
 uv Python package/environment manager
 future CUDA/ROCm/MLIR integration
 ```
@@ -120,7 +120,7 @@ Primitive tensor graph API: MPSGraph
 Kernel language: Metal Shading Language
 Python: 3.11 or newer
 Build: CMake + scikit-build-core
-Binding: nanobind or pybind11
+Binding: nanobind
 ```
 
 The 2013 Mac Pro / FirePro D700 is not the primary development target. It may be used later for legacy Metal experiments, but the first implementation should target Apple Silicon for faster development, better tooling, and a more realistic current Apple GPU environment.
@@ -334,8 +334,7 @@ phase. Code written in Phases 1–3 must already obey them.
 
 **Python binding: nanobind (decided).** Smaller, faster, better error messages,
 and a native `nb::ndarray` for the NumPy bridge. pybind11 is no longer an
-accepted alternative. Treat every other "nanobind or pybind11" mention in this
-document as resolved to nanobind.
+accepted alternative for new binding code.
 
 **Operation dispatch: data-driven, not one virtual method per op.** The
 `Backend` interface must NOT grow a method per operation (`add`, `multiply`,
@@ -401,7 +400,8 @@ not a style nit.
 1. Every GPU op has a CPU reference + a CPU-vs-device test before it is "done."
 2. No Apple/Metal type appears outside cpp/cortex/backends/metal/.
 3. No NumPy/Python type appears in cpp/cortex/core/ or any backend.
-4. The core never names a concrete backend; selection is via registry + string.
+4. The core never names a concrete backend; live public selection must move to
+   registry/string-keyed routing before adding CUDA dispatch.
 5. Every Metal handle is RAII-wrapped; no manual retain/release calls.
 6. Adding an op = OpDesc enum entry + CPU backend impl + test, in that order.
 7. A public Python API change ships with its doc + test update in the same change.
@@ -474,97 +474,59 @@ The first version must prove that the project structure, bindings, runtime abstr
 
 ## 7. Repository Structure
 
-Recommended initial repository layout:
+Current repository layout:
 
 ```text
-runtime/
-  README.md
-  pyproject.toml
-  CMakeLists.txt
+README.md
+PROJECT.md
+AGENTS.md
+CLAUDE.md
+pyproject.toml
+CMakeLists.txt
 
-  python/
-    runtime/
-      __init__.py
-      device.py
-      tensor.py
-      ops.py
-      testing.py
+python/cortex_runtime/
+  __init__.py
+  device.py
+  tensor.py
+  experimental.py
+  testing.py
 
-  cpp/
-    runtime/
-      core/
-        dtype.h
-        shape.h
-        tensor.h
-        buffer.h
-        device.h
-        backend.h
-        operation.h
-        status.h
+cpp/cortex/core/
+  backend.h/.cpp
+  buffer.h
+  device.h
+  dtype.h/.cpp
+  expected.h
+  operation.h/.cpp
+  shape.h/.cpp
+  status.h/.cpp
+  tensor.h
 
-        dtype.cpp
-        shape.cpp
-        tensor.cpp
-        buffer.cpp
-        device.cpp
-        backend.cpp
+cpp/cortex/backends/
+  cpu/
+  metal/
+    kernels/elementwise.metal
+  null/
 
-      backends/
-        cpu/
-          cpu_backend.h
-          cpu_backend.cpp
-          cpu_ops.cpp
-
-        metal/
-          metal_backend.h
-          metal_backend.cpp
-          metal_device.h
-          metal_device.cpp
-          metal_buffer.h
-          metal_buffer.cpp
-          metal_ops.h
-          metal_ops.cpp
-          mpsgraph_ops.h
-          mpsgraph_ops.cpp
-          kernels/
-            elementwise.metal
-            fill.metal
-
-  bindings/
-    python_module.cpp
-
-  tests/
-    python/
-      test_tensor_cpu.py
-      test_tensor_metal.py
-      test_elementwise.py
-      test_copy.py
-
-    cpp/
-      test_shape.cpp
-      test_dtype.cpp
-
-  benchmarks/
-    bench_elementwise.py
-    bench_copy.py
-
-  docs/
-    ARCHITECTURE.md
-    ROADMAP.md
-    BACKENDS.md
-    METAL_BACKEND.md
+bindings/python_module.cpp
+tests/python/
+tests/cpp/
+benchmarks/
+docs/
+cmake/
+.github/workflows/
 ```
 
 The exact file structure can evolve, but the conceptual separation must remain:
 
 ```text
-python/      user-facing API
-cpp/core/    backend-neutral runtime
-cpp/backends backend-specific implementations
-bindings/    Python/C++ bridge
-tests/       correctness validation
-benchmarks/  performance checks
-docs/        architecture and development notes
+python/cortex_runtime/       user-facing API
+cpp/cortex/core/             backend-neutral runtime
+cpp/cortex/backends/         backend-specific implementations
+bindings/                    Python/C++ bridge
+tests/                       correctness validation
+benchmarks/                  performance checks
+docs/                        architecture and development notes
 ```
 
 ---
@@ -851,7 +813,7 @@ Use:
 pyproject.toml
 scikit-build-core
 CMake
-nanobind or pybind11
+nanobind
 uv
 ```
 
@@ -924,12 +886,13 @@ overrides them):
 float32 elementwise:     rtol=1e-6, atol=1e-6
 float32 reductions/sum:  rtol=1e-5, atol=1e-5   (accumulation order differs)
 float32 matmul:          rtol=1e-4, atol=1e-4   (FMA + tiling differences)
-int32 / bool:            exact equality
+int32:                   exact equality
 ```
 
 Reductions and matmul are looser on purpose: GPU and CPU accumulate in different
 orders, so bit-exact equality is the wrong test. Exact equality is required only
-for integer and boolean ops.
+for integer ops. Boolean tensors are not currently exposed; if added later, they
+should use exact equality.
 
 Example:
 
@@ -1458,6 +1421,7 @@ PTX or CUDA C generated/compiled kernels
 Initial CUDA operations:
 
 ```text
+backend registry/routing for public dispatch
 device discovery
 buffer allocation
 copy
@@ -1475,6 +1439,8 @@ The same Python code works on device="metal" and device="cuda" for simple elemen
 Definition of Done:
 
 ```text
+- CUDA is added through registry/string-keyed dispatch, not as another ad hoc
+  CPU/Metal branch in Python or bindings.
 - device discovery, buffer copy, add/mul/fill _f32 work on device="cuda" and
   match the CPU reference.
 - The SAME pytest test body runs against both metal and cuda (parametrized),
@@ -1604,7 +1570,7 @@ Make `import cortex_runtime` work.
 
 ### Task 2 — Add C++ extension binding
 
-Use nanobind or pybind11 to expose:
+Use nanobind to expose:
 
 ```python
 cortex_runtime._core.version()
@@ -1805,7 +1771,7 @@ Apple bridge: Metal-cpp/C++ preferred
 Primitive path: MPSGraph later
 Custom kernel path: MSL
 Core: C++20
-Python binding: nanobind or pybind11
+Python binding: nanobind
 Build: CMake + scikit-build-core
 ```
 

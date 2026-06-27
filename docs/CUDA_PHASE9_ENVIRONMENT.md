@@ -129,11 +129,16 @@ uv venv
 source .venv/bin/activate
 uv pip install -e ".[dev]"
 uv run pytest
+NANOBIND_DIR="$(uv run python -c 'import nanobind; print(nanobind.cmake_dir())')"
+PYTHON_EXECUTABLE="$(uv run python -c 'import sys; print(sys.executable)')"
+cmake -S . -B build/cpp-tests -DCORTEX_ENABLE_METAL=OFF -DCORTEX_BUILD_TESTS=ON -Dnanobind_DIR="${NANOBIND_DIR}" -DPython_EXECUTABLE="${PYTHON_EXECUTABLE}"
+cmake --build build/cpp-tests --target cortex_backend_contract_tests
+ctest --test-dir build/cpp-tests --output-on-failure
 ```
 
-The current CPU test suite must pass on the CUDA host before new CUDA backend
-work starts. If Metal is unavailable on the CUDA host, Metal tests must skip
-cleanly rather than fail.
+The current Python CPU test suite and C++ backend contract test must pass on the
+CUDA host before new CUDA backend work starts. If Metal is unavailable on the
+CUDA host, Metal tests must skip cleanly rather than fail.
 
 ## Phase 9 Entry Criteria
 
@@ -146,7 +151,10 @@ Phase 9 implementation may begin only after:
 3. `uv pip install -e ".[dev]"` succeeds on the CUDA host.
 4. `uv run pytest` succeeds on the CUDA host, with unavailable Metal tests skipped.
 5. The selected CUDA compilation path is validated and recorded.
-6. The first CUDA backend task is scoped to discovery/allocation/copy before kernels.
+6. The C++ backend contract CTest command succeeds on the CUDA host.
+7. Public backend registry/routing is the first implementation task; the first
+   CUDA backend-specific task after that is scoped to discovery/allocation/copy
+   before kernels.
 ```
 
 ## First CUDA Backend Slice
@@ -154,14 +162,15 @@ Phase 9 implementation may begin only after:
 Once the environment is ready, implement CUDA in this order:
 
 ```text
-1. Add CUDA backend scaffold under cpp/cortex/backends/cuda/.
-2. Register cuda only when the CUDA runtime is available.
-3. Implement device discovery.
-4. Implement buffer allocation and host<->device copies.
-5. Add Tensor.to("cuda") and Tensor.cpu() round-trip tests.
-6. Add fill_f32.
-7. Add add_f32 and mul_f32.
-8. Parametrize the existing CPU/Metal tests so the same Python test body covers cuda.
+1. Add or finish a small backend registry/string-keyed routing layer for public dispatch.
+2. Add CUDA backend scaffold under cpp/cortex/backends/cuda/.
+3. Register cuda only when the CUDA runtime is available.
+4. Implement device discovery.
+5. Implement buffer allocation and host<->device copies.
+6. Add Tensor.to("cuda") and Tensor.cpu() round-trip tests.
+7. Add fill_f32.
+8. Add add_f32 and mul_f32.
+9. Parametrize the existing CPU/Metal tests so the same Python test body covers cuda.
 ```
 
 The CUDA backend must use the Phase 8 backend ABI and shared contract validators
@@ -173,6 +182,8 @@ Phase 9 is complete only when:
 
 ```text
 - device discovery works for device="cuda"
+- CUDA is routed through registry/string-keyed public dispatch, not as a third
+  ad hoc CPU/Metal branch
 - CPU -> CUDA -> CPU copy round-trips pass
 - fill_f32, add_f32, and mul_f32 work on CUDA
 - CUDA results match CPU references

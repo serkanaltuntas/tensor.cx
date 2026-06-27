@@ -3,6 +3,8 @@
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
 
+#include <cstdint>
+
 #include "cortex/backends/metal/metal_buffer.h"
 #include "cortex/backends/metal/metal_context.h"
 #include "cortex/backends/metal/metal_dispatch_data.h"
@@ -198,8 +200,9 @@ Expected<std::string> launch_library_function(
     }
   }
 
-  const auto threadgroups =
-      (thread_count + threads_per_threadgroup - 1) / threads_per_threadgroup;
+  const std::uint64_t threadgroups =
+      (static_cast<std::uint64_t>(thread_count) + threads_per_threadgroup - 1) /
+      threads_per_threadgroup;
   encoder->dispatchThreadgroups(
       MTL::Size::Make(threadgroups, 1, 1),
       MTL::Size::Make(threads_per_threadgroup, 1, 1));

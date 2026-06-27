@@ -12,6 +12,7 @@
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -45,6 +46,18 @@ using cortex::OpDesc;
 using cortex::OpKind;
 using cortex::Shape;
 using cortex::cpu::CpuTensor;
+
+bool is_bool_like(nb::handle item) {
+  if (PyBool_Check(item.ptr())) {
+    return true;
+  }
+  const PyTypeObject* type = Py_TYPE(item.ptr());
+  if (type == nullptr || type->tp_name == nullptr) {
+    return false;
+  }
+  const std::string_view type_name(type->tp_name);
+  return type_name == "numpy.bool" || type_name == "numpy.bool_";
+}
 
 DType parse_dtype(nb::handle dtype, DType inferred) {
   if (dtype.is_none()) {
@@ -100,6 +113,9 @@ void validate_cpu_device(const std::string& device) {
 // int32 range. Translate that into a clear ValueError matching the error
 // taxonomy instead of leaking an opaque "std::bad_cast".
 std::int32_t cast_int32_or_throw(nb::handle item) {
+  if (is_bool_like(item)) {
+    throw std::invalid_argument("bool tensor data is not supported");
+  }
   try {
     return nb::cast<std::int32_t>(item);
   } catch (const std::exception&) {
@@ -108,6 +124,9 @@ std::int32_t cast_int32_or_throw(nb::handle item) {
 }
 
 float cast_float32_or_throw(nb::handle item) {
+  if (is_bool_like(item)) {
+    throw std::invalid_argument("bool tensor data is not supported");
+  }
   try {
     return nb::cast<float>(item);
   } catch (const std::exception&) {

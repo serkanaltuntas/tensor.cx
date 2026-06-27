@@ -265,6 +265,11 @@ and tested. Experimental DSL work must stay under `cx.experimental`, preserve
 the Phase 6 correctness contracts, and keep CPU references mandatory for
 generated or DSL-routed kernels.
 
+Before adding CUDA public dispatch, replace the current CPU/Metal Python and
+binding selection branches with a small backend registry/routing layer or an
+equivalent string-keyed mechanism. CUDA must not be added as a third ad hoc
+branch.
+
 ## Architecture Rules
 
 The C++ core must be backend-neutral. Do not expose Metal, MPSGraph, CUDA, ROCm,
@@ -395,7 +400,8 @@ Check these before finishing any non-trivial change:
 1. Every GPU op has a CPU reference and a CPU-vs-device test.
 2. No Apple/Metal type appears outside cpp/cortex/backends/metal/.
 3. No NumPy/Python type appears in cpp/cortex/core/ or any backend.
-4. The core never names a concrete backend; selection is via registry + string.
+4. The core never names a concrete backend; live public selection must move to
+   registry/string-keyed routing before adding CUDA dispatch.
 5. Every Metal handle is RAII-wrapped; no manual retain/release calls.
 6. Adding an op = OpDesc enum entry + CPU backend impl + test, in that order.
 7. A public Python API change ships with docs and tests in the same change.
@@ -423,11 +429,13 @@ Default tolerances for `cx.testing.assert_allclose`, unless an op overrides them
 float32 elementwise:    rtol=1e-6, atol=1e-6
 float32 reductions/sum: rtol=1e-5, atol=1e-5   (accumulation order differs)
 float32 matmul:         rtol=1e-4, atol=1e-4   (FMA + tiling differences)
-int32 / bool:           exact equality
+int32:                  exact equality
 ```
 
 Looser tolerances for reductions/matmul are intentional — GPU and CPU accumulate
-in different orders. Bit-exact equality is only correct for integer/bool ops.
+in different orders. Bit-exact equality is correct for integer ops. Boolean
+tensors are not currently exposed; if added later, they should use exact
+equality.
 
 Run the most relevant test command before finishing a task. Typical commands:
 
@@ -437,11 +445,19 @@ source .venv/bin/activate
 uv pip install -e ".[dev]"
 
 uv run pytest                                  # full suite
-uv run pytest tests/python/test_elementwise.py # single file
-uv run pytest -k add_metal_matches_cpu         # single test by name
+uv run pytest tests/python/test_tensor_cpu.py  # single file
+uv run pytest -k backend_contract              # focused test selection
 ```
 
-When C++ tests exist, run them as part of changes touching `cpp/`.
+When C++ tests are relevant, run them as part of changes touching `cpp/`:
+
+```bash
+NANOBIND_DIR="$(uv run python -c 'import nanobind; print(nanobind.cmake_dir())')"
+PYTHON_EXECUTABLE="$(uv run python -c 'import sys; print(sys.executable)')"
+cmake -S . -B build/cpp-tests -DCORTEX_ENABLE_METAL=OFF -DCORTEX_BUILD_TESTS=ON -Dnanobind_DIR="${NANOBIND_DIR}" -DPython_EXECUTABLE="${PYTHON_EXECUTABLE}"
+cmake --build build/cpp-tests --target cortex_backend_contract_tests
+ctest --test-dir build/cpp-tests --output-on-failure
+```
 
 ## Benchmarking Rules
 

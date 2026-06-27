@@ -50,8 +50,9 @@ uv run python benchmarks/bench_copy.py
 uv run python benchmarks/bench_matmul.py
 ```
 
-The benchmark scripts use the Phase 4 benchmark sizes by default: 1K, 16K,
-256K, 1M, and 16M float32 elements.
+The copy and elementwise benchmarks use the Phase 4 element-count sizes by
+default: 1K, 16K, 256K, 1M, and 16M float32 elements. The matmul benchmark uses
+matrix triplets such as `16x16x16`, `32x64x16`, and `64x64x64`.
 
 A local Apple Silicon sample run is committed at
 `benchmarks/sample_phase4_apple_silicon.txt`. The Phase 5 matmul sample is at
@@ -64,7 +65,16 @@ CPU-only CI runs on GitHub Actions with Metal disabled:
 ```bash
 CMAKE_ARGS="-DCORTEX_ENABLE_METAL=OFF" uv pip install -e ".[dev]"
 uv run pytest
+NANOBIND_DIR="$(uv run python -c 'import nanobind; print(nanobind.cmake_dir())')"
+PYTHON_EXECUTABLE="$(uv run python -c 'import sys; print(sys.executable)')"
+cmake -S . -B build/cpp-tests -DCORTEX_ENABLE_METAL=OFF -DCORTEX_BUILD_TESTS=ON -Dnanobind_DIR="${NANOBIND_DIR}" -DPython_EXECUTABLE="${PYTHON_EXECUTABLE}"
+cmake --build build/cpp-tests --target cortex_backend_contract_tests
+ctest --test-dir build/cpp-tests --output-on-failure
 ```
+
+GitHub Actions also runs macOS Metal-on build jobs with MPSGraph enabled and
+disabled. Hosted runners may still skip runtime Metal tests when a usable Metal
+device is unavailable, but those jobs catch Apple framework compile/link breaks.
 
 Local Metal verification should be run on Apple Silicon macOS:
 

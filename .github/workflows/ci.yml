@@ -31,6 +31,21 @@ jobs:
       - name: Run CPU tests
         run: uv run pytest
 
+      - name: Configure C++ tests
+        run: |
+          NANOBIND_DIR="$(uv run python -c 'import nanobind; print(nanobind.cmake_dir())')"
+          PYTHON_EXECUTABLE="$(uv run python -c 'import sys; print(sys.executable)')"
+          cmake -S . -B build/cpp-tests \
+            -DCORTEX_ENABLE_METAL=OFF \
+            -DCORTEX_BUILD_TESTS=ON \
+            -Dnanobind_DIR="${NANOBIND_DIR}" \
+            -DPython_EXECUTABLE="${PYTHON_EXECUTABLE}"
+
+      - name: Run C++ tests
+        run: |
+          cmake --build build/cpp-tests --target cortex_backend_contract_tests
+          ctest --test-dir build/cpp-tests --output-on-failure
+
   macos-metal:
     name: macOS build (${{ matrix.variant }})
     runs-on: macos-latest

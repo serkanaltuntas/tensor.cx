@@ -141,6 +141,34 @@ def test_experimental_kernel_emit_msl_requires_output_store():
         bad_kernel.emit_msl()
 
 
+def test_experimental_kernel_emit_msl_keeps_negative_integer_locals_signed():
+    @cx.experimental.kernel
+    def signed_kernel(out, n):
+        i = cx.experimental.program_id(0)
+        value = -1
+        if i < n:
+            out[i] = value
+
+    emitted = signed_kernel.emit_msl()
+
+    assert "int value = -1;" in emitted
+    assert "uint value = -1;" not in emitted
+
+
+def test_experimental_kernel_emit_msl_keeps_negative_integer_expressions_signed():
+    @cx.experimental.kernel
+    def signed_kernel(out, n):
+        i = cx.experimental.program_id(0)
+        value = -1 + 0
+        if i < n:
+            out[i] = value
+
+    emitted = signed_kernel.emit_msl()
+
+    assert "int value = (-1 + 0);" in emitted
+    assert "uint value = (-1 + 0);" not in emitted
+
+
 def test_experimental_kernel_compile_reports_missing_xcrun(monkeypatch):
     @cx.experimental.kernel
     def add_kernel(a, b, out, n):

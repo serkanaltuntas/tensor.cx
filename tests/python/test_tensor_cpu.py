@@ -561,8 +561,50 @@ def test_matmul_cpu_rejects_invalid_inputs():
 
 
 def test_tensor_rejects_unsupported_device():
-    with pytest.raises(ValueError, match="unsupported device transfer"):
+    with pytest.raises(ValueError, match="device is not available"):
         cx.tensor([1, 2, 3], device="cuda")
+
+
+def test_tensor_rejects_unsupported_device_before_materializing_data():
+    class ExplodingArrayLike:
+        def __array__(self, dtype=None, copy=None):
+            raise AssertionError("array conversion should not run")
+
+    with pytest.raises(ValueError, match="device is not available"):
+        cx.tensor(ExplodingArrayLike(), device="cuda")
+    with pytest.raises(ValueError, match="device is not available"):
+        cx.empty((2**62,), dtype=cx.float32, device="cuda")
+    with pytest.raises(ValueError, match="device is not available"):
+        cx.zeros((2**62,), dtype=cx.float32, device="cuda")
+    with pytest.raises(ValueError, match="device is not available"):
+        cx.ones((2**62,), dtype=cx.float32, device="cuda")
+
+
+def test_tensor_rejects_bool_data():
+    from cortex_runtime import _core
+
+    with pytest.raises(ValueError, match="bool tensor data is not supported"):
+        cx.tensor(True, device="cpu")
+    with pytest.raises(ValueError, match="bool tensor data is not supported"):
+        cx.tensor(np.bool_(True), device="cpu")
+    with pytest.raises(ValueError, match="bool tensor data is not supported"):
+        cx.tensor([True, False], device="cpu")
+    with pytest.raises(ValueError, match="bool tensor data is not supported"):
+        cx.tensor([[True, False]], device="cpu")
+    with pytest.raises(ValueError, match="bool tensor data is not supported"):
+        cx.tensor([1, True], device="cpu")
+    with pytest.raises(ValueError, match="bool tensor data is not supported"):
+        _core.tensor([True], device="cpu")
+    with pytest.raises(ValueError, match="bool tensor data is not supported"):
+        _core.tensor([np.bool_(True)], device="cpu")
+    with pytest.raises(ValueError, match="bool tensor data is not supported"):
+        _core.tensor_from_flat([True], shape=(1,), dtype="int32", device="cpu")
+    with pytest.raises(ValueError, match="bool tensor data is not supported"):
+        _core.tensor_from_flat([True], shape=(1,), dtype="float32", device="cpu")
+    with pytest.raises(ValueError, match="bool tensor data is not supported"):
+        _core.tensor_from_flat([np.bool_(True)], shape=(1,), dtype="int32", device="cpu")
+    with pytest.raises(ValueError, match="bool tensor data is not supported"):
+        _core.tensor_from_flat([np.bool_(True)], shape=(1,), dtype="float32", device="cpu")
 
 
 def test_tensor_rejects_int_out_of_int32_range():

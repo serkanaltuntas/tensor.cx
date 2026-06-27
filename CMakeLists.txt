@@ -20,6 +20,7 @@ include(FetchContent)
 
 set(CORTEX_ENABLE_METAL "AUTO" CACHE STRING "Enable the Apple Metal backend: AUTO, ON, or OFF")
 set_property(CACHE CORTEX_ENABLE_METAL PROPERTY STRINGS AUTO ON OFF)
+option(CORTEX_BUILD_TESTS "Build Cortex Runtime C++ test executables" OFF)
 string(TOUPPER "${CORTEX_ENABLE_METAL}" CORTEX_ENABLE_METAL_REQUEST)
 if(CORTEX_ENABLE_METAL_REQUEST STREQUAL "TRUE" OR
    CORTEX_ENABLE_METAL_REQUEST STREQUAL "YES" OR
@@ -102,6 +103,17 @@ target_include_directories(cortex_core PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/cpp
 )
 set_target_properties(cortex_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+if(CORTEX_BUILD_TESTS)
+  enable_testing()
+  add_executable(cortex_backend_contract_tests
+    tests/cpp/test_backend_contract.cpp
+  )
+  target_compile_features(cortex_backend_contract_tests PRIVATE cxx_std_20)
+  target_compile_options(cortex_backend_contract_tests PRIVATE ${CORTEX_WARNING_FLAGS})
+  target_link_libraries(cortex_backend_contract_tests PRIVATE cortex_core)
+  add_test(NAME cortex_backend_contract_tests COMMAND cortex_backend_contract_tests)
+endif()
 
 if(CORTEX_ENABLE_METAL)
   FetchContent_Declare(

@@ -28,7 +28,10 @@ backend-neutral IR parser, text MSL emitter, in-memory metallib compile
 artifact, native Metal function validation, and a narrow synchronous Metal
 launch path for float32 elementwise kernels. Keep the experimental kernel DSL
 behind the existing backend-neutral runtime boundaries. See
-[`KERNEL_DSL.md`](KERNEL_DSL.md).
+[`KERNEL_DSL.md`](KERNEL_DSL.md). Phase 8 is complete: the backend execution ABI,
+shared primitive/kernel contract validators, and null backend scaffold exist.
+Phase 9 has not started; CUDA implementation is blocked until a CUDA development
+environment is selected and validated.
 
 The public Python `Tensor` wraps backend-specific native tensor objects. CPU and
 Metal tensors both support add and multiply; Metal tensors also support direct
@@ -87,6 +90,16 @@ This is a deliberate, documented transition kept small per the "avoid unrelated
 refactors" rule: Phase 8 hardened the ABI first; later backend migration work
 can move live dispatch without changing public Python semantics.
 
+### Backend Selection Status
+
+The backend-neutral core does not name concrete backend APIs or expose platform
+handles, but public Python/binding dispatch still contains CPU/Metal-specific
+branches. That is acceptable for the completed Metal-first phases, but CUDA must
+not be added as a third ad hoc branch. Before Phase 9 exposes `device="cuda"`,
+public dispatch should move to a small registry/string-keyed routing layer (or
+an equivalent mechanism) so backend selection follows the project invariant
+without rewriting `cpp/cortex/core/`.
+
 ## Core Principles
 
 - CPU reference behavior is mandatory for every future GPU operation.
@@ -95,6 +108,8 @@ can move live dispatch without changing public Python semantics.
   by a null backend scaffold; CPU add/multiply, unary transforms, reductions,
   matmul, and fill have been migrated, while Metal dispatch still uses typed
   entry points.
+- Public backend selection still has CPU/Metal branches and must be moved to
+  registry/string-keyed routing before CUDA dispatch is added.
 - Metal backend errors return `Status` / `Expected<T>` and are translated to
   Python exceptions at the nanobind layer.
 - Python and NumPy types stay outside `cpp/cortex/core/` and all backends.
