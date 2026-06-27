@@ -413,6 +413,119 @@ CpuTensor matmul_cpu(const CpuTensor& lhs, const CpuTensor& rhs, const std::stri
 }
 
 #if CORTEX_ENABLE_METAL
+template <typename T>
+T unwrap(cortex::Expected<T> result);
+#endif
+
+struct BackendRoute {
+  const char* name;
+  bool (*is_available)();
+  std::string (*device_name)();
+  nb::object (*fill)(Shape, DType, double);
+  nb::list (*matmul_backends)();
+};
+
+bool cpu_backend_available() { return true; }
+
+std::string cpu_backend_device_name() { return "CPU"; }
+
+nb::object cpu_backend_fill(Shape shape, DType dtype, double value) {
+  return nb::cast(fill_op(std::move(shape), dtype, value));
+}
+
+nb::list cpu_backend_matmul_backends() {
+  nb::list result;
+  result.append("auto");
+  result.append("cpu");
+  result.append("reference");
+  return result;
+}
+
+#if CORTEX_ENABLE_METAL
+bool metal_backend_available() { return cortex::metal::available(); }
+
+std::string metal_backend_device_name() {
+  const auto names = cortex::metal::devices();
+  if (!names.empty()) {
+    return names.front();
+  }
+  throw std::invalid_argument("device is not available: metal");
+}
+
+nb::object metal_backend_fill(Shape shape, DType dtype, double value) {
+  return nb::cast(unwrap(
+      cortex::metal::fill(OpDesc{OpKind::kFill}, std::move(shape), dtype, value)));
+}
+
+nb::list metal_backend_matmul_backends() {
+  nb::list result;
+  result.append("auto");
+  result.append("custom");
+#if CORTEX_ENABLE_MPSGRAPH
+  result.append("optimized");
+#endif
+  return result;
+}
+#endif
+
+std::span<const BackendRoute> backend_routes() {
+#if CORTEX_ENABLE_METAL
+  static const std::array<BackendRoute, 2> routes{{
+      BackendRoute{
+          "cpu",
+          &cpu_backend_available,
+          &cpu_backend_device_name,
+          &cpu_backend_fill,
+          &cpu_backend_matmul_backends,
+      },
+      BackendRoute{
+          "metal",
+          &metal_backend_available,
+          &metal_backend_device_name,
+          &metal_backend_fill,
+          &metal_backend_matmul_backends,
+      },
+  }};
+#else
+  static const std::array<BackendRoute, 1> routes{{
+      BackendRoute{
+          "cpu",
+          &cpu_backend_available,
+          &cpu_backend_device_name,
+          &cpu_backend_fill,
+          &cpu_backend_matmul_backends,
+      },
+  }};
+#endif
+  return std::span<const BackendRoute>(routes.data(), routes.size());
+}
+
+const BackendRoute* find_backend_route(std::string_view name) {
+  for (const BackendRoute& route : backend_routes()) {
+    if (route.name == name) {
+      return &route;
+    }
+  }
+  return nullptr;
+}
+
+const BackendRoute& require_known_backend_route(const std::string& name) {
+  const BackendRoute* route = find_backend_route(name);
+  if (route == nullptr) {
+    throw std::invalid_argument("device is not available: " + name);
+  }
+  return *route;
+}
+
+const BackendRoute& require_available_backend_route(const std::string& name) {
+  const BackendRoute& route = require_known_backend_route(name);
+  if (!route.is_available()) {
+    throw std::invalid_argument("device is not available: " + name);
+  }
+  return route;
+}
+
+#if CORTEX_ENABLE_METAL
 std::vector<cortex::metal::KernelArgument> parse_metal_kernel_arguments(nb::sequence arguments) {
   std::vector<cortex::metal::KernelArgument> parsed;
   parsed.reserve(nb::len(arguments));
@@ -523,16 +636,8 @@ NB_MODULE(_core, module) {
              [](nb::handle shape, nb::handle dtype, double value, const std::string& device) -> nb::object {
                const Shape parsed_shape = parse_shape(shape);
                const DType parsed_dtype = parse_dtype(dtype, DType::kFloat32);
-               if (device == "cpu") {
-                 return nb::cast(fill_op(parsed_shape, parsed_dtype, value));
-               }
-#if CORTEX_ENABLE_METAL
-               if (device == "metal") {
-                 return nb::cast(unwrap(cortex::metal::fill(
-                     OpDesc{OpKind::kFill}, parsed_shape, parsed_dtype, value)));
-               }
-#endif
-               throw std::invalid_argument("device is not available: " + device);
+               return require_available_backend_route(device).fill(
+                   parsed_shape, parsed_dtype, value);
              },
              nb::arg("shape"),
              nb::arg("dtype") = "float32",
@@ -606,24 +711,7 @@ NB_MODULE(_core, module) {
              nb::arg("axis"));
   module.def("matmul_backends",
              [](const std::string& device) {
-               nb::list result;
-               if (device == "cpu") {
-                 result.append("auto");
-                 result.append("cpu");
-                 result.append("reference");
-                 return result;
-               }
-#if CORTEX_ENABLE_METAL
-               if (device == "metal") {
-                 result.append("auto");
-                 result.append("custom");
-#if CORTEX_ENABLE_MPSGRAPH
-                 result.append("optimized");
-#endif
-                 return result;
-               }
-#endif
-               throw std::invalid_argument("device is not available: " + device);
+               return require_known_backend_route(device).matmul_backends();
              },
              nb::arg("device"));
   module.def("matmul",
@@ -633,41 +721,22 @@ NB_MODULE(_core, module) {
              nb::arg("backend") = "auto");
   module.def("is_available",
              [](const std::string& device) {
-               if (device == "cpu") {
-                 return true;
-               }
-#if CORTEX_ENABLE_METAL
-               if (device == "metal") {
-                 return cortex::metal::available();
-               }
-#endif
-               return false;
+               const BackendRoute* route = find_backend_route(device);
+               return route != nullptr && route->is_available();
              },
              nb::arg("device"));
   module.def("devices", []() {
     nb::list result;
-    result.append("cpu");
-#if CORTEX_ENABLE_METAL
-    if (cortex::metal::available()) {
-      result.append("metal");
+    for (const BackendRoute& route : backend_routes()) {
+      if (route.is_available()) {
+        result.append(route.name);
+      }
     }
-#endif
     return result;
   });
   module.def("device_name",
              [](const std::string& device) {
-               if (device == "cpu") {
-                 return std::string("CPU");
-               }
-#if CORTEX_ENABLE_METAL
-               if (device == "metal") {
-                 const auto names = cortex::metal::devices();
-                 if (!names.empty()) {
-                   return names.front();
-                 }
-               }
-#endif
-               throw std::invalid_argument("device is not available: " + device);
+               return require_available_backend_route(device).device_name();
              },
              nb::arg("device"));
   module.def("validate_metal_library_function",

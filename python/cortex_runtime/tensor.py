@@ -8,6 +8,7 @@ from typing import Any
 import numpy as np
 
 from . import _core
+from . import backend as _backend
 from .device import Device, _normalize_device
 
 
@@ -43,22 +44,13 @@ class Tensor:
     def cpu(self) -> "Tensor":
         if self.device == "cpu":
             return self
-        if self.device == "metal" and hasattr(_core, "metal_to_cpu"):
-            return Tensor(_core.metal_to_cpu(self._impl))
-        raise ValueError(f"cannot copy tensor from device {self.device!r} to CPU")
+        return Tensor(_backend.copy_tensor(self._impl, self.device, "cpu"))
 
     def to(self, device: str | Device) -> "Tensor":
         target = _normalize_device(device)
         if target == self.device:
             return self
-        if target == "cpu":
-            return self.cpu()
-        if target == "metal" and self.device == "cpu":
-            if not _core.is_available("metal"):
-                raise ValueError("Metal is not available on this system")
-            if hasattr(_core, "cpu_to_metal"):
-                return Tensor(_core.cpu_to_metal(self._impl))
-        raise ValueError(f"unsupported device transfer: {self.device!r} -> {target!r}")
+        return Tensor(_backend.copy_tensor(self._impl, self.device, target))
 
     def __add__(self, other: "Tensor") -> "Tensor":
         if not isinstance(other, Tensor):
@@ -108,13 +100,7 @@ class Tensor:
 
 
 def _validate_creation_device(target: str) -> None:
-    if target == "cpu":
-        return
-    if target == "metal":
-        if not _core.is_available("metal"):
-            raise ValueError("Metal is not available on this system")
-        return
-    raise ValueError(f"device is not available: {target}")
+    _backend.require_backend(target)
 
 
 def _contains_bool_data(data) -> bool:
@@ -211,19 +197,13 @@ def empty(shape, dtype: str = "float32", device: str | Device = "cpu") -> Tensor
 def zeros(shape, dtype: str = "float32", device: str | Device = "cpu") -> Tensor:
     target = _normalize_device(device)
     _validate_creation_device(target)
-    if target == "metal" and hasattr(_core, "fill"):
-        return Tensor(_core.fill(shape, dtype=dtype, value=0.0, device=target))
-    cpu_tensor = Tensor(_core.zeros(shape, dtype=dtype, device="cpu"))
-    return cpu_tensor if target == "cpu" else cpu_tensor.to(target)
+    return Tensor(_backend.fill(target, shape, dtype, 0.0))
 
 
 def ones(shape, dtype: str = "float32", device: str | Device = "cpu") -> Tensor:
     target = _normalize_device(device)
     _validate_creation_device(target)
-    if target == "metal" and hasattr(_core, "fill"):
-        return Tensor(_core.fill(shape, dtype=dtype, value=1.0, device=target))
-    cpu_tensor = Tensor(_core.ones(shape, dtype=dtype, device="cpu"))
-    return cpu_tensor if target == "cpu" else cpu_tensor.to(target)
+    return Tensor(_backend.fill(target, shape, dtype, 1.0))
 
 
 def randn(
@@ -302,4 +282,4 @@ def layernorm(input: Tensor, axis: int, eps: float = 1.0e-5) -> Tensor:
 
 
 def matmul_backends(device: str | Device = "cpu") -> list[str]:
-    return list(_core.matmul_backends(_normalize_device(device)))
+    return _backend.matmul_backends(_normalize_device(device))

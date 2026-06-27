@@ -400,8 +400,8 @@ not a style nit.
 1. Every GPU op has a CPU reference + a CPU-vs-device test before it is "done."
 2. No Apple/Metal type appears outside cpp/cortex/backends/metal/.
 3. No NumPy/Python type appears in cpp/cortex/core/ or any backend.
-4. The core never names a concrete backend; live public selection must move to
-   registry/string-keyed routing before adding CUDA dispatch.
+4. The core never names a concrete backend; live public selection must stay on
+   registry/string-keyed routing, including future CUDA dispatch.
 5. Every Metal handle is RAII-wrapped; no manual retain/release calls.
 6. Adding an op = OpDesc enum entry + CPU backend impl + test, in that order.
 7. A public Python API change ships with its doc + test update in the same change.
@@ -1421,7 +1421,7 @@ PTX or CUDA C generated/compiled kernels
 Initial CUDA operations:
 
 ```text
-backend registry/routing for public dispatch
+cuda registration through the existing backend registry/routing layer
 device discovery
 buffer allocation
 copy

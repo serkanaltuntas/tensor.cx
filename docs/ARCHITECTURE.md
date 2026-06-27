@@ -87,18 +87,23 @@ layernorm, plus an `epsilon` attribute for normalization ops. Phase 8 adds
 `Backend::execute` for now.
 
 This is a deliberate, documented transition kept small per the "avoid unrelated
-refactors" rule: Phase 8 hardened the ABI first; later backend migration work
-can move live dispatch without changing public Python semantics.
+refactors" rule: Phase 8 hardened the ABI first; public device routing now uses
+a string-keyed backend registry while preserving the existing tensor creation,
+copy, and operation semantics. Device capability queries now consistently
+require the target backend to be available.
 
 ### Backend Selection Status
 
 The backend-neutral core does not name concrete backend APIs or expose platform
-handles, but public Python/binding dispatch still contains CPU/Metal-specific
-branches. That is acceptable for the completed Metal-first phases, but CUDA must
-not be added as a third ad hoc branch. Before Phase 9 exposes `device="cuda"`,
-public dispatch should move to a small registry/string-keyed routing layer (or
-an equivalent mechanism) so backend selection follows the project invariant
-without rewriting `cpp/cortex/core/`.
+handles. Public Python device routing goes through `python/cortex_runtime/backend.py`,
+which registers backends by string key and owns availability checks, device
+names, tensor copies, fill creation, and matmul backend options. The nanobind
+module also uses a small route table for native device capability helpers.
+
+CUDA must be added by registering a new backend route, not by adding a third
+ad hoc CPU/Metal branch to public Python dispatch. Backend-specific native
+operations may still expose typed implementation functions while the core ABI
+continues to harden around `Backend::execute` and `OpDesc`.
 
 ## Core Principles
 
@@ -108,8 +113,8 @@ without rewriting `cpp/cortex/core/`.
   by a null backend scaffold; CPU add/multiply, unary transforms, reductions,
   matmul, and fill have been migrated, while Metal dispatch still uses typed
   entry points.
-- Public backend selection still has CPU/Metal branches and must be moved to
-  registry/string-keyed routing before CUDA dispatch is added.
+- Public backend selection uses registry/string-keyed routing; CUDA must plug
+  into that route instead of adding ad hoc public dispatch branches.
 - Metal backend errors return `Status` / `Expected<T>` and are translated to
   Python exceptions at the nanobind layer.
 - Python and NumPy types stay outside `cpp/cortex/core/` and all backends.

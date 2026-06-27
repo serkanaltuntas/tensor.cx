@@ -152,9 +152,9 @@ Phase 9 implementation may begin only after:
 4. `uv run pytest` succeeds on the CUDA host, with unavailable Metal tests skipped.
 5. The selected CUDA compilation path is validated and recorded.
 6. The C++ backend contract CTest command succeeds on the CUDA host.
-7. Public backend registry/routing is the first implementation task; the first
-   CUDA backend-specific task after that is scoped to discovery/allocation/copy
-   before kernels.
+7. The existing public backend registry/routing layer is confirmed on the CUDA
+   host; the first CUDA backend-specific task after that is scoped to
+   discovery/allocation/copy before kernels.
 ```
 
 ## First CUDA Backend Slice
@@ -162,15 +162,14 @@ Phase 9 implementation may begin only after:
 Once the environment is ready, implement CUDA in this order:
 
 ```text
-1. Add or finish a small backend registry/string-keyed routing layer for public dispatch.
-2. Add CUDA backend scaffold under cpp/cortex/backends/cuda/.
-3. Register cuda only when the CUDA runtime is available.
-4. Implement device discovery.
-5. Implement buffer allocation and host<->device copies.
-6. Add Tensor.to("cuda") and Tensor.cpu() round-trip tests.
-7. Add fill_f32.
-8. Add add_f32 and mul_f32.
-9. Parametrize the existing CPU/Metal tests so the same Python test body covers cuda.
+1. Add CUDA backend scaffold under cpp/cortex/backends/cuda/.
+2. Register cuda through the existing backend registry only when the CUDA runtime is available.
+3. Implement device discovery.
+4. Implement buffer allocation and host<->device copies.
+5. Add Tensor.to("cuda") and Tensor.cpu() round-trip tests.
+6. Add fill_f32.
+7. Add add_f32 and mul_f32.
+8. Parametrize the existing CPU/Metal tests so the same Python test body covers cuda.
 ```
 
 The CUDA backend must use the Phase 8 backend ABI and shared contract validators

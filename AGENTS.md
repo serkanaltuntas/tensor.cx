@@ -265,10 +265,9 @@ and tested. Experimental DSL work must stay under `cx.experimental`, preserve
 the Phase 6 correctness contracts, and keep CPU references mandatory for
 generated or DSL-routed kernels.
 
-Before adding CUDA public dispatch, replace the current CPU/Metal Python and
-binding selection branches with a small backend registry/routing layer or an
-equivalent string-keyed mechanism. CUDA must not be added as a third ad hoc
-branch.
+Public device routing uses a small backend registry/string-keyed mechanism.
+Before adding CUDA public dispatch, register CUDA through that route. CUDA must
+not be added as a third ad hoc CPU/Metal branch.
 
 ## Architecture Rules
 
@@ -400,8 +399,8 @@ Check these before finishing any non-trivial change:
 1. Every GPU op has a CPU reference and a CPU-vs-device test.
 2. No Apple/Metal type appears outside cpp/cortex/backends/metal/.
 3. No NumPy/Python type appears in cpp/cortex/core/ or any backend.
-4. The core never names a concrete backend; live public selection must move to
-   registry/string-keyed routing before adding CUDA dispatch.
+4. The core never names a concrete backend; live public selection must stay on
+   registry/string-keyed routing, including future CUDA dispatch.
 5. Every Metal handle is RAII-wrapped; no manual retain/release calls.
 6. Adding an op = OpDesc enum entry + CPU backend impl + test, in that order.
 7. A public Python API change ships with docs and tests in the same change.

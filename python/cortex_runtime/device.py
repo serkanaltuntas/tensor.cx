@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from . import _core
+from . import backend as _backend
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,15 +46,15 @@ def _normalize_device(value: str | Device | None) -> str:
 
 
 def devices() -> list[str]:
-    return list(_core.devices())
+    return _backend.devices()
 
 
 def is_available(device: str | Device) -> bool:
-    return bool(_core.is_available(_normalize_device(device)))
+    return _backend.is_available(_normalize_device(device))
 
 
 def device_name(device: str | Device) -> str:
-    return _core.device_name(_normalize_device(device))
+    return _backend.device_name(_normalize_device(device))
 
 
 def device(value: str | Device) -> Device:
@@ -65,4 +65,4 @@ def device(value: str | Device) -> Device:
 
 
 def best_device() -> str:
-    return "metal" if is_available("metal") else "cpu"
+    return _backend.best_device()
