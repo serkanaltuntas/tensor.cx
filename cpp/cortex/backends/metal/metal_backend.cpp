@@ -1,6 +1,7 @@
 #include "cortex/backends/metal/metal_backend.h"
 
 #include <array>
+#include <cmath>
 #include <exception>
 #include <memory>
 #include <span>
@@ -8,6 +9,7 @@
 #include <utility>
 #include <vector>
 
+#include "cortex/backends/cpu/cpu_backend.h"
 #include "cortex/backends/metal/metal_buffer.h"
 #include "cortex/backends/metal/metal_context.h"
 #include "cortex/core/shape.h"
@@ -31,6 +33,32 @@ Status expect_status_code(
       std::string("Metal backend contract smoke test failed: ") + scenario);
 }
 
+Status expect_float_data_close(
+    const char* scenario,
+    const cpu::CpuTensor& actual,
+    const cpu::CpuTensor& expected) {
+  if (actual.shape() != expected.shape()) {
+    return Status(
+        StatusCode::kInternal,
+        std::string("Metal backend contract smoke test failed: ") + scenario);
+  }
+  const auto& actual_data = actual.float_data();
+  const auto& expected_data = expected.float_data();
+  if (actual_data.size() != expected_data.size()) {
+    return Status(
+        StatusCode::kInternal,
+        std::string("Metal backend contract smoke test failed: ") + scenario);
+  }
+  for (std::size_t i = 0; i < actual_data.size(); ++i) {
+    if (std::fabs(actual_data[i] - expected_data[i]) > 1.0e-5F) {
+      return Status(
+          StatusCode::kInternal,
+          std::string("Metal backend contract smoke test failed: ") + scenario);
+    }
+  }
+  return Status::Ok();
+}
+
 }  // namespace
 
 std::string MetalBackend::name() const { return "metal"; }
@@ -48,6 +76,17 @@ Status MetalBackend::execute(const BackendExecution& execution) {
         const MetalTensor lhs = from_core_tensor(execution.inputs[0]);
         const MetalTensor rhs = from_core_tensor(execution.inputs[1]);
         auto result = execute_binary(execution.op, lhs, rhs);
+        if (!result) {
+          return result.status();
+        }
+        execution.outputs[0] = to_core_tensor(result.move_value());
+        return Status::Ok();
+      }
+      case OpKind::kExp:
+      case OpKind::kGelu:
+      case OpKind::kSilu: {
+        const MetalTensor input = from_core_tensor(execution.inputs[0]);
+        auto result = execute_unary(execution.op, input);
         if (!result) {
           return result.status();
         }
@@ -247,6 +286,41 @@ Status contract_smoke_test() {
           backend.execute(wrong_device_add),
           StatusCode::kInvalidArgument);
       !status.ok()) {
+    return status;
+  }
+
+  std::array<Tensor, 1> unary_inputs{inputs[0]};
+  std::array<Tensor, 1> unary_outputs{};
+  auto expect_unary_matches_cpu = [&](OpKind kind, const char* scenario) -> Status {
+    unary_outputs = {};
+    const BackendExecution valid_unary{
+        BackendOpClass::kPrimitive,
+        OpDesc{kind},
+        std::span<const Tensor>(unary_inputs.data(), unary_inputs.size()),
+        std::span<Tensor>(unary_outputs.data(), unary_outputs.size()),
+        std::nullopt,
+        std::nullopt,
+    };
+    if (Status status =
+            expect_status_code(scenario, backend.execute(valid_unary), StatusCode::kOk);
+        !status.ok()) {
+      return status;
+    }
+    const auto actual_result = to_cpu(from_core_tensor(unary_outputs[0]));
+    if (!actual_result) {
+      return actual_result.status();
+    }
+    const cpu::CpuTensor expected = cpu::execute_unary(OpDesc{kind}, lhs_cpu);
+    return expect_float_data_close(scenario, actual_result.value(), expected);
+  };
+
+  if (Status status = expect_unary_matches_cpu(OpKind::kExp, "valid exp"); !status.ok()) {
+    return status;
+  }
+  if (Status status = expect_unary_matches_cpu(OpKind::kGelu, "valid gelu"); !status.ok()) {
+    return status;
+  }
+  if (Status status = expect_unary_matches_cpu(OpKind::kSilu, "valid silu"); !status.ok()) {
     return status;
   }
 

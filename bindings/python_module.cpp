@@ -506,6 +506,33 @@ cortex::metal::MetalTensor binary_op(
   return cortex::metal::from_core_tensor(outputs[0]);
 }
 
+cortex::metal::MetalTensor metal_single_input_backend_op(
+    const cortex::metal::MetalTensor& input,
+    const OpDesc& op) {
+  cortex::metal::MetalBackend backend;
+  std::array<cortex::Tensor, 1> inputs{
+      cortex::metal::to_core_tensor(input),
+  };
+  std::array<cortex::Tensor, 1> outputs{};
+  const cortex::BackendExecution execution{
+      cortex::BackendOpClass::kPrimitive,
+      op,
+      std::span<const cortex::Tensor>(inputs.data(), inputs.size()),
+      std::span<cortex::Tensor>(outputs.data(), outputs.size()),
+      std::nullopt,
+      std::nullopt,
+  };
+  const cortex::Status status = backend.execute(execution);
+  if (!status.ok()) {
+    throw_status(status);
+  }
+  return cortex::metal::from_core_tensor(outputs[0]);
+}
+
+cortex::metal::MetalTensor unary_op(const cortex::metal::MetalTensor& input, OpKind kind) {
+  return metal_single_input_backend_op(input, OpDesc{kind});
+}
+
 nb::list metal_backend_matmul_backends() {
   nb::list result;
   result.append("auto");
@@ -888,17 +915,17 @@ NB_MODULE(_core, module) {
              nb::arg("rhs"));
   module.def("exp",
              [](const cortex::metal::MetalTensor& input) {
-               return unwrap(cortex::metal::execute_unary(OpDesc{OpKind::kExp}, input));
+               return unary_op(input, OpKind::kExp);
              },
              nb::arg("input"));
   module.def("gelu",
              [](const cortex::metal::MetalTensor& input) {
-               return unwrap(cortex::metal::execute_unary(OpDesc{OpKind::kGelu}, input));
+               return unary_op(input, OpKind::kGelu);
              },
              nb::arg("input"));
   module.def("silu",
              [](const cortex::metal::MetalTensor& input) {
-               return unwrap(cortex::metal::execute_unary(OpDesc{OpKind::kSilu}, input));
+               return unary_op(input, OpKind::kSilu);
              },
              nb::arg("input"));
   module.def("softmax",
