@@ -453,8 +453,32 @@ std::string metal_backend_device_name() {
 }
 
 nb::object metal_backend_fill(Shape shape, DType dtype, double value) {
-  return nb::cast(unwrap(
-      cortex::metal::fill(OpDesc{OpKind::kFill}, std::move(shape), dtype, value)));
+  cortex::metal::MetalBackend backend;
+  static_cast<void>(cortex::numel(shape));
+  const Shape strides = cortex::contiguous_strides(shape);
+  std::array<cortex::Tensor, 1> outputs{cortex::Tensor{
+      dtype,
+      shape,
+      strides,
+      cortex::Device{"metal", 0},
+      nullptr,
+      0,
+  }};
+  OpDesc op{OpKind::kFill};
+  op.scalar_value = value;
+  const cortex::BackendExecution execution{
+      cortex::BackendOpClass::kPrimitive,
+      op,
+      std::span<const cortex::Tensor>(),
+      std::span<cortex::Tensor>(outputs.data(), outputs.size()),
+      std::nullopt,
+      std::nullopt,
+  };
+  const cortex::Status status = backend.execute(execution);
+  if (!status.ok()) {
+    throw_status(status);
+  }
+  return nb::cast(cortex::metal::from_core_tensor(outputs[0]));
 }
 
 nb::list metal_backend_matmul_backends() {
@@ -578,6 +602,15 @@ NB_MODULE(_core, module) {
     }
     return true;
   });
+#if CORTEX_ENABLE_METAL
+  module.def("_metal_backend_contract_smoke_test", []() {
+    const auto status = cortex::metal::contract_smoke_test();
+    if (!status.ok()) {
+      throw std::runtime_error(status.message());
+    }
+    return true;
+  });
+#endif
 
   nb::class_<CpuTensor>(module, "CpuTensor")
       .def_prop_ro("shape", [](const CpuTensor& tensor) { return shape_tuple(tensor.shape()); })

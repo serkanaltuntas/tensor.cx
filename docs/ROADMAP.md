@@ -28,8 +28,10 @@ without Metal. CPU and null backend now use the shared primitive contract
 validator for input/output schema and fill allocation descriptors; null backend
 also uses the shared kernel contract validator. CPU fill, add/multiply, unary
 transforms, reductions, and matmul now route through `CpuBackend::execute`;
-Metal dispatch still uses typed entry points. Phase 9 has not started; it
-requires a CUDA hardware or cloud development environment decision first.
+Metal fill now routes through `MetalBackend::execute`; remaining Metal
+elementwise, reduction, matmul, and generated-kernel dispatch still uses typed
+entry points. Phase 9 has not started; it requires a CUDA hardware or cloud
+development environment decision first.
 
 ## What works today (through Phase 8)
 
@@ -76,9 +78,11 @@ and AGENTS.md "Out Of Scope For Early Work".
   cloud development environment before implementation starts. The decision gate
   and validation checklist are documented in
   [`CUDA_PHASE9_ENVIRONMENT.md`](CUDA_PHASE9_ENVIRONMENT.md).
-- **Metal dispatch migration.** The Phase 8 ABI is defined and exercised by CPU
-  and the null backend, but Metal is still routed through per-op typed entry
-  points. See [`ARCHITECTURE.md`](ARCHITECTURE.md) → "Dispatch after Phase 8".
+- **Remaining Metal dispatch migration.** The Phase 8 ABI is defined and
+  exercised by CPU, the null backend, and Metal fill. Metal elementwise,
+  reduction, matmul, and generated-kernel execution are still routed through
+  per-op typed entry points. See [`ARCHITECTURE.md`](ARCHITECTURE.md) →
+  "Dispatch after Phase 8".
 - **GIL release + Metal thread-safety.** v0.1 is synchronous and holds the GIL
   across blocking Metal submissions, so multi-threaded use is serialized and the
   pipeline cache is intentionally unlocked. Releasing the GIL (and locking the

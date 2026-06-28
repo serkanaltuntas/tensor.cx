@@ -44,10 +44,10 @@ Python binary operations dispatch through shared native `_core.add` and
 routes add and multiply through `cpu::CpuBackend::execute`; CPU unary transforms
 `exp`/`gelu`/`silu`/`softmax`/`rmsnorm`/`layernorm` and CPU reductions
 `sum`/`max`/`mean` plus CPU matmul also route through that execution contract.
-The Metal overload still uses typed backend entry points. Fill dispatch is now
-split: CPU fill routes through `CpuBackend::execute`, while Metal fill and
-constructor-style `empty` allocation still use typed paths because they must
-choose backend-specific native tensor types.
+The Metal overload still uses typed backend entry points. Fill dispatch now
+routes through `Backend::execute` for both CPU and Metal, using an output
+allocation descriptor. Constructor-style `empty` allocation still uses typed
+paths because it must choose backend-specific native tensor types.
 
 ### Dispatch after Phase 8
 
@@ -76,10 +76,13 @@ add/multiply, unary transforms, reductions, and matmul are routed through
 `CpuBackend::execute(BackendExecution)`, which adapts existing `CpuTensor`
 values to backend-neutral `Tensor` metadata and then reuses the existing CPU
 operation implementations. CPU fill also routes through `CpuBackend::execute`
-using an output allocation descriptor. Metal still uses typed entry points
+using an output allocation descriptor. Metal fill routes through
+`MetalBackend::execute(BackendExecution)`, using the same primitive validator and
+allocation descriptor pattern before adapting the produced `MetalTensor` back to
+core tensor metadata. Remaining Metal operations still use typed entry points
 (`metal::execute_binary`, `metal::execute_unary`, `metal::reduce`,
-`metal::matmul_custom`, `metal::matmul_mpsgraph`, `metal::fill`). `OpDesc` is
-passed to the unary, binary, and reduction entry points (and Metal's `fill`) and
+`metal::matmul_custom`, `metal::matmul_mpsgraph`). `OpDesc` is
+passed to the unary, binary, and reduction entry points and
 tags the op `kind`. Phase 6 adds a minimal `axis` attribute to `OpDesc` for
 reduction entry points and axis-aware transforms such as softmax, rmsnorm, and
 layernorm, plus an `epsilon` attribute for normalization ops. Phase 8 adds
@@ -111,8 +114,9 @@ continues to harden around `Backend::execute` and `OpDesc`.
 - Operation dispatch is moving toward the data-driven `OpDesc` model (single
   `Backend::execute`, no per-op virtual method). The ABI is defined and backed
   by a null backend scaffold; CPU add/multiply, unary transforms, reductions,
-  matmul, and fill have been migrated, while Metal dispatch still uses typed
-  entry points.
+  matmul, and fill have been migrated, and Metal fill now uses the same backend
+  execution path. Remaining Metal elementwise, reduction, matmul, and generated
+  kernel dispatch still uses typed entry points.
 - Public backend selection uses registry/string-keyed routing; CUDA must plug
   into that route instead of adding ad hoc public dispatch branches.
 - Metal backend errors return `Status` / `Expected<T>` and are translated to
