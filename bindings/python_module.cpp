@@ -481,6 +481,31 @@ nb::object metal_backend_fill(Shape shape, DType dtype, double value) {
   return nb::cast(cortex::metal::from_core_tensor(outputs[0]));
 }
 
+cortex::metal::MetalTensor binary_op(
+    const cortex::metal::MetalTensor& lhs,
+    const cortex::metal::MetalTensor& rhs,
+    OpKind kind) {
+  cortex::metal::MetalBackend backend;
+  std::array<cortex::Tensor, 2> inputs{
+      cortex::metal::to_core_tensor(lhs),
+      cortex::metal::to_core_tensor(rhs),
+  };
+  std::array<cortex::Tensor, 1> outputs{};
+  const cortex::BackendExecution execution{
+      cortex::BackendOpClass::kPrimitive,
+      OpDesc{kind},
+      std::span<const cortex::Tensor>(inputs.data(), inputs.size()),
+      std::span<cortex::Tensor>(outputs.data(), outputs.size()),
+      std::nullopt,
+      std::nullopt,
+  };
+  const cortex::Status status = backend.execute(execution);
+  if (!status.ok()) {
+    throw_status(status);
+  }
+  return cortex::metal::from_core_tensor(outputs[0]);
+}
+
 nb::list metal_backend_matmul_backends() {
   nb::list result;
   result.append("auto");
@@ -834,11 +859,11 @@ NB_MODULE(_core, module) {
                    })
       .def("__add__", [](const cortex::metal::MetalTensor& lhs,
                          const cortex::metal::MetalTensor& rhs) {
-        return unwrap(cortex::metal::execute_binary(OpDesc{OpKind::kAdd}, lhs, rhs));
+        return binary_op(lhs, rhs, OpKind::kAdd);
       })
       .def("__mul__", [](const cortex::metal::MetalTensor& lhs,
                          const cortex::metal::MetalTensor& rhs) {
-        return unwrap(cortex::metal::execute_binary(OpDesc{OpKind::kMultiply}, lhs, rhs));
+        return binary_op(lhs, rhs, OpKind::kMultiply);
       });
 
   module.def("cpu_to_metal",
@@ -851,13 +876,13 @@ NB_MODULE(_core, module) {
              nb::arg("tensor"));
   module.def("add",
              [](const cortex::metal::MetalTensor& lhs, const cortex::metal::MetalTensor& rhs) {
-               return unwrap(cortex::metal::execute_binary(OpDesc{OpKind::kAdd}, lhs, rhs));
+               return binary_op(lhs, rhs, OpKind::kAdd);
              },
              nb::arg("lhs"),
              nb::arg("rhs"));
   module.def("multiply",
              [](const cortex::metal::MetalTensor& lhs, const cortex::metal::MetalTensor& rhs) {
-               return unwrap(cortex::metal::execute_binary(OpDesc{OpKind::kMultiply}, lhs, rhs));
+               return binary_op(lhs, rhs, OpKind::kMultiply);
              },
              nb::arg("lhs"),
              nb::arg("rhs"));

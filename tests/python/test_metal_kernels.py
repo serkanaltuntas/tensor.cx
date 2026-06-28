@@ -51,6 +51,36 @@ def test_metal_multiply_float32_matches_cpu():
 
 
 @pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_binary_ops_reject_shape_mismatch():
+    x = cx.ones((2,), dtype=cx.float32, device="metal")
+    y = cx.ones((3,), dtype=cx.float32, device="metal")
+
+    with pytest.raises(ValueError, match="shape mismatch"):
+        _ = x + y
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_binary_ops_reject_dtype_mismatch():
+    x = cx.ones((2,), dtype=cx.float32, device="metal")
+    y = cx.ones((2,), dtype=cx.int32, device="metal")
+
+    with pytest.raises(ValueError, match="dtype mismatch"):
+        _ = x * y
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_metal_binary_empty_tensor_returns_empty():
+    x = cx.empty((0,), dtype=cx.float32, device="metal")
+    y = cx.empty((0,), dtype=cx.float32, device="metal")
+
+    z = x + y
+
+    assert z.shape == (0,)
+    assert z.dtype == cx.float32
+    np.testing.assert_allclose(z.cpu().numpy(), np.empty((0,), dtype=np.float32))
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
 def test_metal_fill_float32_matches_cpu():
     zeros_cpu = cx.zeros((2, 3), dtype=cx.float32, device="cpu")
     ones_cpu = cx.ones((2, 3), dtype=cx.float32, device="cpu")

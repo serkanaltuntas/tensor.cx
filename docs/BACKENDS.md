@@ -87,11 +87,11 @@ caller-provided outputs.
 Primitive requests must match the core `primitive_op_schema`: the op kind
 defines the expected input and output tensor metadata counts. The shared core
 primitive contract validator rejects malformed primitive requests before a
-backend executes them; CPU and null backend both use that validator. CPU `fill`
-and Metal `fill` now route through `BackendExecution` using
-`OpDesc.scalar_value` and an output allocation descriptor. Constructor-style
-`empty` allocation remains on typed paths until its ownership semantics are
-migrated.
+backend executes them; CPU, Metal, and null backends all use that validator for
+the migrated execution paths. CPU and Metal `fill` route through
+`BackendExecution` using `OpDesc.scalar_value` and an output allocation
+descriptor. Constructor-style `empty` allocation remains on typed paths until
+its ownership semantics are migrated.
 
 Kernel requests must pass the shared core kernel contract validator before a
 backend executes them: they require output metadata, launch metadata, a
@@ -139,9 +139,9 @@ extension.
 
 Phase 8 is complete. The backend ABI and null backend scaffold exist, and CPU
 fill, add/multiply, unary transforms, reductions, and matmul route through
-`CpuBackend::execute` without changing public Python behavior. Metal fill now
-routes through `MetalBackend::execute`; remaining Metal elementwise, reduction,
-matmul, and generated-kernel dispatch still uses the existing typed entry
-points. Phase 9 has not started and requires a CUDA hardware or cloud
-development environment decision before implementation; see
+`CpuBackend::execute` without changing public Python behavior. Metal
+add/multiply and fill route through `MetalBackend::execute`; remaining Metal
+unary, reduction, matmul, and generated-kernel dispatch still use the existing
+typed entry points. Phase 9 has not started and requires a CUDA hardware or
+cloud development environment decision before implementation; see
 [`CUDA_PHASE9_ENVIRONMENT.md`](CUDA_PHASE9_ENVIRONMENT.md).

@@ -43,6 +43,17 @@ Status MetalBackend::execute(const BackendExecution& execution) {
     }
 
     switch (execution.op.kind) {
+      case OpKind::kAdd:
+      case OpKind::kMultiply: {
+        const MetalTensor lhs = from_core_tensor(execution.inputs[0]);
+        const MetalTensor rhs = from_core_tensor(execution.inputs[1]);
+        auto result = execute_binary(execution.op, lhs, rhs);
+        if (!result) {
+          return result.status();
+        }
+        execution.outputs[0] = to_core_tensor(result.move_value());
+        return Status::Ok();
+      }
       case OpKind::kFill: {
         const Tensor descriptor = execution.outputs[0];
         auto result = fill(
@@ -170,6 +181,73 @@ Status contract_smoke_test() {
   MetalBackend backend;
   if (backend.name() != "metal") {
     return Status(StatusCode::kInternal, "Metal backend contract smoke test failed: backend name");
+  }
+
+  cpu::CpuTensor lhs_cpu(Shape{2}, std::vector<float>{1.0F, 2.0F});
+  cpu::CpuTensor rhs_cpu(Shape{2}, std::vector<float>{3.0F, 4.0F});
+  auto lhs_metal_result = from_cpu(lhs_cpu);
+  if (!lhs_metal_result) {
+    return lhs_metal_result.status();
+  }
+  auto rhs_metal_result = from_cpu(rhs_cpu);
+  if (!rhs_metal_result) {
+    return rhs_metal_result.status();
+  }
+  const MetalTensor lhs_metal = lhs_metal_result.move_value();
+  const MetalTensor rhs_metal = rhs_metal_result.move_value();
+  std::array<Tensor, 2> inputs{to_core_tensor(lhs_metal), to_core_tensor(rhs_metal)};
+  std::array<Tensor, 1> outputs{};
+  const BackendExecution valid_add{
+      BackendOpClass::kPrimitive,
+      OpDesc{OpKind::kAdd},
+      std::span<const Tensor>(inputs.data(), inputs.size()),
+      std::span<Tensor>(outputs.data(), outputs.size()),
+      std::nullopt,
+      std::nullopt,
+  };
+  if (Status status =
+          expect_status_code("valid add", backend.execute(valid_add), StatusCode::kOk);
+      !status.ok()) {
+    return status;
+  }
+  const auto add_cpu_result = to_cpu(from_core_tensor(outputs[0]));
+  if (!add_cpu_result) {
+    return add_cpu_result.status();
+  }
+  if (add_cpu_result.value().float_data() != std::vector<float>{4.0F, 6.0F}) {
+    return Status(StatusCode::kInternal, "Metal backend contract smoke test failed: add result");
+  }
+
+  BackendExecution valid_multiply = valid_add;
+  valid_multiply.op = OpDesc{OpKind::kMultiply};
+  outputs = {};
+  valid_multiply.outputs = std::span<Tensor>(outputs.data(), outputs.size());
+  if (Status status =
+          expect_status_code("valid multiply", backend.execute(valid_multiply), StatusCode::kOk);
+      !status.ok()) {
+    return status;
+  }
+  const auto multiply_cpu_result = to_cpu(from_core_tensor(outputs[0]));
+  if (!multiply_cpu_result) {
+    return multiply_cpu_result.status();
+  }
+  if (multiply_cpu_result.value().float_data() != std::vector<float>{3.0F, 8.0F}) {
+    return Status(
+        StatusCode::kInternal,
+        "Metal backend contract smoke test failed: multiply result");
+  }
+
+  std::array<Tensor, 2> wrong_device_inputs{inputs[0], inputs[1]};
+  wrong_device_inputs[0].device.type = "cpu";
+  BackendExecution wrong_device_add = valid_add;
+  wrong_device_add.inputs =
+      std::span<const Tensor>(wrong_device_inputs.data(), wrong_device_inputs.size());
+  if (Status status = expect_status_code(
+          "add with wrong device input",
+          backend.execute(wrong_device_add),
+          StatusCode::kInvalidArgument);
+      !status.ok()) {
+    return status;
   }
 
   const Shape fill_shape{3};
