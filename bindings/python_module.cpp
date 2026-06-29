@@ -950,19 +950,19 @@ NB_MODULE(_core, module) {
              nb::arg("eps") = 1.0e-5);
   module.def("sum",
              [](const cortex::metal::MetalTensor& input, std::int64_t axis) {
-               return unwrap(cortex::metal::reduce(OpDesc{OpKind::kSum, axis}, input));
+               return metal_single_input_backend_op(input, OpDesc{OpKind::kSum, axis});
              },
              nb::arg("input"),
              nb::arg("axis"));
   module.def("max",
              [](const cortex::metal::MetalTensor& input, std::int64_t axis) {
-               return unwrap(cortex::metal::reduce(OpDesc{OpKind::kMax, axis}, input));
+               return metal_single_input_backend_op(input, OpDesc{OpKind::kMax, axis});
              },
              nb::arg("input"),
              nb::arg("axis"));
   module.def("mean",
              [](const cortex::metal::MetalTensor& input, std::int64_t axis) {
-               return unwrap(cortex::metal::reduce(OpDesc{OpKind::kMean, axis}, input));
+               return metal_single_input_backend_op(input, OpDesc{OpKind::kMean, axis});
              },
              nb::arg("input"),
              nb::arg("axis"));

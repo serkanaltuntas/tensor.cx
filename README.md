@@ -113,10 +113,11 @@ function through native Metal library lookup, and launch the first float32
 elementwise kernel on Metal. Phase 8 is complete: the backend ABI, shared
 primitive/kernel contract validators, and null backend scaffold exist, and CPU
 fill, add/multiply, unary transforms, reductions, and matmul route through
-`CpuBackend::execute`. Metal add/multiply, unary and axis/norm transforms, and
-fill now also route through `MetalBackend::execute`; remaining Metal reduction,
-matmul, and generated-kernel dispatch paths still use typed paths. Phase 9 has not
-started; it requires a CUDA hardware or cloud development environment decision
+`CpuBackend::execute`. Metal add/multiply, unary transforms, axis/norm
+transforms, reductions, and fill now also route through
+`MetalBackend::execute`; remaining Metal matmul and generated-kernel dispatch
+paths still use typed paths. Phase 9 has not started; it requires a CUDA
+hardware or cloud development environment decision
 first. The Phase 9 decision gate is documented in
 `docs/CUDA_PHASE9_ENVIRONMENT.md`. Phase 5 provides CPU reference matmul, a
 correctness-first custom Metal matmul kernel, and an optimized Metal primitive

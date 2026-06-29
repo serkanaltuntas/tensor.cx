@@ -96,6 +96,17 @@ Status MetalBackend::execute(const BackendExecution& execution) {
         execution.outputs[0] = to_core_tensor(result.move_value());
         return Status::Ok();
       }
+      case OpKind::kSum:
+      case OpKind::kMax:
+      case OpKind::kMean: {
+        const MetalTensor input = from_core_tensor(execution.inputs[0]);
+        auto result = reduce(execution.op, input);
+        if (!result) {
+          return result.status();
+        }
+        execution.outputs[0] = to_core_tensor(result.move_value());
+        return Status::Ok();
+      }
       case OpKind::kFill: {
         const Tensor descriptor = execution.outputs[0];
         auto result = fill(
@@ -364,6 +375,42 @@ Status contract_smoke_test() {
   if (Status status = expect_axis_transform_matches_cpu(
           OpDesc{OpKind::kLayerNorm, 0},
           "valid layernorm");
+      !status.ok()) {
+    return status;
+  }
+
+  auto expect_reduction_matches_cpu = [&](const OpDesc& op, const char* scenario) -> Status {
+    unary_outputs = {};
+    const BackendExecution valid_reduction{
+        BackendOpClass::kPrimitive,
+        op,
+        std::span<const Tensor>(unary_inputs.data(), unary_inputs.size()),
+        std::span<Tensor>(unary_outputs.data(), unary_outputs.size()),
+        std::nullopt,
+        std::nullopt,
+    };
+    if (Status status =
+            expect_status_code(scenario, backend.execute(valid_reduction), StatusCode::kOk);
+        !status.ok()) {
+      return status;
+    }
+    const auto actual_result = to_cpu(from_core_tensor(unary_outputs[0]));
+    if (!actual_result) {
+      return actual_result.status();
+    }
+    const cpu::CpuTensor expected = cpu::reduce(op, lhs_cpu);
+    return expect_float_data_close(scenario, actual_result.value(), expected);
+  };
+
+  if (Status status = expect_reduction_matches_cpu(OpDesc{OpKind::kSum, 0}, "valid sum");
+      !status.ok()) {
+    return status;
+  }
+  if (Status status = expect_reduction_matches_cpu(OpDesc{OpKind::kMax, 0}, "valid max");
+      !status.ok()) {
+    return status;
+  }
+  if (Status status = expect_reduction_matches_cpu(OpDesc{OpKind::kMean, 0}, "valid mean");
       !status.ok()) {
     return status;
   }
