@@ -345,14 +345,16 @@ Status execute(const BackendExecution& execution);
 ```
 
 `BackendExecution` carries the op class, `OpDesc`, input tensor metadata,
-mutable output tensor metadata/result slots, and optional launch /
-compilation-target metadata for kernel execution. Allocation-style primitives
-such as `fill` use output metadata as an allocation descriptor. `OpDesc` carries
-an op enum plus attributes, including scalar values for primitive operations
-that need them and backend-neutral matmul preference for auto/custom/optimized
-algorithm selection; backends switch on the enum. This keeps Phase 6 (15+ ops)
-and Phase 8 (primitive vs kernel ops) from becoming a rewrite. The per-op method
-sketch in §8.2 is illustrative only and must not be implemented literally.
+mutable output tensor metadata/result slots, optional launch /
+compilation-target metadata for kernel execution, and ordered kernel arguments
+for caller-owned kernel buffers and scalar launch parameters. Allocation-style
+primitives such as `fill` use output metadata as an allocation descriptor.
+`OpDesc` carries an op enum plus attributes, including scalar values for
+primitive operations that need them and backend-neutral matmul preference for
+auto/custom/optimized algorithm selection; backends switch on the enum. This
+keeps Phase 6 (15+ ops) and Phase 8 (primitive vs kernel ops) from becoming a
+rewrite. The per-op method sketch in §8.2 is illustrative only and must not be
+implemented literally.
 
 **Error handling: `expected`, no exceptions across the Metal boundary.** Core
 functions return `Status` or `expected<T, Status>` (use `tl::expected` until
@@ -1299,8 +1301,9 @@ restricted Python AST -> backend-neutral IR parser, text MSL emitter, in-memory
 metallib compile artifact, native Metal library load/function lookup validation,
 and a narrow synchronous Metal launch hook exist for the first elementwise
 float32 subset. A generated add kernel now binds runtime buffers, launches on
-Metal, and matches the CPU reference. Keep the DSL under cx.experimental until
-the semantics are broader and stable enough for a public top-level API.
+Metal through `BackendExecution`, and matches the CPU reference. Keep the DSL
+under cx.experimental until the semantics are broader and stable enough for a
+public top-level API.
 ```
 
 Initial design:

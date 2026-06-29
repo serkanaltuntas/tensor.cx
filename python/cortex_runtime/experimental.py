@@ -138,6 +138,9 @@ class CompiledKernel:
             raise ValueError("thread_count cannot exceed output tensor size")
         if scalar_arguments[guard_param] != normalized_thread_count:
             raise ValueError("kernel guard bound must match thread_count")
+        if normalized_thread_count == 0:
+            self.validate_metal_function()
+            return output_tensor
 
         from . import _core
 
@@ -145,6 +148,7 @@ class CompiledKernel:
             self.metallib,
             self.name,
             native_arguments,
+            output_tensor._impl,
             normalized_thread_count,
             normalized_block_size,
         )

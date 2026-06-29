@@ -1,15 +1,28 @@
 #include "cortex/backends/null/null_backend.h"
 
 #include <array>
+#include <cstddef>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
 
+#include "cortex/core/buffer.h"
 #include "cortex/core/dtype.h"
 #include "cortex/core/shape.h"
 
 namespace cortex::null_backend {
 namespace {
+
+class SmokeBuffer final : public Buffer {
+ public:
+  explicit SmokeBuffer(std::size_t nbytes) : nbytes_(nbytes) {}
+
+  std::size_t nbytes() const override { return nbytes_; }
+
+ private:
+  std::size_t nbytes_;
+};
 
 Status validate_execution_contract(const BackendExecution& execution) {
   if (execution.op_class == BackendOpClass::kPrimitive) {
@@ -65,6 +78,7 @@ Status contract_smoke_test() {
       output_span,
       std::nullopt,
       std::nullopt,
+      std::span<const KernelArgument>(),
   };
   if (Status status = expect_status_code(
           "valid primitive",
@@ -171,8 +185,76 @@ Status contract_smoke_test() {
     return status;
   }
 
-  BackendExecution kernel_missing_launch = valid_primitive;
-  kernel_missing_launch.op_class = BackendOpClass::kKernel;
+  const Shape kernel_output_shape{2};
+  std::array<Tensor, 1> kernel_outputs{Tensor{
+      DType::kFloat32,
+      kernel_output_shape,
+      contiguous_strides(kernel_output_shape),
+      Device{"null", 0},
+      std::make_shared<SmokeBuffer>(2 * dtype_size(DType::kFloat32)),
+      0,
+  }};
+  const std::span<Tensor> kernel_output_span(kernel_outputs.data(), kernel_outputs.size());
+  std::array<KernelArgument, 2> kernel_arguments{{
+      KernelArgument{KernelArgumentKind::kTensor, &kernel_outputs[0], 0},
+      KernelArgument{KernelArgumentKind::kUInt32, nullptr, 2},
+  }};
+  const std::span<const KernelArgument> kernel_argument_span(
+      kernel_arguments.data(),
+      kernel_arguments.size());
+
+  const BackendExecution valid_kernel{
+      BackendOpClass::kKernel,
+      OpDesc{OpKind::kAdd},
+      std::span<const Tensor>(),
+      kernel_output_span,
+      LaunchConfig{1, 1, 1, 1, 1, 1},
+      CompilationTarget{KernelArtifactKind::kStaticLibrary, "noop_library", "noop"},
+      kernel_argument_span,
+  };
+  if (Status status =
+          expect_status_code("valid kernel", backend.execute(valid_kernel), StatusCode::kUnavailable);
+      !status.ok()) {
+    return status;
+  }
+
+  BackendExecution kernel_with_primitive_inputs = valid_kernel;
+  kernel_with_primitive_inputs.inputs = binary_input_span;
+  if (Status status = expect_status_code(
+          "kernel with primitive inputs",
+          backend.execute(kernel_with_primitive_inputs),
+          StatusCode::kInvalidArgument);
+      !status.ok()) {
+    return status;
+  }
+
+  BackendExecution kernel_default_output = valid_kernel;
+  outputs[0] = Tensor{};
+  kernel_default_output.outputs = output_span;
+  if (Status status = expect_status_code(
+          "kernel default output metadata",
+          backend.execute(kernel_default_output),
+          StatusCode::kInvalidArgument);
+      !status.ok()) {
+    return status;
+  }
+
+  std::array<KernelArgument, 1> invalid_kernel_arguments{{
+      KernelArgument{KernelArgumentKind::kTensor, nullptr, 0},
+  }};
+  BackendExecution kernel_null_tensor_argument = valid_kernel;
+  kernel_null_tensor_argument.kernel_arguments =
+      std::span<const KernelArgument>(invalid_kernel_arguments.data(), invalid_kernel_arguments.size());
+  if (Status status = expect_status_code(
+          "kernel null tensor argument",
+          backend.execute(kernel_null_tensor_argument),
+          StatusCode::kInvalidArgument);
+      !status.ok()) {
+    return status;
+  }
+
+  BackendExecution kernel_missing_launch = valid_kernel;
+  kernel_missing_launch.launch = std::nullopt;
   kernel_missing_launch.compilation_target =
       CompilationTarget{KernelArtifactKind::kStaticLibrary, "noop_library", "noop"};
   if (Status status = expect_status_code(
@@ -194,9 +276,8 @@ Status contract_smoke_test() {
     return status;
   }
 
-  BackendExecution kernel_missing_target = valid_primitive;
-  kernel_missing_target.op_class = BackendOpClass::kKernel;
-  kernel_missing_target.launch = LaunchConfig{1, 1, 1, 1, 1, 1};
+  BackendExecution kernel_missing_target = valid_kernel;
+  kernel_missing_target.compilation_target = std::nullopt;
   if (Status status = expect_status_code(
           "kernel missing compilation target",
           backend.execute(kernel_missing_target),
@@ -246,15 +327,6 @@ Status contract_smoke_test() {
           "kernel empty artifact",
           backend.execute(kernel_empty_artifact),
           StatusCode::kInvalidArgument);
-      !status.ok()) {
-    return status;
-  }
-
-  BackendExecution valid_kernel = kernel_missing_target;
-  valid_kernel.compilation_target =
-      CompilationTarget{KernelArtifactKind::kStaticLibrary, "noop_library", "noop"};
-  if (Status status =
-          expect_status_code("valid kernel", backend.execute(valid_kernel), StatusCode::kUnavailable);
       !status.ok()) {
     return status;
   }

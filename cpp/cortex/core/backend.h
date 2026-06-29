@@ -25,7 +25,15 @@ enum class KernelArtifactKind {
   kIntermediateRepresentation,
 };
 
+enum class KernelArgumentKind {
+  kTensor,
+  kUInt32,
+};
+
 struct LaunchConfig {
+  // Backend-neutral global work-item dimensions, not native CUDA block counts
+  // or Metal threadgroup counts. Backends derive native grid/block counts from
+  // these dimensions and the threads-per-group values.
   std::uint32_t grid_x{0};
   std::uint32_t grid_y{1};
   std::uint32_t grid_z{1};
@@ -40,6 +48,12 @@ struct CompilationTarget {
   std::string entry_point;
 };
 
+struct KernelArgument {
+  KernelArgumentKind kind{KernelArgumentKind::kUInt32};
+  const Tensor* tensor{nullptr};
+  std::uint32_t uint32_value{0};
+};
+
 struct BackendExecution {
   BackendOpClass op_class{BackendOpClass::kPrimitive};
   OpDesc op;
@@ -47,6 +61,7 @@ struct BackendExecution {
   std::span<Tensor> outputs;
   std::optional<LaunchConfig> launch;
   std::optional<CompilationTarget> compilation_target;
+  std::span<const KernelArgument> kernel_arguments;
 };
 
 class Backend {

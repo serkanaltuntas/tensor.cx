@@ -344,6 +344,7 @@ Status contract_smoke_test() {
       std::span<Tensor>(outputs.data(), outputs.size()),
       std::nullopt,
       std::nullopt,
+      std::span<const KernelArgument>(),
   };
 
   if (Status status =
@@ -388,6 +389,7 @@ Status contract_smoke_test() {
       std::span<Tensor>(fill_outputs.data(), fill_outputs.size()),
       std::nullopt,
       std::nullopt,
+      std::span<const KernelArgument>(),
   };
   if (Status status =
           expect_status_code("valid fill", backend.execute(valid_fill), StatusCode::kOk);
@@ -440,6 +442,7 @@ Status contract_smoke_test() {
       std::span<Tensor>(unary_outputs.data(), unary_outputs.size()),
       std::nullopt,
       std::nullopt,
+      std::span<const KernelArgument>(),
   };
 
   if (Status status =
@@ -476,6 +479,7 @@ Status contract_smoke_test() {
       std::span<Tensor>(axis_outputs.data(), axis_outputs.size()),
       std::nullopt,
       std::nullopt,
+      std::span<const KernelArgument>(),
   };
   if (Status status =
           expect_status_code("valid softmax", backend.execute(valid_softmax), StatusCode::kOk);
@@ -503,6 +507,7 @@ Status contract_smoke_test() {
       std::span<Tensor>(reduction_outputs.data(), reduction_outputs.size()),
       std::nullopt,
       std::nullopt,
+      std::span<const KernelArgument>(),
   };
   if (Status status =
           expect_status_code("valid sum", backend.execute(valid_sum), StatusCode::kOk);
@@ -530,6 +535,7 @@ Status contract_smoke_test() {
       std::span<Tensor>(matmul_outputs.data(), matmul_outputs.size()),
       std::nullopt,
       std::nullopt,
+      std::span<const KernelArgument>(),
   };
   if (Status status = expect_status_code(
           "valid matmul",

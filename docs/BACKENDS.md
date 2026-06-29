@@ -65,6 +65,7 @@ inputs              input tensor metadata span
 outputs             mutable output tensor metadata/result-slot span
 launch              optional LaunchConfig, required only for kernel launches
 compilation_target  optional CompilationTarget, required only for kernel launches
+kernel_arguments    ordered tensor/uint32 argument span for kernel launches
 ```
 
 Primitive operations are library/runtime operations such as matmul or reductions
@@ -75,14 +76,15 @@ the output metadata after allocating or producing the result buffer.
 Allocation-style primitives such as `fill` use `outputs[0]` as an allocation
 descriptor: dtype, shape, device, contiguous strides, no buffer, and offset 0.
 
-`BackendOpClass::kKernel` is the Phase 8 scaffold for future project-owned
-static or generated kernel execution. It validates launch and compilation-target
-metadata, but it is not yet the live ABI for `cx.experimental` generated
-kernels. The generated DSL still uses the typed Metal launch path with ordered
-`KernelArgument` tensor/scalar values and caller-owned output tensors. Before
-generated kernels migrate to `BackendExecution`, the ABI must gain an ordered
-kernel argument channel and explicit output ownership semantics for
-caller-provided outputs.
+`BackendOpClass::kKernel` is the backend execution form for project-owned
+static or generated kernel execution. Kernel requests use caller-owned concrete
+output tensor metadata and an ordered `kernel_arguments` span for tensor buffers
+and uint32 scalar values. The current live use is intentionally narrow:
+`cx.experimental` generated kernels route non-empty launches through this ABI
+for synchronous Metal-only, one-output, float32 elementwise execution.
+Zero-thread Python launches validate the Metal function and return as no-ops
+before building `BackendExecution`, because core launch dimensions are non-zero
+by contract.
 
 Primitive requests must match the core `primitive_op_schema`: the op kind
 defines the expected input and output tensor metadata counts. The shared core
@@ -98,28 +100,37 @@ in the core.
 
 Kernel requests must pass the shared core kernel contract validator before a
 backend executes them: they require output metadata, launch metadata, a
-launch whose grid and thread-group dimensions are all non-zero, a compilation
+launch whose global work and thread-group dimensions are all non-zero, a compilation
 target, a non-empty entry point, a concrete artifact kind, and a non-empty
-artifact identifier. This is still a contract scaffold, not the live
-generated-kernel ABI.
+artifact data or identifier. Tensor kernel arguments and kernel outputs must be
+concrete contiguous tensor metadata with buffers. Primitive `inputs` are not
+used for kernel execution; ordered kernel arguments define the backend binding
+ABI. `BackendExecution` spans and `KernelArgument.tensor` pointers are borrowed
+for the duration of `Backend::execute`; backends must not retain them.
 
 ### Launch Abstraction
 
-`LaunchConfig` describes grid dimensions and threads-per-group dimensions. The
-fields are intentionally backend-neutral so Metal, CUDA, ROCm, Vulkan/SPIR-V,
-and MLIR-generated paths can map them to their native launch concepts later.
-All six launch dimensions must be non-zero. Synchronous execution remains the
-project default.
+`LaunchConfig` describes backend-neutral global work-item dimensions and
+threads-per-group dimensions. The `grid_*` names mean logical global work size,
+not native CUDA block count or Metal threadgroup count. Metal, CUDA, ROCm,
+Vulkan/SPIR-V, and MLIR-generated paths map these values to their native launch
+concepts locally. All six launch dimensions must be non-zero. For the current
+narrow `cx.experimental` Metal generated-kernel path, `grid_x` is the logical
+1-D thread count; the Metal backend derives native threadgroup count from
+`grid_x` and `threads_per_group_x`. Synchronous execution remains the project
+default.
 
 ### Compilation Target
 
 `CompilationTarget` identifies a backend-local artifact and entry point for
-kernel execution. `KernelArtifactKind` stays backend-neutral: static library,
-source text, binary module, or intermediate representation. The core does not
-name Metal, MSL, PTX, SPIR-V, MLIR, or other concrete formats here; each backend
-maps the neutral artifact class and opaque artifact string to its own compiled
-library, generated source cache, binary blob, or IR module. Primitive operations
-should leave `compilation_target` unset.
+kernel execution. The `artifact` string is opaque backend-local artifact data or
+an artifact identifier; for the current in-memory Metal path it carries metallib
+bytes. `KernelArtifactKind` stays backend-neutral: static library, source text,
+binary module, or intermediate representation. The core does not name Metal,
+MSL, PTX, SPIR-V, MLIR, or other concrete formats here; each backend maps the
+neutral artifact class and opaque artifact string to its own compiled library,
+generated source cache, binary blob, or IR module. Primitive operations should
+leave `compilation_target` unset.
 
 ### Buffer Ownership
 
@@ -143,9 +154,9 @@ extension.
 Phase 8 is complete. The backend ABI and null backend scaffold exist, and CPU
 fill, add/multiply, unary transforms, reductions, and matmul route through
 `CpuBackend::execute` without changing public Python behavior. Metal
-add/multiply, unary transforms, axis/norm transforms, reductions, matmul, and
-fill route through `MetalBackend::execute`; remaining generated-kernel dispatch
-still uses the existing typed entry point. Phase 9 has not started and requires
-a CUDA hardware or cloud development environment decision before
+add/multiply, unary transforms, axis/norm transforms, reductions, matmul, fill,
+and non-empty narrow experimental generated-kernel launches route through
+`MetalBackend::execute`. Phase 9 has not started and requires a CUDA hardware
+or cloud development environment decision before
 implementation; see
 [`CUDA_PHASE9_ENVIRONMENT.md`](CUDA_PHASE9_ENVIRONMENT.md).

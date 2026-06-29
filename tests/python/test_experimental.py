@@ -466,6 +466,96 @@ def test_experimental_kernel_launch_handles_default_block_size_tail():
     reason="Apple Metal command-line compiler tools are unavailable",
 )
 @pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_experimental_kernel_launch_zero_thread_count_is_noop():
+    @cx.experimental.kernel(target="metal")
+    def add_kernel(a, b, out, n):
+        i = (
+            cx.experimental.program_id(0) * cx.experimental.block_size()
+            + cx.experimental.thread_id()
+        )
+        if i < n:
+            out[i] = a[i] + b[i]
+
+    x = cx.empty((0,), dtype=cx.float32, device="metal")
+    y = cx.empty((0,), dtype=cx.float32, device="metal")
+    out = cx.empty((0,), dtype=cx.float32, device="metal")
+    compiled = add_kernel.compile(target="metal")
+
+    returned = compiled.launch(x, y, out, 0, thread_count=0, block_size=32)
+
+    assert returned is out
+    np.testing.assert_allclose(out.cpu().numpy(), np.empty((0,), dtype=np.float32))
+
+
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_experimental_compiled_kernel_launch_reports_invalid_metallib_errors():
+    @cx.experimental.kernel(target="metal")
+    def add_kernel(a, b, out, n):
+        i = (
+            cx.experimental.program_id(0) * cx.experimental.block_size()
+            + cx.experimental.thread_id()
+        )
+        if i < n:
+            out[i] = a[i] + b[i]
+
+    x = cx.ones((2,), dtype=cx.float32, device="metal")
+    out = cx.empty((2,), dtype=cx.float32, device="metal")
+    empty_artifact = cx.experimental.CompiledKernel(
+        name="add_kernel",
+        target="metal",
+        ir=add_kernel.parse_ir(),
+        msl_source="",
+        metallib=b"",
+    )
+    malformed_artifact = cx.experimental.CompiledKernel(
+        name="add_kernel",
+        target="metal",
+        ir=add_kernel.parse_ir(),
+        msl_source="",
+        metallib=b"not-a-metallib",
+    )
+
+    with pytest.raises(ValueError, match="kernel compilation target requires an artifact"):
+        empty_artifact.launch(x, x, out, 2, block_size=32)
+    with pytest.raises(ValueError, match="failed to load Metal library"):
+        malformed_artifact.launch(x, x, out, 2, block_size=32)
+
+
+@pytest.mark.skipif(
+    not _has_metal_compiler(),
+    reason="Apple Metal command-line compiler tools are unavailable",
+)
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_experimental_compiled_kernel_launch_reports_missing_function():
+    @cx.experimental.kernel(target="metal")
+    def add_kernel(a, b, out, n):
+        i = (
+            cx.experimental.program_id(0) * cx.experimental.block_size()
+            + cx.experimental.thread_id()
+        )
+        if i < n:
+            out[i] = a[i] + b[i]
+
+    compiled = add_kernel.compile(target="metal")
+    missing = cx.experimental.CompiledKernel(
+        name="missing_kernel",
+        target="metal",
+        ir=compiled.ir,
+        msl_source=compiled.msl_source,
+        metallib=compiled.metallib,
+    )
+    x = cx.ones((2,), dtype=cx.float32, device="metal")
+    out = cx.empty((2,), dtype=cx.float32, device="metal")
+
+    with pytest.raises(ValueError, match="does not contain function: missing_kernel"):
+        missing.launch(x, x, out, 2, block_size=32)
+
+
+@pytest.mark.skipif(
+    not _has_metal_compiler(),
+    reason="Apple Metal command-line compiler tools are unavailable",
+)
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
 def test_experimental_compiled_kernel_validates_metal_function_lookup():
     @cx.experimental.kernel
     def add_kernel(a, b, out, n):

@@ -115,10 +115,10 @@ primitive/kernel contract validators, and null backend scaffold exist, and CPU
 fill, add/multiply, unary transforms, reductions, and matmul route through
 `CpuBackend::execute`. Metal add/multiply, unary transforms, axis/norm
 transforms, reductions, matmul, and fill now also route through
-`MetalBackend::execute`; remaining generated-kernel dispatch still uses a typed
-path. Phase 9 has not started; it requires a CUDA hardware or cloud development
-environment decision
-first. The Phase 9 decision gate is documented in
+`MetalBackend::execute`; the experimental generated-kernel launch path also
+enters Metal through `BackendExecution`. Phase 9 has not started; it requires a
+CUDA hardware or cloud development environment decision first. The Phase 9
+decision gate is documented in
 `docs/CUDA_PHASE9_ENVIRONMENT.md`. Phase 5 provides CPU reference matmul, a
 correctness-first custom Metal matmul kernel, and an optimized Metal primitive
 path. Phase 6 adds `sum`, `max`, `mean`, `exp`, `gelu`, `silu`, `softmax`,
@@ -203,8 +203,10 @@ print(ln.cpu().numpy().shape)
   native extension is built with Metal support and a Metal runtime is available,
   and can launch the first float32 elementwise subset with `launch(...)`.
   Calling a decorated kernel compiles and launches through the same experimental
-  path. The launch path is synchronous, Metal-only, one-output, exact-shape, and
-  still under `cx.experimental`.
+  path. Non-empty launches enter the Metal backend through `BackendExecution`;
+  zero-thread launches validate the Metal function and return as no-ops. The
+  launch path is synchronous, Metal-only, one-output, exact-shape, and still
+  under `cx.experimental`.
 - Execution is synchronous and holds the Python GIL; the runtime is not yet safe
   for concurrent multi-threaded use (see `docs/METAL_BACKEND.md`).
 

@@ -13,6 +13,8 @@
 #include "cortex/backends/metal/metal_buffer.h"
 #include "cortex/backends/metal/metal_context.h"
 #include "cortex/backends/metal/metal_kernels.h"
+#include "cortex/backends/metal/metal_kernels_data.h"
+#include "cortex/backends/metal/metal_library.h"
 #if CORTEX_ENABLE_MPSGRAPH
 #include "cortex/backends/metal/metal_mpsgraph.h"
 #endif
@@ -46,6 +48,77 @@ Expected<MetalTensor> execute_matmul(
 #endif
   }
   return invalid_argument_status("unsupported Metal matmul preference");
+}
+
+std::vector<std::uint8_t> artifact_bytes(const std::string& artifact) {
+  const auto* first = reinterpret_cast<const std::uint8_t*>(artifact.data());
+  return std::vector<std::uint8_t>(first, first + artifact.size());
+}
+
+Status validate_metal_kernel_execution(const BackendExecution& execution) {
+  const CompilationTarget& target = *execution.compilation_target;
+  if (target.artifact_kind != KernelArtifactKind::kBinary &&
+      target.artifact_kind != KernelArtifactKind::kStaticLibrary) {
+    return invalid_argument_status(
+        "Metal kernel execution requires a binary or static library artifact");
+  }
+
+  const LaunchConfig& launch = *execution.launch;
+  if (launch.grid_y != 1 || launch.grid_z != 1 || launch.threads_per_group_y != 1 ||
+      launch.threads_per_group_z != 1) {
+    return invalid_argument_status("experimental Metal kernel execution is 1D only");
+  }
+
+  for (const Tensor& output : execution.outputs) {
+    static_cast<void>(from_core_tensor(output));
+  }
+  return Status::Ok();
+}
+
+Expected<std::string> execute_kernel(const BackendExecution& execution) {
+  if (Status status = validate_metal_kernel_execution(execution); !status.ok()) {
+    return status;
+  }
+
+  std::size_t tensor_argument_count = 0;
+  for (const cortex::KernelArgument& argument : execution.kernel_arguments) {
+    if (argument.kind == KernelArgumentKind::kTensor) {
+      ++tensor_argument_count;
+    }
+  }
+
+  std::vector<MetalTensor> tensor_storage;
+  tensor_storage.reserve(tensor_argument_count);
+  std::vector<cortex::metal::KernelArgument> metal_arguments;
+  metal_arguments.reserve(execution.kernel_arguments.size());
+
+  for (const cortex::KernelArgument& argument : execution.kernel_arguments) {
+    switch (argument.kind) {
+      case KernelArgumentKind::kTensor:
+        tensor_storage.push_back(from_core_tensor(*argument.tensor));
+        metal_arguments.push_back(cortex::metal::KernelArgument{
+            cortex::metal::KernelArgument::Kind::kTensor,
+            &tensor_storage.back(),
+            0,
+        });
+        break;
+      case KernelArgumentKind::kUInt32:
+        metal_arguments.push_back(cortex::metal::KernelArgument{
+            cortex::metal::KernelArgument::Kind::kUInt32,
+            nullptr,
+            argument.uint32_value,
+        });
+        break;
+    }
+  }
+
+  const LaunchConfig& launch = *execution.launch;
+  return launch_library_function(
+      artifact_bytes(execution.compilation_target->artifact),
+      execution.compilation_target->entry_point,
+      metal_arguments,
+      launch.grid_x,
+      launch.threads_per_group_x);
 }
 
 Status expect_status_code(
@@ -92,6 +165,18 @@ std::string MetalBackend::name() const { return "metal"; }
 
 Status MetalBackend::execute(const BackendExecution& execution) {
   try {
+    if (execution.op_class == BackendOpClass::kKernel) {
+      const Status contract = validate_kernel_execution_contract(execution);
+      if (!contract.ok()) {
+        return contract;
+      }
+      auto result = execute_kernel(execution);
+      if (!result) {
+        return result.status();
+      }
+      return Status::Ok();
+    }
+
     const Status contract = validate_primitive_execution_contract(execution, "metal");
     if (!contract.ok()) {
       return contract;
@@ -294,6 +379,7 @@ Status contract_smoke_test() {
       std::span<Tensor>(outputs.data(), outputs.size()),
       std::nullopt,
       std::nullopt,
+      std::span<const cortex::KernelArgument>(),
   };
   if (Status status =
           expect_status_code("valid add", backend.execute(valid_add), StatusCode::kOk);
@@ -306,6 +392,96 @@ Status contract_smoke_test() {
   }
   if (add_cpu_result.value().float_data() != std::vector<float>{4.0F, 6.0F}) {
     return Status(StatusCode::kInternal, "Metal backend contract smoke test failed: add result");
+  }
+
+  auto kernel_output_buffer_result = MetalBuffer::create(DType::kFloat32, 2);
+  if (!kernel_output_buffer_result) {
+    return kernel_output_buffer_result.status();
+  }
+  MetalTensor kernel_output_metal(
+      DType::kFloat32,
+      Shape{2},
+      kernel_output_buffer_result.move_value());
+  std::array<Tensor, 1> kernel_outputs{to_core_tensor(kernel_output_metal)};
+  std::array<Tensor, 3> kernel_argument_tensors{
+      inputs[0],
+      inputs[1],
+      kernel_outputs[0],
+  };
+  std::array<cortex::KernelArgument, 4> kernel_arguments{{
+      cortex::KernelArgument{
+          cortex::KernelArgumentKind::kTensor,
+          &kernel_argument_tensors[0],
+          0},
+      cortex::KernelArgument{
+          cortex::KernelArgumentKind::kTensor,
+          &kernel_argument_tensors[1],
+          0},
+      cortex::KernelArgument{
+          cortex::KernelArgumentKind::kTensor,
+          &kernel_argument_tensors[2],
+          0},
+      cortex::KernelArgument{cortex::KernelArgumentKind::kUInt32, nullptr, 2},
+  }};
+  const std::string kernel_artifact(
+      reinterpret_cast<const char*>(kElementwiseMetallib),
+      kElementwiseMetallibSize);
+  const BackendExecution valid_kernel{
+      BackendOpClass::kKernel,
+      OpDesc{},
+      std::span<const Tensor>(),
+      std::span<Tensor>(kernel_outputs.data(), kernel_outputs.size()),
+      LaunchConfig{2, 1, 1, 2, 1, 1},
+      CompilationTarget{KernelArtifactKind::kStaticLibrary, kernel_artifact, "add_f32"},
+      std::span<const cortex::KernelArgument>(kernel_arguments.data(), kernel_arguments.size()),
+  };
+  if (Status status =
+          expect_status_code("valid kernel", backend.execute(valid_kernel), StatusCode::kOk);
+      !status.ok()) {
+    return status;
+  }
+  const auto kernel_cpu_result = to_cpu(from_core_tensor(kernel_outputs[0]));
+  if (!kernel_cpu_result) {
+    return kernel_cpu_result.status();
+  }
+  if (kernel_cpu_result.value().float_data() != std::vector<float>{4.0F, 6.0F}) {
+    return Status(
+        StatusCode::kInternal,
+        "Metal backend contract smoke test failed: kernel result");
+  }
+
+  BackendExecution non_1d_kernel = valid_kernel;
+  non_1d_kernel.launch = LaunchConfig{2, 2, 1, 2, 1, 1};
+  if (Status status = expect_status_code(
+          "non-1D kernel launch",
+          backend.execute(non_1d_kernel),
+          StatusCode::kInvalidArgument);
+      !status.ok()) {
+    return status;
+  }
+
+  BackendExecution unsupported_kernel_artifact = valid_kernel;
+  unsupported_kernel_artifact.compilation_target =
+      CompilationTarget{KernelArtifactKind::kSource, kernel_artifact, "add_f32"};
+  if (Status status = expect_status_code(
+          "unsupported kernel artifact kind",
+          backend.execute(unsupported_kernel_artifact),
+          StatusCode::kInvalidArgument);
+      !status.ok()) {
+    return status;
+  }
+
+  std::array<Tensor, 1> wrong_device_kernel_outputs{kernel_outputs[0]};
+  wrong_device_kernel_outputs[0].device.type = "cpu";
+  BackendExecution wrong_device_kernel_output = valid_kernel;
+  wrong_device_kernel_output.outputs =
+      std::span<Tensor>(wrong_device_kernel_outputs.data(), wrong_device_kernel_outputs.size());
+  if (Status status = expect_status_code(
+          "wrong-device kernel output",
+          backend.execute(wrong_device_kernel_output),
+          StatusCode::kInvalidArgument);
+      !status.ok()) {
+    return status;
   }
 
   BackendExecution valid_multiply = valid_add;
@@ -351,6 +527,7 @@ Status contract_smoke_test() {
         std::span<Tensor>(unary_outputs.data(), unary_outputs.size()),
         std::nullopt,
         std::nullopt,
+        std::span<const cortex::KernelArgument>(),
     };
     if (Status status =
             expect_status_code(scenario, backend.execute(valid_unary), StatusCode::kOk);
@@ -385,6 +562,7 @@ Status contract_smoke_test() {
         std::span<Tensor>(unary_outputs.data(), unary_outputs.size()),
         std::nullopt,
         std::nullopt,
+        std::span<const cortex::KernelArgument>(),
     };
     if (Status status =
             expect_status_code(scenario, backend.execute(valid_transform), StatusCode::kOk);
@@ -425,6 +603,7 @@ Status contract_smoke_test() {
         std::span<Tensor>(unary_outputs.data(), unary_outputs.size()),
         std::nullopt,
         std::nullopt,
+        std::span<const cortex::KernelArgument>(),
     };
     if (Status status =
             expect_status_code(scenario, backend.execute(valid_reduction), StatusCode::kOk);
@@ -480,6 +659,7 @@ Status contract_smoke_test() {
         std::span<Tensor>(matmul_outputs.data(), matmul_outputs.size()),
         std::nullopt,
         std::nullopt,
+        std::span<const cortex::KernelArgument>(),
     };
     if (Status status =
             expect_status_code(scenario, backend.execute(valid_matmul), StatusCode::kOk);
@@ -546,6 +726,7 @@ Status contract_smoke_test() {
       std::span<Tensor>(fill_outputs.data(), fill_outputs.size()),
       std::nullopt,
       std::nullopt,
+      std::span<const cortex::KernelArgument>(),
   };
   if (Status status =
           expect_status_code("valid fill", backend.execute(valid_fill), StatusCode::kOk);

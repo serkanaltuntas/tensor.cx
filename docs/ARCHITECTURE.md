@@ -59,20 +59,22 @@ tensor types.
 than one virtual method per operation. Phase 8 completed the backend ABI
 hardening work:
 `cpp/cortex/core/backend.h` now defines the execution contract, separates
-primitive operations from kernel launches, and carries optional launch and
-compilation-target metadata. `cpp/cortex/backends/null/` compiles against that
-interface alone and exists to prove the contract has no Metal dependency. The
-core also exposes the primitive op input/output schema plus shared primitive
-and kernel contract validators. CPU and Metal currently use the primitive
-validator for migrated execution paths; the null backend uses both validators to
-reject malformed primitive and kernel scaffold requests.
+primitive operations from kernel launches, and carries optional launch metadata,
+compilation-target metadata, and ordered kernel arguments. `cpp/cortex/backends/null/`
+compiles against that interface alone and exists to prove the contract has no
+Metal dependency. The core also exposes the primitive op input/output schema
+plus shared primitive and kernel contract validators. CPU and Metal currently
+use the primitive validator for migrated execution paths; Metal uses the kernel
+validator for experimental generated-kernel launches, and the null backend uses
+both validators to reject malformed primitive and kernel requests.
 
 For primitive execution, `BackendExecution.outputs` are result slots that the
 backend fills with produced tensor metadata. Allocation-style primitives such as
-`fill` use an output allocation descriptor and `OpDesc.scalar_value`. The
-`BackendOpClass::kKernel` form is only a contract scaffold today: it is not yet
-the live ABI for the experimental generated-kernel launcher because that path
-still needs ordered tensor/scalar arguments and caller-owned output tensors.
+`fill` use an output allocation descriptor and `OpDesc.scalar_value`.
+`BackendOpClass::kKernel` is the live ABI for the narrow
+`cx.experimental` generated-kernel launcher. Kernel execution uses caller-owned
+output tensor metadata plus an ordered `kernel_arguments` span containing tensor
+metadata and uint32 scalar launch parameters.
 
 The dispatch that actually runs is still mixed after Phase 8. CPU
 add/multiply, unary transforms, reductions, and matmul are routed through
@@ -85,9 +87,12 @@ route through `MetalBackend::execute(BackendExecution)`, using the same
 primitive validator and adapting between `MetalTensor` and core tensor metadata
 at the backend boundary. Metal matmul also routes through
 `MetalBackend::execute`; `OpDesc.matmul_preference` selects the default path,
-the custom MSL kernel path, or the optimized primitive path when available.
-The remaining live typed Metal dispatch path is the generated-kernel launcher.
-Phase 6 adds a minimal `axis` attribute to `OpDesc` for reductions and
+the custom MSL kernel path, or the optimized primitive path when available. The
+experimental generated-kernel launcher also enters Metal through
+`MetalBackend::execute` using `BackendOpClass::kKernel` for non-empty launches;
+zero-thread launches validate the Metal function and return as no-ops before
+building a backend execution request. Phase 6 adds a minimal `axis` attribute to
+`OpDesc` for reductions and
 axis-aware transforms such as softmax, rmsnorm, and layernorm, plus an
 `epsilon` attribute for normalization ops. Phase 8 adds `scalar_value` for fill.
 Constructor-style `empty` allocation remains outside `Backend::execute` for now.
@@ -118,9 +123,9 @@ continues to harden around `Backend::execute` and `OpDesc`.
   `Backend::execute`, no per-op virtual method). The ABI is defined and backed
   by a null backend scaffold; CPU add/multiply, unary transforms, reductions,
   matmul, and fill have been migrated, and Metal add/multiply, unary transforms,
-  axis/norm transforms, reductions, matmul, and fill now use the same backend
-  execution path. Remaining generated-kernel dispatch still uses a typed entry
-  point.
+  axis/norm transforms, reductions, matmul, fill, and non-empty narrow
+  experimental generated-kernel launches now use the same backend execution
+  entry point.
 - Public backend selection uses registry/string-keyed routing; CUDA must plug
   into that route instead of adding ad hoc public dispatch branches.
 - Metal backend errors return `Status` / `Expected<T>` and are translated to

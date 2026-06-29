@@ -301,6 +301,15 @@ std::vector<std::uint8_t> bytes_to_vector(nb::bytes data) {
   return std::vector<std::uint8_t>(first, first + size);
 }
 
+std::string bytes_to_string(nb::bytes data) {
+  char* buffer = nullptr;
+  Py_ssize_t size = 0;
+  if (PyBytes_AsStringAndSize(data.ptr(), &buffer, &size) != 0) {
+    throw std::invalid_argument("metallib must be bytes");
+  }
+  return std::string(buffer, static_cast<std::size_t>(size));
+}
+
 void throw_status(const cortex::Status& status) {
   switch (status.code()) {
     case cortex::StatusCode::kInvalidArgument:
@@ -639,26 +648,79 @@ const BackendRoute& require_available_backend_route(const std::string& name) {
 }
 
 #if CORTEX_ENABLE_METAL
-std::vector<cortex::metal::KernelArgument> parse_metal_kernel_arguments(nb::sequence arguments) {
-  std::vector<cortex::metal::KernelArgument> parsed;
-  parsed.reserve(nb::len(arguments));
+struct ParsedKernelArguments {
+  std::vector<cortex::Tensor> tensor_storage;
+  std::vector<cortex::KernelArgument> arguments;
+};
+
+ParsedKernelArguments parse_backend_kernel_arguments(nb::sequence arguments) {
+  ParsedKernelArguments parsed;
+  parsed.tensor_storage.reserve(nb::len(arguments));
+  parsed.arguments.reserve(nb::len(arguments));
   for (nb::handle item : arguments) {
     if (nb::isinstance<cortex::metal::MetalTensor>(item)) {
       const auto& tensor = nb::cast<const cortex::metal::MetalTensor&>(item);
-      parsed.push_back(cortex::metal::KernelArgument{
-          cortex::metal::KernelArgument::Kind::kTensor,
-          &tensor,
+      parsed.tensor_storage.push_back(cortex::metal::to_core_tensor(tensor));
+      parsed.arguments.push_back(cortex::KernelArgument{
+          cortex::KernelArgumentKind::kTensor,
+          &parsed.tensor_storage.back(),
           0,
       });
       continue;
     }
-    parsed.push_back(cortex::metal::KernelArgument{
-        cortex::metal::KernelArgument::Kind::kUInt32,
+    parsed.arguments.push_back(cortex::KernelArgument{
+        cortex::KernelArgumentKind::kUInt32,
         nullptr,
         cast_uint32_or_throw(item, "kernel scalar arguments must be uint32"),
     });
   }
   return parsed;
+}
+
+std::string launch_metal_library_function_via_backend(
+    nb::bytes metallib,
+    const std::string& function_name,
+    nb::sequence arguments,
+    nb::handle output,
+    nb::handle thread_count,
+    nb::handle threads_per_threadgroup) {
+  const auto& output_tensor = nb::cast<const cortex::metal::MetalTensor&>(output);
+  ParsedKernelArguments parsed_arguments = parse_backend_kernel_arguments(arguments);
+  std::array<cortex::Tensor, 1> outputs{
+      cortex::metal::to_core_tensor(output_tensor),
+  };
+
+  const cortex::LaunchConfig launch{
+      cast_uint32_or_throw(thread_count, "thread count must be uint32"),
+      1,
+      1,
+      cast_uint32_or_throw(threads_per_threadgroup, "threads per threadgroup must be uint32"),
+      1,
+      1,
+  };
+  const cortex::CompilationTarget target{
+      cortex::KernelArtifactKind::kBinary,
+      bytes_to_string(metallib),
+      function_name,
+  };
+  const cortex::BackendExecution execution{
+      cortex::BackendOpClass::kKernel,
+      OpDesc{},
+      std::span<const cortex::Tensor>(),
+      std::span<cortex::Tensor>(outputs.data(), outputs.size()),
+      launch,
+      target,
+      std::span<const cortex::KernelArgument>(
+          parsed_arguments.arguments.data(),
+          parsed_arguments.arguments.size()),
+  };
+
+  cortex::metal::MetalBackend backend;
+  const cortex::Status status = backend.execute(execution);
+  if (!status.ok()) {
+    throw_status(status);
+  }
+  return function_name;
 }
 
 template <typename T>
@@ -878,21 +940,22 @@ NB_MODULE(_core, module) {
              [](nb::bytes metallib,
                 const std::string& function_name,
                 nb::sequence arguments,
+                nb::handle output,
                 nb::handle thread_count,
                 nb::handle threads_per_threadgroup) {
 #if CORTEX_ENABLE_METAL
-               return unwrap(cortex::metal::launch_library_function(
-                   bytes_to_vector(metallib),
+               return launch_metal_library_function_via_backend(
+                   metallib,
                    function_name,
-                   parse_metal_kernel_arguments(arguments),
-                   cast_uint32_or_throw(thread_count, "thread count must be uint32"),
-                   cast_uint32_or_throw(
-                       threads_per_threadgroup,
-                       "threads per threadgroup must be uint32")));
+                   arguments,
+                   output,
+                   thread_count,
+                   threads_per_threadgroup);
 #else
                (void)metallib;
                (void)function_name;
                (void)arguments;
+               (void)output;
                (void)thread_count;
                (void)threads_per_threadgroup;
                throw std::runtime_error("Metal is not available on this system");
@@ -901,6 +964,7 @@ NB_MODULE(_core, module) {
              nb::arg("metallib"),
              nb::arg("function_name"),
              nb::arg("arguments"),
+             nb::arg("output"),
              nb::arg("thread_count"),
              nb::arg("threads_per_threadgroup"));
 

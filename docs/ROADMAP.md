@@ -29,9 +29,9 @@ validator for input/output schema and fill allocation descriptors; null backend
 also uses the shared kernel contract validator. CPU fill, add/multiply, unary
 transforms, reductions, and matmul now route through `CpuBackend::execute`;
 Metal add/multiply, unary transforms, axis/norm transforms, reductions, matmul,
-and fill now route through `MetalBackend::execute`; remaining generated-kernel
-dispatch still uses a typed entry point. Phase 9 has not started; it requires a
-CUDA hardware or cloud development environment decision first.
+fill, and non-empty narrow experimental generated-kernel launches now route
+through `MetalBackend::execute`. Phase 9 has not started; it requires a CUDA
+hardware or cloud development environment decision first.
 
 ## What works today (through Phase 8)
 
@@ -56,9 +56,9 @@ CUDA hardware or cloud development environment decision first.
   MSL -> in-memory metallib -> synchronous Metal launch for the first float32
   elementwise add subset, tested against the CPU reference.
 - Backend ABI: `Backend::execute`, primitive/kernel execution classes,
-  backend-neutral launch and compilation target metadata, shared primitive and
-  kernel contract validators, and a null backend scaffold that builds without
-  Metal.
+  backend-neutral launch and compilation target metadata, ordered kernel
+  arguments, shared primitive and kernel contract validators, and a null backend
+  scaffold that builds without Metal.
 - Error taxonomy, CPU CI, benchmarks for copy / elementwise / matmul.
 
 ## Intentionally not implemented yet
@@ -78,11 +78,9 @@ and AGENTS.md "Out Of Scope For Early Work".
   cloud development environment before implementation starts. The decision gate
   and validation checklist are documented in
   [`CUDA_PHASE9_ENVIRONMENT.md`](CUDA_PHASE9_ENVIRONMENT.md).
-- **Remaining Metal dispatch migration.** The Phase 8 ABI is defined and
-  exercised by CPU, the null backend, and Metal elementwise, axis/norm,
-  reduction, matmul, and fill paths. Generated-kernel execution is still routed
-  through a typed entry point. See [`ARCHITECTURE.md`](ARCHITECTURE.md) →
-  "Dispatch after Phase 8".
+- **Remaining allocation routing.** Constructor-style `empty` allocation still
+  uses typed backend paths because it must choose backend-specific native tensor
+  objects. See [`ARCHITECTURE.md`](ARCHITECTURE.md) → "Dispatch after Phase 8".
 - **GIL release + Metal thread-safety.** v0.1 is synchronous and holds the GIL
   across blocking Metal submissions, so multi-threaded use is serialized and the
   pipeline cache is intentionally unlocked. Releasing the GIL (and locking the

@@ -173,9 +173,9 @@ cx.experimental.block_size
 
 `@cx.experimental.kernel` currently returns a metadata wrapper with `parse_ir()`,
 text-only `emit_msl()`, `compile(target="metal")` for an in-memory metallib
-artifact, and experimental call-through launch. `CompiledKernel` exposes
-`validate_metal_function()` for library load/function lookup and `launch(...)`
-for the first synchronous Metal execution path.
+artifact, and experimental non-empty launch through `BackendExecution`.
+`CompiledKernel` exposes `validate_metal_function()` for library load/function
+lookup and `launch(...)` for the first synchronous Metal execution path.
 
 The public API should move slowly:
 
