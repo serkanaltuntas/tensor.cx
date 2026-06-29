@@ -21,6 +21,32 @@ Project test result: TBD
 Validation log: TBD
 ```
 
+Current status:
+
+```text
+Phase 9 implementation status: blocked until a CUDA host is selected
+Selected environment: none
+Last local preflight: 2026-06-30
+Local machine result: not eligible for Phase 9 CUDA implementation
+Reason: current machine is macOS ARM64 and has no NVIDIA CUDA toolchain
+```
+
+Latest local preflight from `<checkout>
+
+```text
+OS: macOS 26.5.1, Darwin ARM64
+uv: <checkout> uv 0.9.30
+CMake: /opt/homebrew/bin/cmake, cmake 4.3.4
+C++ compiler: /usr/bin/c++, Apple clang 21.0.0
+nvidia-smi: not found
+nvcc: not found
+```
+
+This local Mac remains valid for CPU/Metal development, but it must not be
+recorded as the Phase 9 CUDA environment. Choose a Linux CUDA workstation,
+cloud GPU instance, or remote CUDA development box before starting CUDA backend
+implementation.
+
 The selected environment must provide:
 
 ```text
