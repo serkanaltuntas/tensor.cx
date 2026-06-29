@@ -140,9 +140,9 @@ extension.
 Phase 8 is complete. The backend ABI and null backend scaffold exist, and CPU
 fill, add/multiply, unary transforms, reductions, and matmul route through
 `CpuBackend::execute` without changing public Python behavior. Metal
-add/multiply, `exp`/`gelu`/`silu`, and fill route through
-`MetalBackend::execute`; remaining Metal axis/norm, reduction, matmul, and
-generated-kernel dispatch still use the existing typed entry points. Phase 9 has
-not started and requires a CUDA hardware or cloud development environment
-decision before implementation; see
+add/multiply, unary transforms, axis/norm transforms, and fill route through
+`MetalBackend::execute`; remaining Metal reduction, matmul, and generated-kernel
+dispatch paths still use the existing typed entry points. Phase 9 has not started and
+requires a CUDA hardware or cloud development environment decision before
+implementation; see
 [`CUDA_PHASE9_ENVIRONMENT.md`](CUDA_PHASE9_ENVIRONMENT.md).

@@ -930,20 +930,20 @@ NB_MODULE(_core, module) {
              nb::arg("input"));
   module.def("softmax",
              [](const cortex::metal::MetalTensor& input, std::int64_t axis) {
-               return unwrap(cortex::metal::execute_unary(OpDesc{OpKind::kSoftmax, axis}, input));
+               return metal_single_input_backend_op(input, OpDesc{OpKind::kSoftmax, axis});
              },
              nb::arg("input"),
              nb::arg("axis"));
   module.def("rmsnorm",
              [](const cortex::metal::MetalTensor& input, std::int64_t axis, double eps) {
-               return unwrap(cortex::metal::execute_unary(OpDesc{OpKind::kRmsNorm, axis, eps}, input));
+               return metal_single_input_backend_op(input, OpDesc{OpKind::kRmsNorm, axis, eps});
              },
              nb::arg("input"),
              nb::arg("axis"),
              nb::arg("eps") = 1.0e-5);
   module.def("layernorm",
              [](const cortex::metal::MetalTensor& input, std::int64_t axis, double eps) {
-               return unwrap(cortex::metal::execute_unary(OpDesc{OpKind::kLayerNorm, axis, eps}, input));
+               return metal_single_input_backend_op(input, OpDesc{OpKind::kLayerNorm, axis, eps});
              },
              nb::arg("input"),
              nb::arg("axis"),

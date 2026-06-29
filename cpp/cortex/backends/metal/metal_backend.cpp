@@ -84,7 +84,10 @@ Status MetalBackend::execute(const BackendExecution& execution) {
       }
       case OpKind::kExp:
       case OpKind::kGelu:
-      case OpKind::kSilu: {
+      case OpKind::kSilu:
+      case OpKind::kSoftmax:
+      case OpKind::kRmsNorm:
+      case OpKind::kLayerNorm: {
         const MetalTensor input = from_core_tensor(execution.inputs[0]);
         auto result = execute_unary(execution.op, input);
         if (!result) {
@@ -321,6 +324,47 @@ Status contract_smoke_test() {
     return status;
   }
   if (Status status = expect_unary_matches_cpu(OpKind::kSilu, "valid silu"); !status.ok()) {
+    return status;
+  }
+
+  auto expect_axis_transform_matches_cpu =
+      [&](const OpDesc& op, const char* scenario) -> Status {
+    unary_outputs = {};
+    const BackendExecution valid_transform{
+        BackendOpClass::kPrimitive,
+        op,
+        std::span<const Tensor>(unary_inputs.data(), unary_inputs.size()),
+        std::span<Tensor>(unary_outputs.data(), unary_outputs.size()),
+        std::nullopt,
+        std::nullopt,
+    };
+    if (Status status =
+            expect_status_code(scenario, backend.execute(valid_transform), StatusCode::kOk);
+        !status.ok()) {
+      return status;
+    }
+    const auto actual_result = to_cpu(from_core_tensor(unary_outputs[0]));
+    if (!actual_result) {
+      return actual_result.status();
+    }
+    const cpu::CpuTensor expected = cpu::execute_unary(op, lhs_cpu);
+    return expect_float_data_close(scenario, actual_result.value(), expected);
+  };
+
+  if (Status status =
+          expect_axis_transform_matches_cpu(OpDesc{OpKind::kSoftmax, 0}, "valid softmax");
+      !status.ok()) {
+    return status;
+  }
+  if (Status status =
+          expect_axis_transform_matches_cpu(OpDesc{OpKind::kRmsNorm, 0}, "valid rmsnorm");
+      !status.ok()) {
+    return status;
+  }
+  if (Status status = expect_axis_transform_matches_cpu(
+          OpDesc{OpKind::kLayerNorm, 0},
+          "valid layernorm");
+      !status.ok()) {
     return status;
   }
 
