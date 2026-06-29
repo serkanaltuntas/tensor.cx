@@ -45,10 +45,12 @@ route add and multiply through their backend `execute` implementations. CPU
 unary transforms `exp`/`gelu`/`silu`/`softmax`/`rmsnorm`/`layernorm`, CPU
 reductions `sum`/`max`/`mean`, and CPU matmul also route through that execution
 contract. Metal `exp`/`gelu`/`silu`, `softmax`, `rmsnorm`, `layernorm`, and
-`sum`/`max`/`mean` also route through `MetalBackend::execute`. Fill dispatch
-routes through `Backend::execute` for both CPU and Metal, using an output
-allocation descriptor. Constructor-style `empty` allocation still uses typed
-paths because it must choose backend-specific native tensor types.
+`sum`/`max`/`mean` also route through `MetalBackend::execute`; Metal matmul
+does too, with `OpDesc.matmul_preference` preserving auto/custom/optimized
+selection. Fill dispatch routes through `Backend::execute` for both CPU and
+Metal, using an output allocation descriptor. Constructor-style `empty`
+allocation still uses typed paths because it must choose backend-specific native
+tensor types.
 
 ### Dispatch after Phase 8
 
@@ -81,13 +83,14 @@ using an output allocation descriptor. Metal add/multiply,
 `exp`/`gelu`/`silu`, `softmax`, `rmsnorm`, `layernorm`, reductions, and fill
 route through `MetalBackend::execute(BackendExecution)`, using the same
 primitive validator and adapting between `MetalTensor` and core tensor metadata
-at the backend boundary. Remaining Metal operations still use typed entry
-points (`metal::matmul_custom`, `metal::matmul_mpsgraph`, and the
-generated-kernel launcher). Phase 6 adds a minimal `axis` attribute to `OpDesc`
-for reductions and axis-aware transforms such as softmax, rmsnorm, and
-layernorm, plus an `epsilon` attribute for normalization ops. Phase 8 adds
-`scalar_value` for fill. Constructor-style `empty` allocation remains outside
-`Backend::execute` for now.
+at the backend boundary. Metal matmul also routes through
+`MetalBackend::execute`; `OpDesc.matmul_preference` selects the default path,
+the custom MSL kernel path, or the optimized primitive path when available.
+The remaining live typed Metal dispatch path is the generated-kernel launcher.
+Phase 6 adds a minimal `axis` attribute to `OpDesc` for reductions and
+axis-aware transforms such as softmax, rmsnorm, and layernorm, plus an
+`epsilon` attribute for normalization ops. Phase 8 adds `scalar_value` for fill.
+Constructor-style `empty` allocation remains outside `Backend::execute` for now.
 
 This is a deliberate, documented transition kept small per the "avoid unrelated
 refactors" rule: Phase 8 hardened the ABI first; public device routing now uses
@@ -115,9 +118,9 @@ continues to harden around `Backend::execute` and `OpDesc`.
   `Backend::execute`, no per-op virtual method). The ABI is defined and backed
   by a null backend scaffold; CPU add/multiply, unary transforms, reductions,
   matmul, and fill have been migrated, and Metal add/multiply, unary transforms,
-  axis/norm transforms, reductions, and fill now use the same backend execution
-  path. Remaining Metal matmul and generated-kernel dispatch still use typed
-  entry points.
+  axis/norm transforms, reductions, matmul, and fill now use the same backend
+  execution path. Remaining generated-kernel dispatch still uses a typed entry
+  point.
 - Public backend selection uses registry/string-keyed routing; CUDA must plug
   into that route instead of adding ad hoc public dispatch branches.
 - Metal backend errors return `Status` / `Expected<T>` and are translated to

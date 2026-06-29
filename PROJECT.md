@@ -349,8 +349,9 @@ mutable output tensor metadata/result slots, and optional launch /
 compilation-target metadata for kernel execution. Allocation-style primitives
 such as `fill` use output metadata as an allocation descriptor. `OpDesc` carries
 an op enum plus attributes, including scalar values for primitive operations
-that need them; backends switch on the enum. This keeps Phase 6 (15+ ops) and
-Phase 8 (primitive vs kernel ops) from becoming a rewrite. The per-op method
+that need them and backend-neutral matmul preference for auto/custom/optimized
+algorithm selection; backends switch on the enum. This keeps Phase 6 (15+ ops)
+and Phase 8 (primitive vs kernel ops) from becoming a rewrite. The per-op method
 sketch in §8.2 is illustrative only and must not be implemented literally.
 
 **Error handling: `expected`, no exceptions across the Metal boundary.** Core

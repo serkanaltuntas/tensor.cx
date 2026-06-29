@@ -25,11 +25,7 @@
 
 #if CORTEX_ENABLE_METAL
 #include "cortex/backends/metal/metal_backend.h"
-#include "cortex/backends/metal/metal_kernels.h"
 #include "cortex/backends/metal/metal_library.h"
-#if CORTEX_ENABLE_MPSGRAPH
-#include "cortex/backends/metal/metal_mpsgraph.h"
-#endif
 #include "cortex/backends/metal/metal_tensor.h"
 #endif
 
@@ -42,6 +38,7 @@ namespace nb = nanobind;
 namespace {
 
 using cortex::DType;
+using cortex::MatmulPreference;
 using cortex::OpDesc;
 using cortex::OpKind;
 using cortex::Shape;
@@ -533,6 +530,46 @@ cortex::metal::MetalTensor unary_op(const cortex::metal::MetalTensor& input, OpK
   return metal_single_input_backend_op(input, OpDesc{kind});
 }
 
+MatmulPreference parse_metal_matmul_preference(const std::string& backend) {
+  if (backend == "auto") {
+    return MatmulPreference::kAuto;
+  }
+  if (backend == "custom") {
+    return MatmulPreference::kCustom;
+  }
+  if (backend == "optimized") {
+    return MatmulPreference::kOptimized;
+  }
+  throw std::invalid_argument("unsupported Metal matmul backend: " + backend);
+}
+
+cortex::metal::MetalTensor metal_matmul_backend_op(
+    const cortex::metal::MetalTensor& lhs,
+    const cortex::metal::MetalTensor& rhs,
+    MatmulPreference preference) {
+  cortex::metal::MetalBackend backend;
+  std::array<cortex::Tensor, 2> inputs{
+      cortex::metal::to_core_tensor(lhs),
+      cortex::metal::to_core_tensor(rhs),
+  };
+  std::array<cortex::Tensor, 1> outputs{};
+  OpDesc op{OpKind::kMatmul};
+  op.matmul_preference = preference;
+  const cortex::BackendExecution execution{
+      cortex::BackendOpClass::kPrimitive,
+      op,
+      std::span<const cortex::Tensor>(inputs.data(), inputs.size()),
+      std::span<cortex::Tensor>(outputs.data(), outputs.size()),
+      std::nullopt,
+      std::nullopt,
+  };
+  const cortex::Status status = backend.execute(execution);
+  if (!status.ok()) {
+    throw_status(status);
+  }
+  return cortex::metal::from_core_tensor(outputs[0]);
+}
+
 nb::list metal_backend_matmul_backends() {
   nb::list result;
   result.append("auto");
@@ -970,24 +1007,10 @@ NB_MODULE(_core, module) {
              [](const cortex::metal::MetalTensor& lhs,
                 const cortex::metal::MetalTensor& rhs,
                 const std::string& backend) {
-               if (backend == "auto") {
-#if CORTEX_ENABLE_MPSGRAPH
-                 return unwrap(cortex::metal::matmul_mpsgraph(lhs, rhs));
-#else
-                 return unwrap(cortex::metal::matmul_custom(lhs, rhs));
-#endif
-               }
-               if (backend == "optimized") {
-#if CORTEX_ENABLE_MPSGRAPH
-                 return unwrap(cortex::metal::matmul_mpsgraph(lhs, rhs));
-#else
-                 throw std::invalid_argument("optimized Metal matmul backend is not available");
-#endif
-               }
-               if (backend == "custom") {
-                 return unwrap(cortex::metal::matmul_custom(lhs, rhs));
-               }
-               throw std::invalid_argument("unsupported Metal matmul backend: " + backend);
+               return metal_matmul_backend_op(
+                   lhs,
+                   rhs,
+                   parse_metal_matmul_preference(backend));
              },
              nb::arg("lhs"),
              nb::arg("rhs"),

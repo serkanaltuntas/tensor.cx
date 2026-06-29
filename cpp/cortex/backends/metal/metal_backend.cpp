@@ -12,6 +12,10 @@
 #include "cortex/backends/cpu/cpu_backend.h"
 #include "cortex/backends/metal/metal_buffer.h"
 #include "cortex/backends/metal/metal_context.h"
+#include "cortex/backends/metal/metal_kernels.h"
+#if CORTEX_ENABLE_MPSGRAPH
+#include "cortex/backends/metal/metal_mpsgraph.h"
+#endif
 #include "cortex/core/shape.h"
 
 namespace cortex::metal {
@@ -19,6 +23,29 @@ namespace {
 
 Status invalid_argument_status(std::string message) {
   return Status(StatusCode::kInvalidArgument, std::move(message));
+}
+
+Expected<MetalTensor> execute_matmul(
+    const OpDesc& op,
+    const MetalTensor& lhs,
+    const MetalTensor& rhs) {
+  switch (op.matmul_preference) {
+    case MatmulPreference::kAuto:
+#if CORTEX_ENABLE_MPSGRAPH
+      return matmul_mpsgraph(lhs, rhs);
+#else
+      return matmul_custom(lhs, rhs);
+#endif
+    case MatmulPreference::kCustom:
+      return matmul_custom(lhs, rhs);
+    case MatmulPreference::kOptimized:
+#if CORTEX_ENABLE_MPSGRAPH
+      return matmul_mpsgraph(lhs, rhs);
+#else
+      return invalid_argument_status("optimized Metal matmul backend is not available");
+#endif
+  }
+  return invalid_argument_status("unsupported Metal matmul preference");
 }
 
 Status expect_status_code(
@@ -76,6 +103,16 @@ Status MetalBackend::execute(const BackendExecution& execution) {
         const MetalTensor lhs = from_core_tensor(execution.inputs[0]);
         const MetalTensor rhs = from_core_tensor(execution.inputs[1]);
         auto result = execute_binary(execution.op, lhs, rhs);
+        if (!result) {
+          return result.status();
+        }
+        execution.outputs[0] = to_core_tensor(result.move_value());
+        return Status::Ok();
+      }
+      case OpKind::kMatmul: {
+        const MetalTensor lhs = from_core_tensor(execution.inputs[0]);
+        const MetalTensor rhs = from_core_tensor(execution.inputs[1]);
+        auto result = execute_matmul(execution.op, lhs, rhs);
         if (!result) {
           return result.status();
         }
@@ -414,6 +451,84 @@ Status contract_smoke_test() {
       !status.ok()) {
     return status;
   }
+
+  cpu::CpuTensor matmul_lhs_cpu(Shape{2, 2}, std::vector<float>{1.0F, 2.0F, 3.0F, 4.0F});
+  cpu::CpuTensor matmul_rhs_cpu(Shape{2, 2}, std::vector<float>{5.0F, 6.0F, 7.0F, 8.0F});
+  auto matmul_lhs_metal_result = from_cpu(matmul_lhs_cpu);
+  if (!matmul_lhs_metal_result) {
+    return matmul_lhs_metal_result.status();
+  }
+  auto matmul_rhs_metal_result = from_cpu(matmul_rhs_cpu);
+  if (!matmul_rhs_metal_result) {
+    return matmul_rhs_metal_result.status();
+  }
+  const MetalTensor matmul_lhs_metal = matmul_lhs_metal_result.move_value();
+  const MetalTensor matmul_rhs_metal = matmul_rhs_metal_result.move_value();
+  std::array<Tensor, 2> matmul_inputs{
+      to_core_tensor(matmul_lhs_metal),
+      to_core_tensor(matmul_rhs_metal)};
+  std::array<Tensor, 1> matmul_outputs{};
+  auto expect_matmul_matches_cpu =
+      [&](MatmulPreference preference, const char* scenario) -> Status {
+    matmul_outputs = {};
+    OpDesc op{OpKind::kMatmul};
+    op.matmul_preference = preference;
+    const BackendExecution valid_matmul{
+        BackendOpClass::kPrimitive,
+        op,
+        std::span<const Tensor>(matmul_inputs.data(), matmul_inputs.size()),
+        std::span<Tensor>(matmul_outputs.data(), matmul_outputs.size()),
+        std::nullopt,
+        std::nullopt,
+    };
+    if (Status status =
+            expect_status_code(scenario, backend.execute(valid_matmul), StatusCode::kOk);
+        !status.ok()) {
+      return status;
+    }
+    const auto actual_result = to_cpu(from_core_tensor(matmul_outputs[0]));
+    if (!actual_result) {
+      return actual_result.status();
+    }
+    const cpu::CpuTensor expected = cpu::matmul(matmul_lhs_cpu, matmul_rhs_cpu);
+    return expect_float_data_close(scenario, actual_result.value(), expected);
+  };
+
+  if (Status status = expect_matmul_matches_cpu(MatmulPreference::kAuto, "valid matmul auto");
+      !status.ok()) {
+    return status;
+  }
+  if (Status status =
+          expect_matmul_matches_cpu(MatmulPreference::kCustom, "valid matmul custom");
+      !status.ok()) {
+    return status;
+  }
+#if CORTEX_ENABLE_MPSGRAPH
+  if (Status status =
+          expect_matmul_matches_cpu(MatmulPreference::kOptimized, "valid matmul optimized");
+      !status.ok()) {
+    return status;
+  }
+#else
+  matmul_outputs = {};
+  OpDesc optimized_matmul{OpKind::kMatmul};
+  optimized_matmul.matmul_preference = MatmulPreference::kOptimized;
+  const BackendExecution unavailable_optimized_matmul{
+      BackendOpClass::kPrimitive,
+      optimized_matmul,
+      std::span<const Tensor>(matmul_inputs.data(), matmul_inputs.size()),
+      std::span<Tensor>(matmul_outputs.data(), matmul_outputs.size()),
+      std::nullopt,
+      std::nullopt,
+  };
+  if (Status status = expect_status_code(
+          "unavailable optimized matmul",
+          backend.execute(unavailable_optimized_matmul),
+          StatusCode::kInvalidArgument);
+      !status.ok()) {
+    return status;
+  }
+#endif
 
   const Shape fill_shape{3};
   std::array<Tensor, 1> fill_outputs{Tensor{

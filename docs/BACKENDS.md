@@ -91,7 +91,10 @@ backend executes them; CPU, Metal, and null backends all use that validator for
 the migrated execution paths. CPU and Metal `fill` route through
 `BackendExecution` using `OpDesc.scalar_value` and an output allocation
 descriptor. Constructor-style `empty` allocation remains on typed paths until
-its ownership semantics are migrated.
+its ownership semantics are migrated. Matmul algorithm selection uses the
+backend-neutral `OpDesc.matmul_preference` field so public auto/custom/optimized
+selection can route through `BackendExecution` without naming Metal primitives
+in the core.
 
 Kernel requests must pass the shared core kernel contract validator before a
 backend executes them: they require output metadata, launch metadata, a
@@ -140,9 +143,9 @@ extension.
 Phase 8 is complete. The backend ABI and null backend scaffold exist, and CPU
 fill, add/multiply, unary transforms, reductions, and matmul route through
 `CpuBackend::execute` without changing public Python behavior. Metal
-add/multiply, unary transforms, axis/norm transforms, reductions, and fill route
-through `MetalBackend::execute`; remaining Metal matmul and generated-kernel
-dispatch paths still use the existing typed entry points. Phase 9 has not started
-and requires a CUDA hardware or cloud development environment decision before
+add/multiply, unary transforms, axis/norm transforms, reductions, matmul, and
+fill route through `MetalBackend::execute`; remaining generated-kernel dispatch
+still uses the existing typed entry point. Phase 9 has not started and requires
+a CUDA hardware or cloud development environment decision before
 implementation; see
 [`CUDA_PHASE9_ENVIRONMENT.md`](CUDA_PHASE9_ENVIRONMENT.md).

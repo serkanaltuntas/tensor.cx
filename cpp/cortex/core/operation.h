@@ -22,6 +22,12 @@ enum class OpKind {
   kLayerNorm,
 };
 
+enum class MatmulPreference {
+  kAuto,
+  kCustom,
+  kOptimized,
+};
+
 // §5.6 specifies OpDesc as "an op enum plus attributes". Through Phase 5 it
 // carried only the kind: it tagged the per-op entry points while op parameters
 // were still passed as explicit function arguments. Phase 6 added the minimal
@@ -30,11 +36,14 @@ enum class OpKind {
 // is used by normalization ops, and both are ignored by ops that do not need
 // them. Phase 8 adds scalar_value for fill so allocation-style primitive
 // execution can move through BackendExecution without adding a per-op virtual.
+// MatmulPreference keeps matmul algorithm selection backend-neutral while
+// preserving public auto/custom/optimized routing.
 struct OpDesc {
   OpKind kind{OpKind::kFill};
   std::int64_t axis{0};
   double epsilon{1.0e-5};
   double scalar_value{0.0};
+  MatmulPreference matmul_preference{MatmulPreference::kAuto};
 };
 
 struct PrimitiveOpSchema {
