@@ -131,6 +131,15 @@ Re-open integration (a new decision record) when any of these happens:
   invoking vendor compilers (metal/xcrun) at user machines.
 ```
 
+**Trigger update (2026-07-06):** the second trigger has fired — the DSL now
+supports rowwise reductions (bounded `for` + loop-carried accumulator, see
+`docs/KERNEL_DSL.md`), and the prototype lowers them through `scf.for` with
+`iter_args` (`experiments/mlir/lower_rowsum.py`, validated against the CPU
+reference). Integration remains deferred; per this record it requires a new
+decision record, and the recommendation is to write it once Phase 9's CUDA
+requirements are known so the dialect/ABI choices are made against two real
+accelerator targets instead of one.
+
 At that point the open design questions are: custom `cortex` dialect vs staying
 on standard dialects, `gpu`/`spirv` vs NVVM lowering for accelerators, JIT
 (`ExecutionEngine`) vs AOT shared-library compilation, and CMake integration

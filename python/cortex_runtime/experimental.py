@@ -210,10 +210,24 @@ class IRIf:
     body: tuple[IRStatement, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class IRFor:
+    """Bounded sequential loop: ``for var in range(limit)``.
+
+    ``limit`` is the name of a scalar parameter. Bodies are restricted to
+    local assignments (the accumulator pattern); loads inside the body must
+    follow the row-major pattern validated at launch.
+    """
+
+    var: str
+    limit: str
+    body: tuple[IRStatement, ...]
+
+
 IRExpression: TypeAlias = (
     IRName | IRConstant | IRCall | IRBinaryOp | IRCompare | IRLoad
 )
-IRStatement: TypeAlias = IRAssign | IRStore | IRIf
+IRStatement: TypeAlias = IRAssign | IRStore | IRIf | IRFor
 
 
 @dataclass(frozen=True, slots=True)
@@ -315,13 +329,91 @@ def _single_output_parameter(kernel_ir: IRKernel) -> str:
 
 
 def _launch_store_guard_parameter(kernel_ir: IRKernel, output_param: str) -> str:
+    guard_param, _ = _launch_guard_analysis(kernel_ir, output_param)
+    return guard_param
+
+
+def _launch_loop_load_limits(kernel_ir: IRKernel, output_param: str) -> dict[str, str]:
+    """Map loop-indexed input buffers to their loop-limit scalar parameter."""
+    _, loop_limits = _launch_guard_analysis(kernel_ir, output_param)
+    return loop_limits
+
+
+def _launch_guard_analysis(
+    kernel_ir: IRKernel,
+    output_param: str,
+) -> tuple[str, dict[str, str]]:
     buffer_names = set(_iter_buffer_references(kernel_ir.body))
     parameter_names = set(kernel_ir.parameters)
     guard_params: set[str] = set()
+    loop_limits: dict[str, str] = {}
+
+    def visit_loop(loop: IRFor, guard: IRExpression | None) -> None:
+        # Loads inside a for-loop body are only provably in bounds when the
+        # loop sits inside the store guard `row < n` and every load uses the
+        # row-major pattern `buffer[row * limit + var]`; the launch layer then
+        # enforces numel(buffer) == n * limit exactly.
+        if (
+            not isinstance(guard, IRCompare)
+            or guard.op != "lt"
+            or not isinstance(guard.lhs, IRName)
+            or not isinstance(guard.rhs, IRName)
+        ):
+            raise KernelCompileError(
+                "kernel launch requires for-loops to be inside the "
+                "index < scalar_limit store guard"
+            )
+        if loop.limit in buffer_names or loop.limit not in parameter_names:
+            raise KernelCompileError(
+                "kernel launch requires the for-loop range bound to be a "
+                "scalar parameter"
+            )
+        row_name = guard.lhs.name
+        guard_params.add(guard.rhs.name)
+        for inner in loop.body:
+            if not isinstance(inner, IRAssign):
+                raise KernelCompileError(
+                    "kernel launch requires for-loop bodies to contain only "
+                    "local assignments"
+                )
+            if inner.target == row_name:
+                # Reassigning the guarded row index inside the loop would
+                # invalidate the structural bounds proof for the loop loads
+                # and the store after the loop.
+                raise KernelCompileError(
+                    "kernel launch does not support reassigning the guarded "
+                    "index inside a for-loop"
+                )
+        expected_index = IRBinaryOp(
+            op="add",
+            lhs=IRBinaryOp(op="mul", lhs=IRName(row_name), rhs=IRName(loop.limit)),
+            rhs=IRName(loop.var),
+        )
+        for inner in loop.body:
+            for load in _iter_expression_loads(inner.value):
+                if load.buffer == output_param:
+                    raise KernelCompileError(
+                        "kernel launch does not support loading the output "
+                        "buffer inside a for-loop"
+                    )
+                if load.index != expected_index:
+                    raise KernelCompileError(
+                        "kernel launch requires for-loop loads to use the "
+                        "row-major pattern buffer[row * limit + loop_var]"
+                    )
+                existing = loop_limits.get(load.buffer)
+                if existing is not None and existing != loop.limit:
+                    raise KernelCompileError(
+                        "kernel launch requires a loop-indexed buffer to use "
+                        "one loop limit"
+                    )
+                loop_limits[load.buffer] = loop.limit
 
     def visit(statements: tuple[IRStatement, ...], guard: IRExpression | None) -> None:
         for statement in statements:
-            if isinstance(statement, IRAssign):
+            if isinstance(statement, IRFor):
+                visit_loop(statement, guard)
+            elif isinstance(statement, IRAssign):
                 guard_params.update(
                     _expression_guard_parameters(
                         statement.value,
@@ -365,13 +457,42 @@ def _launch_store_guard_parameter(kernel_ir: IRKernel, output_param: str) -> str
                     )
                 )
                 visit(statement.body, statement.condition)
+            if isinstance(statement, (IRAssign, IRStore, IRIf)):
+                if isinstance(statement, IRAssign):
+                    expressions = (statement.value,)
+                elif isinstance(statement, IRStore):
+                    expressions = (statement.index, statement.value)
+                else:
+                    expressions = (statement.condition,)
+                for expression in expressions:
+                    for load in _iter_expression_loads(expression):
+                        elementwise_loaded.add(load.buffer)
 
+    elementwise_loaded: set[str] = set()
     visit(kernel_ir.body, guard=None)
     if len(guard_params) != 1:
         raise KernelCompileError(
             "kernel launch requires all stores to share one scalar guard"
         )
-    return next(iter(guard_params))
+    conflicting = sorted(elementwise_loaded & set(loop_limits))
+    if conflicting:
+        raise KernelCompileError(
+            "kernel launch does not support loading a buffer both elementwise "
+            f"and loop-indexed: {', '.join(conflicting)}"
+        )
+    return next(iter(guard_params)), loop_limits
+
+
+def _iter_expression_loads(expression: IRExpression):
+    if isinstance(expression, IRLoad):
+        yield expression
+        yield from _iter_expression_loads(expression.index)
+    elif isinstance(expression, (IRBinaryOp, IRCompare)):
+        yield from _iter_expression_loads(expression.lhs)
+        yield from _iter_expression_loads(expression.rhs)
+    elif isinstance(expression, IRCall):
+        for argument in expression.args:
+            yield from _iter_expression_loads(argument)
 
 
 def _expression_guard_parameters(
@@ -509,9 +630,12 @@ def _prepare_launch_arguments(
     from .tensor import Tensor
 
     buffer_names = set(_iter_buffer_references(kernel_ir.body))
+    loop_limits = _launch_loop_load_limits(kernel_ir, output_param)
     native_arguments = []
     scalar_arguments: dict[str, int] = {}
-    tensor_shapes: list[tuple[int, ...]] = []
+    elementwise_shapes: list[tuple[int, ...]] = []
+    loop_tensors: list[tuple[str, Tensor]] = []
+    placeholder_indices: list[int] = []
     output_tensor = None
 
     for parameter, argument in zip(kernel_ir.parameters, args, strict=True):
@@ -526,7 +650,19 @@ def _prepare_launch_arguments(
                 raise ValueError(
                     "experimental Metal kernels currently support float32 tensor buffers"
                 )
-            tensor_shapes.append(argument.shape)
+            if parameter in loop_limits:
+                # Loop-indexed buffers are sized against the loop limit below,
+                # not against the output shape.
+                loop_tensors.append((parameter, argument))
+                if _numel(argument.shape) == 0:
+                    # Zero-element Metal tensors have no native buffer to bind.
+                    # This is only reachable when the loop limit is 0 (the size
+                    # equation below enforces numel == out_numel * limit), so
+                    # the loop body never executes and the buffer is provably
+                    # never read; bind the output buffer as a placeholder.
+                    placeholder_indices.append(len(native_arguments))
+            else:
+                elementwise_shapes.append(argument.shape)
             native_arguments.append(argument._impl)
             if parameter == output_param:
                 output_tensor = argument
@@ -541,10 +677,24 @@ def _prepare_launch_arguments(
 
     if output_tensor is None:
         raise KernelCompileError("kernel launch requires exactly one output buffer")
-    if any(shape != output_tensor.shape for shape in tensor_shapes):
+    if any(shape != output_tensor.shape for shape in elementwise_shapes):
         raise ValueError("experimental Metal kernel tensor shapes must match")
 
-    return native_arguments, output_tensor, _numel(output_tensor.shape), scalar_arguments
+    output_numel = _numel(output_tensor.shape)
+    for parameter, tensor in loop_tensors:
+        limit_value = scalar_arguments[loop_limits[parameter]]
+        expected = output_numel * limit_value
+        if _numel(tensor.shape) != expected:
+            raise ValueError(
+                "experimental Metal kernel loop-indexed buffer size must equal "
+                "output size times the loop limit "
+                f"({parameter}: {_numel(tensor.shape)} != {expected})"
+            )
+    if output_numel > 0:
+        for index in placeholder_indices:
+            native_arguments[index] = output_tensor._impl
+
+    return native_arguments, output_tensor, output_numel, scalar_arguments
 
 
 def _validate_kernel_function(fn: Callable) -> None:
@@ -603,7 +753,47 @@ def _parse_statement(statement: ast.stmt) -> IRStatement:
         return _parse_assign(statement)
     if isinstance(statement, ast.If):
         return _parse_if(statement)
+    if isinstance(statement, ast.For):
+        return _parse_for(statement)
     _unsupported(statement)
+
+
+def _parse_for(statement: ast.For) -> IRFor:
+    if statement.orelse:
+        raise KernelCompileError("unsupported kernel syntax: For with else")
+    if not isinstance(statement.target, ast.Name):
+        raise KernelCompileError(
+            "unsupported kernel syntax: for-loop target must be a simple name"
+        )
+    call = statement.iter
+    if (
+        not isinstance(call, ast.Call)
+        or not isinstance(call.func, ast.Name)
+        or call.func.id != "range"
+        or call.keywords
+        or len(call.args) != 1
+    ):
+        raise KernelCompileError(
+            "unsupported kernel syntax: for-loops must iterate over "
+            "range(scalar_parameter)"
+        )
+    limit = call.args[0]
+    if not isinstance(limit, ast.Name):
+        raise KernelCompileError(
+            "unsupported kernel syntax: range bound must be a scalar parameter"
+        )
+    body = _parse_statement_block(statement.body)
+    for inner in body:
+        if not isinstance(inner, IRAssign):
+            raise KernelCompileError(
+                "unsupported kernel syntax: for-loop bodies currently support "
+                "only local assignments"
+            )
+    if not body:
+        raise KernelCompileError(
+            "unsupported kernel syntax: for-loop bodies cannot be empty"
+        )
+    return IRFor(var=statement.target.id, limit=limit.id, body=body)
 
 
 def _parse_assign(statement: ast.Assign) -> IRStatement:
@@ -818,6 +1008,42 @@ def _validate_statement_names(
         elif isinstance(statement, IRIf):
             _validate_expression_names(statement.condition, current)
             _validate_statement_names(statement.body, defined=set(current))
+        elif isinstance(statement, IRFor):
+            if statement.limit not in current:
+                raise KernelCompileError(
+                    f"unsupported kernel syntax: undefined name {statement.limit!r}"
+                )
+            if statement.var in current:
+                raise KernelCompileError(
+                    "unsupported kernel syntax: for-loop variable cannot shadow "
+                    "an existing name"
+                )
+            inner = set(current) | {statement.var}
+            loop_locals: set[str] = set()
+            for inner_statement in statement.body:
+                # Parser guarantees assignments only; validate defensively for
+                # hand-built IR.
+                if not isinstance(inner_statement, IRAssign):
+                    raise KernelCompileError(
+                        "unsupported kernel syntax: for-loop bodies currently "
+                        "support only local assignments"
+                    )
+                _validate_expression_names(inner_statement.value, inner)
+                if inner_statement.target == statement.var:
+                    raise KernelCompileError(
+                        "unsupported kernel syntax: for-loop variable cannot be "
+                        "reassigned"
+                    )
+                if inner_statement.target in loop_locals:
+                    raise KernelCompileError(
+                        "unsupported kernel syntax: local reassignment is not supported"
+                    )
+                # Reassigning a name defined BEFORE the loop is the loop-carried
+                # accumulator pattern and is allowed; loop-local names are not
+                # reassignable and do not escape the loop.
+                if inner_statement.target not in current:
+                    loop_locals.add(inner_statement.target)
+                inner.add(inner_statement.target)
     return current
 
 
@@ -844,7 +1070,7 @@ def _iter_store_buffers(statements: tuple[IRStatement, ...]):
     for statement in statements:
         if isinstance(statement, IRStore):
             yield statement.buffer
-        elif isinstance(statement, IRIf):
+        elif isinstance(statement, (IRIf, IRFor)):
             yield from _iter_store_buffers(statement.body)
 
 
@@ -853,6 +1079,9 @@ def _iter_assignment_targets(statements: tuple[IRStatement, ...]):
         if isinstance(statement, IRAssign):
             yield statement.target
         elif isinstance(statement, IRIf):
+            yield from _iter_assignment_targets(statement.body)
+        elif isinstance(statement, IRFor):
+            yield statement.var
             yield from _iter_assignment_targets(statement.body)
 
 
@@ -866,6 +1095,8 @@ def _iter_buffer_references(statements: tuple[IRStatement, ...]):
             yield from _iter_expression_buffers(statement.value)
         elif isinstance(statement, IRIf):
             yield from _iter_expression_buffers(statement.condition)
+            yield from _iter_buffer_references(statement.body)
+        elif isinstance(statement, IRFor):
             yield from _iter_buffer_references(statement.body)
 
 
@@ -893,6 +1124,9 @@ def _iter_name_references(statements: tuple[IRStatement, ...]):
             yield from _iter_expression_names(statement.value)
         elif isinstance(statement, IRIf):
             yield from _iter_expression_names(statement.condition)
+            yield from _iter_name_references(statement.body)
+        elif isinstance(statement, IRFor):
+            yield statement.limit
             yield from _iter_name_references(statement.body)
 
 
@@ -1067,6 +1301,19 @@ def _emit_msl_statement(
     prefix = "    " * indent
     if isinstance(statement, IRAssign):
         value_type = _infer_msl_type(statement.value, context)
+        if statement.target in context:
+            # Loop-carried accumulator reassignment: the parser only allows
+            # this for names defined before an enclosing for-loop, and the
+            # value must keep the local's declared type.
+            if context[statement.target] != value_type:
+                raise KernelCompileError(
+                    "unsupported kernel syntax: reassignment must preserve the "
+                    f"type of {statement.target!r}"
+                )
+            return [
+                f"{prefix}{statement.target} = "
+                f"{_emit_msl_expression(statement.value)};"
+            ]
         context[statement.target] = value_type
         return [
             f"{prefix}{value_type} {statement.target} = "
@@ -1080,6 +1327,22 @@ def _emit_msl_statement(
     if isinstance(statement, IRIf):
         nested_context = dict(context)
         lines = [f"{prefix}if ({_emit_msl_expression(statement.condition)}) {{"]
+        lines.extend(
+            _emit_msl_statement_block(
+                statement.body,
+                indent=indent + 1,
+                context=nested_context,
+            )
+        )
+        lines.append(f"{prefix}}}")
+        return lines
+    if isinstance(statement, IRFor):
+        nested_context = dict(context)
+        nested_context[statement.var] = "uint"
+        lines = [
+            f"{prefix}for (uint {statement.var} = 0u; "
+            f"{statement.var} < {statement.limit}; ++{statement.var}) {{"
+        ]
         lines.extend(
             _emit_msl_statement_block(
                 statement.body,
@@ -1203,6 +1466,7 @@ __all__ = [
     "IRKernel",
     "IRLoad",
     "IRName",
+    "IRFor",
     "IRStore",
     "Kernel",
     "KernelCompileError",

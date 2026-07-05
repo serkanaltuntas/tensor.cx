@@ -48,6 +48,7 @@ from cortex_runtime.experimental import (
     IRCall,
     IRCompare,
     IRConstant,
+    IRFor,
     IRIf,
     IRKernel,
     IRLoad,
@@ -131,7 +132,7 @@ class _Emitter:
 def _iter_statements(statements):
     for statement in statements:
         yield statement
-        if isinstance(statement, IRIf):
+        if isinstance(statement, (IRIf, IRFor)):
             yield from _iter_statements(statement.body)
 
 
@@ -280,12 +281,115 @@ def _emit_statement(
         if condition_type != "i1":
             raise MlirEmitError("if condition must be a comparison")
         emitter.emit(indent, f"scf.if {condition} {{")
+        nested = dict(context)
         _emit_statement_block(
-            emitter, statement.body, indent=indent + 1, context=dict(context)
+            emitter, statement.body, indent=indent + 1, context=nested
         )
         emitter.emit(indent, "}")
+        # scf.if without results cannot carry values out; a reassignment of an
+        # outer name inside the branch would silently diverge from MSL.
+        escaped = sorted(
+            name for name in context if nested.get(name) != context[name]
+        )
+        if escaped:
+            raise MlirEmitError(
+                "values reassigned inside an if do not propagate in the MLIR "
+                f"prototype: {', '.join(escaped)}"
+            )
+        return
+    if isinstance(statement, IRFor):
+        _emit_for(emitter, statement, indent=indent, context=context)
         return
     raise MlirEmitError(f"unhandled IR statement: {type(statement).__name__}")
+
+
+def _emit_for(
+    emitter: _Emitter,
+    statement: IRFor,
+    *,
+    indent: int,
+    context: dict[str, tuple[str, str]],
+) -> None:
+    """Lower ``for var in range(limit)`` to scf.for with iter_args.
+
+    Names assigned in the loop body that already exist outside it are the
+    loop-carried accumulators: they become scf.for iter_args, are rebound via
+    scf.yield each iteration, and their loop results replace the outer SSA
+    values. Loop-local names do not escape.
+    """
+    for inner in statement.body:
+        if not isinstance(inner, IRAssign):
+            raise MlirEmitError(
+                "for-loop bodies support only assignments in the MLIR prototype"
+            )
+    if statement.limit not in context or context[statement.limit] != (
+        f"%{statement.limit}",
+        "u32",
+    ):
+        raise MlirEmitError(
+            "for-loop range bound must be a scalar parameter"
+        )
+    carried = list(
+        dict.fromkeys(
+            inner.target for inner in statement.body if inner.target in context
+        )
+    )
+
+    limit_index = emitter.fresh()
+    emitter.emit(
+        indent,
+        f"{limit_index} = arith.index_castui %{statement.limit} : i32 to index",
+    )
+    loop_var = emitter.fresh()
+    body_context = dict(context)
+    result = emitter.fresh()
+    if carried:
+        iter_bindings = []
+        for position, name in enumerate(carried):
+            arg = f"{result}_arg{position}"
+            iter_bindings.append(f"{arg} = {context[name][0]}")
+            body_context[name] = (arg, context[name][1])
+        types = ", ".join(
+            "f32" if context[name][1] == "f32" else "i32" for name in carried
+        )
+        header = (
+            f"{result}{':' + str(len(carried)) if len(carried) > 1 else ''} = "
+            f"scf.for {loop_var} = %cortex_c0 to {limit_index} step %cortex_c1 "
+            f"iter_args({', '.join(iter_bindings)}) -> ({types}) {{"
+        )
+    else:
+        header = (
+            f"scf.for {loop_var} = %cortex_c0 to {limit_index} "
+            f"step %cortex_c1 {{"
+        )
+    emitter.emit(indent, header)
+
+    loop_var_i32 = emitter.fresh()
+    emitter.emit(
+        indent + 1,
+        f"{loop_var_i32} = arith.index_castui {loop_var} : index to i32",
+    )
+    body_context[statement.var] = (loop_var_i32, "u32")
+    _emit_statement_block(
+        emitter, statement.body, indent=indent + 1, context=body_context
+    )
+    if carried:
+        for name in carried:
+            if body_context[name][1] != context[name][1]:
+                raise MlirEmitError(
+                    f"loop-carried value must preserve its type: {name}"
+                )
+        yielded = ", ".join(body_context[name][0] for name in carried)
+        types = ", ".join(
+            "f32" if context[name][1] == "f32" else "i32" for name in carried
+        )
+        emitter.emit(indent + 1, f"scf.yield {yielded} : {types}")
+    emitter.emit(indent, "}")
+    for position, name in enumerate(carried):
+        result_value = (
+            f"{result}#{position}" if len(carried) > 1 else result
+        )
+        context[name] = (result_value, context[name][1])
 
 
 def _emit_expression(

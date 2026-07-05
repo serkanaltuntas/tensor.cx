@@ -86,12 +86,14 @@ async execution
 multi-output kernels
 dynamic shapes
 runtime dtype promotion
-reductions
 matmul
-Python control-flow beyond a simple if
 general Python semantics
-CUDA/ROCm/MLIR lowering
+CUDA/ROCm/MLIR lowering (research prototype only, see experiments/mlir/)
 ```
+
+Rowwise reductions via bounded `for`/accumulator landed after the Phase 7
+acceptance slice; control flow beyond `if` and one `for range(param)` level
+(nested loops, while, else branches) remains unsupported.
 
 ## IR Rules
 
@@ -128,6 +130,26 @@ cx.experimental.block_size()
 single comparisons: <, <=, >, >=, ==, !=
 if blocks without else
 numeric constants
+for var in range(bound_name) with an assignment-only body (any local
+    name parses; launching requires the bound to be a scalar parameter)
+loop-carried accumulator reassignment (acc = acc + ..., only for names
+    defined before the loop; type-preserving; loop-locals do not escape)
+```
+
+For-loops are the first post-elementwise construct (rowwise reductions).
+Launch-safety rules for loops are structural, like the store guard:
+
+```text
+- The loop must sit inside the `index < scalar_limit` store guard.
+- The range bound must be a scalar parameter (also passed at launch).
+- Loads inside the body must use the row-major pattern
+  buffer[row * limit + loop_var]; the launch layer enforces
+  numel(buffer) == numel(output) * limit exactly.
+- A buffer cannot be loaded both elementwise and loop-indexed, and the
+  output buffer cannot be loaded inside a loop.
+- A zero loop limit runs zero iterations (sum-over-empty stays 0); the
+  zero-element input buffer is bound via a provably-unread placeholder
+  because zero-element Metal tensors have no native buffer.
 ```
 
 Unsupported AST nodes must fail at compile time with a clear message naming the

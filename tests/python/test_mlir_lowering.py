@@ -317,3 +317,44 @@ def test_end_to_end_mlir_lowering_matches_cpu_reference():
         f"lowering prototype failed\nstdout: {result.stdout}\nstderr: {result.stderr}"
     )
     assert "PHASE10-PROTOTYPE-OK" in result.stdout
+
+
+def _rowsum_kernel():
+    @cx.experimental.kernel
+    def rowsum_kernel(a, out, n, m):
+        i = (
+            cx.experimental.program_id(0) * cx.experimental.block_size()
+            + cx.experimental.thread_id()
+        )
+        if i < n:
+            acc = 0.0
+            for k in range(m):
+                acc = acc + a[i * m + k]
+            out[i] = acc
+
+    return rowsum_kernel
+
+
+def test_emit_mlir_for_loop_uses_scf_for_with_iter_args():
+    mlir_text = emit_mlir(_rowsum_kernel().parse_ir())
+    assert "scf.for" in mlir_text
+    assert "iter_args(" in mlir_text
+    assert "-> (f32)" in mlir_text
+    assert "scf.yield" in mlir_text
+    # The loop bound comes from the scalar parameter m.
+    assert "arith.index_castui %m : i32 to index" in mlir_text
+
+
+def test_end_to_end_mlir_rowsum_matches_cpu_reference():
+    _mlir_toolchain_or_skip()
+    result = subprocess.run(
+        [sys.executable, str(EXPERIMENT_DIR / "lower_rowsum.py")],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=600,
+    )
+    assert result.returncode == 0, (
+        f"rowsum lowering failed\nstdout: {result.stdout}\nstderr: {result.stderr}"
+    )
+    assert "PHASE7-MLIR-ROWSUM-OK" in result.stdout

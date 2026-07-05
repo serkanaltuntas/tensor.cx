@@ -620,13 +620,37 @@ def test_experimental_kernel_emit_msl_rejects_unused_parameters():
 
 
 def test_experimental_kernel_parse_rejects_unsupported_statement():
+    # for-loops are now supported, but only over range(scalar_parameter) and
+    # with assignment-only bodies; this legacy shape violates both.
     @cx.experimental.kernel
     def bad_kernel(out):
         for i in range(1):
             out[i] = i
 
-    with pytest.raises(cx.experimental.KernelCompileError, match="For"):
+    with pytest.raises(
+        cx.experimental.KernelCompileError,
+        match="range bound must be a scalar parameter",
+    ):
         bad_kernel.parse_ir()
+
+    @cx.experimental.kernel
+    def store_in_loop_kernel(out, n):
+        for i in range(n):
+            out[i] = 1.0
+
+    with pytest.raises(
+        cx.experimental.KernelCompileError,
+        match="only local assignments",
+    ):
+        store_in_loop_kernel.parse_ir()
+
+    @cx.experimental.kernel
+    def while_kernel(out, n):
+        while n > 0:
+            out[0] = 1.0
+
+    with pytest.raises(cx.experimental.KernelCompileError, match="While"):
+        while_kernel.parse_ir()
 
 
 def test_experimental_kernel_parse_rejects_unsupported_subscript_shape():
@@ -1077,3 +1101,251 @@ def test_experimental_kernel_repeated_launches_stay_correct():
         compiled.launch(x, y, out, x.shape[0], thread_count=x.shape[0], block_size=32)
 
         cx.testing.assert_allclose(out.cpu(), x_cpu + y_cpu, kind="elementwise")
+
+
+def _rowsum_kernel():
+    @cx.experimental.kernel(target="metal")
+    def rowsum_kernel(a, out, n, m):
+        i = (
+            cx.experimental.program_id(0) * cx.experimental.block_size()
+            + cx.experimental.thread_id()
+        )
+        if i < n:
+            acc = 0.0
+            for k in range(m):
+                acc = acc + a[i * m + k]
+            out[i] = acc
+
+    return rowsum_kernel
+
+
+def test_experimental_for_loop_parses_and_emits_msl():
+    kernel_ir = _rowsum_kernel().parse_ir()
+    loop = kernel_ir.body[-1].body[1]
+    assert isinstance(loop, cx.experimental.IRFor)
+    assert loop.var == "k"
+    assert loop.limit == "m"
+    assert len(loop.body) == 1
+
+    msl = _rowsum_kernel().emit_msl()
+    assert "for (uint k = 0u; k < m; ++k) {" in msl
+    # The accumulator is declared once and reassigned without a declarator.
+    assert "float acc = 0.0f;" in msl
+    assert "acc = (acc + a[((i * m) + k)]);" in msl
+
+
+def test_experimental_for_loop_parse_rejections():
+    @cx.experimental.kernel
+    def two_arg_range(a, out, n, m):
+        i = cx.experimental.thread_id()
+        if i < n:
+            acc = 0.0
+            for k in range(0, m):
+                acc = acc + a[i * m + k]
+            out[i] = acc
+
+    with pytest.raises(
+        cx.experimental.KernelCompileError, match="range\\(scalar_parameter\\)"
+    ):
+        two_arg_range.parse_ir()
+
+    @cx.experimental.kernel
+    def loop_var_shadow(a, out, n, m):
+        i = cx.experimental.thread_id()
+        if i < n:
+            acc = 0.0
+            for i in range(m):
+                acc = acc + a[i]
+            out[i] = acc
+
+    with pytest.raises(
+        cx.experimental.KernelCompileError, match="cannot shadow"
+    ):
+        loop_var_shadow.parse_ir()
+
+    @cx.experimental.kernel
+    def loop_local_escape(a, out, n, m):
+        i = cx.experimental.thread_id()
+        if i < n:
+            acc = 0.0
+            for k in range(m):
+                acc = acc + a[i * m + k]
+            out[i] = acc + k
+
+    with pytest.raises(
+        cx.experimental.KernelCompileError, match="undefined name 'k'"
+    ):
+        loop_local_escape.parse_ir()
+
+    @cx.experimental.kernel
+    def top_level_reassign(a, out, n):
+        i = cx.experimental.thread_id()
+        acc = 0.0
+        acc = acc + 1.0
+        if i < n:
+            out[i] = acc
+
+    with pytest.raises(
+        cx.experimental.KernelCompileError, match="local reassignment"
+    ):
+        top_level_reassign.parse_ir()
+
+
+def test_experimental_for_loop_launch_contract_rejections():
+    @cx.experimental.kernel(target="metal")
+    def bad_index_pattern(a, out, n, m):
+        i = (
+            cx.experimental.program_id(0) * cx.experimental.block_size()
+            + cx.experimental.thread_id()
+        )
+        if i < n:
+            acc = 0.0
+            for k in range(m):
+                acc = acc + a[k * n + i]
+            out[i] = acc
+
+    compiled = cx.experimental.CompiledKernel(
+        name="bad_index_pattern",
+        target="metal",
+        ir=bad_index_pattern.parse_ir(),
+        msl_source="",
+        metallib=b"",
+    )
+    with pytest.raises(
+        cx.experimental.KernelCompileError,
+        match="row-major pattern",
+    ):
+        compiled.launch()
+
+    @cx.experimental.kernel(target="metal")
+    def unguarded_loop(a, out, n, m):
+        i = cx.experimental.thread_id()
+        acc = 0.0
+        for k in range(m):
+            acc = acc + a[i * m + k]
+        if i < n:
+            out[i] = acc
+
+    compiled = cx.experimental.CompiledKernel(
+        name="unguarded_loop",
+        target="metal",
+        ir=unguarded_loop.parse_ir(),
+        msl_source="",
+        metallib=b"",
+    )
+    with pytest.raises(
+        cx.experimental.KernelCompileError,
+        match="for-loops to be inside",
+    ):
+        compiled.launch()
+
+
+@pytest.mark.skipif(
+    not _has_metal_compiler(),
+    reason="Apple Metal command-line compiler tools are unavailable",
+)
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_experimental_for_loop_rowsum_matches_cpu():
+    rowsum_kernel = _rowsum_kernel()
+    rows, cols = 8, 16
+    values = np.arange(rows * cols, dtype=np.float32) / 7.0
+    matrix = values.reshape(rows, cols)
+
+    a = cx.tensor(values, dtype=cx.float32, device="metal")
+    out = cx.empty((rows,), dtype=cx.float32, device="metal")
+    rowsum_kernel(a, out, rows, cols, block_size=4)
+
+    reference = cx.sum(cx.tensor(matrix, dtype=cx.float32, device="cpu"), axis=1)
+    cx.testing.assert_allclose(out.cpu(), reference, kind="reduction")
+
+    # Zero-length reduction follows the Phase 6 sum-over-empty convention.
+    a_empty = cx.tensor(np.zeros(0, dtype=np.float32), dtype=cx.float32, device="metal")
+    out_zero = cx.empty((rows,), dtype=cx.float32, device="metal")
+    rowsum_kernel(a_empty, out_zero, rows, 0, block_size=4)
+    np.testing.assert_array_equal(
+        out_zero.cpu().numpy(), np.zeros(rows, dtype=np.float32)
+    )
+
+    # A loop-indexed buffer must be exactly output_size * limit elements.
+    bad = cx.tensor(
+        np.zeros(rows * cols - 1, dtype=np.float32), dtype=cx.float32, device="metal"
+    )
+    with pytest.raises(ValueError, match="output size times the loop limit"):
+        rowsum_kernel(bad, out, rows, cols, block_size=4)
+
+
+def test_experimental_for_loop_launch_guard_hardening():
+    # Reassigning the guarded row index inside the loop would invalidate the
+    # structural bounds proof; conflict/output-load rules are also enforced.
+    @cx.experimental.kernel(target="metal")
+    def row_reassign(a, out, n, m):
+        i = cx.experimental.thread_id()
+        if i < n:
+            acc = 0.0
+            for k in range(m):
+                i = i + n
+                acc = acc + a[i * m + k]
+            out[i] = acc
+
+    compiled = cx.experimental.CompiledKernel(
+        name="row_reassign", target="metal", ir=row_reassign.parse_ir(),
+        msl_source="", metallib=b"",
+    )
+    with pytest.raises(
+        cx.experimental.KernelCompileError, match="reassigning the guarded index"
+    ):
+        compiled.launch()
+
+    @cx.experimental.kernel(target="metal")
+    def conflict(a, out, n, m):
+        i = cx.experimental.thread_id()
+        if i < n:
+            acc = a[i]
+            for k in range(m):
+                acc = acc + a[i * m + k]
+            out[i] = acc
+
+    compiled = cx.experimental.CompiledKernel(
+        name="conflict", target="metal", ir=conflict.parse_ir(),
+        msl_source="", metallib=b"",
+    )
+    with pytest.raises(
+        cx.experimental.KernelCompileError,
+        match="both elementwise and loop-indexed",
+    ):
+        compiled.launch()
+
+    @cx.experimental.kernel(target="metal")
+    def loads_output(out, n, m):
+        i = cx.experimental.thread_id()
+        if i < n:
+            acc = 0.0
+            for k in range(m):
+                acc = acc + out[i * m + k]
+            out[i] = acc
+
+    compiled = cx.experimental.CompiledKernel(
+        name="loads_output", target="metal", ir=loads_output.parse_ir(),
+        msl_source="", metallib=b"",
+    )
+    with pytest.raises(
+        cx.experimental.KernelCompileError,
+        match="loading the output buffer inside a for-loop",
+    ):
+        compiled.launch()
+
+
+def test_experimental_msl_reassignment_must_preserve_type():
+    @cx.experimental.kernel
+    def type_flip(a, out, n, m):
+        i = cx.experimental.thread_id()
+        if i < n:
+            acc = 0.0
+            for k in range(m):
+                acc = k
+            out[i] = a[i]
+
+    with pytest.raises(
+        cx.experimental.KernelCompileError, match="must preserve the type"
+    ):
+        type_flip.emit_msl()
