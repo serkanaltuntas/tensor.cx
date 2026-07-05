@@ -1,6 +1,7 @@
 #include "cortex/backends/metal/metal_buffer.h"
 
 #include <cstring>
+#include <limits>
 
 #include "cortex/backends/metal/metal_context.h"
 #include "cortex/core/dtype.h"
@@ -8,6 +9,15 @@
 namespace cortex::metal {
 
 Expected<std::shared_ptr<MetalBuffer>> MetalBuffer::create(DType dtype, std::size_t elements) {
+  // The byte size below is computed as elements * dtype_size. An unchecked
+  // wraparound would allocate a tiny buffer that later copies would overrun,
+  // so reject the request before the multiplication can overflow size_t.
+  const std::size_t element_size = dtype_size(dtype);
+  if (element_size != 0 &&
+      elements > std::numeric_limits<std::size_t>::max() / element_size) {
+    return Status(StatusCode::kInvalidArgument, "Metal buffer size overflows size_t");
+  }
+
   auto& context = default_context();
   if (!context.ready()) {
     return context.status();

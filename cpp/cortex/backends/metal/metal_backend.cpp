@@ -3,6 +3,7 @@
 #include <array>
 #include <cmath>
 #include <exception>
+#include <limits>
 #include <memory>
 #include <span>
 #include <string>
@@ -348,6 +349,26 @@ MetalTensor from_core_tensor(const Tensor& tensor) {
 }
 
 Status contract_smoke_test() {
+  // An element count whose byte size cannot be represented must fail with a
+  // clear status; a wrapped multiplication here would otherwise allocate a
+  // tiny buffer that later copies would overrun. The guard fires before any
+  // device access, so this case runs (and protects) even on hosts without a
+  // usable Metal device, ahead of the availability skip below.
+  auto overflow_buffer_result = MetalBuffer::create(
+      DType::kFloat32, std::numeric_limits<std::size_t>::max());
+  if (overflow_buffer_result) {
+    return Status(
+        StatusCode::kInternal,
+        "Metal backend contract smoke test failed: buffer size overflow accepted");
+  }
+  if (Status status = expect_status_code(
+          "buffer size overflow",
+          overflow_buffer_result.status(),
+          StatusCode::kInvalidArgument);
+      !status.ok()) {
+    return status;
+  }
+
   auto& context = default_context();
   if (!context.ready()) {
     return context.status();

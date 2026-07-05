@@ -224,10 +224,21 @@ CpuTensor tensor_from_flat_sequence(
   const std::int64_t expected_size = cortex::numel(parsed_shape);
   const DType actual_dtype = parse_dtype(dtype, DType::kFloat32);
 
+  // The shape fixes the element count up front, so stop consuming the iterable
+  // as soon as it yields one element too many. Without this bound an infinite
+  // generator would be drained until the process runs out of memory before the
+  // length check could ever fire.
+  const auto reject_excess_length = [&](std::size_t collected) {
+    if (static_cast<std::int64_t>(collected) >= expected_size) {
+      throw std::invalid_argument("tensor data length does not match shape");
+    }
+  };
+
   switch (actual_dtype) {
     case DType::kFloat32: {
       std::vector<float> values;
       for (nb::handle item : nb::iter(data)) {
+        reject_excess_length(values.size());
         values.push_back(cast_float32_or_throw(item));
       }
       if (static_cast<std::int64_t>(values.size()) != expected_size) {
@@ -238,6 +249,7 @@ CpuTensor tensor_from_flat_sequence(
     case DType::kInt32: {
       std::vector<std::int32_t> values;
       for (nb::handle item : nb::iter(data)) {
+        reject_excess_length(values.size());
         values.push_back(cast_int32_or_throw(item));
       }
       if (static_cast<std::int64_t>(values.size()) != expected_size) {
@@ -310,6 +322,17 @@ std::string bytes_to_string(nb::bytes data) {
   return std::string(buffer, static_cast<std::size_t>(size));
 }
 
+// Run backend work with the GIL released so synchronous GPU waits and large
+// CPU loops do not stall other Python threads. Everything inside `fn` must be
+// pure C++: no Python object may be created, copied, or destroyed while the
+// GIL is released. The native layer this calls into is thread-safe (stateless
+// backends; mutex-guarded Metal pipeline caches; thread-safe MTLCommandQueue).
+template <typename Fn>
+auto without_gil(Fn&& fn) {
+  nb::gil_scoped_release released;
+  return fn();
+}
+
 void throw_status(const cortex::Status& status) {
   switch (status.code()) {
     case cortex::StatusCode::kInvalidArgument:
@@ -338,7 +361,7 @@ CpuTensor binary_op(const CpuTensor& lhs, const CpuTensor& rhs, OpKind kind) {
       std::nullopt,
       std::nullopt,
   };
-  const auto status = backend.execute(execution);
+  const auto status = without_gil([&] { return backend.execute(execution); });
   if (!status.ok()) {
     throw_status(status);
   }
@@ -359,7 +382,7 @@ CpuTensor cpu_single_input_backend_op(const CpuTensor& input, const OpDesc& op) 
       std::nullopt,
       std::nullopt,
   };
-  const auto status = backend.execute(execution);
+  const auto status = without_gil([&] { return backend.execute(execution); });
   if (!status.ok()) {
     throw_status(status);
   }
@@ -404,7 +427,7 @@ CpuTensor fill_op(Shape shape, DType dtype, double value) {
       std::nullopt,
       std::nullopt,
   };
-  const auto status = backend.execute(execution);
+  const auto status = without_gil([&] { return backend.execute(execution); });
   if (!status.ok()) {
     throw_status(status);
   }
@@ -480,7 +503,7 @@ nb::object metal_backend_fill(Shape shape, DType dtype, double value) {
       std::nullopt,
       std::nullopt,
   };
-  const cortex::Status status = backend.execute(execution);
+  const cortex::Status status = without_gil([&] { return backend.execute(execution); });
   if (!status.ok()) {
     throw_status(status);
   }
@@ -505,7 +528,7 @@ cortex::metal::MetalTensor binary_op(
       std::nullopt,
       std::nullopt,
   };
-  const cortex::Status status = backend.execute(execution);
+  const cortex::Status status = without_gil([&] { return backend.execute(execution); });
   if (!status.ok()) {
     throw_status(status);
   }
@@ -528,7 +551,7 @@ cortex::metal::MetalTensor metal_single_input_backend_op(
       std::nullopt,
       std::nullopt,
   };
-  const cortex::Status status = backend.execute(execution);
+  const cortex::Status status = without_gil([&] { return backend.execute(execution); });
   if (!status.ok()) {
     throw_status(status);
   }
@@ -572,7 +595,7 @@ cortex::metal::MetalTensor metal_matmul_backend_op(
       std::nullopt,
       std::nullopt,
   };
-  const cortex::Status status = backend.execute(execution);
+  const cortex::Status status = without_gil([&] { return backend.execute(execution); });
   if (!status.ok()) {
     throw_status(status);
   }
@@ -716,7 +739,7 @@ std::string launch_metal_library_function_via_backend(
   };
 
   cortex::metal::MetalBackend backend;
-  const cortex::Status status = backend.execute(execution);
+  const cortex::Status status = without_gil([&] { return backend.execute(execution); });
   if (!status.ok()) {
     throw_status(status);
   }
@@ -926,8 +949,10 @@ NB_MODULE(_core, module) {
   module.def("validate_metal_library_function",
              [](nb::bytes metallib, const std::string& function_name) {
 #if CORTEX_ENABLE_METAL
-               return unwrap(cortex::metal::validate_library_function(
-                   bytes_to_vector(metallib), function_name));
+               const std::vector<std::uint8_t> library_bytes = bytes_to_vector(metallib);
+               return unwrap(without_gil([&] {
+                 return cortex::metal::validate_library_function(library_bytes, function_name);
+               }));
 #else
                (void)metallib;
                (void)function_name;
@@ -995,11 +1020,13 @@ NB_MODULE(_core, module) {
       });
 
   module.def("cpu_to_metal",
-             [](const CpuTensor& tensor) { return unwrap(cortex::metal::from_cpu(tensor)); },
+             [](const CpuTensor& tensor) {
+               return unwrap(without_gil([&] { return cortex::metal::from_cpu(tensor); }));
+             },
              nb::arg("tensor"));
   module.def("metal_to_cpu",
              [](const cortex::metal::MetalTensor& tensor) {
-               return unwrap(cortex::metal::to_cpu(tensor));
+               return unwrap(without_gil([&] { return cortex::metal::to_cpu(tensor); }));
              },
              nb::arg("tensor"));
   module.def("add",

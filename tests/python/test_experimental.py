@@ -1045,3 +1045,35 @@ def test_experimental_intrinsics_are_kernel_only_placeholders():
         cx.experimental.thread_id()
     with pytest.raises(NotImplementedError, match="block_size is only valid"):
         cx.experimental.block_size()
+
+
+@pytest.mark.skipif(
+    not _has_metal_compiler(),
+    reason="Apple Metal command-line compiler tools are unavailable",
+)
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_experimental_kernel_repeated_launches_stay_correct():
+    # Launches after the first are served by the Metal pipeline cache; every
+    # iteration must still produce correct results with fresh buffer bindings.
+    @cx.experimental.kernel(target="metal")
+    def add_kernel(a, b, out, n):
+        i = (
+            cx.experimental.program_id(0) * cx.experimental.block_size()
+            + cx.experimental.thread_id()
+        )
+        if i < n:
+            out[i] = a[i] + b[i]
+
+    compiled = add_kernel.compile(target="metal")
+
+    for iteration in range(1, 9):
+        values = np.arange(iteration * 8, dtype=np.float32)
+        x_cpu = cx.tensor(values, dtype=cx.float32, device="cpu")
+        y_cpu = cx.tensor(values * 2.0, dtype=cx.float32, device="cpu")
+        x = x_cpu.to("metal")
+        y = y_cpu.to("metal")
+        out = cx.empty(x.shape, dtype=cx.float32, device="metal")
+
+        compiled.launch(x, y, out, x.shape[0], thread_count=x.shape[0], block_size=32)
+
+        cx.testing.assert_allclose(out.cpu(), x_cpu + y_cpu, kind="elementwise")

@@ -46,6 +46,48 @@ jobs:
           cmake --build build/cpp-tests --target cortex_backend_contract_tests
           ctest --test-dir build/cpp-tests --output-on-failure
 
+  sanitizers:
+    name: C++ tests (ASan/UBSan)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Create virtual environment
+        run: |
+          uv venv --python 3.12
+          uv pip install "nanobind>=2.4"
+
+      # The Metal layer manages memory manually behind RAII wrappers; this job
+      # runs the backend contract tests under ASan/UBSan on the CPU path so
+      # leaks, overflows, and UB in the shared core/backend code fail CI.
+      - name: Configure C++ tests with sanitizers
+        run: |
+          NANOBIND_DIR="$(uv run python -c 'import nanobind; print(nanobind.cmake_dir())')"
+          PYTHON_EXECUTABLE="$(uv run python -c 'import sys; print(sys.executable)')"
+          cmake -S . -B build/cpp-sanitizers \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCORTEX_ENABLE_METAL=OFF \
+            -DCORTEX_BUILD_TESTS=ON \
+            -DCORTEX_ENABLE_SANITIZERS=ON \
+            -Dnanobind_DIR="${NANOBIND_DIR}" \
+            -DPython_EXECUTABLE="${PYTHON_EXECUTABLE}"
+
+      - name: Run C++ tests under sanitizers
+        env:
+          ASAN_OPTIONS: "halt_on_error=1:detect_leaks=1:strict_string_checks=1"
+          UBSAN_OPTIONS: "halt_on_error=1:print_stacktrace=1"
+        run: |
+          cmake --build build/cpp-sanitizers --target cortex_backend_contract_tests
+          ctest --test-dir build/cpp-sanitizers -R cortex_backend_contract_tests \
+            --no-tests=error --output-on-failure
+
   macos-metal:
     name: macOS build (${{ matrix.variant }})
     runs-on: macos-latest

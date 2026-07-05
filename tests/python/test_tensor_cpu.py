@@ -717,3 +717,57 @@ def test_native_tensor_factory_rejects_nested_sequence():
 
     with pytest.raises(ValueError, match="flat numeric sequence"):
         _core.tensor([[1, 2], [3, 4]])
+
+
+def test_tensor_from_flat_rejects_generator_longer_than_shape():
+    # The shape fixes the element count, so an over-long (here: infinite)
+    # generator must be rejected after at most numel+1 items instead of being
+    # drained until the process runs out of memory. The consumption counter
+    # pins the early-termination behavior itself, not just the error message.
+    import itertools
+
+    from cortex_runtime import _core
+
+    def counting(iterable, consumed):
+        for item in iterable:
+            consumed.append(item)
+            yield item
+
+    for dtype in ("float32", "int32"):
+        consumed = []
+        with pytest.raises(ValueError, match="tensor data length does not match shape"):
+            _core.tensor_from_flat(
+                counting(itertools.count(), consumed), shape=(3,), dtype=dtype
+            )
+        assert len(consumed) <= 4, (
+            f"{dtype}: consumed {len(consumed)} items; early termination is broken"
+        )
+
+    consumed = []
+    with pytest.raises(ValueError, match="tensor data length does not match shape"):
+        _core.tensor_from_flat(
+            counting(itertools.count(), consumed), shape=(0,), dtype="float32"
+        )
+    assert len(consumed) <= 1, "(0,)-shape must reject before consuming a second item"
+
+
+def test_tensor_from_flat_accepts_exact_length_generator():
+    from cortex_runtime import _core
+
+    float_tensor = cx.Tensor(
+        _core.tensor_from_flat(
+            (float(value) for value in range(6)), shape=(2, 3), dtype="float32"
+        )
+    )
+    int_tensor = cx.Tensor(
+        _core.tensor_from_flat(
+            (value for value in range(6)), shape=(2, 3), dtype="int32"
+        )
+    )
+
+    np.testing.assert_array_equal(
+        float_tensor.numpy(), np.arange(6, dtype=np.float32).reshape(2, 3)
+    )
+    np.testing.assert_array_equal(
+        int_tensor.numpy(), np.arange(6, dtype=np.int32).reshape(2, 3)
+    )

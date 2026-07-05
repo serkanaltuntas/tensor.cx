@@ -7,6 +7,7 @@
 #include <functional>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -425,6 +426,11 @@ class KernelRuntime {
   KernelRuntime() : status_(initialize()) {}
 
   Expected<MTL::ComputePipelineState*> pipeline(const char* name) {
+    // Callers reach this from Python threads that run with the GIL released,
+    // so the lazy pipeline_slot initialization below must be serialized. The
+    // returned raw pointer stays valid: slots are never cleared and the
+    // singleton KernelRuntime lives for the whole process.
+    const std::lock_guard<std::mutex> lock(mutex_);
     if (!status_.ok()) {
       return status_;
     }
@@ -491,6 +497,10 @@ class KernelRuntime {
     if (!context.ready()) {
       return context.status();
     }
+    // First use may happen on a pool-less Python worker thread; drain any
+    // autoreleased temporaries (including failure-path NS::Error objects).
+    NS::SharedPtr<NS::AutoreleasePool> pool =
+        NS::TransferPtr(NS::AutoreleasePool::alloc()->init());
     library_data_.reset(dispatch_data_create(
         kElementwiseMetallib,
         kElementwiseMetallibSize,
@@ -517,6 +527,11 @@ class KernelRuntime {
       return slot.get();
     }
 
+    // Pipeline creation may run on a pool-less Python worker thread; drain
+    // autoreleased temporaries from the Metal calls below.
+    NS::SharedPtr<NS::AutoreleasePool> pool =
+        NS::TransferPtr(NS::AutoreleasePool::alloc()->init());
+
     NS::SharedPtr<NS::String> function_name =
         NS::TransferPtr(NS::String::alloc()->init(name, NS::UTF8StringEncoding));
     if (!function_name) {
@@ -538,6 +553,7 @@ class KernelRuntime {
     return slot.get();
   }
 
+  std::mutex mutex_;
   NS::SharedPtr<MTL::Library> library_;
   detail::DispatchData library_data_;
   Status status_;

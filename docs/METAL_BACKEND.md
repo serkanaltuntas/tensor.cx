@@ -54,21 +54,32 @@ Each kernel launch wraps its command buffer/encoder in an `NS::AutoreleasePool`,
 since a Python C-extension call (and especially a worker thread) has no implicit
 pool to drain the autoreleased Metal objects.
 
-## Threading and the GIL (deferred)
+## Threading and the GIL
 
-v0.1 execution is synchronous and effectively single-threaded: every Metal op
-encodes, commits, and **blocks** on `waitUntilCompleted` while holding the Python
-GIL. As a result:
+Execution is still synchronous — every Metal op encodes, commits, and blocks on
+`waitUntilCompleted` — but the binding layer releases the Python GIL around
+every native backend call (execute, device copies, and experimental kernel
+validation/launch). Ops issued from multiple Python threads therefore overlap
+inside the native layer instead of serializing on the GIL.
 
-- Concurrent calls from multiple Python threads are serialized, not parallel.
-- The lazy `KernelRuntime` pipeline cache is therefore not yet guarded by a mutex
-  (the GIL is the de-facto lock).
+The native state that concurrent calls share is guarded:
 
-Releasing the GIL across the blocking submit — and the pipeline-cache locking it
-would then require — is intentionally deferred. It is concurrency/performance
-work beyond the synchronous v0.1 scope (AGENTS.md "Start with synchronous
-execution"; async/streams are out of scope). Do not release the GIL in the
-binding without first making the pipeline cache thread-safe.
+- The lazy `KernelRuntime` pipeline cache for embedded kernels is protected by a
+  mutex; the returned pipeline pointers stay valid because slots are never
+  cleared and the singleton lives for the whole process.
+- Experimental DSL launches use a mutex-guarded pipeline cache in
+  `metal_library.cpp`, keyed by the exact metallib bytes plus function name, so
+  repeated launches do not recompile per call and concurrent launches cannot
+  corrupt the cache. The cache is bounded (64 entries); clearing it only drops
+  references, and in-flight launches keep their pipelines alive via
+  `NS::SharedPtr`.
+- `MTLCommandQueue` is thread-safe per Apple's documentation; `MetalContext` and
+  backend singletons rely on C++11 thread-safe static initialization.
+- The CPU backend is stateless per call.
+
+Code that runs while the GIL is released must stay pure C++: no Python object
+may be created, copied, or destroyed inside `without_gil` regions in the
+binding. Async submission and streams remain out of scope.
 
 ## Current Limitations
 
@@ -81,6 +92,7 @@ binding without first making the pipeline cache thread-safe.
   currently support float32 tensors only.
 - Reduction kernels are correctness-first and use one thread per output element;
   they are not optimized for large reduction axes yet.
-- Execution is synchronous and holds the GIL; not safe for concurrent
-  multi-threaded use yet (see "Threading and the GIL" above).
+- Execution is synchronous (no async/stream API); native calls release the GIL
+  and are safe for concurrent multi-threaded use (see "Threading and the GIL"
+  above).
 ```

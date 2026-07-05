@@ -10,6 +10,7 @@ name = "cortex-runtime"
 version = "0.1.0"
 description = "Python-first accelerator runtime and kernel compiler, starting with Apple Metal."
 readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.11"
 authors = [
   { name = "Serkan Altuntas", email = "serkan@altuntas.dev" },
@@ -17,6 +18,7 @@ authors = [
 classifiers = [
   "Development Status :: 2 - Pre-Alpha",
   "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
   "Programming Language :: C++",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.11",
@@ -40,6 +42,7 @@ wheel.packages = ["python/cortex_runtime"]
 # regardless of scikit-build-core's git-vs-heuristic file discovery.
 sdist.include = [
   "CMakeLists.txt",
+  "LICENSE",
   "cmake/**",
   "cpp/**",
   "bindings/**",

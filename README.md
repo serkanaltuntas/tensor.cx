@@ -207,8 +207,10 @@ print(ln.cpu().numpy().shape)
   zero-thread launches validate the Metal function and return as no-ops. The
   launch path is synchronous, Metal-only, one-output, exact-shape, and still
   under `cx.experimental`.
-- Execution is synchronous and holds the Python GIL; the runtime is not yet safe
-  for concurrent multi-threaded use (see `docs/METAL_BACKEND.md`).
+- Execution is synchronous, but native backend calls release the Python GIL, so
+  operations issued from multiple Python threads run concurrently in the native
+  layer and stay correct (shared caches are mutex-guarded; see
+  `docs/METAL_BACKEND.md`). There is still no async/stream API.
 
 ## Naming
 

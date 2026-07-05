@@ -21,6 +21,20 @@ include(FetchContent)
 set(CORTEX_ENABLE_METAL "AUTO" CACHE STRING "Enable the Apple Metal backend: AUTO, ON, or OFF")
 set_property(CACHE CORTEX_ENABLE_METAL PROPERTY STRINGS AUTO ON OFF)
 option(CORTEX_BUILD_TESTS "Build Cortex Runtime C++ test executables" OFF)
+option(CORTEX_ENABLE_SANITIZERS
+  "Build with AddressSanitizer and UndefinedBehaviorSanitizer (GCC/Clang only)" OFF)
+
+if(CORTEX_ENABLE_SANITIZERS)
+  if(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    message(FATAL_ERROR "CORTEX_ENABLE_SANITIZERS requires GCC or Clang.")
+  endif()
+  # Applied globally so the runtime, backends, and test executables are all
+  # instrumented. The Python extension is also built with sanitizers under this
+  # flag; run only the C++ test executables in sanitizer CI (importing the
+  # instrumented extension requires an ASan-preloaded Python).
+  add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
+  add_link_options(-fsanitize=address,undefined)
+endif()
 string(TOUPPER "${CORTEX_ENABLE_METAL}" CORTEX_ENABLE_METAL_REQUEST)
 if(CORTEX_ENABLE_METAL_REQUEST STREQUAL "TRUE" OR
    CORTEX_ENABLE_METAL_REQUEST STREQUAL "YES" OR

@@ -81,8 +81,9 @@ and AGENTS.md "Out Of Scope For Early Work".
 - **Remaining allocation routing.** Constructor-style `empty` allocation still
   uses typed backend paths because it must choose backend-specific native tensor
   objects. See [`ARCHITECTURE.md`](ARCHITECTURE.md) → "Dispatch after Phase 8".
-- **GIL release + Metal thread-safety.** v0.1 is synchronous and holds the GIL
-  across blocking Metal submissions, so multi-threaded use is serialized and the
-  pipeline cache is intentionally unlocked. Releasing the GIL (and locking the
-  cache) is concurrency work beyond the synchronous v0.1 scope. See
+- **Async submission and streams.** GIL release and native-layer thread-safety
+  are done: the binding releases the GIL around every backend call and the
+  pipeline caches are mutex-guarded, so multi-threaded use is supported. What
+  remains deferred is asynchronous submission (streams, command-buffer
+  batching); execution is still synchronous per op. See
   [`METAL_BACKEND.md`](METAL_BACKEND.md) → "Threading and the GIL".
