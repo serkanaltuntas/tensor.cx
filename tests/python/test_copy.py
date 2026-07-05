@@ -7,7 +7,7 @@ import cortex_runtime as cx
 def test_devices_always_include_cpu():
     assert "cpu" in cx.devices()
     assert cx.is_available("cpu")
-    assert cx.best_device() in {"cpu", "metal"}
+    assert cx.best_device() in set(cx.devices())
 
     cpu = cx.device("cpu")
     assert cpu.type == "cpu"
@@ -17,7 +17,7 @@ def test_devices_always_include_cpu():
     assert cx.is_available(cpu)
 
     with pytest.raises(ValueError, match="device is not available"):
-        cx.device("cuda")
+        cx.device("missing")
 
 
 def test_device_normalization_rejects_bad_inputs():

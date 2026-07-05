@@ -195,11 +195,56 @@ Once the environment is ready, implement CUDA in this order:
 5. Add Tensor.to("cuda") and Tensor.cpu() round-trip tests.
 6. Add fill_f32.
 7. Add add_f32 and mul_f32.
-8. Parametrize the existing CPU/Metal tests so the same Python test body covers cuda.
+8. Enable and extend CUDA capabilities in the existing backend-parametric tests
+   so the same Python test body covers cuda.
 ```
 
 The CUDA backend must use the Phase 8 backend ABI and shared contract validators
 where applicable. Do not add CUDA-specific concepts to `cpp/cortex/core/`.
+
+## Backend-Parametric Test Harness
+
+The Python test suite already has a backend capability matrix in
+`tests/python/conftest.py` and shared parity tests in
+`tests/python/test_backend_parity.py`. CUDA is present in that matrix but has no
+declared capabilities until Phase 9 slices land.
+
+When implementing CUDA, enable capabilities in the matrix only after the matching
+backend slice is complete and verified:
+
+```text
+copy                       CPU -> CUDA -> CPU round trip
+tensor_factories_float32   empty/zeros/ones for float32
+binary_ops_float32         add_f32/mul_f32 and shape mismatch errors
+tensor_factories_int32     empty/zeros/ones for int32, if implemented later
+binary_ops_int32           add_i32/mul_i32, if implemented later
+binary_ops_dtype_mismatch  dtype mismatch errors once multiple dtypes exist
+unary_float32              exp/gelu/silu, if implemented later
+reductions_float32         sum/max/mean for float32, if implemented later
+reductions_int32           sum/max for int32, if implemented later
+normalization_float32      softmax/rmsnorm/layernorm, if implemented later
+```
+
+The immediate Phase 9 target is `copy`, `tensor_factories_float32`, and
+`binary_ops_float32`. The same pytest bodies should run for Metal and CUDA once
+those CUDA capabilities are declared. Do not enable int32 CUDA capabilities
+unless int32 CUDA kernels and factory behavior are implemented intentionally.
+
+On a CUDA host, use strict backend mode after CUDA registration is expected to
+exist so a broken backend, missing registration, or missing capability
+declaration cannot be hidden by skip behavior:
+
+```bash
+CORTEX_REQUIRE_BACKENDS=cuda \
+CORTEX_REQUIRE_BACKEND_CAPABILITIES=cuda:copy,cuda:tensor_factories_float32,cuda:binary_ops_float32 \
+uv run pytest tests/python/test_backend_parity.py -q
+```
+
+`CORTEX_REQUIRE_BACKENDS` accepts a comma-separated backend list, for example
+`cuda,metal`. `CORTEX_REQUIRE_BACKEND_CAPABILITIES` accepts comma-separated
+`backend:capability` entries. Required backends and required backend
+capabilities fail collection if they are unknown, unavailable, or not declared
+in the capability matrix.
 
 ## Completion Target
 

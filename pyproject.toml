@@ -50,3 +50,6 @@ sdist.include = [
 [tool.pytest.ini_options]
 testpaths = ["tests/python"]
 addopts = ["-ra"]
+markers = [
+  "backend_capability(capability, include_cpu=True): parametrize a test over backends that declare a runtime capability",
+]

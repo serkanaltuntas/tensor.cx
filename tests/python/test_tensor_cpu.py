@@ -562,7 +562,7 @@ def test_matmul_cpu_rejects_invalid_inputs():
 
 def test_tensor_rejects_unsupported_device():
     with pytest.raises(ValueError, match="device is not available"):
-        cx.tensor([1, 2, 3], device="cuda")
+        cx.tensor([1, 2, 3], device="missing")
 
 
 def test_tensor_rejects_unsupported_device_before_materializing_data():
@@ -571,13 +571,13 @@ def test_tensor_rejects_unsupported_device_before_materializing_data():
             raise AssertionError("array conversion should not run")
 
     with pytest.raises(ValueError, match="device is not available"):
-        cx.tensor(ExplodingArrayLike(), device="cuda")
+        cx.tensor(ExplodingArrayLike(), device="missing")
     with pytest.raises(ValueError, match="device is not available"):
-        cx.empty((2**62,), dtype=cx.float32, device="cuda")
+        cx.empty((2**62,), dtype=cx.float32, device="missing")
     with pytest.raises(ValueError, match="device is not available"):
-        cx.zeros((2**62,), dtype=cx.float32, device="cuda")
+        cx.zeros((2**62,), dtype=cx.float32, device="missing")
     with pytest.raises(ValueError, match="device is not available"):
-        cx.ones((2**62,), dtype=cx.float32, device="cuda")
+        cx.ones((2**62,), dtype=cx.float32, device="missing")
 
 
 def test_tensor_rejects_bool_data():
