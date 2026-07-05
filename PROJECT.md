@@ -39,16 +39,17 @@ C++ namespace: cortex
 > CI (CPU), on the local Mac (Metal), or on the selected CUDA host (CUDA phases).
 
 ```text
-Current phase:          Phase 9 — paused (no CUDA access); Phase 10 — in progress
-                        under a documented sequencing exception (see
-                        docs/PHASE_SEQUENCING_DECISION.md)
-Last verified milestone: Phase 8 — Backend interface hardening
+Current phase:          Phase 9 — paused (no CUDA access); Phase 10 — done
+                        (ran ahead of Phase 9 under the documented sequencing
+                        exception; decision recorded in docs/MLIR_DECISION.md)
+Last verified milestone: Phase 10 — MLIR exploration (yes-path validated:
+                        add lowers Cortex IR -> MLIR -> native and matches CPU)
 v0.1 target:            achieved at end of Phase 3
 Binding decided:        nanobind (see §5.6)
+MLIR decided:           yes as the long-term lowering direction, integration
+                        deferred until after Phase 9 (docs/MLIR_DECISION.md)
 Open decisions:         Phase 9 CUDA hardware/cloud development environment
-                        (decision gate documented, still pending); Phase 10
-                        sequencing exception recorded in
-                        docs/PHASE_SEQUENCING_DECISION.md
+                        (decision gate documented, still pending)
 ```
 
 Phase checklist:
@@ -64,15 +65,18 @@ Phase checklist:
 [x] Phase 7   Experimental kernel DSL
 [x] Phase 8   Backend interface hardening
 [ ] Phase 9   CUDA prototype             <- paused, no CUDA access
-[ ] Phase 10  MLIR exploration           <- in progress, out of order (see below)
+[x] Phase 10  MLIR exploration           <- done, out of order (see below)
 ```
 
-Phase 10 was started ahead of Phase 9 as a documented sequencing exception,
-because Phase 9 is blocked on CUDA hardware/cloud access that is not currently
+Phase 10 ran ahead of Phase 9 as a documented sequencing exception, because
+Phase 9 is blocked on CUDA hardware/cloud access that is not currently
 available and Phase 10's own Definition of Done does not require CUDA. See
 [`docs/PHASE_SEQUENCING_DECISION.md`](docs/PHASE_SEQUENCING_DECISION.md) for
-the rationale and guardrails. Phase 9's acceptance criteria are unchanged and
-not satisfied by Phase 10 work.
+the rationale and guardrails. Phase 10 is complete: the decision record
+[`docs/MLIR_DECISION.md`](docs/MLIR_DECISION.md) answers "yes" (validated by
+the `experiments/mlir/` prototype and `tests/python/test_mlir_lowering.py`),
+with runtime integration deferred until after Phase 9. Phase 9's acceptance
+criteria are unchanged and not satisfied by Phase 10 work.
 
 ---
 
@@ -1505,6 +1509,17 @@ Definition of Done:
 - No core or backend code is committed that assumes MLIR before this decision is
   recorded.
 ```
+
+Status: **done** (2026-07-05). The decision record is
+[`docs/MLIR_DECISION.md`](docs/MLIR_DECISION.md): the answer is yes — the
+Phase 7 elementwise add lowers Cortex IR → MLIR (func/scf/arith/memref) →
+LLVM → native code and matches the CPU reference, with guard and zero-thread
+semantics preserved (`experiments/mlir/`, `tests/python/test_mlir_lowering.py`).
+Verification venues: the emitter tests run in CPU CI on every push; the
+end-to-end lowering (which needs the MLIR toolchain) was validated on the
+local Mac and skips cleanly elsewhere, mirroring the Metal-test convention.
+Runtime integration is deliberately deferred until after Phase 9; the runtime
+core and backends contain no MLIR code or build dependencies.
 
 ---
 

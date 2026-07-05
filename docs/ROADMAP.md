@@ -18,15 +18,21 @@ acceptance criteria, and Definitions of Done also live in `PROJECT.md` (§14).
 [x] Phase 7   Experimental kernel DSL
 [x] Phase 8   Backend interface hardening
 [ ] Phase 9   CUDA prototype             <- paused, no CUDA access
-[ ] Phase 10  MLIR exploration           <- in progress, out of order
+[x] Phase 10  MLIR exploration           <- done, out of order
 ```
 
-Phase 10 is running ahead of Phase 9 under a documented sequencing exception:
+Phase 10 ran ahead of Phase 9 under a documented sequencing exception:
 Phase 9 is blocked on CUDA hardware/cloud access that isn't currently
 available, and Phase 10's Definition of Done (a decision record, optionally
 one CPU/Metal-validated op) doesn't need CUDA. See
 [`PHASE_SEQUENCING_DECISION.md`](PHASE_SEQUENCING_DECISION.md). Phase 9's
 acceptance criteria are unaffected.
+
+Phase 10 is complete: [`MLIR_DECISION.md`](MLIR_DECISION.md) records a "yes" —
+the Phase 7 elementwise add lowers Cortex IR → MLIR → native code and matches
+the CPU reference (`experiments/mlir/`,
+`tests/python/test_mlir_lowering.py`). Runtime integration is deferred until
+after Phase 9; core and backends contain no MLIR code or build dependencies.
 
 Phase 8 is complete: the backend execution ABI now
 separates primitive operations from kernel launches, carries explicit launch and
@@ -41,7 +47,7 @@ through `MetalBackend::execute`. Phase 9 remains paused pending a CUDA
 hardware or cloud development environment decision (see "Phase status" above
 for the Phase 10 sequencing exception).
 
-## What works today (through Phase 8)
+## What works today (runtime through Phase 8, plus the Phase 10 MLIR prototype)
 
 - CPU reference backend: `float32`/`int32`, contiguous 1-D/2-D, add / multiply /
   fill / zeros / ones / empty, exact NumPy round-trip.

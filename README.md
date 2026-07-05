@@ -119,7 +119,12 @@ transforms, reductions, matmul, and fill now also route through
 enters Metal through `BackendExecution`. Phase 9 has not started; it requires a
 CUDA hardware or cloud development environment decision first. The Phase 9
 decision gate is documented in
-`docs/CUDA_PHASE9_ENVIRONMENT.md`. Phase 5 provides CPU reference matmul, a
+`docs/CUDA_PHASE9_ENVIRONMENT.md`. Phase 10 (MLIR exploration) is complete and
+ran ahead of Phase 9 under a documented sequencing exception: the decision
+record `docs/MLIR_DECISION.md` answers "yes" — the experimental add kernel
+lowers Cortex IR → MLIR → native code and matches the CPU reference
+(`experiments/mlir/`) — while runtime integration stays deferred until after
+Phase 9 and the runtime itself contains no MLIR dependency. Phase 5 provides CPU reference matmul, a
 correctness-first custom Metal matmul kernel, and an optimized Metal primitive
 path. Phase 6 adds `sum`, `max`, `mean`, `exp`, `gelu`, `silu`, `softmax`,
 `rmsnorm`, and `layernorm` on CPU and Metal. The custom matmul kernel remains

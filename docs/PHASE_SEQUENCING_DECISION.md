@@ -55,8 +55,13 @@ The CPU/Metal-validated single-op case, if pursued, needs no CUDA hardware.
 ```text
 Date recorded:      2026-07-05
 Phase 9:            not started, blocked on CUDA environment (unchanged)
-Phase 10:           not started -> in progress (sequencing exception, this record)
+Phase 10:           not started -> in progress -> done (see update below)
 Reason for reorder: no CUDA hardware/cloud access currently available
+
+Update 2026-07-05: Phase 10 completed within the guardrails above — decision
+record docs/MLIR_DECISION.md ("yes", one op validated through
+experiments/mlir/ against the CPU reference; no MLIR in core/backends).
+Phase 9 remains paused on the CUDA environment decision, unchanged.
 ```
 
 ## Local MLIR Toolchain Status

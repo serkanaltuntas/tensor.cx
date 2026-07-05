@@ -227,6 +227,8 @@ tests/python/               pytest correctness tests
 tests/cpp/                  C++ unit tests
 benchmarks/                 local benchmark scripts
 docs/                       architecture and backend notes
+experiments/                phase-scoped research prototypes outside the
+                            runtime (e.g. experiments/mlir/ for Phase 10)
 ```
 
 Keep these conceptual boundaries even if filenames evolve.
@@ -238,7 +240,7 @@ Do not infer the current phase from this abbreviated sequence. Phase 8 —
 Backend interface hardening is complete. Phase 9 has not started and requires a
 CUDA hardware or cloud development environment decision before implementation.
 
-Completed through Phase 8:
+Completed (Phase 10 ran ahead of Phase 9 under a documented exception):
 
 ```text
 Phase 0   Project bootstrap
@@ -250,14 +252,15 @@ Phase 5   MPSGraph matmul
 Phase 6   Reductions and NN primitives
 Phase 7   Experimental kernel DSL
 Phase 8   Backend interface hardening
+Phase 10  MLIR exploration — done; decision recorded in docs/MLIR_DECISION.md
+          (yes-path validated; runtime integration deferred until after
+          Phase 9; no MLIR in core/backends)
 ```
 
 Current phase:
 
 ```text
 Phase 9   CUDA prototype — paused, no CUDA environment available
-Phase 10  MLIR exploration — in progress under a documented sequencing
-          exception (see docs/PHASE_SEQUENCING_DECISION.md)
 ```
 
 Do not start CUDA implementation until the Phase 9 development environment is
