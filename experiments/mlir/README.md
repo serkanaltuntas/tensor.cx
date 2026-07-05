@@ -47,6 +47,13 @@ Prints `PHASE10-PROTOTYPE-OK` on success; exits 77 with a `SKIP` line when the
 toolchain is missing. Tests: `uv run pytest tests/python/test_mlir_lowering.py`
 (the end-to-end case skips without the toolchain, like the Metal tests).
 
+CI exercises this for real: the `mlir-lowering` job in
+[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) installs LLVM/MLIR
+21 and runs the lowering tests with `CORTEX_REQUIRE_MLIR=1`, which turns a
+missing toolchain into a hard failure so the evidence cannot silently
+green-skip. Set the same variable locally to enforce the toolchain instead of
+skipping.
+
 ## Toolchain
 
 Discovery order: `$CORTEX_LLVM_BIN`, the Homebrew `llvm@21` keg

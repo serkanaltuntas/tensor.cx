@@ -115,7 +115,10 @@ Consequences, per the Phase 10 DoD:
   only the public `cortex_runtime.experimental` IR dataclasses.
 - `tests/python/test_mlir_lowering.py` keeps the evidence executable: emitter
   tests run everywhere; the end-to-end case skips cleanly without the
-  toolchain (same convention as Metal tests).
+  toolchain (same convention as Metal tests). The dedicated `mlir-lowering` CI
+  job installs LLVM/MLIR 21 and runs those tests with `CORTEX_REQUIRE_MLIR=1`,
+  which upgrades a missing toolchain from a skip to a hard failure — so the
+  lowering evidence is actually exercised in CI, not silently green-skipped.
 
 ## Revisit triggers
 

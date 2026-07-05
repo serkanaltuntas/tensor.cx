@@ -4,8 +4,13 @@ The emitter tests need no MLIR toolchain (text generation only) and run in
 CPU CI. The end-to-end test lowers through mlir-opt/mlir-translate/clang and
 executes the native code; it skips cleanly when the toolchain is unavailable,
 matching the Metal-test convention.
+
+Setting ``CORTEX_REQUIRE_MLIR=1`` turns that clean skip into a hard failure, so
+the dedicated CI job (which installs LLVM/MLIR) actually exercises the lowering
+evidence instead of silently green-skipping when the toolchain install breaks.
 """
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -36,6 +41,50 @@ try:
     from lower_add import find_llvm_bin  # noqa: E402
 finally:
     sys.path.remove(str(EXPERIMENT_DIR))
+
+
+def _mlir_toolchain_or_skip():
+    """Return the LLVM/MLIR bin dir, or skip when it is unavailable.
+
+    When ``CORTEX_REQUIRE_MLIR`` is set (the dedicated CI job sets it after
+    installing the toolchain), a missing toolchain is a hard failure instead of
+    a skip, so a broken toolchain install cannot green-skip the lowering
+    evidence.
+    """
+    llvm_bin = find_llvm_bin()
+    if llvm_bin is None:
+        message = (
+            "MLIR toolchain (mlir-opt/mlir-translate/clang) is unavailable"
+        )
+        if os.environ.get("CORTEX_REQUIRE_MLIR"):
+            pytest.fail(f"CORTEX_REQUIRE_MLIR is set but {message}")
+        pytest.skip(message)
+    return llvm_bin
+
+
+# The require-mode conversion below is the load-bearing guard for the dedicated
+# `mlir-lowering` CI job (it turns a missing toolchain from a green-skip into a
+# hard failure). These tests need no toolchain and run everywhere, so the guard
+# itself cannot silently regress.
+
+
+def test_toolchain_helper_returns_bin_when_present(monkeypatch, tmp_path):
+    monkeypatch.setattr(sys.modules[__name__], "find_llvm_bin", lambda: tmp_path)
+    assert _mlir_toolchain_or_skip() == tmp_path
+
+
+def test_toolchain_helper_skips_when_missing_and_not_required(monkeypatch):
+    monkeypatch.delenv("CORTEX_REQUIRE_MLIR", raising=False)
+    monkeypatch.setattr(sys.modules[__name__], "find_llvm_bin", lambda: None)
+    with pytest.raises(pytest.skip.Exception):
+        _mlir_toolchain_or_skip()
+
+
+def test_toolchain_helper_fails_when_missing_and_required(monkeypatch):
+    monkeypatch.setenv("CORTEX_REQUIRE_MLIR", "1")
+    monkeypatch.setattr(sys.modules[__name__], "find_llvm_bin", lambda: None)
+    with pytest.raises(pytest.fail.Exception):
+        _mlir_toolchain_or_skip()
 
 
 def _add_kernel():
@@ -227,14 +276,11 @@ def test_emit_mlir_rejects_bool_results_in_arithmetic():
         emit_mlir(kernel_ir)
 
 
-@pytest.mark.skipif(
-    find_llvm_bin() is None,
-    reason="MLIR toolchain (mlir-opt/mlir-translate/clang) is unavailable",
-)
 def test_emitted_float_constant_kernel_parses_with_mlir_opt(tmp_path):
     # Validation-only lowering check for float constants (no execution): the
     # emitted text must be accepted by mlir-opt through the same pass pipeline
     # the end-to-end prototype uses.
+    llvm_bin = _mlir_toolchain_or_skip()
     from lower_add import LOWERING_PASSES
 
     @cx.experimental.kernel
@@ -248,7 +294,6 @@ def test_emitted_float_constant_kernel_parses_with_mlir_opt(tmp_path):
 
     mlir_path = tmp_path / "offset.mlir"
     mlir_path.write_text(emit_mlir(offset_kernel.parse_ir()), encoding="utf-8")
-    llvm_bin = find_llvm_bin()
     result = subprocess.run(
         [str(llvm_bin / "mlir-opt"), str(mlir_path), *LOWERING_PASSES, "-o", "-"],
         check=False,
@@ -259,11 +304,8 @@ def test_emitted_float_constant_kernel_parses_with_mlir_opt(tmp_path):
     assert result.returncode == 0, result.stderr
 
 
-@pytest.mark.skipif(
-    find_llvm_bin() is None,
-    reason="MLIR toolchain (mlir-opt/mlir-translate/clang) is unavailable",
-)
 def test_end_to_end_mlir_lowering_matches_cpu_reference():
+    _mlir_toolchain_or_skip()
     result = subprocess.run(
         [sys.executable, str(EXPERIMENT_DIR / "lower_add.py")],
         check=False,

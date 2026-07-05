@@ -88,6 +88,84 @@ jobs:
           ctest --test-dir build/cpp-sanitizers -R cortex_backend_contract_tests \
             --no-tests=error --output-on-failure
 
+  mlir-lowering:
+    name: MLIR lowering (end-to-end)
+    runs-on: ubuntu-latest
+
+    # Phase 10 evidence: the Cortex IR -> MLIR -> native add prototype skips in
+    # the other jobs because they have no LLVM/MLIR toolchain. This job installs
+    # LLVM/MLIR 21 and runs the lowering tests with CORTEX_REQUIRE_MLIR=1, which
+    # turns a missing toolchain into a hard failure so the evidence is actually
+    # exercised rather than silently green-skipped (see docs/MLIR_DECISION.md).
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install LLVM/MLIR 21 toolchain
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 21
+          sudo apt-get install -y clang-21 mlir-21-tools libmlir-21-dev
+
+      # find_llvm_bin() requires mlir-opt, mlir-translate, AND clang as
+      # unversioned names in one directory. The apt packages may install them
+      # under /usr/lib/llvm-21/bin (unversioned) or only as versioned names on
+      # PATH (e.g. clang-21); normalize whichever layout into one bin dir and
+      # fail loudly if any tool is missing, so the lowering job never runs
+      # against a half-installed toolchain.
+      - name: Normalize MLIR toolchain into one bin dir
+        run: |
+          mkdir -p "$RUNNER_TEMP/llvm-bin"
+          for tool in mlir-opt mlir-translate clang; do
+            found=""
+            for cand in \
+              "/usr/lib/llvm-21/bin/$tool" \
+              "$(command -v "$tool-21" 2>/dev/null || true)" \
+              "$(command -v "$tool" 2>/dev/null || true)"; do
+              if [ -n "$cand" ] && [ -x "$cand" ]; then found="$cand"; break; fi
+            done
+            if [ -z "$found" ]; then
+              echo "::error::LLVM/MLIR tool '$tool' not found after install"
+              exit 1
+            fi
+            ln -sf "$found" "$RUNNER_TEMP/llvm-bin/$tool"
+          done
+          "$RUNNER_TEMP/llvm-bin/mlir-opt" --version
+          "$RUNNER_TEMP/llvm-bin/mlir-translate" --version
+          "$RUNNER_TEMP/llvm-bin/clang" --version
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Create virtual environment
+        run: uv venv --python 3.12
+
+      - name: Install editable package
+        run: CMAKE_ARGS="-DCORTEX_ENABLE_METAL=OFF" uv pip install -e ".[dev]"
+
+      # Full file under require-mode: every toolchain-dependent test (current or
+      # future) must run, not skip. CORTEX_REQUIRE_MLIR turns a missing
+      # toolchain into a failure instead of a skip.
+      - name: Run MLIR lowering tests (must not skip)
+        env:
+          CORTEX_LLVM_BIN: ${{ runner.temp }}/llvm-bin
+          CORTEX_REQUIRE_MLIR: "1"
+        run: uv run pytest tests/python/test_mlir_lowering.py -v -rs
+
+      # Guard the job's purpose: pin the end-to-end lowering test by node id so a
+      # rename/removal or a stray selection filter makes pytest error (exit 4)
+      # instead of the job going green without the evidence ever executing.
+      - name: Assert end-to-end lowering test actually executed
+        env:
+          CORTEX_LLVM_BIN: ${{ runner.temp }}/llvm-bin
+          CORTEX_REQUIRE_MLIR: "1"
+        run: |
+          uv run pytest -v -rs \
+            "tests/python/test_mlir_lowering.py::test_end_to_end_mlir_lowering_matches_cpu_reference"
+
   macos-metal:
     name: macOS build (${{ matrix.variant }})
     runs-on: macos-latest
