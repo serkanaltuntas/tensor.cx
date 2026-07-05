@@ -17,9 +17,16 @@ acceptance criteria, and Definitions of Done also live in `PROJECT.md` (§14).
 [x] Phase 6   Reductions & NN primitives
 [x] Phase 7   Experimental kernel DSL
 [x] Phase 8   Backend interface hardening
-[ ] Phase 9   CUDA prototype
-[ ] Phase 10  MLIR exploration
+[ ] Phase 9   CUDA prototype             <- paused, no CUDA access
+[ ] Phase 10  MLIR exploration           <- in progress, out of order
 ```
+
+Phase 10 is running ahead of Phase 9 under a documented sequencing exception:
+Phase 9 is blocked on CUDA hardware/cloud access that isn't currently
+available, and Phase 10's Definition of Done (a decision record, optionally
+one CPU/Metal-validated op) doesn't need CUDA. See
+[`PHASE_SEQUENCING_DECISION.md`](PHASE_SEQUENCING_DECISION.md). Phase 9's
+acceptance criteria are unaffected.
 
 Phase 8 is complete: the backend execution ABI now
 separates primitive operations from kernel launches, carries explicit launch and
@@ -30,8 +37,9 @@ also uses the shared kernel contract validator. CPU fill, add/multiply, unary
 transforms, reductions, and matmul now route through `CpuBackend::execute`;
 Metal add/multiply, unary transforms, axis/norm transforms, reductions, matmul,
 fill, and non-empty narrow experimental generated-kernel launches now route
-through `MetalBackend::execute`. Phase 9 has not started; it requires a CUDA
-hardware or cloud development environment decision first.
+through `MetalBackend::execute`. Phase 9 remains paused pending a CUDA
+hardware or cloud development environment decision (see "Phase status" above
+for the Phase 10 sequencing exception).
 
 ## What works today (through Phase 8)
 
@@ -77,7 +85,10 @@ and AGENTS.md "Out Of Scope For Early Work".
 - **CUDA environment for Phase 9.** The next phase needs a CUDA-capable local or
   cloud development environment before implementation starts. The decision gate
   and validation checklist are documented in
-  [`CUDA_PHASE9_ENVIRONMENT.md`](CUDA_PHASE9_ENVIRONMENT.md).
+  [`CUDA_PHASE9_ENVIRONMENT.md`](CUDA_PHASE9_ENVIRONMENT.md). Phase 9 is
+  currently paused for this reason; see
+  [`PHASE_SEQUENCING_DECISION.md`](PHASE_SEQUENCING_DECISION.md) for why
+  Phase 10 is proceeding ahead of it instead of the project sitting idle.
 - **Remaining allocation routing.** Constructor-style `empty` allocation still
   uses typed backend paths because it must choose backend-specific native tensor
   objects. See [`ARCHITECTURE.md`](ARCHITECTURE.md) → "Dispatch after Phase 8".

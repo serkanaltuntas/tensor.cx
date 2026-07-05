@@ -255,15 +255,24 @@ Phase 8   Backend interface hardening
 Current phase:
 
 ```text
-Phase 9   CUDA prototype — not started (environment decision required)
+Phase 9   CUDA prototype — paused, no CUDA environment available
+Phase 10  MLIR exploration — in progress under a documented sequencing
+          exception (see docs/PHASE_SEQUENCING_DECISION.md)
 ```
 
 Do not start CUDA implementation until the Phase 9 development environment is
-chosen and documented using `docs/CUDA_PHASE9_ENVIRONMENT.md`. Only move to
-ROCm, Vulkan, MLIR, or broad compiler work after the earlier phases are working
-and tested. Experimental DSL work must stay under `cx.experimental`, preserve
-the Phase 6 correctness contracts, and keep CPU references mandatory for
-generated or DSL-routed kernels.
+chosen and documented using `docs/CUDA_PHASE9_ENVIRONMENT.md`. Normally, only
+move to ROCm, Vulkan, MLIR, or broad compiler work after the earlier phases are
+working and tested. `docs/PHASE_SEQUENCING_DECISION.md` records a scoped
+exception to that rule: Phase 10 may proceed ahead of Phase 9 because Phase 9
+is blocked on CUDA hardware/cloud access the developer does not currently have,
+and Phase 10's own Definition of Done (a decision record, optionally a single
+CPU/Metal-validated op) does not require CUDA. This does not mark Phase 9 done
+or change its acceptance criteria, and it does not license skipping sequencing
+on any other phase pair without an equivalent documented decision. Experimental
+DSL work must stay under `cx.experimental`, preserve the Phase 6 correctness
+contracts, and keep CPU references mandatory for generated or DSL-routed
+kernels.
 
 Public device routing uses a small backend registry/string-keyed mechanism.
 Before adding CUDA public dispatch, register CUDA through that route. CUDA must

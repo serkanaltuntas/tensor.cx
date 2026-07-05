@@ -39,11 +39,16 @@ C++ namespace: cortex
 > CI (CPU), on the local Mac (Metal), or on the selected CUDA host (CUDA phases).
 
 ```text
-Current phase:          Phase 9 — not started (CUDA prototype; CUDA environment decision required)
+Current phase:          Phase 9 — paused (no CUDA access); Phase 10 — in progress
+                        under a documented sequencing exception (see
+                        docs/PHASE_SEQUENCING_DECISION.md)
 Last verified milestone: Phase 8 — Backend interface hardening
 v0.1 target:            achieved at end of Phase 3
 Binding decided:        nanobind (see §5.6)
-Open decisions:         Phase 9 CUDA hardware/cloud development environment (decision gate documented)
+Open decisions:         Phase 9 CUDA hardware/cloud development environment
+                        (decision gate documented, still pending); Phase 10
+                        sequencing exception recorded in
+                        docs/PHASE_SEQUENCING_DECISION.md
 ```
 
 Phase checklist:
@@ -58,9 +63,16 @@ Phase checklist:
 [x] Phase 6   Reductions & NN primitives
 [x] Phase 7   Experimental kernel DSL
 [x] Phase 8   Backend interface hardening
-[ ] Phase 9   CUDA prototype
-[ ] Phase 10  MLIR exploration
+[ ] Phase 9   CUDA prototype             <- paused, no CUDA access
+[ ] Phase 10  MLIR exploration           <- in progress, out of order (see below)
 ```
+
+Phase 10 was started ahead of Phase 9 as a documented sequencing exception,
+because Phase 9 is blocked on CUDA hardware/cloud access that is not currently
+available and Phase 10's own Definition of Done does not require CUDA. See
+[`docs/PHASE_SEQUENCING_DECISION.md`](docs/PHASE_SEQUENCING_DECISION.md) for
+the rationale and guardrails. Phase 9's acceptance criteria are unchanged and
+not satisfied by Phase 10 work.
 
 ---
 
