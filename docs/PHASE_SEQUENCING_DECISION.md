@@ -58,3 +58,33 @@ Phase 9:            not started, blocked on CUDA environment (unchanged)
 Phase 10:           not started -> in progress (sequencing exception, this record)
 Reason for reorder: no CUDA hardware/cloud access currently available
 ```
+
+## Local MLIR Toolchain Status
+
+Checked on this Mac (`<checkout> on 2026-07-05: no build or
+install step was actually needed. The `llvm@21` Homebrew keg already installed
+on this machine ships MLIR — Homebrew's `llvm` formula builds the MLIR project
+alongside LLVM/Clang.
+
+```text
+llvm keg:        /opt/homebrew/Cellar/llvm@21/21.1.8 (keg-only, not on PATH)
+mlir-opt:        present, `mlir-opt --version` -> Homebrew LLVM version 21.1.8
+Other mlir-* tools: mlir-translate, mlir-runner, mlir-tblgen, mlir-reduce,
+                     mlir-lsp-server, mlir-pdll, and others, all present
+CMake packages:  lib/cmake/llvm/LLVMConfig.cmake and
+                 lib/cmake/mlir/MLIRConfig.cmake both present
+```
+
+No further installation is required to attempt the Phase 10 "yes" path (one
+op prototyped through Cortex IR -> MLIR -> backend). Because the keg is
+keg-only, a future CMake integration must point at it explicitly rather than
+relying on a default `find_package`, e.g.:
+
+```text
+-DLLVM_DIR=/opt/homebrew/Cellar/llvm@21/21.1.8/lib/cmake/llvm
+-DMLIR_DIR=/opt/homebrew/Cellar/llvm@21/21.1.8/lib/cmake/mlir
+```
+
+This is a build-flag detail, not a blocker. It does not change the Phase 10
+scope guardrails above: any code using this toolchain must stay within the
+documented Definition of Done (decision record, optionally one op).
