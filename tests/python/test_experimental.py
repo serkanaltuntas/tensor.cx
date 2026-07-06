@@ -1349,3 +1349,130 @@ def test_experimental_msl_reassignment_must_preserve_type():
         cx.experimental.KernelCompileError, match="must preserve the type"
     ):
         type_flip.emit_msl()
+
+
+def _rowsum_kernel():
+    @cx.experimental.kernel
+    def rowsum_kernel(a, out, n, m):
+        i = (
+            cx.experimental.program_id(0) * cx.experimental.block_size()
+            + cx.experimental.thread_id()
+        )
+        if i < n:
+            acc = 0.0
+            for k in range(m):
+                acc = acc + a[i * m + k]
+            out[i] = acc
+
+    return rowsum_kernel
+
+
+def test_experimental_reference_add_matches_cpu_backend():
+    @cx.experimental.kernel
+    def add_kernel(a, b, out, n):
+        i = (
+            cx.experimental.program_id(0) * cx.experimental.block_size()
+            + cx.experimental.thread_id()
+        )
+        if i < n:
+            out[i] = a[i] + b[i]
+
+    values = np.arange(257, dtype=np.float32)
+    x = cx.tensor(values, dtype=cx.float32, device="cpu")
+    y = cx.tensor(values * 3.0, dtype=cx.float32, device="cpu")
+    out = cx.zeros(values.shape, dtype=cx.float32, device="cpu")
+
+    result = add_kernel.reference(x, y, out, values.shape[0])
+
+    assert result.device == "cpu"
+    cx.testing.assert_allclose(result, x + y, kind="elementwise")
+    # CPU tensors are immutable values: the out argument is not mutated.
+    np.testing.assert_array_equal(out.numpy(), np.zeros_like(values))
+
+
+def test_experimental_reference_rowsum_and_partial_threads():
+    rows, cols = 8, 16
+    matrix = np.random.default_rng(3).standard_normal((rows, cols))
+    flat = matrix.astype(np.float32).reshape(-1)
+    a = cx.tensor(flat, dtype=cx.float32, device="cpu")
+    out = cx.tensor(np.full(rows, -1.0, dtype=np.float32), device="cpu")
+
+    kernel = _rowsum_kernel()
+    result = kernel.reference(a, out, rows, cols)
+    np.testing.assert_allclose(
+        result.numpy(), matrix.astype(np.float32).sum(axis=1), rtol=1e-5, atol=1e-5
+    )
+
+    # Partial thread_count writes only the guarded prefix; unwritten elements
+    # keep the out argument's initial contents. Zero loop limits store 0.0.
+    half = rows // 2
+    partial = kernel.reference(a, out, half, cols, thread_count=half)
+    np.testing.assert_array_equal(partial.numpy()[half:], np.full(half, -1.0))
+    untouched = kernel.reference(a, out, 0, cols, thread_count=0)
+    np.testing.assert_array_equal(untouched.numpy(), np.full(rows, -1.0))
+    empty = kernel.reference(
+        cx.tensor(np.zeros(0, dtype=np.float32), dtype=cx.float32, device="cpu"),
+        out,
+        rows,
+        0,
+    )
+    np.testing.assert_array_equal(empty.numpy(), np.zeros(rows, dtype=np.float32))
+
+
+def test_experimental_reference_signed_literal_compare_matches_msl_semantics():
+    # MSL compiles `int k = -5; if (k < 1)` as a SIGNED compare (true); the
+    # reference interpreter must match the C literal/declaration typing.
+    @cx.experimental.kernel
+    def signed_kernel(a, out, n):
+        i = (
+            cx.experimental.program_id(0) * cx.experimental.block_size()
+            + cx.experimental.thread_id()
+        )
+        k = -5
+        if k < 1:
+            if i < n:
+                out[i] = a[i] + a[i]
+
+    values = np.arange(4, dtype=np.float32)
+    a = cx.tensor(values, dtype=cx.float32, device="cpu")
+    out = cx.zeros(values.shape, dtype=cx.float32, device="cpu")
+    result = signed_kernel.reference(a, out, values.shape[0])
+    np.testing.assert_array_equal(result.numpy(), values * 2.0)
+
+
+def test_experimental_reference_validation_parity():
+    kernel = _rowsum_kernel()
+    a = cx.tensor(np.zeros(8, dtype=np.float32), device="cpu")
+    out = cx.tensor(np.zeros(4, dtype=np.float32), device="cpu")
+
+    with pytest.raises(ValueError, match="loop-indexed buffer size"):
+        kernel.reference(a, out, 4, 3)
+    with pytest.raises(ValueError, match="guard bound must match"):
+        kernel.reference(a, out, 3, 2)
+    with pytest.raises(TypeError, match="must be Tensor objects"):
+        kernel.reference(a, 1, 4, 2)
+    if cx.is_available("metal"):
+        with pytest.raises(ValueError, match="requires CPU tensors"):
+            kernel.reference(a, out.to("metal"), 4, 2)
+
+
+@pytest.mark.skipif(
+    not _has_metal_compiler(),
+    reason="Apple Metal command-line compiler tools are unavailable",
+)
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+def test_experimental_reference_matches_metal_launch():
+    rows, cols = 8, 16
+    matrix = np.random.default_rng(9).standard_normal((rows, cols))
+    flat = matrix.astype(np.float32).reshape(-1)
+    a_cpu = cx.tensor(flat, dtype=cx.float32, device="cpu")
+    out_cpu = cx.zeros((rows,), dtype=cx.float32, device="cpu")
+
+    kernel = _rowsum_kernel()
+    reference = kernel.reference(a_cpu, out_cpu, rows, cols)
+
+    a_metal = a_cpu.to("metal")
+    out_metal = cx.empty((rows,), dtype=cx.float32, device="metal")
+    kernel(a_metal, out_metal, rows, cols, block_size=4)
+
+    cx.testing.assert_allclose(out_metal.cpu(), reference, kind="reduction")

@@ -11,7 +11,8 @@ metadata, parses a small restricted Python AST subset into backend-neutral IR,
 emits text MSL, compiles that MSL into an in-memory metallib artifact when Apple
 Metal command-line tools are available, validates generated functions through
 native Metal library lookup, and can launch the first float32 elementwise subset
-on Metal.
+on Metal. `Kernel.reference(...)` executes the same IR on CPU tensors as the
+interpreter-based reference path under the same launch contract.
 
 ```python
 import cortex_runtime as cx
@@ -198,6 +199,11 @@ text-only `emit_msl()`, `compile(target="metal")` for an in-memory metallib
 artifact, and experimental non-empty launch through `BackendExecution`.
 `CompiledKernel` exposes `validate_metal_function()` for library load/function
 lookup and `launch(...)` for the first synchronous Metal execution path.
+`Kernel.reference(...)` executes the same IR on CPU tensors under the same
+launch contract, interpreting with MSL/C-matching scalar semantics (uint32
+wraparound, C literal typing for signed-vs-unsigned comparisons, float32
+arithmetic); because CPU tensors are immutable values it returns a new cpu
+Tensor instead of mutating `out`.
 
 The public API should move slowly:
 
@@ -221,5 +227,6 @@ Phase 7 is complete for the first accepted slice:
 - Unsupported syntax produces stable compile-time errors.
 ```
 
-Broader DSL semantics, caching, non-elementwise kernels, CPU execution for DSL
-kernels, and top-level `cx.kernel` remain future work.
+Broader DSL semantics, caching, and top-level `cx.kernel` remain future work.
+CPU execution for DSL kernels exists as `Kernel.reference(...)`, the
+interpreter-based reference path for generated kernels.

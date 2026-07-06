@@ -291,6 +291,62 @@ class Kernel:
             block_size=block_size,
         )
 
+    def reference(
+        self,
+        *args,
+        thread_count: int | None = None,
+        block_size: int = 256,
+    ):
+        """Execute this kernel's IR on CPU tensors as the reference semantics.
+
+        Interprets the backend-neutral IR with MSL-matching semantics (uint32
+        wraparound arithmetic, C literal/declaration typing for signed vs
+        unsigned comparisons, float32 arithmetic) under the same launch
+        contract as the Metal path (guard bound == thread_count, exact size
+        checks, zero-thread no-op). Unlike the Metal launch, CPU tensors are
+        immutable values, so the result is returned as a NEW cpu Tensor; the
+        ``out`` argument supplies the shape, dtype, and initial contents of
+        unwritten elements and is not mutated.
+        """
+        normalized_block_size = _normalize_uint32(
+            block_size, "block_size must be a positive uint32", allow_zero=False
+        )
+        if thread_count is None:
+            normalized_thread_count = None
+        else:
+            normalized_thread_count = _normalize_uint32(
+                thread_count, "thread_count must be a uint32", allow_zero=True
+            )
+        kernel_ir = self.parse_ir()
+        # Parity with the Metal path: kernels rejected by MSL emission (unused
+        # parameters, type-changing reassignment) must not execute here either.
+        _emit_msl(kernel_ir)
+        output_param = _single_output_parameter(kernel_ir)
+        guard_param = _launch_store_guard_parameter(kernel_ir, output_param)
+        arrays, out_array, output_tensor, inferred, scalars = (
+            _prepare_reference_arguments(kernel_ir, output_param, args)
+        )
+        if normalized_thread_count is None:
+            normalized_thread_count = inferred
+        if normalized_thread_count > inferred:
+            raise ValueError("thread_count cannot exceed output tensor size")
+        if scalars[guard_param] != normalized_thread_count:
+            raise ValueError("kernel guard bound must match thread_count")
+        if normalized_thread_count > 0:
+            _reference_execute(
+                kernel_ir,
+                arrays,
+                scalars,
+                normalized_thread_count,
+                normalized_block_size,
+            )
+
+        from .tensor import tensor as _make_tensor
+
+        return _make_tensor(
+            out_array.reshape(output_tensor.shape), dtype="float32", device="cpu"
+        )
+
 
 def _validate_target(target: str) -> str:
     if not isinstance(target, str):
@@ -616,11 +672,23 @@ def _store_guard_parameter(
     return guard.rhs.name
 
 
-def _prepare_launch_arguments(
+def _classify_launch_arguments(
     kernel_ir: IRKernel,
     output_param: str,
     args: tuple[object, ...],
+    *,
+    device: str,
+    prefix: str,
+    requires: str,
 ):
+    """Shared launch-contract validation for the Metal and reference paths.
+
+    Classifies arguments into buffers and uint32 scalars, enforces float32
+    dtype and the target device, checks elementwise shapes against the output
+    shape and loop-indexed buffer sizes against output_numel * loop_limit, and
+    returns the ordered entries plus the output tensor and scalar map. Keeping
+    this single ensures the reference contract can never drift from Metal's.
+    """
     if len(args) != len(kernel_ir.parameters):
         raise TypeError(
             f"{kernel_ir.name} expects {len(kernel_ir.parameters)} argument(s), "
@@ -631,54 +699,40 @@ def _prepare_launch_arguments(
 
     buffer_names = set(_iter_buffer_references(kernel_ir.body))
     loop_limits = _launch_loop_load_limits(kernel_ir, output_param)
-    native_arguments = []
+    ordered: list[tuple[str, str, object]] = []
     scalar_arguments: dict[str, int] = {}
     elementwise_shapes: list[tuple[int, ...]] = []
     loop_tensors: list[tuple[str, Tensor]] = []
-    placeholder_indices: list[int] = []
     output_tensor = None
 
     for parameter, argument in zip(kernel_ir.parameters, args, strict=True):
         if parameter in buffer_names:
             if not isinstance(argument, Tensor):
-                raise TypeError(
-                    "experimental Metal kernel buffer arguments must be Tensor objects"
-                )
-            if argument.device != "metal":
-                raise ValueError("experimental Metal kernel launch requires Metal tensors")
+                raise TypeError(f"{prefix} buffer arguments must be Tensor objects")
+            if argument.device != device:
+                raise ValueError(f"{prefix} {requires}")
             if argument.dtype != "float32":
                 raise ValueError(
-                    "experimental Metal kernels currently support float32 tensor buffers"
+                    "experimental kernels currently support float32 tensor buffers"
                 )
             if parameter in loop_limits:
-                # Loop-indexed buffers are sized against the loop limit below,
-                # not against the output shape.
                 loop_tensors.append((parameter, argument))
-                if _numel(argument.shape) == 0:
-                    # Zero-element Metal tensors have no native buffer to bind.
-                    # This is only reachable when the loop limit is 0 (the size
-                    # equation below enforces numel == out_numel * limit), so
-                    # the loop body never executes and the buffer is provably
-                    # never read; bind the output buffer as a placeholder.
-                    placeholder_indices.append(len(native_arguments))
             else:
                 elementwise_shapes.append(argument.shape)
-            native_arguments.append(argument._impl)
+            ordered.append(("buffer", parameter, argument))
             if parameter == output_param:
                 output_tensor = argument
         else:
             scalar_value = _normalize_uint32(
-                argument,
-                "kernel scalar arguments must be uint32",
-                allow_zero=True,
+                argument, "kernel scalar arguments must be uint32", allow_zero=True
             )
             scalar_arguments[parameter] = scalar_value
-            native_arguments.append(scalar_value)
+            ordered.append(("scalar", parameter, scalar_value))
 
     if output_tensor is None:
         raise KernelCompileError("kernel launch requires exactly one output buffer")
     if any(shape != output_tensor.shape for shape in elementwise_shapes):
-        raise ValueError("experimental Metal kernel tensor shapes must match")
+        raise ValueError(f"{prefix} tensor shapes must match")
 
     output_numel = _numel(output_tensor.shape)
     for parameter, tensor in loop_tensors:
@@ -686,15 +740,228 @@ def _prepare_launch_arguments(
         expected = output_numel * limit_value
         if _numel(tensor.shape) != expected:
             raise ValueError(
-                "experimental Metal kernel loop-indexed buffer size must equal "
+                f"{prefix} loop-indexed buffer size must equal "
                 "output size times the loop limit "
                 f"({parameter}: {_numel(tensor.shape)} != {expected})"
             )
+
+    return ordered, output_tensor, output_numel, scalar_arguments, set(loop_limits)
+
+
+def _prepare_launch_arguments(
+    kernel_ir: IRKernel,
+    output_param: str,
+    args: tuple[object, ...],
+):
+    ordered, output_tensor, output_numel, scalar_arguments, loop_buffers = (
+        _classify_launch_arguments(
+            kernel_ir,
+            output_param,
+            args,
+            device="metal",
+            prefix="experimental Metal kernel",
+            requires="launch requires Metal tensors",
+        )
+    )
+
+    native_arguments = []
+    placeholder_indices: list[int] = []
+    for kind, parameter, value in ordered:
+        if kind == "scalar":
+            native_arguments.append(value)
+            continue
+        if parameter in loop_buffers and _numel(value.shape) == 0:
+            # Zero-element Metal tensors have no native buffer to bind. This is
+            # only reachable when the loop limit is 0 (the size equation above
+            # enforces numel == out_numel * limit), so the loop body never
+            # executes and the buffer is provably never read; bind the output
+            # buffer as a placeholder.
+            placeholder_indices.append(len(native_arguments))
+        native_arguments.append(value._impl)
     if output_numel > 0:
         for index in placeholder_indices:
             native_arguments[index] = output_tensor._impl
 
     return native_arguments, output_tensor, output_numel, scalar_arguments
+
+
+def _prepare_reference_arguments(
+    kernel_ir: IRKernel,
+    output_param: str,
+    args: tuple[object, ...],
+):
+    """CPU-tensor counterpart of _prepare_launch_arguments.
+
+    Same contract via _classify_launch_arguments, but binds numpy copies
+    instead of native Metal buffers. Zero-element inputs need no placeholder:
+    an empty array is simply never indexed.
+    """
+    ordered, output_tensor, output_numel, scalar_arguments, _ = (
+        _classify_launch_arguments(
+            kernel_ir,
+            output_param,
+            args,
+            device="cpu",
+            prefix="experimental kernel reference",
+            requires="execution requires CPU tensors",
+        )
+    )
+    arrays = {
+        parameter: value.numpy().reshape(-1)
+        for kind, parameter, value in ordered
+        if kind == "buffer"
+    }
+    return arrays, arrays[output_param], output_tensor, output_numel, scalar_arguments
+
+
+_UINT32_MASK = 2**32 - 1
+
+
+def _reference_execute(kernel_ir, arrays, scalars, thread_count, block_size):
+    """Interpret kernel IR per thread with MSL/C-matching scalar semantics.
+
+    Integers are 32-bit bit patterns with a C-style type tag: literals that
+    fit int32 are "int", locals get their MSL declared type (uint for
+    intrinsics and non-negative constants), arithmetic follows C conversions
+    (uint wins), and ordered comparisons are signed only when BOTH operands
+    are int-typed — matching what the emitted MSL compiles to. Floats use
+    numpy float32 so per-element results match the Metal path.
+    """
+    import numpy as np
+
+    def as_signed(bits):
+        return bits - 2**32 if bits >= 2**31 else bits
+
+    def to_float(tag, value):
+        if tag == "float":
+            return value
+        return np.float32(as_signed(value) if tag == "int" else value)
+
+    def eval_expression(expression, env, intrinsics):
+        if isinstance(expression, IRName):
+            return env[expression.name]
+        if isinstance(expression, IRConstant):
+            if isinstance(expression.value, float):
+                return ("float", np.float32(expression.value))
+            # The parser rejects literals outside int32 range, so a bare
+            # integer literal is always C-typed int.
+            return ("int", expression.value & _UINT32_MASK)
+        if isinstance(expression, IRCall):
+            return ("uint", intrinsics[expression.name])
+        if isinstance(expression, IRLoad):
+            index_tag, index_bits = eval_expression(
+                expression.index, env, intrinsics
+            )
+            if index_tag == "float":
+                raise KernelCompileError("buffer indices must be integers")
+            buffer = arrays[expression.buffer]
+            if index_bits >= buffer.size:
+                raise KernelCompileError(
+                    "reference execution index out of bounds; the launch "
+                    "contract should have prevented this"
+                )
+            return ("float", np.float32(buffer[index_bits]))
+        if isinstance(expression, IRBinaryOp):
+            lhs_tag, lhs = eval_expression(expression.lhs, env, intrinsics)
+            rhs_tag, rhs = eval_expression(expression.rhs, env, intrinsics)
+            if lhs_tag == "bool":
+                lhs_tag, lhs = "int", int(lhs)
+            if rhs_tag == "bool":
+                rhs_tag, rhs = "int", int(rhs)
+            if "float" in (lhs_tag, rhs_tag):
+                lhs_f, rhs_f = to_float(lhs_tag, lhs), to_float(rhs_tag, rhs)
+                if expression.op == "add":
+                    return ("float", np.float32(lhs_f + rhs_f))
+                if expression.op == "sub":
+                    return ("float", np.float32(lhs_f - rhs_f))
+                return ("float", np.float32(lhs_f * rhs_f))
+            tag = "uint" if "uint" in (lhs_tag, rhs_tag) else "int"
+            if expression.op == "add":
+                bits = lhs + rhs
+            elif expression.op == "sub":
+                bits = lhs - rhs
+            else:
+                bits = lhs * rhs
+            return (tag, bits & _UINT32_MASK)
+        if isinstance(expression, IRCompare):
+            lhs_tag, lhs = eval_expression(expression.lhs, env, intrinsics)
+            rhs_tag, rhs = eval_expression(expression.rhs, env, intrinsics)
+            # C integral promotion: bool promotes to SIGNED int, so a compare
+            # is unsigned only when a genuine uint operand is present.
+            lhs = int(lhs) if lhs_tag == "bool" else lhs
+            rhs = int(rhs) if rhs_tag == "bool" else rhs
+            if "float" in (lhs_tag, rhs_tag):
+                lhs_c, rhs_c = to_float(lhs_tag, lhs), to_float(rhs_tag, rhs)
+            elif "uint" not in (lhs_tag, rhs_tag):
+                lhs_c, rhs_c = as_signed(lhs), as_signed(rhs)
+            else:
+                lhs_c, rhs_c = lhs, rhs
+            comparisons = {
+                "lt": lhs_c < rhs_c,
+                "lte": lhs_c <= rhs_c,
+                "gt": lhs_c > rhs_c,
+                "gte": lhs_c >= rhs_c,
+                "eq": lhs_c == rhs_c,
+                "neq": lhs_c != rhs_c,
+            }
+            return ("bool", bool(comparisons[expression.op]))
+        raise KernelCompileError(
+            f"unhandled IR expression: {type(expression).__name__}"
+        )
+
+    def declared_tag(expression, env):
+        # Locals carry MSL declared types; map env tags into the same
+        # "uint"/"int"/"float" vocabulary _infer_msl_type uses.
+        msl_context = {
+            name: (tag if tag != "bool" else "uint")
+            for name, (tag, _) in env.items()
+        }
+        return _infer_msl_type(expression, msl_context)
+
+    def run_block(statements, env, intrinsics):
+        for statement in statements:
+            if isinstance(statement, IRAssign):
+                tag, value = eval_expression(statement.value, env, intrinsics)
+                if tag != "float" and tag != "bool":
+                    tag = declared_tag(statement.value, env)
+                env[statement.target] = (tag, value)
+            elif isinstance(statement, IRStore):
+                index_tag, index_bits = eval_expression(
+                    statement.index, env, intrinsics
+                )
+                if index_tag == "float":
+                    raise KernelCompileError("buffer indices must be integers")
+                tag, value = eval_expression(statement.value, env, intrinsics)
+                buffer = arrays[statement.buffer]
+                if index_bits >= buffer.size:
+                    raise KernelCompileError(
+                        "reference execution index out of bounds; the launch "
+                        "contract should have prevented this"
+                    )
+                buffer[index_bits] = to_float(tag, value)
+            elif isinstance(statement, IRIf):
+                tag, value = eval_expression(statement.condition, env, intrinsics)
+                truthy = value if tag == "bool" else value != 0
+                if truthy:
+                    run_block(statement.body, env, intrinsics)
+            elif isinstance(statement, IRFor):
+                _, limit_bits = env[statement.limit]
+                for iteration in range(limit_bits):
+                    env[statement.var] = ("uint", iteration)
+                    run_block(statement.body, env, intrinsics)
+            else:
+                raise KernelCompileError(
+                    f"unhandled IR statement: {type(statement).__name__}"
+                )
+
+    for global_index in range(thread_count):
+        env = {name: ("uint", value) for name, value in scalars.items()}
+        intrinsics = {
+            "program_id": global_index // block_size,
+            "thread_id": global_index % block_size,
+            "block_size": block_size,
+        }
+        run_block(kernel_ir.body, env, intrinsics)
 
 
 def _validate_kernel_function(fn: Callable) -> None:
@@ -827,6 +1094,17 @@ def _parse_expression(expression: ast.expr) -> IRExpression:
             expression.value, (int, float)
         ):
             _unsupported(expression)
+        if isinstance(expression.value, int) and not (
+            -(2**31) < expression.value < 2**31
+        ):
+            # MSL types larger decimal literals as 64-bit, which the 32-bit
+            # scalar model (MSL uint locals, reference interpreter, MLIR i32)
+            # cannot represent faithfully. (INT32_MIN itself is excluded
+            # because unary minus folds after this check.)
+            raise KernelCompileError(
+                "unsupported kernel syntax: integer constants must fit in "
+                "32-bit signed range"
+            )
         return IRConstant(expression.value)
     if isinstance(expression, ast.UnaryOp):
         return _parse_unary_op(expression)
