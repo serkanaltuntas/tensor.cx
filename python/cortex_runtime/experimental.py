@@ -16,6 +16,7 @@ import subprocess
 import tempfile
 import textwrap
 from types import FunctionType
+import weakref
 from typing import Callable, NoReturn, TypeAlias
 
 
@@ -51,6 +52,23 @@ _MSL_COMPARE_OPS = {
     "eq": "==",
     "neq": "!=",
 }
+
+
+# The IR and its MSL validation are pure functions of the (immutable) kernel
+# function, cached per function object so repeated launch()/reference() calls
+# do not re-read source, re-parse, or re-emit text.
+_IR_CACHE: "weakref.WeakKeyDictionary[Callable, IRKernel]" = (
+    weakref.WeakKeyDictionary()
+)
+_MSL_VALIDATED: "weakref.WeakKeyDictionary[Callable, bool]" = (
+    weakref.WeakKeyDictionary()
+)
+
+
+def _validated_msl(fn: Callable, kernel_ir: IRKernel) -> None:
+    if fn not in _MSL_VALIDATED:
+        _emit_msl(kernel_ir)
+        _MSL_VALIDATED[fn] = True
 
 
 class KernelCompileError(ValueError):
@@ -107,37 +125,27 @@ class CompiledKernel:
         if self.target != "metal":
             raise ValueError("compiled kernel launch requires target 'metal'")
 
-        normalized_block_size = _normalize_uint32(
-            block_size,
-            "block_size must be a positive uint32",
-            allow_zero=False,
-        )
-        if thread_count is None:
-            normalized_thread_count = None
-        else:
-            normalized_thread_count = _normalize_uint32(
-                thread_count,
-                "thread_count must be a uint32",
-                allow_zero=True,
-            )
-        output_param = _single_output_parameter(self.ir)
-        guard_param = _launch_store_guard_parameter(self.ir, output_param)
         (
-            native_arguments,
+            _,
+            loop_limits,
+            ordered,
             output_tensor,
-            inferred_thread_count,
-            scalar_arguments,
-        ) = _prepare_launch_arguments(
+            output_numel,
+            _,
+            normalized_thread_count,
+            normalized_block_size,
+        ) = _launch_contract(
             self.ir,
-            output_param,
             args,
+            thread_count,
+            block_size,
+            device="metal",
+            prefix="experimental Metal kernel",
+            requires="launch requires Metal tensors",
         )
-        if normalized_thread_count is None:
-            normalized_thread_count = inferred_thread_count
-        if normalized_thread_count > inferred_thread_count:
-            raise ValueError("thread_count cannot exceed output tensor size")
-        if scalar_arguments[guard_param] != normalized_thread_count:
-            raise ValueError("kernel guard bound must match thread_count")
+        native_arguments = _bind_metal_arguments(
+            ordered, loop_limits, output_tensor, output_numel
+        )
         if normalized_thread_count == 0:
             self.validate_metal_function()
             return output_tensor
@@ -271,8 +279,12 @@ class Kernel:
         )
 
     def parse_ir(self) -> IRKernel:
-        """Parse this kernel into the Phase 7 backend-neutral IR subset."""
-        return _parse_kernel_function(self.fn)
+        """Parse (and cache) the kernel function into backend-neutral IR."""
+        cached = _IR_CACHE.get(self.fn)
+        if cached is None:
+            cached = _parse_kernel_function(self.fn)
+            _IR_CACHE[self.fn] = cached
+        return cached
 
     def emit_msl(self) -> str:
         """Emit text MSL for the Phase 7 experimental kernel subset."""
@@ -308,30 +320,30 @@ class Kernel:
         ``out`` argument supplies the shape, dtype, and initial contents of
         unwritten elements and is not mutated.
         """
-        normalized_block_size = _normalize_uint32(
-            block_size, "block_size must be a positive uint32", allow_zero=False
-        )
-        if thread_count is None:
-            normalized_thread_count = None
-        else:
-            normalized_thread_count = _normalize_uint32(
-                thread_count, "thread_count must be a uint32", allow_zero=True
-            )
         kernel_ir = self.parse_ir()
         # Parity with the Metal path: kernels rejected by MSL emission (unused
         # parameters, type-changing reassignment) must not execute here either.
-        _emit_msl(kernel_ir)
-        output_param = _single_output_parameter(kernel_ir)
-        guard_param = _launch_store_guard_parameter(kernel_ir, output_param)
-        arrays, out_array, output_tensor, inferred, scalars = (
-            _prepare_reference_arguments(kernel_ir, output_param, args)
+        _validated_msl(self.fn, kernel_ir)
+        (
+            output_param,
+            _,
+            ordered,
+            output_tensor,
+            _,
+            scalars,
+            normalized_thread_count,
+            normalized_block_size,
+        ) = _launch_contract(
+            kernel_ir,
+            args,
+            thread_count,
+            block_size,
+            device="cpu",
+            prefix="experimental kernel reference",
+            requires="execution requires CPU tensors",
         )
-        if normalized_thread_count is None:
-            normalized_thread_count = inferred
-        if normalized_thread_count > inferred:
-            raise ValueError("thread_count cannot exceed output tensor size")
-        if scalars[guard_param] != normalized_thread_count:
-            raise ValueError("kernel guard bound must match thread_count")
+        arrays = _bind_reference_arrays(ordered)
+        out_array = arrays[output_param]
         if normalized_thread_count > 0:
             _reference_execute(
                 kernel_ir,
@@ -377,22 +389,66 @@ def _numel(shape: tuple[int, ...]) -> int:
     return total
 
 
+def _launch_contract(
+    kernel_ir: IRKernel,
+    args: tuple[object, ...],
+    thread_count,
+    block_size,
+    *,
+    device: str,
+    prefix: str,
+    requires: str,
+):
+    """Normalize the launch contract shared by the Metal and reference paths.
+
+    Runs the guard analysis exactly once and returns everything both callers
+    need; keeping this single is what stops the two contracts from drifting.
+    """
+    normalized_block_size = _normalize_uint32(
+        block_size, "block_size must be a positive uint32", allow_zero=False
+    )
+    if thread_count is None:
+        normalized_thread_count = None
+    else:
+        normalized_thread_count = _normalize_uint32(
+            thread_count, "thread_count must be a uint32", allow_zero=True
+        )
+    output_param = _single_output_parameter(kernel_ir)
+    guard_param, loop_limits = _launch_guard_analysis(kernel_ir, output_param)
+    ordered, output_tensor, output_numel, scalar_arguments = (
+        _classify_launch_arguments(
+            kernel_ir,
+            output_param,
+            args,
+            loop_limits=loop_limits,
+            device=device,
+            prefix=prefix,
+            requires=requires,
+        )
+    )
+    if normalized_thread_count is None:
+        normalized_thread_count = output_numel
+    if normalized_thread_count > output_numel:
+        raise ValueError("thread_count cannot exceed output tensor size")
+    if scalar_arguments[guard_param] != normalized_thread_count:
+        raise ValueError("kernel guard bound must match thread_count")
+    return (
+        output_param,
+        loop_limits,
+        ordered,
+        output_tensor,
+        output_numel,
+        scalar_arguments,
+        normalized_thread_count,
+        normalized_block_size,
+    )
+
+
 def _single_output_parameter(kernel_ir: IRKernel) -> str:
     output_names = tuple(dict.fromkeys(_iter_store_buffers(kernel_ir.body)))
     if len(output_names) != 1:
         raise KernelCompileError("kernel launch requires exactly one output buffer")
     return output_names[0]
-
-
-def _launch_store_guard_parameter(kernel_ir: IRKernel, output_param: str) -> str:
-    guard_param, _ = _launch_guard_analysis(kernel_ir, output_param)
-    return guard_param
-
-
-def _launch_loop_load_limits(kernel_ir: IRKernel, output_param: str) -> dict[str, str]:
-    """Map loop-indexed input buffers to their loop-limit scalar parameter."""
-    _, loop_limits = _launch_guard_analysis(kernel_ir, output_param)
-    return loop_limits
 
 
 def _launch_guard_analysis(
@@ -403,6 +459,29 @@ def _launch_guard_analysis(
     parameter_names = set(kernel_ir.parameters)
     guard_params: set[str] = set()
     loop_limits: dict[str, str] = {}
+    # Names whose values the structural bounds proofs depend on: every store/
+    # load index name and every name referenced in an if condition. Reassigning
+    # any of them inside a loop body would invalidate a proof made against the
+    # pre-loop value (the guard may be an OUTER if, so checking only the
+    # enclosing guard's index is not enough).
+    index_names: set[str] = set()
+
+    def collect_index_names(statements) -> None:
+        for statement in statements:
+            if isinstance(statement, IRStore):
+                index_names.update(_iter_expression_names_of(statement.index))
+            elif isinstance(statement, IRAssign):
+                for load in _iter_expression_loads(statement.value):
+                    index_names.update(_iter_expression_names_of(load.index))
+            elif isinstance(statement, IRIf):
+                index_names.update(
+                    _iter_expression_names_of(statement.condition)
+                )
+                collect_index_names(statement.body)
+            elif isinstance(statement, IRFor):
+                collect_index_names(statement.body)
+
+    collect_index_names(kernel_ir.body)
 
     def visit_loop(loop: IRFor, guard: IRExpression | None) -> None:
         # Loads inside a for-loop body are only provably in bounds when the
@@ -432,10 +511,10 @@ def _launch_guard_analysis(
                     "kernel launch requires for-loop bodies to contain only "
                     "local assignments"
                 )
-            if inner.target == row_name:
-                # Reassigning the guarded row index inside the loop would
-                # invalidate the structural bounds proof for the loop loads
-                # and the store after the loop.
+            if inner.target == row_name or inner.target in index_names:
+                # Reassigning a guarded/index name inside the loop would
+                # invalidate the structural bounds proofs made against its
+                # pre-loop value (including proofs under OUTER guards).
                 raise KernelCompileError(
                     "kernel launch does not support reassigning the guarded "
                     "index inside a for-loop"
@@ -537,6 +616,19 @@ def _launch_guard_analysis(
             f"and loop-indexed: {', '.join(conflicting)}"
         )
     return next(iter(guard_params)), loop_limits
+
+
+def _iter_expression_names_of(expression: IRExpression):
+    if isinstance(expression, IRName):
+        yield expression.name
+    elif isinstance(expression, IRLoad):
+        yield from _iter_expression_names_of(expression.index)
+    elif isinstance(expression, (IRBinaryOp, IRCompare)):
+        yield from _iter_expression_names_of(expression.lhs)
+        yield from _iter_expression_names_of(expression.rhs)
+    elif isinstance(expression, IRCall):
+        for argument in expression.args:
+            yield from _iter_expression_names_of(argument)
 
 
 def _iter_expression_loads(expression: IRExpression):
@@ -677,6 +769,7 @@ def _classify_launch_arguments(
     output_param: str,
     args: tuple[object, ...],
     *,
+    loop_limits: dict[str, str],
     device: str,
     prefix: str,
     requires: str,
@@ -698,7 +791,6 @@ def _classify_launch_arguments(
     from .tensor import Tensor
 
     buffer_names = set(_iter_buffer_references(kernel_ir.body))
-    loop_limits = _launch_loop_load_limits(kernel_ir, output_param)
     ordered: list[tuple[str, str, object]] = []
     scalar_arguments: dict[str, int] = {}
     elementwise_shapes: list[tuple[int, ...]] = []
@@ -745,73 +837,44 @@ def _classify_launch_arguments(
                 f"({parameter}: {_numel(tensor.shape)} != {expected})"
             )
 
-    return ordered, output_tensor, output_numel, scalar_arguments, set(loop_limits)
+    return ordered, output_tensor, output_numel, scalar_arguments
 
 
-def _prepare_launch_arguments(
-    kernel_ir: IRKernel,
-    output_param: str,
-    args: tuple[object, ...],
-):
-    ordered, output_tensor, output_numel, scalar_arguments, loop_buffers = (
-        _classify_launch_arguments(
-            kernel_ir,
-            output_param,
-            args,
-            device="metal",
-            prefix="experimental Metal kernel",
-            requires="launch requires Metal tensors",
-        )
-    )
-
+def _bind_metal_arguments(ordered, loop_limits, output_tensor, output_numel):
+    """Bind classified arguments to native Metal launch arguments."""
     native_arguments = []
     placeholder_indices: list[int] = []
     for kind, parameter, value in ordered:
         if kind == "scalar":
             native_arguments.append(value)
             continue
-        if parameter in loop_buffers and _numel(value.shape) == 0:
+        if parameter in loop_limits and _numel(value.shape) == 0:
             # Zero-element Metal tensors have no native buffer to bind. This is
-            # only reachable when the loop limit is 0 (the size equation above
-            # enforces numel == out_numel * limit), so the loop body never
-            # executes and the buffer is provably never read; bind the output
-            # buffer as a placeholder.
+            # only reachable when the loop limit is 0 (the size equation in
+            # _classify_launch_arguments enforces numel == out_numel * limit),
+            # so the loop body never executes and the buffer is provably never
+            # read; bind the output buffer as a placeholder.
             placeholder_indices.append(len(native_arguments))
         native_arguments.append(value._impl)
     if output_numel > 0:
         for index in placeholder_indices:
             native_arguments[index] = output_tensor._impl
+    return native_arguments
 
-    return native_arguments, output_tensor, output_numel, scalar_arguments
 
+def _bind_reference_arrays(ordered):
+    """Bind classified buffer arguments to numpy arrays for interpretation.
 
-def _prepare_reference_arguments(
-    kernel_ir: IRKernel,
-    output_param: str,
-    args: tuple[object, ...],
-):
-    """CPU-tensor counterpart of _prepare_launch_arguments.
-
-    Same contract via _classify_launch_arguments, but binds numpy copies
-    instead of native Metal buffers. Zero-element inputs need no placeholder:
-    an empty array is simply never indexed.
+    The same Tensor bound to two buffer parameters must share one array, as
+    the Metal path binds one native buffer twice. Tensor.numpy() copies, so
+    the interpreter's stores never mutate caller-visible tensors.
     """
-    ordered, output_tensor, output_numel, scalar_arguments, _ = (
-        _classify_launch_arguments(
-            kernel_ir,
-            output_param,
-            args,
-            device="cpu",
-            prefix="experimental kernel reference",
-            requires="execution requires CPU tensors",
-        )
-    )
-    arrays = {
-        parameter: value.numpy().reshape(-1)
+    shared: dict[int, object] = {}
+    return {
+        parameter: shared.setdefault(id(value._impl), value.numpy().reshape(-1))
         for kind, parameter, value in ordered
         if kind == "buffer"
     }
-    return arrays, arrays[output_param], output_tensor, output_numel, scalar_arguments
 
 
 _UINT32_MASK = 2**32 - 1
@@ -854,6 +917,9 @@ def _reference_execute(kernel_ir, arrays, scalars, thread_count, block_size):
             )
             if index_tag == "float":
                 raise KernelCompileError("buffer indices must be integers")
+            # MSL converts a bool index to 0/1; a raw Python bool would act as
+            # a numpy boolean MASK and read/write every element.
+            index_bits = int(index_bits)
             buffer = arrays[expression.buffer]
             if index_bits >= buffer.size:
                 raise KernelCompileError(
@@ -909,28 +975,27 @@ def _reference_execute(kernel_ir, arrays, scalars, thread_count, block_size):
             f"unhandled IR expression: {type(expression).__name__}"
         )
 
-    def declared_tag(expression, env):
-        # Locals carry MSL declared types; map env tags into the same
-        # "uint"/"int"/"float" vocabulary _infer_msl_type uses.
-        msl_context = {
-            name: (tag if tag != "bool" else "uint")
-            for name, (tag, _) in env.items()
-        }
+    # Locals carry MSL declared types; msl_context mirrors env in the
+    # "uint"/"int"/"float" vocabulary _infer_msl_type uses and is maintained
+    # incrementally (rebuilding it per assignment is quadratic in loop trips).
+    def declared_tag(expression, msl_context):
         return _infer_msl_type(expression, msl_context)
 
-    def run_block(statements, env, intrinsics):
+    def run_block(statements, env, msl_context, intrinsics):
         for statement in statements:
             if isinstance(statement, IRAssign):
                 tag, value = eval_expression(statement.value, env, intrinsics)
                 if tag != "float" and tag != "bool":
-                    tag = declared_tag(statement.value, env)
+                    tag = declared_tag(statement.value, msl_context)
                 env[statement.target] = (tag, value)
+                msl_context[statement.target] = tag if tag != "bool" else "uint"
             elif isinstance(statement, IRStore):
                 index_tag, index_bits = eval_expression(
                     statement.index, env, intrinsics
                 )
                 if index_tag == "float":
                     raise KernelCompileError("buffer indices must be integers")
+                index_bits = int(index_bits)
                 tag, value = eval_expression(statement.value, env, intrinsics)
                 buffer = arrays[statement.buffer]
                 if index_bits >= buffer.size:
@@ -943,25 +1008,28 @@ def _reference_execute(kernel_ir, arrays, scalars, thread_count, block_size):
                 tag, value = eval_expression(statement.condition, env, intrinsics)
                 truthy = value if tag == "bool" else value != 0
                 if truthy:
-                    run_block(statement.body, env, intrinsics)
+                    run_block(statement.body, env, msl_context, intrinsics)
             elif isinstance(statement, IRFor):
                 _, limit_bits = env[statement.limit]
+                msl_context[statement.var] = "uint"
                 for iteration in range(limit_bits):
                     env[statement.var] = ("uint", iteration)
-                    run_block(statement.body, env, intrinsics)
+                    run_block(statement.body, env, msl_context, intrinsics)
             else:
                 raise KernelCompileError(
                     f"unhandled IR statement: {type(statement).__name__}"
                 )
 
+    base_env = {name: ("uint", value) for name, value in scalars.items()}
+    base_msl_context = {name: "uint" for name in scalars}
     for global_index in range(thread_count):
-        env = {name: ("uint", value) for name, value in scalars.items()}
+        env = dict(base_env)
         intrinsics = {
             "program_id": global_index // block_size,
             "thread_id": global_index % block_size,
             "block_size": block_size,
         }
-        run_block(kernel_ir.body, env, intrinsics)
+        run_block(kernel_ir.body, env, dict(base_msl_context), intrinsics)
 
 
 def _validate_kernel_function(fn: Callable) -> None:

@@ -34,8 +34,8 @@ The Metal backend currently supports:
 - MPSGraph matmul for float32 rank-2 tensors
 - reduction kernels for sum/max on float32 and int32 tensors
 - reduction kernel for mean on float32 tensors
-- experimental generated-kernel validation and synchronous launch for the first
-  float32 elementwise subset
+- experimental generated-kernel validation and synchronous launch for float32
+  elementwise and rowwise-reduction kernels
 ```
 
 CPU remains the correctness reference for every Metal operation.
@@ -81,7 +81,8 @@ static or generated kernel execution. Kernel requests use caller-owned concrete
 output tensor metadata and an ordered `kernel_arguments` span for tensor buffers
 and uint32 scalar values. The current live use is intentionally narrow:
 `cx.experimental` generated kernels route non-empty launches through this ABI
-for synchronous Metal-only, one-output, float32 elementwise execution.
+for synchronous Metal-only, one-output float32 execution (elementwise and
+rowwise-reduction kernels).
 Zero-thread Python launches validate the Metal function and return as no-ops
 before building `BackendExecution`, because core launch dimensions are non-zero
 by contract.

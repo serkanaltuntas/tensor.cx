@@ -109,8 +109,9 @@ uv run python benchmarks/bench_matmul.py --sizes 16x16x16 --repeats 2
 Phase 7 is complete. The experimental kernel DSL under `cx.experimental` can
 parse a restricted Python kernel into backend-neutral IR, emit text MSL, compile
 that MSL into an in-memory Metal library artifact, validate the generated
-function through native Metal library lookup, and launch the first float32
-elementwise kernel on Metal. Phase 8 is complete: the backend ABI, shared
+function through native Metal library lookup, and launch float32 elementwise
+and rowwise-reduction (bounded `for`/accumulator) kernels on Metal, with
+`Kernel.reference(...)` as the CPU reference execution path. Phase 8 is complete: the backend ABI, shared
 primitive/kernel contract validators, and null backend scaffold exist, and CPU
 fill, add/multiply, unary transforms, reductions, and matmul route through
 `CpuBackend::execute`. Metal add/multiply, unary transforms, axis/norm
@@ -206,7 +207,9 @@ print(ln.cpu().numpy().shape)
   command-line tools are available. The returned `CompiledKernel` can validate
   Metal library load/function lookup with `validate_metal_function()` when the
   native extension is built with Metal support and a Metal runtime is available,
-  and can launch the first float32 elementwise subset with `launch(...)`.
+  and can launch float32 elementwise and rowwise-reduction (bounded
+  `for`/accumulator) kernels with `launch(...)`; `Kernel.reference(...)` runs
+  the same IR on CPU tensors as the reference path.
   Calling a decorated kernel compiles and launches through the same experimental
   path. Non-empty launches enter the Metal backend through `BackendExecution`;
   zero-thread launches validate the Metal function and return as no-ops. The

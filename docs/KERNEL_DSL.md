@@ -10,8 +10,8 @@ Phase 7 is complete for the first narrow slice. The current API records kernel
 metadata, parses a small restricted Python AST subset into backend-neutral IR,
 emits text MSL, compiles that MSL into an in-memory metallib artifact when Apple
 Metal command-line tools are available, validates generated functions through
-native Metal library lookup, and can launch the first float32 elementwise subset
-on Metal. `Kernel.reference(...)` executes the same IR on CPU tensors as the
+native Metal library lookup, and can launch float32 elementwise kernels and rowwise-reduction
+(bounded `for`/accumulator) kernels on Metal. `Kernel.reference(...)` executes the same IR on CPU tensors as the
 interpreter-based reference path under the same launch contract.
 
 ```python

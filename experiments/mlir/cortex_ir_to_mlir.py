@@ -334,6 +334,14 @@ def _emit_for(
             inner.target for inner in statement.body if inner.target in context
         )
     )
+    for name in carried:
+        if context[name][1] == "i1":
+            # An i1 accumulator would emit iter_args/yield typed i32 for an i1
+            # SSA value — type-invalid MLIR the verifier rejects downstream.
+            raise MlirEmitError(
+                "bool values cannot be loop-carried in the MLIR prototype: "
+                f"{name}"
+            )
 
     limit_index = emitter.fresh()
     emitter.emit(

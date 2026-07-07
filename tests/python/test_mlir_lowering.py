@@ -39,6 +39,7 @@ try:
         format_f32_constant,
     )
     from lower_add import find_llvm_bin  # noqa: E402
+    from lower_rowsum import build_rowsum_kernel  # noqa: E402
 finally:
     sys.path.remove(str(EXPERIMENT_DIR))
 
@@ -320,19 +321,8 @@ def test_end_to_end_mlir_lowering_matches_cpu_reference():
 
 
 def _rowsum_kernel():
-    @cx.experimental.kernel
-    def rowsum_kernel(a, out, n, m):
-        i = (
-            cx.experimental.program_id(0) * cx.experimental.block_size()
-            + cx.experimental.thread_id()
-        )
-        if i < n:
-            acc = 0.0
-            for k in range(m):
-                acc = acc + a[i * m + k]
-            out[i] = acc
-
-    return rowsum_kernel
+    # Single source of truth: the same kernel the end-to-end evidence runs.
+    return build_rowsum_kernel()
 
 
 def test_emit_mlir_for_loop_uses_scf_for_with_iter_args():
@@ -358,3 +348,35 @@ def test_end_to_end_mlir_rowsum_matches_cpu_reference():
         f"rowsum lowering failed\nstdout: {result.stdout}\nstderr: {result.stderr}"
     )
     assert "PHASE7-MLIR-ROWSUM-OK" in result.stdout
+
+
+def test_emit_mlir_rejects_bool_loop_carried_values():
+    # An i1 accumulator would emit iter_args/yield typed i32 for an i1 SSA
+    # value — type-invalid MLIR; the emitter must refuse loudly instead.
+    from cortex_runtime.experimental import IRFor
+
+    kernel_ir = IRKernel(
+        name="bool_carry",
+        parameters=("a", "out", "n", "m"),
+        body=(
+            IRAssign(
+                target="found",
+                value=IRCompare(op="lt", lhs=IRConstant(1.0), rhs=IRConstant(0.5)),
+            ),
+            IRFor(
+                var="k",
+                limit="m",
+                body=(
+                    IRAssign(
+                        target="found",
+                        value=IRCompare(
+                            op="lt", lhs=IRConstant(1.0), rhs=IRConstant(2.0)
+                        ),
+                    ),
+                ),
+            ),
+            IRStore(buffer="out", index=IRName("n"), value=IRConstant(1.0)),
+        ),
+    )
+    with pytest.raises(MlirEmitError, match="bool values cannot be loop-carried"):
+        emit_mlir(kernel_ir)

@@ -67,8 +67,10 @@ for the Phase 10 sequencing exception).
 - Axis-based `rmsnorm` for `float32` on CPU and Metal.
 - Axis-based `layernorm` for `float32` on CPU and Metal.
 - Experimental kernel DSL: restricted Python AST -> backend-neutral IR -> text
-  MSL -> in-memory metallib -> synchronous Metal launch for the first float32
-  elementwise add subset, tested against the CPU reference.
+  MSL -> in-memory metallib -> synchronous Metal launch for float32
+  elementwise and rowwise-reduction (bounded for/accumulator) kernels, tested
+  against the CPU reference (`Kernel.reference(...)` interprets the same IR
+  on CPU tensors).
 - Backend ABI: `Backend::execute`, primitive/kernel execution classes,
   backend-neutral launch and compilation target metadata, ordered kernel
   arguments, shared primitive and kernel contract validators, and a null backend

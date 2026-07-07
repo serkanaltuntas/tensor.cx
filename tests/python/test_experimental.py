@@ -1351,20 +1351,6 @@ def test_experimental_msl_reassignment_must_preserve_type():
         type_flip.emit_msl()
 
 
-def _rowsum_kernel():
-    @cx.experimental.kernel
-    def rowsum_kernel(a, out, n, m):
-        i = (
-            cx.experimental.program_id(0) * cx.experimental.block_size()
-            + cx.experimental.thread_id()
-        )
-        if i < n:
-            acc = 0.0
-            for k in range(m):
-                acc = acc + a[i * m + k]
-            out[i] = acc
-
-    return rowsum_kernel
 
 
 def test_experimental_reference_add_matches_cpu_backend():
@@ -1476,3 +1462,68 @@ def test_experimental_reference_matches_metal_launch():
     kernel(a_metal, out_metal, rows, cols, block_size=4)
 
     cx.testing.assert_allclose(out_metal.cpu(), reference, kind="reduction")
+
+
+def test_experimental_launch_rejects_outer_guard_index_reassignment():
+    # Reassigning an OUTER guard's index inside a loop nested under a
+    # different guard must be rejected: the structural bounds proof for the
+    # later store/loads was made against the pre-loop value (this was an
+    # out-of-bounds write on Metal before the index-name pre-pass).
+    @cx.experimental.kernel(target="metal")
+    def outer_reassign(a, out, n, m):
+        i = cx.experimental.thread_id()
+        j = cx.experimental.thread_id()
+        if i < n:
+            if j < n:
+                for k in range(m):
+                    i = i + n
+            acc = 0.0
+            for k2 in range(m):
+                acc = acc + a[i * m + k2]
+            out[i] = acc
+
+    compiled = cx.experimental.CompiledKernel(
+        name="outer_reassign", target="metal", ir=outer_reassign.parse_ir(),
+        msl_source="", metallib=b"",
+    )
+    with pytest.raises(
+        cx.experimental.KernelCompileError, match="reassigning the guarded index"
+    ):
+        compiled.launch()
+
+
+def test_experimental_reference_bool_index_matches_msl_conversion():
+    # MSL converts a bool index to 0/1; numpy would treat a raw Python bool as
+    # a boolean MASK selecting every element.
+    @cx.experimental.kernel
+    def bool_index(a, out, n):
+        i = cx.experimental.thread_id()
+        t = i < n
+        if t < n:
+            out[t] = a[t] + 1.0
+
+    values = np.asarray([10.0, 20.0, 30.0, 40.0], dtype=np.float32)
+    a = cx.tensor(values, dtype=cx.float32, device="cpu")
+    out = cx.zeros(values.shape, dtype=cx.float32, device="cpu")
+    result = bool_index.reference(a, out, values.shape[0])
+    np.testing.assert_array_equal(
+        result.numpy(), np.asarray([0.0, 21.0, 0.0, 0.0], dtype=np.float32)
+    )
+
+
+def test_experimental_reference_aliased_buffers_match_metal_binding():
+    # The same tensor bound to two buffer parameters aliases one native buffer
+    # on Metal; the reference path must share one array the same way.
+    @cx.experimental.kernel
+    def alias_kernel(a, out, n):
+        i = cx.experimental.thread_id()
+        if i < n:
+            out[i] = 2.0
+            out[i] = a[i] + 1.0
+
+    values = np.asarray([5.0, 6.0, 7.0, 8.0], dtype=np.float32)
+    t = cx.tensor(values, dtype=cx.float32, device="cpu")
+    result = alias_kernel.reference(t, t, values.shape[0])
+    np.testing.assert_array_equal(
+        result.numpy(), np.full(values.shape, 3.0, dtype=np.float32)
+    )

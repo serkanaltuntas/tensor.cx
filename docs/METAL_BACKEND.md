@@ -42,9 +42,9 @@ Phase 7 also has a narrow experimental generated-kernel hook for
 `cx.experimental`: an in-memory metallib can be loaded through the Metal backend,
 checked for a named function, converted into a compute pipeline through
 `MetalBackend::execute` for non-empty launches, bound to runtime buffers plus
-uint32 scalar arguments, and launched synchronously for the first float32
-elementwise subset. Zero-thread launches validate the Metal function and return
-as no-ops.
+uint32 scalar arguments, and launched synchronously for float32 elementwise
+and rowwise-reduction (bounded for/accumulator) kernels. Zero-thread launches
+validate the Metal function and return as no-ops.
 
 Metal buffers use shared storage for the initial copy and kernel path. This is
 simple and correct for the first local runtime; future performance work may
