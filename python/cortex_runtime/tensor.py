@@ -167,15 +167,21 @@ def tensor(data, dtype: str | None = None, device: str | Device | None = None) -
     if _contains_bool_data(data):
         raise ValueError("bool tensor data is not supported")
     array = np.asarray(data)
+    # Infer the dtype from the array once, for every rank. Resolving it here
+    # (rather than letting the C++ 1-D factory infer from Python element types)
+    # keeps an empty float array float32 instead of defaulting to int32 when
+    # there are no elements to inspect.
+    actual_dtype = dtype
+    if actual_dtype is None:
+        actual_dtype = "float32" if np.issubdtype(array.dtype, np.floating) else "int32"
     if array.ndim == 1:
-        cpu_tensor = Tensor(_core.tensor(array.reshape(-1).tolist(), dtype=dtype, device="cpu"))
+        cpu_tensor = Tensor(
+            _core.tensor(array.reshape(-1).tolist(), dtype=actual_dtype, device="cpu")
+        )
     else:
         # ndim == 0 (scalar) and ndim >= 2 both route through the flat factory so
         # the original shape is preserved -- a scalar stays rank-0 instead of
         # being silently promoted to (1,).
-        actual_dtype = dtype
-        if actual_dtype is None:
-            actual_dtype = "float32" if np.issubdtype(array.dtype, np.floating) else "int32"
         cpu_tensor = Tensor(
             _core.tensor_from_flat(
                 array.reshape(-1).tolist(),

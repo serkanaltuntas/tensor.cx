@@ -771,3 +771,14 @@ def test_tensor_from_flat_accepts_exact_length_generator():
     np.testing.assert_array_equal(
         int_tensor.numpy(), np.arange(6, dtype=np.int32).reshape(2, 3)
     )
+
+
+def test_tensor_infers_dtype_from_empty_numpy_array_dtype():
+    # An empty array has no elements for the C++ 1-D factory to inspect; the
+    # dtype must come from the numpy array's own dtype, not default to int32.
+    assert cx.tensor(np.array([], dtype=np.float32)).dtype == cx.float32
+    assert cx.tensor(np.array([], dtype=np.int32)).dtype == cx.int32
+    # A bare empty list follows numpy's default (float), matching np.asarray([]).
+    assert cx.tensor([]).dtype == cx.float32
+    # Explicit dtype still wins for empty inputs.
+    assert cx.tensor([], dtype=cx.int32).dtype == cx.int32
