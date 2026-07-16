@@ -26,12 +26,21 @@ Phase 7 is complete for the first generated-kernel slice: a
 `cx.experimental.kernel` metadata wrapper, restricted Python AST ->
 backend-neutral IR parser, text MSL emitter, in-memory metallib compile
 artifact, native Metal function validation, and a narrow synchronous Metal
-launch path for float32 elementwise kernels. Keep the experimental kernel DSL
-behind the existing backend-neutral runtime boundaries. See
-[`KERNEL_DSL.md`](KERNEL_DSL.md). Phase 8 is complete: the backend execution ABI,
-shared primitive/kernel contract validators, and null backend scaffold exist.
-Phase 9 has not started; CUDA implementation is blocked until a CUDA development
-environment is selected and validated.
+launch path for float32 elementwise and rowwise-reduction kernels. Keep the
+experimental kernel DSL behind the existing backend-neutral runtime boundaries.
+See [`KERNEL_DSL.md`](KERNEL_DSL.md). Phase 8 is complete: the backend execution
+ABI, shared primitive/kernel contract validators, and null backend scaffold
+exist.
+
+Phase 9 is paused because no CUDA hardware or cloud development environment is
+available yet. CUDA must not be implemented until that environment is selected
+and validated through [`CUDA_PHASE9_ENVIRONMENT.md`](CUDA_PHASE9_ENVIRONMENT.md).
+Phase 10 ran ahead of Phase 9 under the documented sequencing exception in
+[`PHASE_SEQUENCING_DECISION.md`](PHASE_SEQUENCING_DECISION.md) and is complete:
+[`MLIR_DECISION.md`](MLIR_DECISION.md) records a "yes" decision for MLIR as the
+long-term lowering direction, validated by the `experiments/mlir/` prototype.
+Runtime MLIR integration remains deferred until after Phase 9; core and backend
+code currently have no MLIR dependency.
 
 The public Python `Tensor` wraps backend-specific native tensor objects. CPU and
 Metal tensors both support add and multiply; Metal tensors also support direct

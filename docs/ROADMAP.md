@@ -80,9 +80,11 @@ for the Phase 10 sequencing exception).
 ## Intentionally not implemented yet
 
 Autograd, training, streams/async, broadcasting, non-contiguous execution, wide
-dtypes, broad generated-kernel semantics, top-level kernel APIs, and the
-CUDA/ROCm/MLIR backends are out of scope until their phases. See PROJECT.md §16
-and AGENTS.md "Out Of Scope For Early Work".
+dtypes, broad generated-kernel semantics, top-level kernel APIs, CUDA/ROCm
+backends, and runtime MLIR/backend integration are out of scope until their
+phases. Phase 10's MLIR exploration is complete, but it produced a decision
+record and prototype only; it did not add MLIR to the runtime core or backend
+build. See PROJECT.md §16 and AGENTS.md "Out Of Scope For Early Work".
 
 ## Known deferred design work
 

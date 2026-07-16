@@ -157,7 +157,9 @@ fill, add/multiply, unary transforms, reductions, and matmul route through
 `CpuBackend::execute` without changing public Python behavior. Metal
 add/multiply, unary transforms, axis/norm transforms, reductions, matmul, fill,
 and non-empty narrow experimental generated-kernel launches route through
-`MetalBackend::execute`. Phase 9 has not started and requires a CUDA hardware
-or cloud development environment decision before
-implementation; see
-[`CUDA_PHASE9_ENVIRONMENT.md`](CUDA_PHASE9_ENVIRONMENT.md).
+`MetalBackend::execute`. Phase 9 is paused because no CUDA hardware or cloud
+development environment is available yet; CUDA implementation must wait for the
+environment decision and validation in
+[`CUDA_PHASE9_ENVIRONMENT.md`](CUDA_PHASE9_ENVIRONMENT.md). Phase 10's MLIR
+exploration is complete as a decision/prototype only; it did not add MLIR to
+the backend ABI, runtime core, or backend build.

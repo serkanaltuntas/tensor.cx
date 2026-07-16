@@ -54,7 +54,7 @@ The CPU/Metal-validated single-op case, if pursued, needs no CUDA hardware.
 
 ```text
 Date recorded:      2026-07-05
-Phase 9:            not started, blocked on CUDA environment (unchanged)
+Phase 9:            paused, blocked on CUDA environment (unchanged)
 Phase 10:           not started -> in progress -> done (see update below)
 Reason for reorder: no CUDA hardware/cloud access currently available
 

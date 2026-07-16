@@ -237,8 +237,8 @@ Keep these conceptual boundaries even if filenames evolve.
 
 `PROJECT.md` is authoritative for the current phase checklist and phase status.
 Do not infer the current phase from this abbreviated sequence. Phase 8 —
-Backend interface hardening is complete. Phase 9 has not started and requires a
-CUDA hardware or cloud development environment decision before implementation.
+Backend interface hardening is complete. Phase 9 is paused and requires a CUDA
+hardware or cloud development environment decision before implementation.
 
 Completed (Phase 10 ran ahead of Phase 9 under a documented exception):
 

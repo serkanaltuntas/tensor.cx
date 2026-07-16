@@ -4,11 +4,57 @@ Cortex Runtime is the current working name for a Python-first accelerator
 runtime and future kernel compiler for tensor computation, starting with Apple
 Metal.
 
-The first milestone is deliberately small:
+Cortex Runtime is currently a research/runtime engineering project, not a
+general-purpose machine-learning framework. Its purpose is to build a compact
+tensor runtime with a backend-neutral C++ core, a Python API, a mandatory CPU
+reference path, and accelerator backends that can be validated operation by
+operation. Apple Metal is the first accelerator backend; CUDA, ROCm,
+Vulkan/SPIR-V, and MLIR-based lowering are longer-term directions.
+
+The project is useful today as:
+
+- a small Python tensor runtime for CPU and Apple Metal experiments
+- a reference implementation for backend abstraction, operation dispatch, and
+  CPU-vs-device correctness testing
+- a foundation for future custom kernel compilation work
+
+It is intentionally not a PyTorch, JAX, TensorFlow, MLX, Triton, or training
+framework replacement. Autograd, distributed training, broad dtype coverage,
+broadcasting, async streams, CUDA, ROCm, and production compiler integration are
+not part of the current runtime.
+
+The first milestone was deliberately small:
 
 ```text
 Python API -> C++20 core -> Metal backend -> static MSL add kernel -> correct result
 ```
+
+That milestone has been achieved. The current runtime now includes CPU and
+Metal tensor operations, matmul, reductions, selected neural-network primitives,
+an experimental Metal kernel DSL, a hardened backend execution ABI, and a
+completed Phase 10 MLIR decision prototype. Phase 9 CUDA work is paused until a
+CUDA hardware or cloud development environment is selected.
+
+## Documentation Map
+
+- [`PROJECT.md`](PROJECT.md): source of truth for project purpose, roadmap,
+  phase status, acceptance criteria, and major engineering decisions.
+- [`docs/ROADMAP.md`](docs/ROADMAP.md): short status summary, what works today,
+  what is intentionally deferred, and next known decisions.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): runtime layers, backend
+  boundaries, dispatch model, error taxonomy, and core invariants.
+- [`docs/BACKENDS.md`](docs/BACKENDS.md): backend ABI, execution contract,
+  buffer ownership, launch metadata, and future backend expectations.
+- [`docs/METAL_BACKEND.md`](docs/METAL_BACKEND.md): Apple Metal-specific
+  implementation notes and current limitations.
+- [`docs/CUDA_PHASE9_ENVIRONMENT.md`](docs/CUDA_PHASE9_ENVIRONMENT.md): CUDA
+  environment decision gate and Phase 9 validation requirements.
+- [`docs/PHASE_SEQUENCING_DECISION.md`](docs/PHASE_SEQUENCING_DECISION.md):
+  rationale and guardrails for completing Phase 10 before Phase 9.
+- [`docs/KERNEL_DSL.md`](docs/KERNEL_DSL.md): experimental kernel DSL scope,
+  supported subset, and non-goals.
+- [`docs/MLIR_DECISION.md`](docs/MLIR_DECISION.md): Phase 10 MLIR decision
+  record and prototype result.
 
 ## Development Setup
 
@@ -117,20 +163,21 @@ fill, add/multiply, unary transforms, reductions, and matmul route through
 `CpuBackend::execute`. Metal add/multiply, unary transforms, axis/norm
 transforms, reductions, matmul, and fill now also route through
 `MetalBackend::execute`; the experimental generated-kernel launch path also
-enters Metal through `BackendExecution`. Phase 9 has not started; it requires a
-CUDA hardware or cloud development environment decision first. The Phase 9
-decision gate is documented in
+enters Metal through `BackendExecution`. Phase 9 is paused because no CUDA
+hardware or cloud development environment is available yet. The Phase 9
+decision gate and validation requirements are documented in
 `docs/CUDA_PHASE9_ENVIRONMENT.md`. Phase 10 (MLIR exploration) is complete and
 ran ahead of Phase 9 under a documented sequencing exception: the decision
 record `docs/MLIR_DECISION.md` answers "yes" — the experimental add kernel
 lowers Cortex IR → MLIR → native code and matches the CPU reference
 (`experiments/mlir/`) — while runtime integration stays deferred until after
-Phase 9 and the runtime itself contains no MLIR dependency. Phase 5 provides CPU reference matmul, a
-correctness-first custom Metal matmul kernel, and an optimized Metal primitive
-path. Phase 6 adds `sum`, `max`, `mean`, `exp`, `gelu`, `silu`, `softmax`,
-`rmsnorm`, and `layernorm` on CPU and Metal. The custom matmul kernel remains
-available through `cx.matmul(a, b, backend="custom")`; `backend="optimized"`
-uses the Apple optimized primitive path when it is enabled.
+Phase 9 and the runtime itself contains no MLIR dependency. Phase 5 provides
+CPU reference matmul, a correctness-first custom Metal matmul kernel, and an
+optimized Metal primitive path. Phase 6 adds `sum`, `max`, `mean`, `exp`,
+`gelu`, `silu`, `softmax`, `rmsnorm`, and `layernorm` on CPU and Metal. The
+custom matmul kernel remains available through
+`cx.matmul(a, b, backend="custom")`; `backend="optimized"` uses the Apple
+optimized primitive path when it is enabled.
 
 ```python
 import cortex_runtime as cx
