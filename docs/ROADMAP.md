@@ -30,7 +30,9 @@ acceptance criteria are unaffected.
 Phase 10 is complete: [`MLIR_DECISION.md`](MLIR_DECISION.md) records a "yes" —
 the Phase 7 elementwise add lowers Cortex IR → MLIR → native code and matches
 the CPU reference (`experiments/mlir/`,
-`tests/python/test_mlir_lowering.py`). Runtime integration remains deferred pending a new decision; core and backends contain no MLIR code or build dependencies.
+`tests/python/test_mlir_lowering.py`). Runtime integration is scoped by the
+[follow-up decision](MLIR_RUNTIME_INTEGRATION_DECISION.md), not implemented;
+core and backends contain no MLIR code or build dependencies.
 
 Phase 8 is complete: the backend execution ABI now
 separates primitive operations from kernel launches, carries explicit launch and
@@ -87,6 +89,10 @@ record and prototype only; it did not add MLIR to the runtime core or backend
 build. See PROJECT.md §16 and AGENTS.md "Out Of Scope For Early Work".
 
 ## Known deferred design work
+
+- **MLIR runtime integration.** The [CPU-first scope decision](MLIR_RUNTIME_INTEGRATION_DECISION.md)
+  is complete. Its experimental CPU compile/launch slice is the next scoped
+  implementation task; CUDA lowering and broader compiler features remain gated.
 
 - **PyTorch portability strategy.** The current roadmap keeps Cortex Runtime
   independent from PyTorch, but a future integration can be staged through a

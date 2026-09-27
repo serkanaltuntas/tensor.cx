@@ -255,14 +255,16 @@ Phase 7   Experimental kernel DSL
 Phase 8   Backend interface hardening
 Phase 9   CUDA prototype — Nightblade validated, 2026-09-28
 Phase 10  MLIR exploration — done; decision recorded in docs/MLIR_DECISION.md
-          (yes-path validated; runtime integration deferred pending a new decision; no MLIR in core/backends)
+          (yes-path validated; CPU runtime integration scoped separately, not implemented)
 ```
 
 Current phase:
 
 ```text
-Phase 9 and Phase 10 are complete. Further compiler/backend scope needs an
-explicit task and, for MLIR runtime integration, a new decision record.
+Phase 9 and Phase 10 are complete. The first MLIR runtime slice is scoped in
+docs/MLIR_RUNTIME_INTEGRATION_DECISION.md; it is not implemented. Follow that
+CPU-first scope and acceptance gate for the next integration task. Broader
+compiler/backend work remains outside that slice.
 ```
 
 `docs/CUDA_PHASE9_ENVIRONMENT.md` records the selected host and entry criteria;

@@ -151,3 +151,10 @@ the revisit trigger; the DSL still has no CUDA lowering target. MLIR runtime
 integration remains deferred and needs a new decision record selecting scope,
 artifact/launch semantics, and validation against the actual CUDA path. Phase 9
 completion alone does not authorize broad compiler integration.
+
+**Integration decision (2026-09-28):** the requested follow-up is now recorded in
+[MLIR runtime integration: first scope](MLIR_RUNTIME_INTEGRATION_DECISION.md).
+It selects optional, explicit CPU compilation as the first runtime slice and
+states the subsequent CUDA gate. The scope decision is complete; runtime
+implementation has not started. This supersedes the pending-decision status in
+the historical updates above, while preserving their evidence and rationale.

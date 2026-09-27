@@ -45,10 +45,11 @@ Last verified milestone: Phase 9 — CUDA discovery, copies, float32 fill/add/mu
                         through the existing registry and BackendExecution ABI
 v0.1 target:            achieved at end of Phase 3
 Binding decided:        nanobind (see §5.6)
-MLIR decided:           yes as the long-term lowering direction; runtime
-                        integration still deferred pending a new decision record
-Open decisions:         Post-Phase-9 MLIR integration scope and target strategy;
-                        no broader compiler implementation authorized by Phase 9
+MLIR decided:           optional CPU-first runtime integration scoped in
+                        docs/MLIR_RUNTIME_INTEGRATION_DECISION.md (2026-09-28)
+Next scoped work:       experimental compiled CPU kernels; not implemented
+Open decisions:         CUDA generated-kernel ABI/toolchain acceptance and
+                        later targets; no broad compiler implementation yet
 ```
 
 Phase checklist:
@@ -72,8 +73,10 @@ Phase 10 ran ahead of Phase 9 under the historical sequencing exception in
 Phase 9 is now complete on the selected Nightblade CUDA host; entry evidence,
 commands, results, and validation limits are recorded in
 [`docs/CUDA_PHASE9_VALIDATION.md`](docs/CUDA_PHASE9_VALIDATION.md).
-Phase 10's [`MLIR decision`](docs/MLIR_DECISION.md) remains a research prototype;
-completing Phase 9 does not automatically integrate MLIR into the runtime.
+Phase 10's [`MLIR decision`](docs/MLIR_DECISION.md) remains a research prototype.
+The follow-up [integration decision](docs/MLIR_RUNTIME_INTEGRATION_DECISION.md)
+selects the first CPU runtime slice and its acceptance gates; implementation
+has not started.
 
 ---
 
@@ -1522,10 +1525,11 @@ Phase 7 elementwise add lowers Cortex IR → MLIR (func/scf/arith/memref) →
 LLVM → native code and matches the CPU reference, with guard and zero-thread
 semantics preserved (`experiments/mlir/`, `tests/python/test_mlir_lowering.py`).
 Verification venues: the emitter tests run in CPU CI on every push; the
-end-to-end lowering (which needs the MLIR toolchain) was validated on the
-local Mac and skips cleanly elsewhere, mirroring the Metal-test convention.
-Runtime integration remains deferred pending a new decision record now that
-Phase 9 is complete; the runtime core and backends contain no MLIR dependencies.
+end-to-end lowering was validated originally on the local Mac and again on
+Nightblade in the follow-up decision. It skips when the MLIR toolchain is absent,
+unless required-toolchain mode is enabled. Runtime integration is scoped by the
+[decision](docs/MLIR_RUNTIME_INTEGRATION_DECISION.md), but not implemented;
+the runtime core and backends contain no MLIR dependencies.
 
 ---
 

@@ -42,7 +42,8 @@ Phase 10 ran ahead of Phase 9 under the documented sequencing exception in
 [`PHASE_SEQUENCING_DECISION.md`](PHASE_SEQUENCING_DECISION.md) and is complete:
 [`MLIR_DECISION.md`](MLIR_DECISION.md) records a "yes" decision for MLIR as the
 long-term lowering direction, validated by the `experiments/mlir/` prototype.
-Runtime MLIR integration remains deferred pending a new decision record; core and backend
+Runtime MLIR integration has a [CPU-first scope decision](MLIR_RUNTIME_INTEGRATION_DECISION.md)
+but is not implemented; core and backend
 code currently have no MLIR dependency.
 
 The public Python `Tensor` wraps backend-specific native tensor objects. CPU and

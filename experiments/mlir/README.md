@@ -61,3 +61,10 @@ Discovery order: `$CORTEX_LLVM_BIN`, the Homebrew `llvm@21` keg
 `mlir-translate`, and `clang` from the same LLVM release (validated against
 Homebrew LLVM 21.1.8 — see `docs/PHASE_SEQUENCING_DECISION.md` for the local
 toolchain record).
+
+## Follow-up integration scope
+
+The [runtime integration decision](../../docs/MLIR_RUNTIME_INTEGRATION_DECISION.md)
+records the CPU-first plan, native execution boundary, and fresh Nightblade
+LLVM 21.1.8 evidence. These scripts remain research harnesses; their ctypes
+bridge and looser guard test are not the planned public runtime launch API.
