@@ -39,17 +39,16 @@ C++ namespace: cortex
 > CI (CPU), on the local Mac (Metal), or on the selected CUDA host (CUDA phases).
 
 ```text
-Current phase:          Phase 9 — paused (no CUDA access); Phase 10 — done
-                        (ran ahead of Phase 9 under the documented sequencing
-                        exception; decision recorded in docs/MLIR_DECISION.md)
-Last verified milestone: Phase 10 — MLIR exploration (yes-path validated:
-                        add lowers Cortex IR -> MLIR -> native and matches CPU)
+Current phase:          Phase 9 — done (2026-09-28, Nightblade CUDA validation)
+                        Phase 10 — done (earlier sequencing exception)
+Last verified milestone: Phase 9 — CUDA discovery, copies, float32 fill/add/mul
+                        through the existing registry and BackendExecution ABI
 v0.1 target:            achieved at end of Phase 3
 Binding decided:        nanobind (see §5.6)
-MLIR decided:           yes as the long-term lowering direction, integration
-                        deferred until after Phase 9 (docs/MLIR_DECISION.md)
-Open decisions:         Phase 9 CUDA hardware/cloud development environment
-                        (decision gate documented, still pending)
+MLIR decided:           yes as the long-term lowering direction; runtime
+                        integration still deferred pending a new decision record
+Open decisions:         Post-Phase-9 MLIR integration scope and target strategy;
+                        no broader compiler implementation authorized by Phase 9
 ```
 
 Phase checklist:
@@ -64,19 +63,17 @@ Phase checklist:
 [x] Phase 6   Reductions & NN primitives
 [x] Phase 7   Experimental kernel DSL
 [x] Phase 8   Backend interface hardening
-[ ] Phase 9   CUDA prototype             <- paused, no CUDA access
+[x] Phase 9   CUDA prototype             <- Nightblade validated, 2026-09-28
 [x] Phase 10  MLIR exploration           <- done, out of order (see below)
 ```
 
-Phase 10 ran ahead of Phase 9 as a documented sequencing exception, because
-Phase 9 is blocked on CUDA hardware/cloud access that is not currently
-available and Phase 10's own Definition of Done does not require CUDA. See
-[`docs/PHASE_SEQUENCING_DECISION.md`](docs/PHASE_SEQUENCING_DECISION.md) for
-the rationale and guardrails. Phase 10 is complete: the decision record
-[`docs/MLIR_DECISION.md`](docs/MLIR_DECISION.md) answers "yes" (validated by
-the `experiments/mlir/` prototype and `tests/python/test_mlir_lowering.py`),
-with runtime integration deferred until after Phase 9. Phase 9's acceptance
-criteria are unchanged and not satisfied by Phase 10 work.
+Phase 10 ran ahead of Phase 9 under the historical sequencing exception in
+[`docs/PHASE_SEQUENCING_DECISION.md`](docs/PHASE_SEQUENCING_DECISION.md).
+Phase 9 is now complete on the selected Nightblade CUDA host; entry evidence,
+commands, results, and validation limits are recorded in
+[`docs/CUDA_PHASE9_VALIDATION.md`](docs/CUDA_PHASE9_VALIDATION.md).
+Phase 10's [`MLIR decision`](docs/MLIR_DECISION.md) remains a research prototype;
+completing Phase 9 does not automatically integrate MLIR into the runtime.
 
 ---
 
@@ -91,7 +88,7 @@ Metal-cpp/C++ Apple Metal bridge
 MSL custom kernels
 nanobind Python binding
 uv Python package/environment manager
-future CUDA/ROCm/MLIR integration
+optional CUDA prototype; future ROCm/MLIR integration
 ```
 
 Recommended default choice:
@@ -242,7 +239,7 @@ C++20 Core Runtime
 Backend Interface
   ├── CPU backend
   ├── Metal backend
-  ├── future CUDA backend
+  ├── CUDA prototype backend
   ├── future ROCm backend
   ├── future Vulkan/SPIR-V backend
   └── future MLIR backend
@@ -561,7 +558,7 @@ Examples:
 ```text
 cpu
 metal
-cuda    future
+cuda    optional Phase 9 prototype (float32 fill/add/mul and buffer copies)
 rocm    future
 ```
 
@@ -1428,14 +1425,14 @@ Add the second accelerator backend.
 
 This should only start after the Metal backend and core abstractions are stable.
 
-Possible initial CUDA path:
+Implemented CUDA path (2026-09-28):
 
 ```text
 Cortex Runtime C++ core
   ↓
-CUDA Driver API
+CUDA Runtime API (device 0, synchronous execution)
   ↓
-PTX or CUDA C generated/compiled kernels
+Build-time nvcc-compiled static CUDA kernels
 ```
 
 Initial CUDA operations:
@@ -1468,6 +1465,15 @@ Definition of Done:
 - Requires CUDA hardware/cloud access — that environment is selected and
   validated using `docs/CUDA_PHASE9_ENVIRONMENT.md` before implementation starts.
 ```
+
+Status: **done** (2026-09-28). Nightblade passed the environment gate before
+implementation. CUDA uses the existing native/Python backend registries and
+`CudaBackend::execute`, preserving the core ABI. CPU↔CUDA float32/int32 copies
+and float32 fill/add/multiply are validated against CPU through the same
+backend-parametric pytest bodies used for Metal. CUDA kernels are opt-in at
+build time; unsupported operations and int32 arithmetic are explicit errors.
+See [validation evidence](docs/CUDA_PHASE9_VALIDATION.md). Metal cases skip on
+Nightblade; this completion does not claim a new Metal hardware run.
 
 ---
 
@@ -1518,8 +1524,8 @@ semantics preserved (`experiments/mlir/`, `tests/python/test_mlir_lowering.py`).
 Verification venues: the emitter tests run in CPU CI on every push; the
 end-to-end lowering (which needs the MLIR toolchain) was validated on the
 local Mac and skips cleanly elsewhere, mirroring the Metal-test convention.
-Runtime integration is deliberately deferred until after Phase 9; the runtime
-core and backends contain no MLIR code or build dependencies.
+Runtime integration remains deferred pending a new decision record now that
+Phase 9 is complete; the runtime core and backends contain no MLIR dependencies.
 
 ---
 

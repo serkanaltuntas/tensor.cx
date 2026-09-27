@@ -9,43 +9,27 @@ guesswork.
 Before CUDA backend implementation begins, record one selected environment:
 
 ```text
-Selected environment: TBD
-Owner: TBD
-Date selected: TBD
-CUDA validation status: not run
-GPU: TBD
-OS / image: TBD
-C++ compiler: TBD
-CUDA toolkit / compilation path: TBD
-Project test result: TBD
-Validation log: TBD
+Selected environment: Nightblade local Linux workstation
+Date selected: 2026-09-28
+CUDA validation status: native kernel compile/run passed before implementation
+GPU: NVIDIA GeForce GTX 980 Ti, compute capability 5.2, 6 GiB
+OS / image: Ubuntu 26.04.1 LTS, Linux x86_64
+C++ compiler: GCC/G++ 13.4.0 (CC=gcc-13, CXX=g++-13)
+CUDA toolkit / compilation path: nvcc 12.4.131, -ccbin g++-13, -arch=sm_52
+Driver: 580.178.04
+Project test result: baseline 206 passed, 129 skipped; CPU CTest 1/1 passed
+Validation log: CUDA_PHASE9_VALIDATION.md
 ```
 
-Current status:
+The previous 2026-06-30 preflight used an Apple Silicon Mac without NVIDIA
+hardware. That blocker is superseded by the validated Nightblade environment.
+The user authorized completing the CUDA-blocked project work on 2026-09-28.
+The first implementation slice is discovery/allocation/copy through the existing
+backend registry, followed by float32 fill/add/multiply through BackendExecution.
 
-```text
-Phase 9 implementation status: blocked until a CUDA host is selected
-Selected environment: none
-Last local preflight: 2026-06-30
-Local machine result: not eligible for Phase 9 CUDA implementation
-Reason: current machine is macOS ARM64 and has no NVIDIA CUDA toolchain
-```
-
-Latest local preflight from `<checkout>
-
-```text
-OS: macOS 26.5.1, Darwin ARM64
-uv: <checkout> uv 0.9.30
-CMake: /opt/homebrew/bin/cmake, cmake 4.3.4
-C++ compiler: /usr/bin/c++, Apple clang 21.0.0
-nvidia-smi: not found
-nvcc: not found
-```
-
-This local Mac remains valid for CPU/Metal development, but it must not be
-recorded as the Phase 9 CUDA environment. Choose a Linux CUDA workstation,
-cloud GPU instance, or remote CUDA development box before starting CUDA backend
-implementation.
+Local preparation uses only the project `.venv`: Python 3.12.14, uv, CMake
+4.4.3, Ninja 1.13.2, and nanobind 3.1.0. The versioned system GCC 13 compiler
+is selected explicitly; no system compiler links or drivers were changed.
 
 The selected environment must provide:
 
@@ -206,8 +190,9 @@ where applicable. Do not add CUDA-specific concepts to `cpp/cortex/core/`.
 
 The Python test suite already has a backend capability matrix in
 `tests/python/conftest.py` and shared parity tests in
-`tests/python/test_backend_parity.py`. CUDA is present in that matrix but has no
-declared capabilities until Phase 9 slices land.
+`tests/python/test_backend_parity.py`. CUDA declares `copy`,
+`tensor_factories_float32`, and `binary_ops_float32` after Phase 9 validation.
+Broader CUDA capabilities remain disabled until their implementations pass.
 
 When implementing CUDA, enable capabilities in the matrix only after the matching
 backend slice is complete and verified:

@@ -1,5 +1,9 @@
 # Phase Sequencing Decision: Phase 9 Paused, Phase 10 Started Without CUDA
 
+> Historical decision recorded 2026-07-05. Update 2026-09-28: Phase 9 has
+> completed on Nightblade after the original environment gate passed. The
+> rationale below is retained as history; current status is in `PROJECT.md`.
+
 ## Context
 
 The original phase plan (`PROJECT.md` §14, `AGENTS.md` "Development Phases")

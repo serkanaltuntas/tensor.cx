@@ -144,3 +144,10 @@ At that point the open design questions are: custom `cortex` dialect vs staying
 on standard dialects, `gpu`/`spirv` vs NVVM lowering for accelerators, JIT
 (`ExecutionEngine`) vs AOT shared-library compilation, and CMake integration
 against a pinned LLVM/MLIR release.
+
+**Trigger update (2026-09-28):** Phase 9's static CUDA prototype is complete
+([evidence](CUDA_PHASE9_VALIDATION.md)). This satisfies the CUDA-backend part of
+the revisit trigger; the DSL still has no CUDA lowering target. MLIR runtime
+integration remains deferred and needs a new decision record selecting scope,
+artifact/launch semantics, and validation against the actual CUDA path. Phase 9
+completion alone does not authorize broad compiler integration.

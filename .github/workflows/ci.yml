@@ -199,3 +199,42 @@ jobs:
 
       - name: Run tests
         run: uv run pytest
+
+  cuda-build:
+    name: CUDA prototype build (no GPU)
+    runs-on: ubuntu-latest
+    container: nvidia/cuda:12.4.1-devel-ubuntu22.04
+    # Hosted CPU runners check compile/link, import, and unavailable-device
+    # behavior. Real GPU acceptance is recorded separately on the selected host.
+    steps:
+      - name: Install build prerequisites
+        run: apt-get update && apt-get install -y --no-install-recommends build-essential git curl ca-certificates
+
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Create virtual environment
+        run: |
+          uv venv --python 3.12
+          uv pip install cmake ninja "nanobind>=2.4"
+
+      - name: Build CUDA-enabled package
+        run: CMAKE_ARGS="-DCORTEX_ENABLE_METAL=OFF -DCORTEX_ENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=52" uv pip install -e ".[dev]"
+
+      - name: Verify CPU fallback and CUDA unavailability
+        run: |
+          uv run python -c "import cortex_runtime as cx; assert hasattr(cx._core, 'CudaTensor'); assert not cx.is_available('cuda')"
+          uv run pytest
+
+      - name: Build and run C++ contracts
+        run: |
+          uv run cmake -S . -B build/cpp-cuda -G Ninja \
+            -DCORTEX_ENABLE_METAL=OFF -DCORTEX_ENABLE_CUDA=ON \
+            -DCMAKE_CUDA_ARCHITECTURES=52 -DCORTEX_BUILD_TESTS=ON \
+            -Dnanobind_DIR="$(uv run python -c 'import nanobind; print(nanobind.cmake_dir())')" \
+            -DPython_EXECUTABLE="$(uv run python -c 'import sys; print(sys.executable)')"
+          uv run cmake --build build/cpp-cuda --target cortex_backend_contract_tests cortex_cuda_backend_contract_tests
+          uv run ctest --test-dir build/cpp-cuda --output-on-failure

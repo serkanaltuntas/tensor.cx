@@ -237,8 +237,9 @@ Keep these conceptual boundaries even if filenames evolve.
 
 `PROJECT.md` is authoritative for the current phase checklist and phase status.
 Do not infer the current phase from this abbreviated sequence. Phase 8 —
-Backend interface hardening is complete. Phase 9 is paused and requires a CUDA
-hardware or cloud development environment decision before implementation.
+Backend interface hardening and Phase 9 CUDA prototype are complete. Nightblade
+is the selected CUDA validation host; preserve its documented environment gate
+when moving CUDA development to another host.
 
 Completed (Phase 10 ran ahead of Phase 9 under a documented exception):
 
@@ -252,34 +253,30 @@ Phase 5   MPSGraph matmul
 Phase 6   Reductions and NN primitives
 Phase 7   Experimental kernel DSL
 Phase 8   Backend interface hardening
+Phase 9   CUDA prototype — Nightblade validated, 2026-09-28
 Phase 10  MLIR exploration — done; decision recorded in docs/MLIR_DECISION.md
-          (yes-path validated; runtime integration deferred until after
-          Phase 9; no MLIR in core/backends)
+          (yes-path validated; runtime integration deferred pending a new decision; no MLIR in core/backends)
 ```
 
 Current phase:
 
 ```text
-Phase 9   CUDA prototype — paused, no CUDA environment available
+Phase 9 and Phase 10 are complete. Further compiler/backend scope needs an
+explicit task and, for MLIR runtime integration, a new decision record.
 ```
 
-Do not start CUDA implementation until the Phase 9 development environment is
-chosen and documented using `docs/CUDA_PHASE9_ENVIRONMENT.md`. Normally, only
-move to ROCm, Vulkan, MLIR, or broad compiler work after the earlier phases are
-working and tested. `docs/PHASE_SEQUENCING_DECISION.md` records a scoped
-exception to that rule: Phase 10 may proceed ahead of Phase 9 because Phase 9
-is blocked on CUDA hardware/cloud access the developer does not currently have,
-and Phase 10's own Definition of Done (a decision record, optionally a single
-CPU/Metal-validated op) does not require CUDA. This does not mark Phase 9 done
-or change its acceptance criteria, and it does not license skipping sequencing
-on any other phase pair without an equivalent documented decision. Experimental
-DSL work must stay under `cx.experimental`, preserve the Phase 6 correctness
-contracts, and keep CPU references mandatory for generated or DSL-routed
-kernels.
+`docs/CUDA_PHASE9_ENVIRONMENT.md` records the selected host and entry criteria;
+`docs/CUDA_PHASE9_VALIDATION.md` records acceptance evidence. CUDA remains a
+small optional prototype: discovery, allocation/copy, float32 fill/add/multiply.
+Do not enable broader CUDA capabilities without implementation and CPU parity
+validation. `docs/PHASE_SEQUENCING_DECISION.md` retains the historical exception
+that allowed Phase 10 research before CUDA was available; it grants no general
+permission to skip other phase gates. Experimental DSL work stays under
+`cx.experimental` and keeps CPU references mandatory.
 
 Public device routing uses a small backend registry/string-keyed mechanism.
-Before adding CUDA public dispatch, register CUDA through that route. CUDA must
-not be added as a third ad hoc CPU/Metal branch.
+CUDA is registered through that route. New backends must use it instead of
+adding ad hoc device branches.
 
 ## Architecture Rules
 

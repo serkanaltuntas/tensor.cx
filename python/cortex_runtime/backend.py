@@ -173,3 +173,21 @@ _register_backend(
         matmul_backends=_metal_matmul_backends,
     )
 )
+
+# Register the optional accelerator only when the native runtime can use it.
+# Device selection and copies continue through the same string-keyed registry.
+if _core.is_available("cuda"):
+    _register_backend(
+        Backend(
+            name="cuda",
+            priority=100,
+            is_available=lambda: bool(_core.is_available("cuda")),
+            device_name=lambda: _core.device_name("cuda"),
+            copy_from_cpu=lambda impl: _core.cpu_to_cuda(impl),
+            copy_to_cpu=lambda impl: _core.cuda_to_cpu(impl),
+            fill=lambda shape, dtype, value: _core.fill(
+                shape, dtype=dtype, value=value, device="cuda"
+            ),
+            matmul_backends=lambda: list(_core.matmul_backends("cuda")),
+        )
+    )

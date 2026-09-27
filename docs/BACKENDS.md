@@ -9,6 +9,7 @@ places backend-specific implementation under `cpp/cortex/backends/`.
 cpu     Required reference backend.
 metal   Apple Silicon backend for buffer ownership, copy round-trips, and first
         elementwise kernels.
+cuda    Optional Phase 9 prototype: device 0, copies, float32 fill/add/multiply.
 null    Phase 8 contract scaffold. Compiles against the backend ABI without
         Metal and intentionally does not execute operations.
 ```
@@ -157,9 +158,14 @@ fill, add/multiply, unary transforms, reductions, and matmul route through
 `CpuBackend::execute` without changing public Python behavior. Metal
 add/multiply, unary transforms, axis/norm transforms, reductions, matmul, fill,
 and non-empty narrow experimental generated-kernel launches route through
-`MetalBackend::execute`. Phase 9 is paused because no CUDA hardware or cloud
-development environment is available yet; CUDA implementation must wait for the
-environment decision and validation in
-[`CUDA_PHASE9_ENVIRONMENT.md`](CUDA_PHASE9_ENVIRONMENT.md). Phase 10's MLIR
+`MetalBackend::execute`. Phase 9 is complete: CUDA uses the same execution ABI
+and primitive validator, plus backend-local ownership, dtype, size, offset,
+and contiguous-metadata validation. CUDA Runtime API resources stay inside
+`cpp/cortex/backends/cuda/`; nvcc compiles static kernels at build time.
+Device selection is scoped per calling thread and restored afterward. Each
+operation waits for completion before returning and publishes output metadata
+only after success. Copies support float32/int32; arithmetic is float32-only.
+See [`CUDA_PHASE9_VALIDATION.md`](CUDA_PHASE9_VALIDATION.md).
+Phase 10's MLIR
 exploration is complete as a decision/prototype only; it did not add MLIR to
 the backend ABI, runtime core, or backend build.

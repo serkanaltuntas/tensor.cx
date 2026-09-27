@@ -8,7 +8,8 @@ Cortex Runtime is currently a research/runtime engineering project, not a
 general-purpose machine-learning framework. Its purpose is to build a compact
 tensor runtime with a backend-neutral C++ core, a Python API, a mandatory CPU
 reference path, and accelerator backends that can be validated operation by
-operation. Apple Metal is the first accelerator backend; CUDA, ROCm,
+operation. Apple Metal is the first accelerator backend; a small CUDA prototype
+is also available. ROCm,
 Vulkan/SPIR-V, and MLIR-based lowering are longer-term directions.
 
 The project is useful today as:
@@ -20,7 +21,7 @@ The project is useful today as:
 
 It is intentionally not a PyTorch, JAX, TensorFlow, MLX, Triton, or training
 framework replacement. Autograd, distributed training, broad dtype coverage,
-broadcasting, async streams, CUDA, ROCm, and production compiler integration are
+broadcasting, async streams, ROCm, and production compiler integration are
 not part of the current runtime.
 
 The first milestone was deliberately small:
@@ -32,8 +33,9 @@ Python API -> C++20 core -> Metal backend -> static MSL add kernel -> correct re
 That milestone has been achieved. The current runtime now includes CPU and
 Metal tensor operations, matmul, reductions, selected neural-network primitives,
 an experimental Metal kernel DSL, a hardened backend execution ABI, and a
-completed Phase 10 MLIR decision prototype. Phase 9 CUDA work is paused until a
-CUDA hardware or cloud development environment is selected.
+completed Phase 10 MLIR decision prototype. Phase 9 CUDA is complete: the
+optional backend supports discovery, float32/int32 copies, and float32
+fill/add/multiply on a validated NVIDIA host.
 
 ## Documentation Map
 
@@ -104,7 +106,41 @@ A local Apple Silicon sample run is committed at
 `benchmarks/sample_phase4_apple_silicon.txt`. The Phase 5 matmul sample is at
 `benchmarks/sample_phase5_matmul_apple_silicon.txt`.
 
+## CUDA prototype setup
+
+CUDA is opt-in (`CORTEX_ENABLE_CUDA=OFF` by default); CPU-only and Apple builds
+need no CUDA toolkit. On a CUDA host with a supported C++20 compiler and nvcc:
+
+```bash
+CMAKE_ARGS="-DCORTEX_ENABLE_METAL=OFF -DCORTEX_ENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=52" uv pip install -e ".[dev]"
+CORTEX_REQUIRE_BACKENDS=cuda CORTEX_REQUIRE_BACKEND_CAPABILITIES=cuda:copy,cuda:tensor_factories_float32,cuda:binary_ops_float32 uv run pytest
+```
+
+`52` is Nightblade's GTX 980 Ti target, validated with CUDA 12.4 and GCC 13.
+Select an architecture supported by your GPU and installed toolkit; select
+`CC`, `CXX`, and `CUDAHOSTCXX` if the default host compiler is incompatible.
+Full Nightblade commands and C++ checks:
+[`docs/CUDA_PHASE9_VALIDATION.md`](docs/CUDA_PHASE9_VALIDATION.md).
+
+```python
+x = cx.ones((257,), device="cuda")
+y = (x + x) * x
+print(y.cpu().numpy()[:3])  # [2. 2. 2.]
+```
+
+The prototype exposes only device index 0. float32 add/multiply require exact
+shape/dtype matches; scalars and empty contiguous tensors work. Copies preserve
+float32/int32, but int32 fill/arithmetic, matmul, reductions, activations,
+normalization, and generated CUDA kernels are not implemented. Operations are
+synchronous and release the Python GIL during execution. CUDA is registered
+only when its compiled backend and a usable device are available. CPU remains
+the default for constructors; `best_device()` can select CUDA when available.
+
 ## Verification
+
+The CUDA build CI job uses a pinned CUDA 12.4 container on a CPU-only hosted
+runner. It checks compile/link and unavailable-device fallback; it does not
+claim GPU execution. Run strict CUDA tests on a real host as described above.
 
 CPU-only CI runs on GitHub Actions with Metal disabled:
 
@@ -163,15 +199,16 @@ fill, add/multiply, unary transforms, reductions, and matmul route through
 `CpuBackend::execute`. Metal add/multiply, unary transforms, axis/norm
 transforms, reductions, matmul, and fill now also route through
 `MetalBackend::execute`; the experimental generated-kernel launch path also
-enters Metal through `BackendExecution`. Phase 9 is paused because no CUDA
-hardware or cloud development environment is available yet. The Phase 9
-decision gate and validation requirements are documented in
-`docs/CUDA_PHASE9_ENVIRONMENT.md`. Phase 10 (MLIR exploration) is complete and
+enters Metal through `BackendExecution`. Phase 9 is complete on Nightblade:
+CUDA discovery, copies, and float32 fill/add/multiply use the existing registries
+and execution contract. Setup and validation are in
+`docs/CUDA_PHASE9_ENVIRONMENT.md` and `docs/CUDA_PHASE9_VALIDATION.md`.
+Phase 10 (MLIR exploration) is complete and
 ran ahead of Phase 9 under a documented sequencing exception: the decision
 record `docs/MLIR_DECISION.md` answers "yes" — the experimental add kernel
 lowers Cortex IR → MLIR → native code and matches the CPU reference
-(`experiments/mlir/`) — while runtime integration stays deferred until after
-Phase 9 and the runtime itself contains no MLIR dependency. Phase 5 provides
+(`experiments/mlir/`) — while runtime integration remains deferred pending a new decision record;
+the runtime itself contains no MLIR dependency. Phase 5 provides
 CPU reference matmul, a correctness-first custom Metal matmul kernel, and an
 optimized Metal primitive path. Phase 6 adds `sum`, `max`, `mean`, `exp`,
 `gelu`, `silu`, `softmax`, `rmsnorm`, and `layernorm` on CPU and Metal. The

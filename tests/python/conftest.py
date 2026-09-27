@@ -64,10 +64,7 @@ BACKEND_CAPABILITIES = {
             "normalization_float32",
         }
     ),
-    # Phase 9 should enable CUDA capabilities here as each slice lands.
-    # Keeping CUDA present but capability-gated lets the same test body cover
-    # CUDA later without breaking discovery-only backend work.
-    "cuda": frozenset(),
+    "cuda": frozenset({"copy", "tensor_factories_float32", "binary_ops_float32"}),
 }
 
 

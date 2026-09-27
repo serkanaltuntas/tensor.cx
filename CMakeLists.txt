@@ -20,6 +20,7 @@ include(FetchContent)
 
 set(CORTEX_ENABLE_METAL "AUTO" CACHE STRING "Enable the Apple Metal backend: AUTO, ON, or OFF")
 set_property(CACHE CORTEX_ENABLE_METAL PROPERTY STRINGS AUTO ON OFF)
+option(CORTEX_ENABLE_CUDA "Build the optional CUDA prototype (requires CUDA toolkit)" OFF)
 option(CORTEX_BUILD_TESTS "Build Cortex Runtime C++ test executables" OFF)
 option(CORTEX_ENABLE_SANITIZERS
   "Build with AddressSanitizer and UndefinedBehaviorSanitizer (GCC/Clang only)" OFF)
@@ -32,7 +33,12 @@ if(CORTEX_ENABLE_SANITIZERS)
   # instrumented. The Python extension is also built with sanitizers under this
   # flag; run only the C++ test executables in sanitizer CI (importing the
   # instrumented extension requires an ASan-preloaded Python).
-  add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
+  # nvcc does not accept host sanitizer flags. Instrument the C++ runtime and
+  # backend host code; device kernels are checked by CUDA parity/contract tests.
+  add_compile_options(
+    "$<$<COMPILE_LANGUAGE:CXX>:-fsanitize=address,undefined>"
+    "$<$<COMPILE_LANGUAGE:CXX>:-fno-omit-frame-pointer>"
+  )
   add_link_options(-fsanitize=address,undefined)
 endif()
 string(TOUPPER "${CORTEX_ENABLE_METAL}" CORTEX_ENABLE_METAL_REQUEST)
@@ -247,6 +253,30 @@ else()
   set(CORTEX_ENABLE_MPSGRAPH OFF)
 endif()
 
+if(CORTEX_ENABLE_CUDA)
+  enable_language(CUDA)
+  find_package(CUDAToolkit REQUIRED)
+  add_library(cortex_cuda STATIC
+    cpp/cortex/backends/cuda/cuda_backend.cpp
+    cpp/cortex/backends/cuda/kernels/elementwise.cu
+  )
+  target_compile_features(cortex_cuda PUBLIC cxx_std_20)
+  target_compile_options(cortex_cuda PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:${CORTEX_WARNING_FLAGS}>")
+  target_link_libraries(cortex_cuda PUBLIC cortex_core CUDA::cudart)
+  set_target_properties(cortex_cuda PROPERTIES
+    POSITION_INDEPENDENT_CODE ON
+    CUDA_STANDARD 20
+    CUDA_STANDARD_REQUIRED ON
+  )
+  if(CORTEX_BUILD_TESTS)
+    add_executable(cortex_cuda_backend_contract_tests tests/cpp/test_cuda_backend_contract.cpp)
+    target_link_libraries(cortex_cuda_backend_contract_tests PRIVATE cortex_cuda)
+    add_test(NAME cortex_cuda_backend_contract_tests COMMAND cortex_cuda_backend_contract_tests)
+    set_tests_properties(cortex_cuda_backend_contract_tests PROPERTIES SKIP_RETURN_CODE 77)
+  endif()
+endif()
+
 nanobind_add_module(_core
   bindings/python_module.cpp
 )
@@ -254,12 +284,17 @@ target_compile_features(_core PRIVATE cxx_std_20)
 target_link_libraries(_core PRIVATE cortex_core)
 target_compile_definitions(_core PRIVATE
   CORTEX_RUNTIME_VERSION="${PROJECT_VERSION}"
+  CORTEX_ENABLE_CUDA=$<BOOL:${CORTEX_ENABLE_CUDA}>
   CORTEX_ENABLE_METAL=$<BOOL:${CORTEX_ENABLE_METAL}>
   CORTEX_ENABLE_MPSGRAPH=$<BOOL:${CORTEX_ENABLE_MPSGRAPH}>
 )
 
 if(CORTEX_ENABLE_METAL)
   target_link_libraries(_core PRIVATE cortex_metal)
+endif()
+
+if(CORTEX_ENABLE_CUDA)
+  target_link_libraries(_core PRIVATE cortex_cuda)
 endif()
 
 install(TARGETS _core LIBRARY DESTINATION cortex_runtime)

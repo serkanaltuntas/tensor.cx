@@ -29,6 +29,10 @@
 #include "cortex/backends/metal/metal_tensor.h"
 #endif
 
+#if CORTEX_ENABLE_CUDA
+#include "cortex/backends/cuda/cuda_backend.h"
+#endif
+
 #ifndef CORTEX_RUNTIME_VERSION
 #define CORTEX_RUNTIME_VERSION "0+unknown"
 #endif
@@ -441,9 +445,12 @@ CpuTensor matmul_cpu(const CpuTensor& lhs, const CpuTensor& rhs, const std::stri
   return binary_op(lhs, rhs, OpKind::kMatmul);
 }
 
-#if CORTEX_ENABLE_METAL
+#if CORTEX_ENABLE_METAL || CORTEX_ENABLE_CUDA
 template <typename T>
-T unwrap(cortex::Expected<T> result);
+T unwrap(cortex::Expected<T> result) {
+  if (!result) throw_status(result.status());
+  return result.move_value();
+}
 #endif
 
 struct BackendRoute {
@@ -613,36 +620,57 @@ nb::list metal_backend_matmul_backends() {
 }
 #endif
 
-std::span<const BackendRoute> backend_routes() {
-#if CORTEX_ENABLE_METAL
-  static const std::array<BackendRoute, 2> routes{{
-      BackendRoute{
-          "cpu",
-          &cpu_backend_available,
-          &cpu_backend_device_name,
-          &cpu_backend_fill,
-          &cpu_backend_matmul_backends,
-      },
-      BackendRoute{
-          "metal",
-          &metal_backend_available,
-          &metal_backend_device_name,
-          &metal_backend_fill,
-          &metal_backend_matmul_backends,
-      },
-  }};
-#else
-  static const std::array<BackendRoute, 1> routes{{
-      BackendRoute{
-          "cpu",
-          &cpu_backend_available,
-          &cpu_backend_device_name,
-          &cpu_backend_fill,
-          &cpu_backend_matmul_backends,
-      },
-  }};
+#if CORTEX_ENABLE_CUDA
+bool cuda_backend_available() { return cortex::cuda::available(); }
+std::string cuda_backend_device_name() { return unwrap(cortex::cuda::device_name()); }
+
+nb::object cuda_backend_fill(Shape shape, DType dtype, double value) {
+  cortex::cuda::CudaBackend backend;
+  const Shape strides = cortex::contiguous_strides(shape);
+  std::array<cortex::Tensor, 1> outputs{cortex::Tensor{
+      dtype, std::move(shape), strides, {"cuda", 0}, nullptr, 0}};
+  OpDesc op{OpKind::kFill};
+  op.scalar_value = value;
+  const cortex::BackendExecution execution{
+      cortex::BackendOpClass::kPrimitive, op, {}, outputs, std::nullopt, std::nullopt};
+  const auto status = without_gil([&] { return backend.execute(execution); });
+  if (!status.ok()) throw_status(status);
+  return nb::cast(unwrap(cortex::cuda::from_core_tensor(outputs[0])));
+}
+
+cortex::cuda::CudaTensor binary_op(const cortex::cuda::CudaTensor& lhs,
+                                  const cortex::cuda::CudaTensor& rhs, OpKind kind) {
+  cortex::cuda::CudaBackend backend;
+  std::array<cortex::Tensor, 2> inputs{
+      cortex::cuda::to_core_tensor(lhs), cortex::cuda::to_core_tensor(rhs)};
+  std::array<cortex::Tensor, 1> outputs{};
+  const cortex::BackendExecution execution{
+      cortex::BackendOpClass::kPrimitive, OpDesc{kind}, inputs, outputs,
+      std::nullopt, std::nullopt};
+  const auto status = without_gil([&] { return backend.execute(execution); });
+  if (!status.ok()) throw_status(status);
+  return unwrap(cortex::cuda::from_core_tensor(outputs[0]));
+}
+
+nb::list cuda_backend_matmul_backends() {
+  throw std::invalid_argument("CUDA prototype does not support matmul");
+}
 #endif
-  return std::span<const BackendRoute>(routes.data(), routes.size());
+
+std::span<const BackendRoute> backend_routes() {
+  static const BackendRoute routes[]{
+      {"cpu", &cpu_backend_available, &cpu_backend_device_name,
+       &cpu_backend_fill, &cpu_backend_matmul_backends},
+#if CORTEX_ENABLE_METAL
+      {"metal", &metal_backend_available, &metal_backend_device_name,
+       &metal_backend_fill, &metal_backend_matmul_backends},
+#endif
+#if CORTEX_ENABLE_CUDA
+      {"cuda", &cuda_backend_available, &cuda_backend_device_name,
+       &cuda_backend_fill, &cuda_backend_matmul_backends},
+#endif
+  };
+  return routes;
 }
 
 const BackendRoute* find_backend_route(std::string_view name) {
@@ -744,14 +772,6 @@ std::string launch_metal_library_function_via_backend(
     throw_status(status);
   }
   return function_name;
-}
-
-template <typename T>
-T unwrap(cortex::Expected<T> result) {
-  if (!result) {
-    throw_status(result.status());
-  }
-  return result.move_value();
 }
 #endif
 
@@ -992,6 +1012,49 @@ NB_MODULE(_core, module) {
              nb::arg("output"),
              nb::arg("thread_count"),
              nb::arg("threads_per_threadgroup"));
+
+#if CORTEX_ENABLE_CUDA
+  using cortex::cuda::CudaTensor;
+  nb::class_<CudaTensor>(module, "CudaTensor")
+      .def_prop_ro("shape", [](const CudaTensor& tensor) { return shape_tuple(tensor.shape()); })
+      .def_prop_ro("strides", [](const CudaTensor& tensor) { return shape_tuple(tensor.strides()); })
+      .def_prop_ro("dtype", [](const CudaTensor& tensor) {
+        return std::string(cortex::dtype_name(tensor.dtype()));
+      })
+      .def_prop_ro("device", [](const CudaTensor&) { return "cuda"; })
+      .def_prop_ro("nbytes", &CudaTensor::nbytes);
+  module.def("cpu_to_cuda", [](const CpuTensor& tensor) {
+    return unwrap(without_gil([&] { return cortex::cuda::from_cpu(tensor); }));
+  }, nb::arg("tensor"));
+  module.def("cuda_to_cpu", [](const CudaTensor& tensor) {
+    return unwrap(without_gil([&] { return cortex::cuda::to_cpu(tensor); }));
+  }, nb::arg("tensor"));
+  module.def("add", [](const CudaTensor& lhs, const CudaTensor& rhs) {
+    return binary_op(lhs, rhs, OpKind::kAdd);
+  }, nb::arg("lhs"), nb::arg("rhs"));
+  module.def("multiply", [](const CudaTensor& lhs, const CudaTensor& rhs) {
+    return binary_op(lhs, rhs, OpKind::kMultiply);
+  }, nb::arg("lhs"), nb::arg("rhs"));
+  // Explicit unsupported-operation errors instead of opaque overload failures.
+  for (const char* name : {"exp", "gelu", "silu"}) {
+    module.def(name, [](const CudaTensor&) -> CudaTensor {
+      throw std::invalid_argument("CUDA prototype does not support unary operations");
+    }, nb::arg("input"));
+  }
+  for (const char* name : {"sum", "max", "mean", "softmax"}) {
+    module.def(name, [](const CudaTensor&, std::int64_t) -> CudaTensor {
+      throw std::invalid_argument("CUDA prototype does not support reductions or normalization");
+    }, nb::arg("input"), nb::arg("axis"));
+  }
+  for (const char* name : {"rmsnorm", "layernorm"}) {
+    module.def(name, [](const CudaTensor&, std::int64_t, double) -> CudaTensor {
+      throw std::invalid_argument("CUDA prototype does not support normalization");
+    }, nb::arg("input"), nb::arg("axis"), nb::arg("eps") = 1.0e-5);
+  }
+  module.def("matmul", [](const CudaTensor&, const CudaTensor&, const std::string&) -> CudaTensor {
+    throw std::invalid_argument("CUDA prototype does not support matmul");
+  }, nb::arg("lhs"), nb::arg("rhs"), nb::arg("backend") = "auto");
+#endif
 
 #if CORTEX_ENABLE_METAL
   nb::class_<cortex::metal::MetalTensor>(module, "MetalTensor")

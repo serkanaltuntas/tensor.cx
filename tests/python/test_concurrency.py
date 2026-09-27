@@ -188,6 +188,15 @@ def test_concurrent_experimental_kernel_launches_stay_correct():
 
 @pytest.mark.backend_capability("binary_ops_float32", include_cpu=False)
 def test_cold_start_concurrent_first_use_is_correct(backend_name):
+    _cold_start_concurrent_first_use(backend_name, exercise_unary=False)
+
+
+@pytest.mark.backend_capability("unary_float32", include_cpu=False)
+def test_cold_start_concurrent_unary_first_use_is_correct(backend_name):
+    _cold_start_concurrent_first_use(backend_name, exercise_unary=True)
+
+
+def _cold_start_concurrent_first_use(backend_name, exercise_unary):
     # Lazy pipeline creation only happens on the FIRST use of each kernel per
     # process; inside this pytest process earlier tests have already warmed the
     # slots, so a missing mutex would go unnoticed here. Run the race in a
@@ -212,13 +221,14 @@ def test_cold_start_concurrent_first_use_is_correct(backend_name):
                 y = cx.tensor(ones, dtype=cx.float32, device="{backend_name}")
                 barrier.wait()
                 z = (x + y) * x
-                e = cx.exp(cx.tensor(np.zeros(SIZE, dtype=np.float32),
-                                     dtype=cx.float32, device="{backend_name}"))
                 np.testing.assert_allclose(
                     z.cpu().numpy(), (base + ones) * base, rtol=1e-6, atol=1e-6)
-                np.testing.assert_allclose(
-                    e.cpu().numpy(), np.ones(SIZE, dtype=np.float32),
-                    rtol=1e-6, atol=1e-6)
+                if {exercise_unary}:
+                    e = cx.exp(cx.tensor(np.zeros(SIZE, dtype=np.float32),
+                                         dtype=cx.float32, device="{backend_name}"))
+                    np.testing.assert_allclose(
+                        e.cpu().numpy(), np.ones(SIZE, dtype=np.float32),
+                        rtol=1e-6, atol=1e-6)
             except Exception as error:
                 barrier.abort()
                 errors.append((index, error))

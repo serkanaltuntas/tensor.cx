@@ -17,13 +17,12 @@ acceptance criteria, and Definitions of Done also live in `PROJECT.md` (§14).
 [x] Phase 6   Reductions & NN primitives
 [x] Phase 7   Experimental kernel DSL
 [x] Phase 8   Backend interface hardening
-[ ] Phase 9   CUDA prototype             <- paused, no CUDA access
+[x] Phase 9   CUDA prototype             <- Nightblade, 2026-09-28
 [x] Phase 10  MLIR exploration           <- done, out of order
 ```
 
 Phase 10 ran ahead of Phase 9 under a documented sequencing exception:
-Phase 9 is blocked on CUDA hardware/cloud access that isn't currently
-available, and Phase 10's Definition of Done (a decision record, optionally
+Phase 9 was blocked on CUDA hardware/cloud access at that time, and Phase 10's Definition of Done (a decision record, optionally
 one CPU/Metal-validated op) doesn't need CUDA. See
 [`PHASE_SEQUENCING_DECISION.md`](PHASE_SEQUENCING_DECISION.md). Phase 9's
 acceptance criteria are unaffected.
@@ -31,8 +30,7 @@ acceptance criteria are unaffected.
 Phase 10 is complete: [`MLIR_DECISION.md`](MLIR_DECISION.md) records a "yes" —
 the Phase 7 elementwise add lowers Cortex IR → MLIR → native code and matches
 the CPU reference (`experiments/mlir/`,
-`tests/python/test_mlir_lowering.py`). Runtime integration is deferred until
-after Phase 9; core and backends contain no MLIR code or build dependencies.
+`tests/python/test_mlir_lowering.py`). Runtime integration remains deferred pending a new decision; core and backends contain no MLIR code or build dependencies.
 
 Phase 8 is complete: the backend execution ABI now
 separates primitive operations from kernel launches, carries explicit launch and
@@ -43,12 +41,14 @@ also uses the shared kernel contract validator. CPU fill, add/multiply, unary
 transforms, reductions, and matmul now route through `CpuBackend::execute`;
 Metal add/multiply, unary transforms, axis/norm transforms, reductions, matmul,
 fill, and non-empty narrow experimental generated-kernel launches now route
-through `MetalBackend::execute`. Phase 9 remains paused pending a CUDA
-hardware or cloud development environment decision (see "Phase status" above
-for the Phase 10 sequencing exception).
+through `MetalBackend::execute`. Phase 9 is now complete on Nightblade, using
+`CudaBackend::execute` for float32 fill/add/multiply and the existing registry
+for discovery and copies. See [validation evidence](CUDA_PHASE9_VALIDATION.md).
 
-## What works today (runtime through Phase 8, plus the Phase 10 MLIR prototype)
+## What works today (runtime through Phase 9, plus the Phase 10 MLIR prototype)
 
+- Optional CUDA backend: device 0 discovery, float32/int32 CPU↔CUDA copies,
+  float32 fill/add/multiply, synchronous execution through the shared ABI.
 - CPU reference backend: `float32`/`int32`, contiguous 1-D/2-D, add / multiply /
   fill / zeros / ones / empty, exact NumPy round-trip.
 - Metal backend: device discovery, buffer host↔device copy, static MSL kernels
@@ -80,7 +80,7 @@ for the Phase 10 sequencing exception).
 ## Intentionally not implemented yet
 
 Autograd, training, streams/async, broadcasting, non-contiguous execution, wide
-dtypes, broad generated-kernel semantics, top-level kernel APIs, CUDA/ROCm
+dtypes, broad generated-kernel semantics, top-level kernel APIs, broader CUDA operations, ROCm
 backends, and runtime MLIR/backend integration are out of scope until their
 phases. Phase 10's MLIR exploration is complete, but it produced a decision
 record and prototype only; it did not add MLIR to the runtime core or backend
@@ -92,13 +92,9 @@ build. See PROJECT.md §16 and AGENTS.md "Out Of Scope For Early Work".
   independent from PyTorch, but a future integration can be staged through a
   custom-op bridge before considering a full PyTorch / ATen backend. See
   [`PYTORCH_PORTABILITY_ROADMAP.md`](PYTORCH_PORTABILITY_ROADMAP.md).
-- **CUDA environment for Phase 9.** The next phase needs a CUDA-capable local or
-  cloud development environment before implementation starts. The decision gate
-  and validation checklist are documented in
-  [`CUDA_PHASE9_ENVIRONMENT.md`](CUDA_PHASE9_ENVIRONMENT.md). Phase 9 is
-  currently paused for this reason; see
-  [`PHASE_SEQUENCING_DECISION.md`](PHASE_SEQUENCING_DECISION.md) for why
-  Phase 10 is proceeding ahead of it instead of the project sitting idle.
+- **CUDA scope after Phase 9.** The prototype is complete on the selected
+  [Nightblade environment](CUDA_PHASE9_ENVIRONMENT.md). Broader CUDA operations
+  and generated kernels require separate implementation and CPU parity tests.
 - **Remaining allocation routing.** Constructor-style `empty` allocation still
   uses typed backend paths because it must choose backend-specific native tensor
   objects. See [`ARCHITECTURE.md`](ARCHITECTURE.md) → "Dispatch after Phase 8".

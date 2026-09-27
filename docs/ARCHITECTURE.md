@@ -11,6 +11,7 @@ bindings/                     nanobind extension and Python exception boundary
 cpp/cortex/core/              backend-neutral runtime types and dispatch
 cpp/cortex/backends/cpu/      mandatory CPU reference backend
 cpp/cortex/backends/metal/    Apple Metal backend
+cpp/cortex/backends/cuda/     optional CUDA prototype
 ```
 
 The C++ core must not expose platform-specific handles. Metal, MPSGraph, and
@@ -32,14 +33,16 @@ See [`KERNEL_DSL.md`](KERNEL_DSL.md). Phase 8 is complete: the backend execution
 ABI, shared primitive/kernel contract validators, and null backend scaffold
 exist.
 
-Phase 9 is paused because no CUDA hardware or cloud development environment is
-available yet. CUDA must not be implemented until that environment is selected
-and validated through [`CUDA_PHASE9_ENVIRONMENT.md`](CUDA_PHASE9_ENVIRONMENT.md).
+Phase 9 is complete on the selected Nightblade CUDA host. Discovery and copies
+use the existing registry, and float32 fill/add/multiply use
+`CudaBackend::execute` and shared primitive validation. CUDA Runtime API handles
+remain private to the CUDA backend; static kernels are compiled by nvcc only
+when `CORTEX_ENABLE_CUDA=ON`. See [validation](CUDA_PHASE9_VALIDATION.md).
 Phase 10 ran ahead of Phase 9 under the documented sequencing exception in
 [`PHASE_SEQUENCING_DECISION.md`](PHASE_SEQUENCING_DECISION.md) and is complete:
 [`MLIR_DECISION.md`](MLIR_DECISION.md) records a "yes" decision for MLIR as the
 long-term lowering direction, validated by the `experiments/mlir/` prototype.
-Runtime MLIR integration remains deferred until after Phase 9; core and backend
+Runtime MLIR integration remains deferred pending a new decision record; core and backend
 code currently have no MLIR dependency.
 
 The public Python `Tensor` wraps backend-specific native tensor objects. CPU and
@@ -49,7 +52,7 @@ fill through `zeros` and `ones`, rank-2 float32 matmul, axis-based
 `exp`/`gelu`/`silu`.
 
 Python binary operations dispatch through shared native `_core.add` and
-`_core.multiply` entrypoints with CPU and Metal overloads. Both overloads now
+`_core.multiply` entrypoints with CPU, Metal, and CUDA overloads. These overloads
 route add and multiply through their backend `execute` implementations. CPU
 unary transforms `exp`/`gelu`/`silu`/`softmax`/`rmsnorm`/`layernorm`, CPU
 reductions `sum`/`max`/`mean`, and CPU matmul also route through that execution
@@ -120,7 +123,7 @@ which registers backends by string key and owns availability checks, device
 names, tensor copies, fill creation, and matmul backend options. The nanobind
 module also uses a small route table for native device capability helpers.
 
-CUDA must be added by registering a new backend route, not by adding a third
+CUDA uses a registered backend route, without adding a third
 ad hoc CPU/Metal branch to public Python dispatch. Backend-specific native
 operations may still expose typed implementation functions while the core ABI
 continues to harden around `Backend::execute` and `OpDesc`.
