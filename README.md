@@ -10,7 +10,7 @@ tensor runtime with a backend-neutral C++ core, a Python API, a mandatory CPU
 reference path, and accelerator backends that can be validated operation by
 operation. Apple Metal is the first accelerator backend; a small CUDA prototype
 is also available. ROCm,
-Vulkan/SPIR-V, and MLIR-based lowering are longer-term directions.
+Vulkan/SPIR-V, and broader MLIR-based lowering are longer-term directions.
 
 The project is useful today as:
 
@@ -35,7 +35,10 @@ Metal tensor operations, matmul, reductions, selected neural-network primitives,
 an experimental Metal kernel DSL, a hardened backend execution ABI, and a
 completed Phase 10 MLIR decision prototype. Phase 9 CUDA is complete: the
 optional backend supports discovery, float32/int32 copies, and float32
-fill/add/multiply on a validated NVIDIA host.
+fill/add/multiply on a validated NVIDIA host. Explicit experimental MLIR CPU
+compile/launch is available for guarded float32 elementwise kernels on Linux
+x86_64 with external LLVM 21.1.8 tools. See the
+[usage and limitations](docs/MLIR_RUNTIME_INTEGRATION_DECISION.md#using-the-cpu-runtime).
 
 ## Documentation Map
 
@@ -58,7 +61,7 @@ fill/add/multiply on a validated NVIDIA host.
 - [`docs/MLIR_DECISION.md`](docs/MLIR_DECISION.md): Phase 10 MLIR decision
   record and prototype result.
 - [`docs/MLIR_RUNTIME_INTEGRATION_DECISION.md`](docs/MLIR_RUNTIME_INTEGRATION_DECISION.md):
-  CPU-first runtime integration scope and acceptance gates (not implemented).
+  CPU-first runtime integration, setup, and acceptance evidence.
 
 ## Development Setup
 
@@ -209,9 +212,9 @@ Phase 10 (MLIR exploration) is complete and
 ran ahead of Phase 9 under a documented sequencing exception: the decision
 record `docs/MLIR_DECISION.md` answers "yes" — the experimental add kernel
 lowers Cortex IR → MLIR → native code and matches the CPU reference
-(`experiments/mlir/`) — while the follow-up integration decision scopes an
-optional compiled CPU path that is not implemented yet. The runtime itself
-contains no MLIR dependency. Phase 5 provides
+(`experiments/mlir/`) — the follow-up integration decision defines the now-implemented
+optional compiled CPU path. LLVM/MLIR remains an external toolchain used only
+by explicit CPU compilation. Phase 5 provides
 CPU reference matmul, a correctness-first custom Metal matmul kernel, and an
 optimized Metal primitive path. Phase 6 adds `sum`, `max`, `mean`, `exp`,
 `gelu`, `silu`, `softmax`, `rmsnorm`, and `layernorm` on CPU and Metal. The

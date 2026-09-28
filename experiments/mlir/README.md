@@ -5,15 +5,14 @@ lower to MLIR?* The recorded answer and rationale live in
 [`docs/MLIR_DECISION.md`](../../docs/MLIR_DECISION.md); this directory is the
 executable evidence.
 
-This code is intentionally **outside** the runtime: nothing under
-`python/cortex_runtime/` or `cpp/cortex/` imports, links, or assumes MLIR. The
-prototype only consumes the backend-neutral IR dataclasses that
-`cortex_runtime.experimental` already exposes.
+These research harnesses stay outside the runtime. Their emitter now delegates
+to the private compiler module shared with the optional CPU runtime. The C++
+build does not link LLVM/MLIR, and ordinary package import needs no toolchain.
 
 ## Contents
 
 ```text
-cortex_ir_to_mlir.py   Cortex kernel IR -> MLIR (func/scf/arith/memref) emitter
+cortex_ir_to_mlir.py   thin compatibility import of the shared private emitter
 lower_add.py           end-to-end pipeline: IR -> MLIR -> LLVM -> dylib ->
                        ctypes execution -> comparison vs the Cortex CPU backend
 ```
@@ -67,4 +66,5 @@ toolchain record).
 The [runtime integration decision](../../docs/MLIR_RUNTIME_INTEGRATION_DECISION.md)
 records the CPU-first plan, native execution boundary, and fresh Nightblade
 LLVM 21.1.8 evidence. These scripts remain research harnesses; their ctypes
-bridge and looser guard test are not the planned public runtime launch API.
+bridge and looser guard test are separate from the implemented public runtime
+launch contract.

@@ -155,6 +155,7 @@ completion alone does not authorize broad compiler integration.
 **Integration decision (2026-09-28):** the requested follow-up is now recorded in
 [MLIR runtime integration: first scope](MLIR_RUNTIME_INTEGRATION_DECISION.md).
 It selects optional, explicit CPU compilation as the first runtime slice and
-states the subsequent CUDA gate. The scope decision is complete; runtime
-implementation has not started. This supersedes the pending-decision status in
-the historical updates above, while preserving their evidence and rationale.
+states the subsequent CUDA gate. The CPU runtime slice was subsequently
+implemented and locally validated after user approval; its evidence and
+limitations are maintained in that record. This supersedes the pending-decision
+status above, while preserving the historical evidence and rationale.

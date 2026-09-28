@@ -230,3 +230,12 @@ Phase 7 is complete for the first accepted slice:
 Broader DSL semantics, caching, and top-level `cx.kernel` remain future work.
 CPU execution for DSL kernels exists as `Kernel.reference(...)`, the
 interpreter-based reference path for generated kernels.
+
+
+## Optional MLIR CPU compilation
+
+Use `kernel.compile(target="cpu", compiler="mlir").launch(...)` for the explicit
+Linux x86_64 float32 elementwise slice. The default compiler and callable kernel
+keep the existing Metal route. Setup, the narrower supported body, CPU output
+ownership, toolchain errors, and validation are maintained in the
+[MLIR runtime decision](MLIR_RUNTIME_INTEGRATION_DECISION.md#using-the-cpu-runtime).

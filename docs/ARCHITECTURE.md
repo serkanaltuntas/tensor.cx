@@ -42,9 +42,10 @@ Phase 10 ran ahead of Phase 9 under the documented sequencing exception in
 [`PHASE_SEQUENCING_DECISION.md`](PHASE_SEQUENCING_DECISION.md) and is complete:
 [`MLIR_DECISION.md`](MLIR_DECISION.md) records a "yes" decision for MLIR as the
 long-term lowering direction, validated by the `experiments/mlir/` prototype.
-Runtime MLIR integration has a [CPU-first scope decision](MLIR_RUNTIME_INTEGRATION_DECISION.md)
-but is not implemented; core and backend
-code currently have no MLIR dependency.
+The [optional MLIR CPU runtime](MLIR_RUNTIME_INTEGRATION_DECISION.md) compiles
+through private Python adapters and external tools. The CPU backend owns a
+loaded host module and invokes its packed entry via the existing kernel execution
+contract; core types and the C++ build still have no LLVM/MLIR dependency.
 
 The public Python `Tensor` wraps backend-specific native tensor objects. CPU and
 Metal tensors both support add and multiply; Metal tensors also support direct

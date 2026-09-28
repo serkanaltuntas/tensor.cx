@@ -1,4 +1,5 @@
 #include "cortex/backends/cpu/cpu_backend.h"
+#include "cortex/backends/cpu/cpu_kernel.h"
 
 #include <algorithm>
 #include <array>
@@ -244,6 +245,7 @@ void compute_layernorm(
 std::string CpuBackend::name() const { return "cpu"; }
 
 Status CpuBackend::execute(const BackendExecution& execution) {
+  if (execution.op_class == BackendOpClass::kKernel) return execute_compiled_kernel(execution);
   try {
     const Status contract = validate_primitive_execution_contract(execution, "cpu");
     if (!contract.ok()) {

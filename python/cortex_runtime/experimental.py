@@ -164,6 +164,30 @@ class CompiledKernel:
 
 
 @dataclass(frozen=True, slots=True)
+class CompiledCpuKernel:
+    """Optional MLIR CPU artifact; owns its loaded native module."""
+
+    name: str
+    target: str
+    ir: IRKernel
+    mlir_source: str
+    _module: object
+
+    def launch(self, *args, thread_count: int | None = None, block_size: int = 256):
+        """Return a new CPU tensor, preserving the supplied output and its suffix."""
+        _, _, ordered, _, _, _, threads, block = _launch_contract(
+            self.ir, args, thread_count, block_size, device="cpu",
+            prefix="experimental MLIR CPU kernel", requires="launch requires CPU tensors",
+        )
+        from . import _core
+        from .tensor import Tensor
+
+        values = [value._impl if kind == "buffer" else value
+                  for kind, _, value in ordered]
+        return Tensor(_core._launch_cpu_kernel(self._module, values, threads, block))
+
+
+@dataclass(frozen=True, slots=True)
 class IRName:
     name: str
 
@@ -259,8 +283,19 @@ class Kernel:
     def parameters(self) -> tuple[str, ...]:
         return tuple(inspect.signature(self.fn).parameters)
 
-    def compile(self, *, target: str | None = None) -> CompiledKernel:
+    def compile(
+        self, *, target: str | None = None, compiler: str = "auto",
+    ) -> CompiledKernel | CompiledCpuKernel:
         selected = self.target if target is None else _validate_target(target)
+        if not isinstance(compiler, str):
+            raise TypeError("experimental kernel compiler must be a string")
+        if compiler not in {"auto", "mlir"}:
+            raise ValueError("experimental kernel compiler must be 'auto' or 'mlir'")
+        if compiler == "mlir":
+            if selected != "cpu":
+                raise ValueError("MLIR compilation requires target 'cpu'")
+            from ._compiler.cpu import compile_kernel
+            return compile_kernel(self.parse_ir())
         resolved = "metal" if selected == "auto" else selected
         if resolved != "metal":
             raise NotImplementedError(
@@ -399,10 +434,10 @@ def _launch_contract(
     prefix: str,
     requires: str,
 ):
-    """Normalize the launch contract shared by the Metal and reference paths.
+    """Normalize the launch contract shared by compiled kernels and CPU reference.
 
     Runs the guard analysis exactly once and returns everything both callers
-    need; keeping this single is what stops the two contracts from drifting.
+    need; keeping this single stops the launch contracts from drifting.
     """
     normalized_block_size = _normalize_uint32(
         block_size, "block_size must be a positive uint32", allow_zero=False

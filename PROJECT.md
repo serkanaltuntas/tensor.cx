@@ -45,9 +45,9 @@ Last verified milestone: Phase 9 — CUDA discovery, copies, float32 fill/add/mu
                         through the existing registry and BackendExecution ABI
 v0.1 target:            achieved at end of Phase 3
 Binding decided:        nanobind (see §5.6)
-MLIR decided:           optional CPU-first runtime integration scoped in
+MLIR decided:           optional CPU-first runtime integration implemented; see
                         docs/MLIR_RUNTIME_INTEGRATION_DECISION.md (2026-09-28)
-Next scoped work:       experimental compiled CPU kernels; not implemented
+Next recommended work:  CUDA generated-kernel ABI/toolchain scope decision
 Open decisions:         CUDA generated-kernel ABI/toolchain acceptance and
                         later targets; no broad compiler implementation yet
 ```
@@ -75,8 +75,10 @@ commands, results, and validation limits are recorded in
 [`docs/CUDA_PHASE9_VALIDATION.md`](docs/CUDA_PHASE9_VALIDATION.md).
 Phase 10's [`MLIR decision`](docs/MLIR_DECISION.md) remains a research prototype.
 The follow-up [integration decision](docs/MLIR_RUNTIME_INTEGRATION_DECISION.md)
-selects the first CPU runtime slice and its acceptance gates; implementation
-has not started.
+selects the first CPU runtime slice and its acceptance gates. That experimental
+slice is implemented and locally validated on Nightblade (Linux x86_64, LLVM
+21.1.8); it does not complete a new broad compiler phase. Metal execution and
+remote CI results are not claimed by this host validation.
 
 ---
 
@@ -1527,9 +1529,9 @@ semantics preserved (`experiments/mlir/`, `tests/python/test_mlir_lowering.py`).
 Verification venues: the emitter tests run in CPU CI on every push; the
 end-to-end lowering was validated originally on the local Mac and again on
 Nightblade in the follow-up decision. It skips when the MLIR toolchain is absent,
-unless required-toolchain mode is enabled. Runtime integration is scoped by the
-[decision](docs/MLIR_RUNTIME_INTEGRATION_DECISION.md), but not implemented;
-the runtime core and backends contain no MLIR dependencies.
+unless required-toolchain mode is enabled. The optional CPU runtime slice is
+implemented under the [decision](docs/MLIR_RUNTIME_INTEGRATION_DECISION.md);
+the C++ core and backends have no LLVM/MLIR build dependency.
 
 ---
 

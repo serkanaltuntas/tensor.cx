@@ -3,6 +3,7 @@
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
 #include <nanobind/stl/string.h>
+#include <nanobind/stl/shared_ptr.h>
 
 #include <array>
 #include <cstdint>
@@ -18,6 +19,7 @@
 
 #include "cortex/backends/cpu/cpu_backend.h"
 #include "cortex/backends/cpu/cpu_tensor.h"
+#include "cortex/backends/cpu/cpu_kernel.h"
 #include "cortex/backends/null/null_backend.h"
 #include "cortex/core/dtype.h"
 #include "cortex/core/shape.h"
@@ -445,13 +447,11 @@ CpuTensor matmul_cpu(const CpuTensor& lhs, const CpuTensor& rhs, const std::stri
   return binary_op(lhs, rhs, OpKind::kMatmul);
 }
 
-#if CORTEX_ENABLE_METAL || CORTEX_ENABLE_CUDA
 template <typename T>
 T unwrap(cortex::Expected<T> result) {
   if (!result) throw_status(result.status());
   return result.move_value();
 }
-#endif
 
 struct BackendRoute {
   const char* name;
@@ -779,6 +779,36 @@ std::string launch_metal_library_function_via_backend(
 
 NB_MODULE(_core, module) {
   module.doc() = "Native extension module for Cortex Runtime.";
+  nb::class_<cortex::cpu::CpuKernelModule>(module, "_CpuKernelModule");
+  module.def("_cpu_kernel_supported", &cortex::cpu::compiled_kernel_supported);
+  module.def("_load_cpu_kernel", [](const std::string& path, const std::string& kinds,
+                                    std::uint32_t output, std::uint32_t guard) {
+    return unwrap(without_gil([&] {
+      return cortex::cpu::CpuKernelModule::load(path, {kinds, output, guard});
+    }));
+  });
+  module.def("_launch_cpu_kernel",
+      [](std::shared_ptr<cortex::cpu::CpuKernelModule> compiled, nb::sequence values,
+         nb::handle threads, nb::handle block) {
+    std::vector<cortex::Tensor> tensors;
+    std::vector<cortex::KernelArgument> arguments;
+    tensors.reserve(nb::len(values));
+    arguments.reserve(nb::len(values));
+    for (nb::handle value : values) {
+      if (nb::isinstance<CpuTensor>(value)) {
+        tensors.push_back(cortex::cpu::to_core_tensor(nb::cast<const CpuTensor&>(value)));
+        arguments.push_back({cortex::KernelArgumentKind::kTensor, &tensors.back(), 0});
+      } else {
+        arguments.push_back({cortex::KernelArgumentKind::kUInt32, nullptr,
+                             cast_uint32_or_throw(value, "kernel scalar arguments must be uint32")});
+      }
+    }
+    const auto count = cast_uint32_or_throw(threads, "thread_count must be uint32");
+    const auto group = cast_uint32_or_throw(block, "block_size must be uint32");
+    return unwrap(without_gil([&] {
+      return cortex::cpu::launch_compiled_kernel(compiled, arguments, count, group);
+    }));
+  });
   module.def("version", []() { return CORTEX_RUNTIME_VERSION; });
   module.attr("float32") = "float32";
   module.attr("int32") = "int32";

@@ -112,11 +112,13 @@ add_library(cortex_core STATIC
   cpp/cortex/core/operation.cpp
   cpp/cortex/core/shape.cpp
   cpp/cortex/core/status.cpp
+  cpp/cortex/backends/cpu/cpu_kernel.cpp
   cpp/cortex/backends/cpu/cpu_backend.cpp
   cpp/cortex/backends/cpu/cpu_buffer.cpp
   cpp/cortex/backends/cpu/cpu_tensor.cpp
   cpp/cortex/backends/null/null_backend.cpp
 )
+target_link_libraries(cortex_core PRIVATE ${CMAKE_DL_LIBS})
 target_compile_features(cortex_core PUBLIC cxx_std_20)
 target_compile_options(cortex_core PRIVATE ${CORTEX_WARNING_FLAGS})
 target_include_directories(cortex_core PUBLIC
@@ -126,6 +128,20 @@ set_target_properties(cortex_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 if(CORTEX_BUILD_TESTS)
   enable_testing()
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64)$")
+    add_library(cortex_cpu_kernel_fixture SHARED tests/cpp/cpu_kernel_fixture.cpp)
+    add_library(cortex_cpu_bad_abi_fixture SHARED tests/cpp/cpu_kernel_fixture.cpp)
+    target_compile_definitions(cortex_cpu_bad_abi_fixture PRIVATE FIXTURE_BAD_ABI)
+    add_library(cortex_cpu_bad_symbol_fixture SHARED tests/cpp/cpu_kernel_fixture.cpp)
+    target_compile_definitions(cortex_cpu_bad_symbol_fixture PRIVATE FIXTURE_BAD_SYMBOL)
+    add_executable(cortex_cpu_kernel_tests tests/cpp/test_cpu_kernel.cpp)
+    target_link_libraries(cortex_cpu_kernel_tests PRIVATE cortex_core)
+    add_dependencies(cortex_cpu_kernel_tests cortex_cpu_kernel_fixture
+                     cortex_cpu_bad_abi_fixture cortex_cpu_bad_symbol_fixture)
+    add_test(NAME cortex_cpu_kernel_tests COMMAND cortex_cpu_kernel_tests
+      $<TARGET_FILE:cortex_cpu_kernel_fixture> $<TARGET_FILE:cortex_cpu_bad_abi_fixture>
+      $<TARGET_FILE:cortex_cpu_bad_symbol_fixture>)
+  endif()
   add_executable(cortex_backend_contract_tests
     tests/cpp/test_backend_contract.cpp
   )

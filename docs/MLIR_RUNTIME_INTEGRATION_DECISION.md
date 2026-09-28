@@ -1,11 +1,11 @@
 # MLIR runtime integration: first scope
 
-Date: 2026-09-28 · Baseline: `8151530` · Status: **scope decided; implementation not started**.
+Date: 2026-09-28 · Baseline: `8151530` · Status: **CPU slice implemented and locally validated**.
 
 This is the engineering decision requested after Phase 9. It resolves the
-integration questions left by [Phase 10](MLIR_DECISION.md); it does not claim
-that the runtime already compiles or executes MLIR kernels. Phase 9 and Phase
-10 remain complete. No new implementation phase is marked done.
+integration questions left by [Phase 10](MLIR_DECISION.md). The following scope
+was implemented on 2026-09-28 after user approval. Phase 9 and Phase 10 remain
+complete; this bounded slice does not mark a new broad compiler phase done.
 
 ## Decision and rationale
 
@@ -28,7 +28,7 @@ operation fusion, tiling, broad dtype support, or production packaging.
 
 ## First slice: user contract
 
-Planned API (not available yet):
+Implemented experimental API:
 
 ```python
 compiled = add_kernel.compile(target="cpu", compiler="mlir")
@@ -139,12 +139,12 @@ provides lowering and host offloading machinery; this design selects only the
 device compilation portion. ROCm, SPIR-V/Metal, and wider generated kernels
 remain separate decisions.
 
-## Acceptance and next implementation task
+## Acceptance gate
 
-The next task is **the CPU slice above**, in this order: optional toolchain and
-emitter extraction; packed wrapper and owned native module; CPU kernel execution
-through `BackendExecution`; experimental compile/launch API; regression and
-required-toolchain CI evidence. No runtime integration is complete until:
+The CPU slice follows this order: optional toolchain and emitter extraction;
+packed wrapper and owned native module; CPU kernel execution through
+`BackendExecution`; experimental compile/launch API; regression and
+required-toolchain CI coverage. The checks below define its acceptance:
 
 1. Add/subtract/multiply compare with `Kernel.reference`; add/multiply also
    compare with existing CPU primitives (no new subtraction primitive is required).
@@ -184,3 +184,116 @@ work, and rowsum (64×128) matched CPU references. LLVM 21.1.8 lists `sm_52` as 
 NVPTX target. This confirms the existing CPU prototype/toolchain; it does **not**
 validate the planned packed wrapper, native module loader, or MLIR-generated
 CUDA execution. Those are the implementation acceptance gates above.
+
+
+## Using the CPU runtime
+
+Install the package normally; LLVM is not needed for package import, build, CPU
+primitives, or the independent interpreter. To opt into compiled CPU kernels,
+install **LLVM/MLIR 21.1.8** externally and point `CORTEX_LLVM_BIN` at a directory
+containing executable `mlir-opt`, `mlir-translate`, and `clang`. Without that
+variable, the compiler looks for those names on PATH. All three versions are
+checked at each compilation. An invalid explicit directory fails without PATH
+fallback. The runtime never installs or downloads a toolchain.
+
+Save this example in a Python file (the DSL needs inspectable function source):
+
+```python
+import cortex_runtime as cx
+
+@cx.experimental.kernel
+def add_kernel(a, b, out, n):
+    i = cx.experimental.program_id(0) * cx.experimental.block_size() + cx.experimental.thread_id()
+    if i < n:
+        out[i] = a[i] + b[i]
+
+a = cx.ones((257,), device="cpu")
+out = cx.zeros((257,), device="cpu")
+compiled = add_kernel.compile(target="cpu", compiler="mlir")
+result = compiled.launch(a, a, out, 257)
+assert result.numpy()[0] == 2.0
+assert out.numpy()[0] == 0.0
+```
+
+The runtime subset requires the canonical global-index assignment shown above,
+followed by one `if index < bound` body. Every load/store uses that same index;
+body expressions use float32 loads, floating constants, local values and
+`+`/`-`/`*`. Local assignments follow existing DSL rules (no reassignment).
+All parameters must be used as buffers or the uint32 bound. This structural
+restriction proves bounds safety before compilation; it is narrower than the
+research emitter. Public multidimensional shapes remain exact-match metadata,
+while the native descriptor flattens contiguous storage.
+
+Each compiled object owns a native library loaded by the CPU backend. Temporary
+compiler files are removed after loading, and the library unloads when its last
+owner is released. Launch holds a strong owner across GIL release; registry IDs
+are weak, process-local, and cannot revive expired modules. There is no cache,
+serialization, or externally supported artifact-loading API. Native libraries
+are trusted compiler output; the internal manifest detects ABI/signature errors
+and is not a sandbox for arbitrary native code.
+
+Tool failures, version mismatches and per-command 60-second timeouts raise
+`RuntimeError`; unsupported IR and invalid launch contracts raise
+`KernelCompileError`/`ValueError`/`TypeError`. No interpreter fallback occurs.
+The CPU runtime supports Linux x86_64 only; the existing MSL/Metal API remains
+the default. Rowsum/reductions and generated CUDA/Metal via MLIR remain deferred.
+
+## Implementation validation — 2026-09-28
+
+Validation uses the Nightblade toolchain described above. Runtime tests compare
+native add/subtract/multiply with the independent interpreter, and add/multiply
+with CPU primitives. Cases include scalar and empty shapes, sizes 1/255/256/257,
+multidimensional tensors, partial/zero work, repeated launches, aliases,
+concurrent lifetime, compiler failure/cleanup, and explicit-toolchain errors.
+Native fixture tests additionally exercise malformed metadata, missing symbols,
+manifest mismatch, expired registry IDs, and unchanged outputs on failure.
+The fixture needs no LLVM installation and runs in ordinary CPU and sanitizer CI.
+
+| Check | Local result |
+| --- | --- |
+| Required LLVM runtime + research tests | **82 passed, 0 skipped** |
+| Full CPU-only suite with LLVM | **293 passed, 203 skipped** (unavailable accelerators) |
+| Full CPU-only suite without LLVM | **241 passed, 255 skipped** (accelerators and optional MLIR) |
+| Full CUDA-enabled suite with LLVM | **347 passed, 149 skipped** (Metal and deferred CUDA capabilities) |
+| CPU native contracts, including loader/ABI fixture | **2/2 passed** |
+| CPU native ASan/UBSan contracts with standard options | **2/2 passed** |
+| CPU + CUDA native ASan/UBSan contracts | **3/3 passed** with Nightblade CUDA shadow-gap workaround |
+
+Commands (from the source repository, after installing the matching build):
+
+```bash
+export CORTEX_LLVM_BIN="$PWD/build/mlir-toolchain/root/usr/lib/llvm-21/bin"
+CORTEX_REQUIRE_MLIR=1 uv run pytest tests/python/test_mlir_runtime.py tests/python/test_mlir_lowering.py -q
+CORTEX_REQUIRE_MLIR=1 uv run pytest -q
+# Run on the CPU-only build to verify no toolchain requirement:
+CORTEX_LLVM_BIN=/nonexistent CORTEX_REQUIRE_MLIR="" uv run pytest -q
+uv run cmake --build build/cpp-baseline
+uv run ctest --test-dir build/cpp-baseline --output-on-failure
+uv run cmake --build build/cpp-cuda-sanitizers
+ASAN_OPTIONS=halt_on_error=1:detect_leaks=1:protect_shadow_gap=0 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 uv run ctest --test-dir build/cpp-cuda-sanitizers --output-on-failure
+```
+
+The Python builds used `CC=gcc-13 CXX=g++-13` and `uv pip install -e ".[dev]"`
+with `CMAKE_ARGS="-DCORTEX_ENABLE_METAL=OFF -DCORTEX_ENABLE_CUDA=OFF"` for CPU;
+CUDA used `-DCORTEX_ENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=52` plus
+`CUDACXX=nvcc CUDAHOSTCXX=g++-13`. Native build configuration follows the
+[existing C++/sanitizer setup](CUDA_PHASE9_VALIDATION.md); the CUDA shadow-gap
+workaround is specific to this host. CPU native tests also passed with the
+standard `halt_on_error=1:detect_leaks=1:strict_string_checks=1` ASan options,
+without the workaround.
+
+Correctness and architecture reviews passed after fixing the normalized IR
+intrinsic names. Test QA identified a sanitizer CI filter that excluded the new
+native tests; it now runs the full native suite. Acceptance QA checked the
+documented workflow and validation limitations. Manual QA also confirmed that
+the mapped native image disappears after the compiled object's last owner is
+released.
+
+CI now runs both MLIR files in require-mode and builds/runs the native fixture
+without LLVM in ordinary CPU and sanitizer jobs. Metal execution cannot be
+repeated on this Linux host; existing Metal tests and CI jobs are retained.
+Remote CI status is not claimed as local evidence. No performance or production
+readiness claim is made.
+
+The next recommendation is the separate **CUDA generated-kernel ABI/toolchain
+scope decision** under the gate above, before implementing CUDA MLIR lowering.
