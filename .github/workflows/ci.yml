@@ -155,6 +155,12 @@ jobs:
           CORTEX_REQUIRE_MLIR: "1"
         run: uv run pytest tests/python/test_mlir_lowering.py tests/python/test_mlir_runtime.py -v -rs
 
+      - name: Check CUDA device lowering without a CUDA SDK or GPU
+        env:
+          CORTEX_LLVM_BIN: ${{ runner.temp }}/llvm-bin
+          CORTEX_REQUIRE_MLIR: "1"
+        run: uv run pytest tests/python/test_mlir_cuda_probe.py -k "not driver_runtime_probe" -v -rs
+
       # Guard the job's purpose: pin the end-to-end lowering test by node id so a
       # rename/removal or a stray selection filter makes pytest error (exit 4)
       # instead of the job going green without the evidence ever executing.

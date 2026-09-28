@@ -264,7 +264,9 @@ Current phase:
 Phase 9 and Phase 10 are complete. The first optional MLIR CPU runtime slice
 is implemented and locally validated; see docs/MLIR_RUNTIME_INTEGRATION_DECISION.md.
 Broader compiler/backend work remains outside that slice. CUDA generated-kernel
-work requires the separate ABI/toolchain acceptance gate recorded there.
+ABI/toolchain scope is now decided in docs/MLIR_CUDA_INTEGRATION_DECISION.md.
+Its research probe passed on sm_52; public runtime integration still requires
+the recorded Cortex-buffer/context/module acceptance gate.
 ```
 
 `docs/CUDA_PHASE9_ENVIRONMENT.md` records the selected host and entry criteria;

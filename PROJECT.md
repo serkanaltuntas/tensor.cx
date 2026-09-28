@@ -47,9 +47,10 @@ v0.1 target:            achieved at end of Phase 3
 Binding decided:        nanobind (see §5.6)
 MLIR decided:           optional CPU-first runtime integration implemented; see
                         docs/MLIR_RUNTIME_INTEGRATION_DECISION.md (2026-09-28)
-Next recommended work:  CUDA generated-kernel ABI/toolchain scope decision
-Open decisions:         CUDA generated-kernel ABI/toolchain acceptance and
-                        later targets; no broad compiler implementation yet
+Next recommended work:  bounded MLIR CUDA add runtime integration; scope in
+                        docs/MLIR_CUDA_INTEGRATION_DECISION.md (2026-09-28)
+Open acceptance:        Cortex CUDA buffers/context/module integration;
+                        sm_52 research probe passed, public target not available
 ```
 
 Phase checklist:

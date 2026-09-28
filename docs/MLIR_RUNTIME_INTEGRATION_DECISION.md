@@ -295,5 +295,7 @@ repeated on this Linux host; existing Metal tests and CI jobs are retained.
 Remote CI status is not claimed as local evidence. No performance or production
 readiness claim is made.
 
-The next recommendation is the separate **CUDA generated-kernel ABI/toolchain
-scope decision** under the gate above, before implementing CUDA MLIR lowering.
+The follow-up [CUDA ABI/toolchain decision](MLIR_CUDA_INTEGRATION_DECISION.md)
+is now recorded with sm_52 research execution evidence. The next task is bounded
+CUDA add runtime integration; the Cortex-buffer/context/module gate above
+remains open until that integration is tested.

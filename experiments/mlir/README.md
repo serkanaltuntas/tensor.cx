@@ -68,3 +68,26 @@ records the CPU-first plan, native execution boundary, and fresh Nightblade
 LLVM 21.1.8 evidence. These scripts remain research harnesses; their ctypes
 bridge and looser guard test are separate from the implemented public runtime
 launch contract.
+
+
+## CUDA device-only probe
+
+The [CUDA integration decision](../../docs/MLIR_CUDA_INTEGRATION_DECISION.md)
+records the selected ABI and exact host/toolchain. These research files do not
+enable a Cortex CUDA compiler target:
+
+- `cuda_add.mlir`: fixed guarded GPU add fixture; raw pointer/u32 arguments.
+- `probe_cuda.py`: GPU-to-NVVM/PTX lowering, parameter checks and CPU parity.
+- `cuda_driver_probe.cpp`: Runtime allocations, Driver module launch, context
+  restoration and sentinel checks on the selected Nightblade GPU.
+
+```bash
+uv run python experiments/mlir/probe_cuda.py --compile-only
+uv run python experiments/mlir/probe_cuda.py
+```
+
+Both require `CORTEX_LLVM_BIN` selecting LLVM 21.1.8. The second additionally
+requires CUDA 12.4 headers/libraries/ptxas, `g++-13` (or `--cxx`), and sm_52.
+Output artifacts live in a temporary directory and are removed after validation.
+The runtime still rejects generated CUDA kernels; actual Cortex buffer and
+backend integration is the next implementation gate.

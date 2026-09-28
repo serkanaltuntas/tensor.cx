@@ -62,6 +62,8 @@ x86_64 with external LLVM 21.1.8 tools. See the
   record and prototype result.
 - [`docs/MLIR_RUNTIME_INTEGRATION_DECISION.md`](docs/MLIR_RUNTIME_INTEGRATION_DECISION.md):
   CPU-first runtime integration, setup, and acceptance evidence.
+- [`docs/MLIR_CUDA_INTEGRATION_DECISION.md`](docs/MLIR_CUDA_INTEGRATION_DECISION.md):
+  CUDA ABI/toolchain scope and sm_52 research evidence; public target remains unimplemented.
 
 ## Development Setup
 

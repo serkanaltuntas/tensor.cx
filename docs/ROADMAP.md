@@ -90,8 +90,10 @@ it does not add LLVM/MLIR to the C++ core or backend build. See PROJECT.md §16 
 ## Known deferred design work
 
 - **MLIR CUDA integration.** The [CPU-first runtime slice](MLIR_RUNTIME_INTEGRATION_DECISION.md)
-  is implemented. Next recommended work is the separate CUDA generated-kernel
-  ABI/toolchain scope decision; CUDA lowering and broader compiler features remain gated.
+  is implemented. The [CUDA ABI/toolchain decision](MLIR_CUDA_INTEGRATION_DECISION.md)
+  and sm_52 research probe are complete. Next is bounded CUDA add runtime
+  integration, starting with context ownership and actual Cortex buffers; the
+  public CUDA compiler target and broader compiler features remain gated.
 
 - **PyTorch portability strategy.** The current roadmap keeps Cortex Runtime
   independent from PyTorch, but a future integration can be staged through a
