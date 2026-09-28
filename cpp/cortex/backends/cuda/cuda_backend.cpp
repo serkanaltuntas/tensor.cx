@@ -7,47 +7,14 @@
 #include <utility>
 
 #include "cortex/backends/cuda/cuda_kernels.h"
+#include "cortex/backends/cuda/cuda_buffer.h"
+#include "cortex/backends/cuda/cuda_kernel.h"
 
 namespace cortex::cuda {
 namespace {
 Status invalid(std::string message) {
   return {StatusCode::kInvalidArgument, std::move(message)};
 }
-Status cuda_status(cudaError_t error, const char* operation) {
-  if (error == cudaSuccess) return Status::Ok();
-  const auto code = (error == cudaErrorNoDevice || error == cudaErrorInsufficientDriver ||
-                     error == cudaErrorInitializationError)
-                        ? StatusCode::kUnavailable : StatusCode::kInternal;
-  return {code, std::string(operation) + ": " + cudaGetErrorString(error)};
-}
-
-// The CUDA current device is thread-local. Every entry point selects our sole
-// supported device and restores the caller's selection, including on failure.
-class DeviceScope {
- public:
-  DeviceScope() {
-    error_ = cudaGetDevice(&previous_);
-    if (error_ == cudaSuccess) error_ = cudaSetDevice(0);
-  }
-  ~DeviceScope() {
-    if (error_ == cudaSuccess && previous_ != 0) (void)cudaSetDevice(previous_);
-  }
-  Status status() const { return cuda_status(error_, "select CUDA device 0"); }
-  bool ready() const noexcept { return error_ == cudaSuccess; }
- private:
-  int previous_{0};
-  cudaError_t error_;
-};
-
-struct DeviceDeleter {
-  void operator()(void* pointer) const noexcept {
-    if (!pointer) return;
-    DeviceScope device;
-    // Destructors cannot report a lost device. Never free on a wrong device.
-    if (device.ready()) (void)cudaFree(pointer);
-  }
-};
-
 Expected<std::size_t> byte_size(DType dtype, const Shape& shape) {
   if (dtype != DType::kFloat32 && dtype != DType::kInt32) return invalid("unsupported CUDA dtype");
   const auto count = static_cast<std::uint64_t>(numel(shape));
@@ -58,32 +25,29 @@ Expected<std::size_t> byte_size(DType dtype, const Shape& shape) {
 }
 }  // namespace
 
-class CudaBuffer final : public Buffer {
- public:
-  static Expected<std::shared_ptr<CudaBuffer>> create(DType dtype, const Shape& shape) {
-    auto bytes = byte_size(dtype, shape);
-    if (!bytes) return bytes.status();
-    DeviceScope device;
-    if (auto status = device.status(); !status.ok()) return status;
-    auto buffer = std::make_shared<CudaBuffer>();
-    buffer->bytes_ = bytes.value();
-    buffer->dtype_ = dtype;
-    if (buffer->bytes_) {
-      void* pointer = nullptr;
-      const auto error = cudaMalloc(&pointer, buffer->bytes_);
-      if (error != cudaSuccess) return cuda_status(error, "CUDA allocation");
-      buffer->data_.reset(pointer);
-    }
-    return buffer;
+void DeviceDeleter::operator()(void* pointer) const noexcept {
+  if (!pointer) return;
+  ContextScope context(owner);
+  if (context.ready()) (void)cudaFree(pointer);
+}
+
+Expected<std::shared_ptr<CudaBuffer>> CudaBuffer::create(DType dtype, const Shape& shape) {
+  auto bytes = byte_size(dtype, shape);
+  if (!bytes) return bytes.status();
+  ContextScope context;
+  if (!context.ready()) return context.status();
+  auto buffer = std::make_shared<CudaBuffer>();
+  buffer->bytes_ = bytes.value();
+  buffer->dtype_ = dtype;
+  buffer->data_.get_deleter().owner = context.owner();
+  if (buffer->bytes_) {
+    void* pointer = nullptr;
+    auto status = runtime_status(cudaMalloc(&pointer, buffer->bytes_), "CUDA allocation");
+    if (!status.ok()) return status;
+    buffer->data_.reset(pointer);
   }
-  std::size_t nbytes() const override { return bytes_; }
-  DType dtype() const { return dtype_; }
-  void* data() const { return data_.get(); }
- private:
-  DType dtype_{DType::kFloat32};
-  std::size_t bytes_{0};
-  std::unique_ptr<void, DeviceDeleter> data_;
-};
+  return buffer;
+}
 
 CudaTensor::CudaTensor(DType dtype, Shape shape, std::shared_ptr<CudaBuffer> buffer)
     : dtype_(dtype), shape_(std::move(shape)), strides_(contiguous_strides(shape_)),
@@ -97,24 +61,22 @@ CudaTensor::CudaTensor(DType dtype, Shape shape, std::shared_ptr<CudaBuffer> buf
 std::size_t CudaTensor::nbytes() const { return buffer_->nbytes(); }
 
 bool available() {
-  int count = 0;
-  if (cudaGetDeviceCount(&count) != cudaSuccess || count == 0) return false;
-  DeviceScope device;
+  ContextScope device;
   return device.status().ok();
 }
 
 Expected<std::string> device_name() {
-  DeviceScope device;
+  ContextScope device;
   if (auto status = device.status(); !status.ok()) return status;
   cudaDeviceProp properties{};
   const auto error = cudaGetDeviceProperties(&properties, 0);
-  if (error != cudaSuccess) return cuda_status(error, "CUDA device discovery");
+  if (error != cudaSuccess) return runtime_status(error, "CUDA device discovery");
   return std::string(properties.name);
 }
 
 Expected<CudaTensor> from_cpu(const cpu::CpuTensor& tensor) {
   try {
-    DeviceScope device;
+    ContextScope device;
     if (auto status = device.status(); !status.ok()) return status;
     auto buffer = CudaBuffer::create(tensor.dtype(), tensor.shape());
     if (!buffer) return buffer.status();
@@ -124,9 +86,9 @@ Expected<CudaTensor> from_cpu(const cpu::CpuTensor& tensor) {
                                : static_cast<const void*>(tensor.int32_data().data());
       const auto error = cudaMemcpy(buffer.value()->data(), source,
                                     buffer.value()->nbytes(), cudaMemcpyHostToDevice);
-      if (error != cudaSuccess) return cuda_status(error, "CPU to CUDA copy");
+      if (error != cudaSuccess) return runtime_status(error, "CPU to CUDA copy");
       // Host-to-device pageable copies may return before the DMA completes.
-      if (auto status = cuda_status(cudaDeviceSynchronize(), "CPU to CUDA synchronize");
+      if (auto status = runtime_status(cudaDeviceSynchronize(), "CPU to CUDA synchronize");
           !status.ok()) return status;
     }
     return CudaTensor(tensor.dtype(), tensor.shape(), buffer.move_value());
@@ -139,7 +101,7 @@ Expected<CudaTensor> from_cpu(const cpu::CpuTensor& tensor) {
 
 Expected<cpu::CpuTensor> to_cpu(const CudaTensor& tensor) {
   try {
-    DeviceScope device;
+    ContextScope device;
     if (auto status = device.status(); !status.ok()) return status;
     cpu::CpuTensor result(tensor.dtype(), tensor.shape());
     if (tensor.nbytes()) {
@@ -148,7 +110,7 @@ Expected<cpu::CpuTensor> to_cpu(const CudaTensor& tensor) {
                               : static_cast<void*>(result.mutable_int32_data().data());
       const auto error = cudaMemcpy(destination, tensor.buffer()->data(), tensor.nbytes(),
                                     cudaMemcpyDeviceToHost);
-      if (error != cudaSuccess) return cuda_status(error, "CUDA to CPU copy");
+      if (error != cudaSuccess) return runtime_status(error, "CUDA to CPU copy");
     }
     return result;
   } catch (const std::invalid_argument& error) {
@@ -183,8 +145,7 @@ Expected<CudaTensor> from_core_tensor(const Tensor& tensor) {
 Status CudaBackend::execute(const BackendExecution& execution) {
   try {
     if (execution.op_class == BackendOpClass::kKernel) {
-      const auto status = validate_kernel_execution_contract(execution);
-      return status.ok() ? invalid("CUDA generated kernels are not supported") : status;
+      return execute_compiled_kernel(execution);
     }
     if (auto status = validate_primitive_execution_contract(execution, "cuda");
         !status.ok()) return status;
@@ -209,7 +170,7 @@ Status CudaBackend::execute(const BackendExecution& execution) {
       shape = lhs.value().shape();
     }
     // Validate all metadata before touching CUDA or allocating output memory.
-    DeviceScope device;
+    ContextScope device;
     if (auto status = device.status(); !status.ok()) return status;
     auto buffer = CudaBuffer::create(DType::kFloat32, shape);
     if (!buffer) return buffer.status();
@@ -225,7 +186,7 @@ Status CudaBackend::execute(const BackendExecution& execution) {
                             static_cast<const float*>(rhs->data()), output, count,
                             kind == OpKind::kMultiply);
     }
-    if (auto status = cuda_status(error, "CUDA kernel execution"); !status.ok()) return status;
+    if (auto status = runtime_status(error, "CUDA kernel execution"); !status.ok()) return status;
     // Publish only on success; failed execution must leave result slots intact.
     execution.outputs[0] = to_core_tensor(CudaTensor(DType::kFloat32, std::move(shape), buffer.move_value()));
     return Status::Ok();

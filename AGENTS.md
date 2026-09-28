@@ -264,9 +264,9 @@ Current phase:
 Phase 9 and Phase 10 are complete. The first optional MLIR CPU runtime slice
 is implemented and locally validated; see docs/MLIR_RUNTIME_INTEGRATION_DECISION.md.
 Broader compiler/backend work remains outside that slice. CUDA generated-kernel
-ABI/toolchain scope is now decided in docs/MLIR_CUDA_INTEGRATION_DECISION.md.
-Its research probe passed on sm_52; public runtime integration still requires
-the recorded Cortex-buffer/context/module acceptance gate.
+add runtime integration is implemented on the validated sm_52 environment;
+see docs/MLIR_CUDA_INTEGRATION_DECISION.md for usage, tests and strict subset.
+Wider generated operations or targets require their own parity/acceptance tests.
 ```
 
 `docs/CUDA_PHASE9_ENVIRONMENT.md` records the selected host and entry criteria;
@@ -467,7 +467,7 @@ When C++ tests are relevant, run them as part of changes touching `cpp/`:
 NANOBIND_DIR="$(uv run python -c 'import nanobind; print(nanobind.cmake_dir())')"
 PYTHON_EXECUTABLE="$(uv run python -c 'import sys; print(sys.executable)')"
 cmake -S . -B build/cpp-tests -DCORTEX_ENABLE_METAL=OFF -DCORTEX_BUILD_TESTS=ON -Dnanobind_DIR="${NANOBIND_DIR}" -DPython_EXECUTABLE="${PYTHON_EXECUTABLE}"
-cmake --build build/cpp-tests --target cortex_backend_contract_tests
+cmake --build build/cpp-tests
 ctest --test-dir build/cpp-tests --output-on-failure
 ```
 

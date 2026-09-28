@@ -236,7 +236,8 @@ Tool failures, version mismatches and per-command 60-second timeouts raise
 `RuntimeError`; unsupported IR and invalid launch contracts raise
 `KernelCompileError`/`ValueError`/`TypeError`. No interpreter fallback occurs.
 The CPU runtime supports Linux x86_64 only; the existing MSL/Metal API remains
-the default. Rowsum/reductions and generated CUDA/Metal via MLIR remain deferred.
+the default. Rowsum/reductions and generated Metal via MLIR remain deferred;
+the narrow CUDA add extension is documented in the [CUDA record](MLIR_CUDA_INTEGRATION_DECISION.md).
 
 ## Implementation validation — 2026-09-28
 
@@ -296,6 +297,6 @@ Remote CI status is not claimed as local evidence. No performance or production
 readiness claim is made.
 
 The follow-up [CUDA ABI/toolchain decision](MLIR_CUDA_INTEGRATION_DECISION.md)
-is now recorded with sm_52 research execution evidence. The next task is bounded
-CUDA add runtime integration; the Cortex-buffer/context/module gate above
-remains open until that integration is tested.
+is now recorded with sm_52 research and runtime evidence. Its bounded add
+compile/launch path has passed the Cortex-buffer/context/module gate above.
+Additional generated operations and targets remain separate work.

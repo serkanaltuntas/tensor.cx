@@ -63,7 +63,7 @@ x86_64 with external LLVM 21.1.8 tools. See the
 - [`docs/MLIR_RUNTIME_INTEGRATION_DECISION.md`](docs/MLIR_RUNTIME_INTEGRATION_DECISION.md):
   CPU-first runtime integration, setup, and acceptance evidence.
 - [`docs/MLIR_CUDA_INTEGRATION_DECISION.md`](docs/MLIR_CUDA_INTEGRATION_DECISION.md):
-  CUDA ABI/toolchain scope and sm_52 research evidence; public target remains unimplemented.
+  CUDA add compile/launch usage, ABI/toolchain scope and sm_52 validation.
 
 ## Development Setup
 
@@ -116,7 +116,8 @@ A local Apple Silicon sample run is committed at
 ## CUDA prototype setup
 
 CUDA is opt-in (`CORTEX_ENABLE_CUDA=OFF` by default); CPU-only and Apple builds
-need no CUDA toolkit. On a CUDA host with a supported C++20 compiler and nvcc:
+need no CUDA toolkit. CUDA-enabled extensions require `libcuda.so.1` at import;
+the GPU-free CI container supplies a Toolkit stub for validation only. On a CUDA host with a supported C++20 compiler and nvcc:
 
 ```bash
 CMAKE_ARGS="-DCORTEX_ENABLE_METAL=OFF -DCORTEX_ENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=52" uv pip install -e ".[dev]"
@@ -138,7 +139,9 @@ print(y.cpu().numpy()[:3])  # [2. 2. 2.]
 The prototype exposes only device index 0. float32 add/multiply require exact
 shape/dtype matches; scalars and empty contiguous tensors work. Copies preserve
 float32/int32, but int32 fill/arithmetic, matmul, reductions, activations,
-normalization, and generated CUDA kernels are not implemented. Operations are
+normalization, and broad generated CUDA kernels are not implemented. A separate
+explicit MLIR compiler supports guarded float32 add on the validated sm_52
+host; see [usage and requirements](docs/MLIR_CUDA_INTEGRATION_DECISION.md#runtime-usage-and-verification--2026-09-28). Operations are
 synchronous and release the Python GIL during execution. CUDA is registered
 only when its compiled backend and a usable device are available. CPU remains
 the default for constructors; `best_device()` can select CUDA when available.
@@ -157,7 +160,7 @@ uv run pytest
 NANOBIND_DIR="$(uv run python -c 'import nanobind; print(nanobind.cmake_dir())')"
 PYTHON_EXECUTABLE="$(uv run python -c 'import sys; print(sys.executable)')"
 cmake -S . -B build/cpp-tests -DCORTEX_ENABLE_METAL=OFF -DCORTEX_BUILD_TESTS=ON -Dnanobind_DIR="${NANOBIND_DIR}" -DPython_EXECUTABLE="${PYTHON_EXECUTABLE}"
-cmake --build build/cpp-tests --target cortex_backend_contract_tests
+cmake --build build/cpp-tests
 ctest --test-dir build/cpp-tests --output-on-failure
 ```
 

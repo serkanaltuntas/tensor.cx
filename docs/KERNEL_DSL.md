@@ -239,3 +239,13 @@ Linux x86_64 float32 elementwise slice. The default compiler and callable kernel
 keep the existing Metal route. Setup, the narrower supported body, CPU output
 ownership, toolchain errors, and validation are maintained in the
 [MLIR runtime decision](MLIR_RUNTIME_INTEGRATION_DECISION.md#using-the-cpu-runtime).
+
+
+## Optional MLIR CUDA add compilation
+
+`kernel.compile(target="cuda", compiler="mlir").launch(...)` executes the narrow
+guarded float32 add subset and returns a new CUDA tensor without mutating the
+supplied output. The canonical index/guard and exact shapes are required; the
+two input parameter names must differ, but tensor arguments may alias.
+Supported host/toolchain, block limits, context/module ownership and verification
+are maintained in the [CUDA integration record](MLIR_CUDA_INTEGRATION_DECISION.md).

@@ -33,6 +33,7 @@
 
 #if CORTEX_ENABLE_CUDA
 #include "cortex/backends/cuda/cuda_backend.h"
+#include "cortex/backends/cuda/cuda_kernel.h"
 #endif
 
 #ifndef CORTEX_RUNTIME_VERSION
@@ -779,6 +780,41 @@ std::string launch_metal_library_function_via_backend(
 
 NB_MODULE(_core, module) {
   module.doc() = "Native extension module for Cortex Runtime.";
+#if CORTEX_ENABLE_CUDA
+  nb::class_<cortex::cuda::CudaKernelModule>(module, "_CudaKernelModule");
+  module.def("_cuda_kernel_support", [] {
+    auto status = without_gil([] { return cortex::cuda::compiled_kernel_support(); });
+    if (!status.ok()) throw_status(status);
+  });
+  module.def("_load_cuda_kernel", [](const std::string& ptx, const std::string& entry,
+      const std::string& kinds, std::uint32_t output, std::uint32_t guard) {
+    return unwrap(without_gil([&] {
+      return cortex::cuda::CudaKernelModule::load(ptx, entry, {kinds, output, guard});
+    }));
+  });
+  module.def("_launch_cuda_kernel",
+      [](std::shared_ptr<cortex::cuda::CudaKernelModule> compiled, nb::sequence values,
+         nb::handle threads, nb::handle block) {
+    std::vector<cortex::Tensor> tensors;
+    std::vector<cortex::KernelArgument> arguments;
+    tensors.reserve(nb::len(values));
+    arguments.reserve(nb::len(values));
+    for (nb::handle value : values) {
+      if (nb::isinstance<cortex::cuda::CudaTensor>(value)) {
+        tensors.push_back(cortex::cuda::to_core_tensor(nb::cast<const cortex::cuda::CudaTensor&>(value)));
+        arguments.push_back({cortex::KernelArgumentKind::kTensor, &tensors.back(), 0});
+      } else {
+        arguments.push_back({cortex::KernelArgumentKind::kUInt32, nullptr,
+                             cast_uint32_or_throw(value, "kernel scalar arguments must be uint32")});
+      }
+    }
+    const auto count = cast_uint32_or_throw(threads, "thread_count must be uint32");
+    const auto group = cast_uint32_or_throw(block, "block_size must be uint32");
+    return unwrap(without_gil([&] {
+      return cortex::cuda::launch_compiled_kernel(compiled, arguments, count, group);
+    }));
+  });
+#endif
   nb::class_<cortex::cpu::CpuKernelModule>(module, "_CpuKernelModule");
   module.def("_cpu_kernel_supported", &cortex::cpu::compiled_kernel_supported);
   module.def("_load_cpu_kernel", [](const std::string& path, const std::string& kinds,

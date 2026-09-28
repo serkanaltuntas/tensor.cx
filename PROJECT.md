@@ -47,10 +47,10 @@ v0.1 target:            achieved at end of Phase 3
 Binding decided:        nanobind (see §5.6)
 MLIR decided:           optional CPU-first runtime integration implemented; see
                         docs/MLIR_RUNTIME_INTEGRATION_DECISION.md (2026-09-28)
-Next recommended work:  bounded MLIR CUDA add runtime integration; scope in
+CUDA MLIR:              guarded float32 add compile/launch implemented on sm_52;
                         docs/MLIR_CUDA_INTEGRATION_DECISION.md (2026-09-28)
-Open acceptance:        Cortex CUDA buffers/context/module integration;
-                        sm_52 research probe passed, public target not available
+Next recommended work:  guarded subtraction/multiply with CPU/CUDA parity
+Open scope:             other SM/host versions and broader compiler features
 ```
 
 Phase checklist:

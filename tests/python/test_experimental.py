@@ -1020,7 +1020,7 @@ def test_experimental_kernel_rejects_invalid_inputs():
     with pytest.raises(TypeError, match="expects a Python function"):
         cx.experimental.kernel(123)
     with pytest.raises(ValueError, match="target must be"):
-        cx.experimental.kernel(target="cuda")
+        cx.experimental.kernel(target="unknown")
     with pytest.raises(TypeError, match="target must be a string"):
         cx.experimental.kernel(target=123)
 
@@ -1039,7 +1039,7 @@ def test_experimental_kernel_direct_construction_validates_target():
         pass
 
     with pytest.raises(ValueError, match="target must be"):
-        cx.experimental.Kernel(add_kernel, target="cuda")
+        cx.experimental.Kernel(add_kernel, target="unknown")
 
 
 def test_experimental_kernel_rejects_unsupported_signature_shapes():

@@ -202,3 +202,13 @@ Guidelines:
 - Backend-specific C++ code should prefer `Status` / `Expected<T>`. Existing
   CPU/core paths may still throw standard C++ exceptions, but those exceptions
   must cross into Python only at the binding boundary.
+
+
+### Generated CUDA add
+
+The optional MLIR CUDA add path uses private Python device lowering and a
+backend-owned PTX module. All CUDA buffers/modules retain the device-0 primary
+context; scoped push/pop preserves a caller's foreign Driver context.
+Nonempty launches enter `CudaBackend::execute` through existing core metadata.
+The CUDA extension links the Driver library only in CUDA-enabled builds.
+[ABI, supported environment and validation](MLIR_CUDA_INTEGRATION_DECISION.md).

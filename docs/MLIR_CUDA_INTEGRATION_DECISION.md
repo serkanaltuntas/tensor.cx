@@ -1,18 +1,18 @@
 # MLIR CUDA integration: ABI and toolchain decision
 
-Date: 2026-09-28 · Baseline: `636e3e7` · Status: **scope decided; research
-device execution verified; public runtime integration not implemented**.
+Date: 2026-09-28 · Baseline: `636e3e7` · Status: **bounded CUDA add runtime implemented and locally validated**.
 
 This answers the next-work request after the [CPU runtime slice](MLIR_RUNTIME_INTEGRATION_DECISION.md).
-The delivered change is this decision and a reproducible device-only research
-probe. It adds no CUDA compiler target, public pointer access, runtime module
-loader, or generated-kernel capability to Cortex. Phase 9/10 status is unchanged.
+The original decision and device-only research probe are retained below as
+historical evidence. The subsequent implementation now connects validated
+Cortex IR, native modules and real Cortex buffers through CudaBackend. Phase
+9/10 status is unchanged; this bounded slice does not complete a broad compiler phase.
 
 ## Selected first implementation slice
 
 An explicit experimental `kernel.compile(target="cuda", compiler="mlir")`
-will return a distinct `CompiledCudaKernel` with `.launch(...)`. This API is
-**planned, not available**. Default compilation/call behavior remains Metal;
+returns a distinct `CompiledCudaKernel` with `.launch(...)`. This API is
+**implemented for the validated environment below**. Default compilation/call behavior remains Metal;
 CPU MLIR compilation and static CUDA operations retain their existing behavior.
 No automatic target/compiler fallback is allowed.
 
@@ -30,13 +30,14 @@ suffix, redirect all input aliases of that output to the copy, and publish only
 after successful synchronization. Existing inputs remain unchanged. Zero work
 still validates arguments/module and returns the copy without a zero-sized
 Driver launch. This intentionally differs from the existing Metal DSL's output
-mutation; document that distinction on the future artifact type.
+mutation; this distinction is documented on `CompiledCudaKernel`.
 
 ## Device pipeline and toolchain
 
 Select Linux x86_64, device index 0, compute capability **5.2**, LLVM/MLIR
 **21.1.8**, PTX ISA **7.8**, CUDA Toolkit/Runtime **12.4**, and the validated
-Nightblade driver **580.178.04** as the first acceptance environment.
+Nightblade driver **580.178.04** as the first acceptance environment. Runtime
+validation checks Driver API level **13.0** (13000), not the vendor patch string.
 Other devices/SMs, hosts and toolchain versions fail clearly until separately
 validated; this is a bounded initial support policy, not a claim of universal
 incompatibility. The driver's reported CUDA API level is 13.0; it is not the
@@ -65,17 +66,18 @@ provide version-specific lowering behavior.
 
 Use no fast math, reassociation, or contraction. The current add fixture needs
 no libdevice or device linker. Do not relabel the CPU emitter's serial loop.
-Future runtime code must emit this GPU structure from validated Cortex IR;
-the checked-in probe's hand-authored MLIR is not evidence of that frontend.
+The private CUDA compiler now emits this GPU structure from validated Cortex IR.
+The checked-in probe remains historical evidence; runtime tests additionally
+compare the emitted PTX against the native fixture and execute parsed kernels.
 
 LLVM remains external and optional at build/import and ordinary execution.
 Keep strict executable/version checks and invalid-explicit-directory failures,
 bounded subprocess timeouts, isolated temporary files, and no downloads.
 Validate the serialized assembly's target, address width, entry and parameter
 schema before loading; this is an internal trusted compiler artifact, not a
-sandbox for arbitrary PTX. The research extractor only handles its single,
-fixed assembly object. Production extraction needs tests for malformed/multiple
-objects and must fail closed. Package native linking adds `CUDA::cuda_driver`
+sandbox for arbitrary PTX. The research extractor handles its single fixed object. The runtime extractor
+rejects malformed/multiple objects, wrong headers, entries and pointer/u32
+schemas; native loading also verifies the manifest and Driver parameter metadata. Package native linking adds `CUDA::cuda_driver`
 only when CUDA is enabled; CPU/Metal builds require no Driver/LLVM libraries.
 
 ## Device argument ABI v1
@@ -122,10 +124,10 @@ restores the caller's thread-local context on success and error. Never call
 for production modules. NVIDIA documents the [shared primary context](https://docs.nvidia.com/cuda/archive/12.4.1/cuda-driver-api/group__CUDA__PRIMARY__CTX.html)
 and [Runtime/Driver context interaction](https://docs.nvidia.com/cuda/archive/12.4.1/cuda-runtime-api/driver-vs-runtime-api.html).
 
-The existing `DeviceScope` only selects/restores a Runtime device; it does not
-prove restoration of an already-current foreign Driver context on the same
-device. Replace that policy consistently across CUDA entry points rather than
-introducing a second ownership regime only for generated kernels. Keep pointer
+The prior `DeviceScope` selected/restored only a Runtime device. It has been
+replaced across CUDA entry points with retained primary-context ownership and
+Driver push/pop. Native tests verify foreign-context restoration after load,
+launch, copies, static add, validation failure and destruction. Keep pointer
 accessors backend-private; the core and Python API must not expose CUDA handles.
 
 Load with `cuModuleLoadDataEx` and capture bounded JIT diagnostics; look up
@@ -137,7 +139,7 @@ then release its primary-context owner. Keep no persistent compilation cache.
 Destructor failures must not throw; device-loss handling must not free under
 the wrong context or report a successful result.
 
-## Local evidence and its limits
+## Research evidence and its limits
 
 Nightblade, 2026-09-28: LLVM 21.1.8, nvcc/ptxas 12.4.131, Runtime API version
 12040, Driver API version 13000, NVIDIA driver 580.178.04, GTX 980 Ti / sm_52.
@@ -179,14 +181,14 @@ no CUDA SDK or device; the hardware route deliberately fails if the selected
 host/toolchain is absent. The MLIR CI job runs the compile-only tests under
 require-mode; hosted runners do not establish GPU execution evidence.
 
-**This does not close the CUDA integration gate.** The probe uses direct
+**The research probe alone did not close the integration gate.** It uses direct
 Runtime allocations, not `CudaBuffer`, has a fixed hand-authored kernel,
 and does not enter `CudaBackend::execute`. It proves the selected toolchain,
 device ABI and context interoperability for that fixture. It does not prove
 runtime module registry safety, concurrent object destruction, public API
 semantics, other GPUs, Metal behavior or performance.
 
-## Next implementation and acceptance
+## Runtime implementation acceptance
 
 1. Introduce backend-private shared primary-context ownership; cover existing
    copies/static operations as well as proposed modules. Verify caller context
@@ -209,7 +211,98 @@ semantics, other GPUs, Metal behavior or performance.
    unavailable-backend coverage. Run native sanitizer checks where applicable,
    two code reviews and Test/Acceptance QA before enabling the capability.
 
-The next recommended task is this bounded **Cortex CUDA add compile/launch
-implementation**, starting with context ownership and real Cortex buffers.
-Broader GPU lowering, reductions, fusion, async APIs and other SM targets remain
-separate work. The decision adds no user priority or deadline.
+These acceptance checks were applied to the runtime implementation below. The
+next recommended extension is subtraction/multiply within the same guarded
+float32 contract, with independent parity tests before enabling either. Broader
+GPU lowering, reductions, fusion, async APIs and other SM targets remain separate
+work. The decision adds no user priority or deadline.
+
+
+## Runtime usage and verification — 2026-09-28
+
+Build with `CORTEX_ENABLE_CUDA=ON`, Toolkit 12.4+ and a usable NVIDIA Driver
+library `libcuda.so.1`. The compiled MLIR slice is narrower than the static
+CUDA backend: Linux x86_64, sm_52, Runtime 12.4 and Driver API 13.0 are checked
+before lowering/loading. The native build itself never links LLVM/MLIR.
+
+Save inspectable DSL source in a Python file:
+
+```python
+import cortex_runtime as cx
+
+@cx.experimental.kernel
+def add(a, b, out, n):
+    i = cx.experimental.program_id(0) * cx.experimental.block_size() + cx.experimental.thread_id()
+    if i < n:
+        out[i] = a[i] + b[i]
+
+a = cx.ones((257,), device="cuda")
+out = cx.zeros((257,), device="cuda")
+compiled = add.compile(target="cuda", compiler="mlir")
+result = compiled.launch(a, a, out, 257, block_size=256)
+assert result.cpu().numpy()[0] == 2.0
+assert out.cpu().numpy()[0] == 0.0
+```
+
+Exactly two distinct input parameter names, one output parameter and one guard
+are supported; actual input/output tensor objects may alias. Parameter order
+may vary, including a leading uint32 scalar. Only the single guarded
+`out[i] = a[i] + b[i]` store is enabled. Other bodies fail before tools run.
+`compile(target="cuda")` still fails unless `compiler="mlir"` is explicit.
+
+Implementation files: `_compiler/cuda.py` validates/emits/lowers device code;
+`CompiledCudaKernel` shares the existing Python launch contract; the native
+CUDA context, buffer and kernel modules own resources and run through
+`CudaBackend::execute`. No CUDA types were added to core interfaces and no raw
+pointer API was exposed. The PTX manifest and Driver parameter offsets/sizes
+are checked before registration. Weak registry IDs do not retain modules;
+active native calls hold strong owners while the GIL is released.
+
+The native fixture in `tests/cpp/fixtures/cuda_add_sm52.ptx` is generated from
+the checked research add using LLVM 21.1.8, with entry renamed to
+`cortex_add_v1` and the v1 manifest prepended. It is a small intentional test
+asset, not a runtime cache. The runtime emitter equality test prevents it from
+silently drifting. Native fixture execution against Cortex buffers passed
+before the public compile API was connected.
+
+CUDA-enabled extensions now link the Driver library directly, following this
+decision. GPU-free CUDA build CI supplies the Toolkit stub under its runtime
+SONAME in an isolated temporary search path solely to test imports and
+unavailability. Stubs are never packaged or used for real execution.
+An actual CUDA-off build remains independent of Driver/Toolkit libraries.
+Review identified the required CI loader setup; it was added and exercised
+locally before final validation.
+
+Validation commands:
+
+```bash
+export CORTEX_LLVM_BIN="$PWD/build/mlir-toolchain/root/usr/lib/llvm-21/bin"
+CORTEX_REQUIRE_MLIR=1 CORTEX_REQUIRE_MLIR_CUDA=1 uv run pytest tests/python/test_mlir_cuda_runtime.py -q
+CORTEX_REQUIRE_MLIR=1 CORTEX_REQUIRE_MLIR_CUDA=1 uv run pytest -q
+uv run cmake --build build/cpp-cuda
+CORTEX_REQUIRE_MLIR_CUDA=1 uv run ctest --test-dir build/cpp-cuda --output-on-failure
+uv run cmake --build build/cpp-cuda-sanitizers
+ASAN_OPTIONS=halt_on_error=1:detect_leaks=1:protect_shadow_gap=0 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 CORTEX_REQUIRE_MLIR_CUDA=1 uv run ctest --test-dir build/cpp-cuda-sanitizers --output-on-failure
+```
+
+The sanitizer shadow-gap setting is the existing [Nightblade CUDA workaround](CUDA_PHASE9_VALIDATION.md).
+The CUDA-off/LLVM-absent and CUDA-on build recipes remain in that record and the
+[CPU integration validation](MLIR_RUNTIME_INTEGRATION_DECISION.md).
+Final local validation on Nightblade:
+
+| Configuration | Result |
+| --- | --- |
+| CUDA runtime integration tests, required LLVM and CUDA | 69 passed |
+| Full suite, CUDA enabled and required LLVM/CUDA | 427 passed, 149 skipped |
+| Actual CUDA-off build, required LLVM | 313 passed, 263 skipped |
+| Actual CUDA-off build, LLVM absent | 259 passed, 317 skipped |
+| Native CUDA CTest | 4/4 passed |
+| Native CUDA ASan/UBSan CTest | 4/4 passed |
+
+The CUDA-off extension's dynamic dependencies contain no CUDA or LLVM
+libraries. The CUDA-enabled extension also passed import, CPU fallback and
+unavailability checks with the isolated Driver stub. The CUDA-enabled build
+was restored before the final full-suite run. Skips cover unavailable Metal
+execution and deferred backend capabilities. Metal execution and remote CI
+results are not claimed by local Nightblade validation. No performance claim
+is made.

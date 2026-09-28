@@ -271,21 +271,28 @@ endif()
 
 if(CORTEX_ENABLE_CUDA)
   enable_language(CUDA)
-  find_package(CUDAToolkit REQUIRED)
+  find_package(CUDAToolkit 12.4 REQUIRED)
   add_library(cortex_cuda STATIC
     cpp/cortex/backends/cuda/cuda_backend.cpp
+    cpp/cortex/backends/cuda/cuda_context.cpp
+    cpp/cortex/backends/cuda/cuda_kernel.cpp
     cpp/cortex/backends/cuda/kernels/elementwise.cu
   )
   target_compile_features(cortex_cuda PUBLIC cxx_std_20)
   target_compile_options(cortex_cuda PRIVATE
     "$<$<COMPILE_LANGUAGE:CXX>:${CORTEX_WARNING_FLAGS}>")
-  target_link_libraries(cortex_cuda PUBLIC cortex_core CUDA::cudart)
+  target_link_libraries(cortex_cuda PUBLIC cortex_core CUDA::cudart CUDA::cuda_driver)
   set_target_properties(cortex_cuda PROPERTIES
     POSITION_INDEPENDENT_CODE ON
     CUDA_STANDARD 20
     CUDA_STANDARD_REQUIRED ON
   )
   if(CORTEX_BUILD_TESTS)
+    add_executable(cortex_cuda_kernel_tests tests/cpp/test_cuda_kernel.cpp)
+    target_link_libraries(cortex_cuda_kernel_tests PRIVATE cortex_cuda)
+    add_test(NAME cortex_cuda_kernel_tests COMMAND cortex_cuda_kernel_tests
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/cpp/fixtures/cuda_add_sm52.ptx")
+    set_tests_properties(cortex_cuda_kernel_tests PROPERTIES SKIP_RETURN_CODE 77)
     add_executable(cortex_cuda_backend_contract_tests tests/cpp/test_cuda_backend_contract.cpp)
     target_link_libraries(cortex_cuda_backend_contract_tests PRIVATE cortex_cuda)
     add_test(NAME cortex_cuda_backend_contract_tests COMMAND cortex_cuda_backend_contract_tests)

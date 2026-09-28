@@ -161,6 +161,12 @@ jobs:
           CORTEX_REQUIRE_MLIR: "1"
         run: uv run pytest tests/python/test_mlir_cuda_probe.py -k "not driver_runtime_probe" -v -rs
 
+      - name: Check runtime CUDA emitter without CUDA
+        env:
+          CORTEX_LLVM_BIN: ${{ runner.temp }}/llvm-bin
+          CORTEX_REQUIRE_MLIR: "1"
+        run: uv run pytest tests/python/test_mlir_cuda_runtime.py -k "gpu_emitter or malformed_serialized or unsupported_before_tools or default_cuda" -v -rs
+
       # Guard the job's purpose: pin the end-to-end lowering test by node id so a
       # rename/removal or a stray selection filter makes pytest error (exit 4)
       # instead of the job going green without the evidence ever executing.
@@ -229,6 +235,12 @@ jobs:
 
       - name: Build CUDA-enabled package
         run: CMAKE_ARGS="-DCORTEX_ENABLE_METAL=OFF -DCORTEX_ENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=52" uv pip install -e ".[dev]"
+
+      - name: Provide Driver stub for the GPU-free build check
+        run: |
+          mkdir -p "$RUNNER_TEMP/cuda-driver-stub"
+          ln -s /usr/local/cuda/lib64/stubs/libcuda.so "$RUNNER_TEMP/cuda-driver-stub/libcuda.so.1"
+          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/cuda-driver-stub:${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
 
       - name: Verify CPU fallback and CUDA unavailability
         run: |

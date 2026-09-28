@@ -166,7 +166,8 @@ def test_import_never_discovers_llvm():
         [sys.executable, "-c",
          "import sys; import cortex_runtime; "
          "assert 'cortex_runtime._compiler.cpu' not in sys.modules; "
-         "assert 'cortex_runtime._compiler.emitter' not in sys.modules"],
+         "assert 'cortex_runtime._compiler.emitter' not in sys.modules; "
+         "assert 'cortex_runtime._compiler.cuda' not in sys.modules"],
         capture_output=True, text=True, check=False,
         env={**os.environ, "CORTEX_LLVM_BIN": "/nonexistent"})
     assert result.returncode == 0, result.stderr

@@ -20,7 +20,7 @@ import weakref
 from typing import Callable, NoReturn, TypeAlias
 
 
-_SUPPORTED_TARGETS = {"auto", "cpu", "metal"}
+_SUPPORTED_TARGETS = {"auto", "cpu", "metal", "cuda"}
 _SUPPORTED_BINARY_OPS = {
     ast.Add: "add",
     ast.Sub: "sub",
@@ -188,6 +188,27 @@ class CompiledCpuKernel:
 
 
 @dataclass(frozen=True, slots=True)
+class CompiledCudaKernel:
+    """Optional MLIR CUDA add artifact; launch returns a new CUDA tensor."""
+
+    name: str
+    target: str
+    ir: IRKernel
+    mlir_source: str
+    _module: object
+
+    def launch(self, *args, thread_count: int | None = None, block_size: int = 256):
+        _, _, ordered, _, _, _, threads, block = _launch_contract(
+            self.ir, args, thread_count, block_size, device="cuda",
+            prefix="experimental MLIR CUDA kernel", requires="launch requires CUDA tensors",
+        )
+        from . import _core
+        from .tensor import Tensor
+        values = [value._impl if kind == "buffer" else value for kind, _, value in ordered]
+        return Tensor(_core._launch_cuda_kernel(self._module, values, threads, block))
+
+
+@dataclass(frozen=True, slots=True)
 class IRName:
     name: str
 
@@ -285,16 +306,19 @@ class Kernel:
 
     def compile(
         self, *, target: str | None = None, compiler: str = "auto",
-    ) -> CompiledKernel | CompiledCpuKernel:
+    ) -> CompiledKernel | CompiledCpuKernel | CompiledCudaKernel:
         selected = self.target if target is None else _validate_target(target)
         if not isinstance(compiler, str):
             raise TypeError("experimental kernel compiler must be a string")
         if compiler not in {"auto", "mlir"}:
             raise ValueError("experimental kernel compiler must be 'auto' or 'mlir'")
         if compiler == "mlir":
-            if selected != "cpu":
-                raise ValueError("MLIR compilation requires target 'cpu'")
-            from ._compiler.cpu import compile_kernel
+            if selected == "cpu":
+                from ._compiler.cpu import compile_kernel
+            elif selected == "cuda":
+                from ._compiler.cuda import compile_kernel
+            else:
+                raise ValueError("MLIR compilation requires target 'cpu' or 'cuda'")
             return compile_kernel(self.parse_ir())
         resolved = "metal" if selected == "auto" else selected
         if resolved != "metal":
@@ -399,7 +423,7 @@ def _validate_target(target: str) -> str:
     if not isinstance(target, str):
         raise TypeError("experimental kernel target must be a string")
     if target not in _SUPPORTED_TARGETS:
-        raise ValueError("experimental kernel target must be 'auto', 'cpu', or 'metal'")
+        raise ValueError("experimental kernel target must be 'auto', 'cpu', 'metal', or 'cuda'")
     return target
 
 
