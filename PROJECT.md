@@ -49,7 +49,9 @@ MLIR decided:           optional CPU-first runtime integration implemented; see
                         docs/MLIR_RUNTIME_INTEGRATION_DECISION.md (2026-09-28)
 CUDA MLIR:              guarded float32 add/subtract/multiply implemented on sm_52;
                         docs/MLIR_CUDA_INTEGRATION_DECISION.md (updated 2026-09-29)
-Next recommended work:  scope decision for guarded local expressions/fusion
+Expression scope:       selected; CUDA local/nested expressions not implemented
+                        docs/MLIR_CUDA_EXPRESSIONS_DECISION.md (2026-09-29)
+Next recommended work:  implement the bounded expression slice and parity gates
 Open scope:             other SM/host versions and broader compiler features
 ```
 

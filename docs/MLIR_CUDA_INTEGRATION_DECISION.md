@@ -214,10 +214,11 @@ semantics, other GPUs, Metal behavior or performance.
    two code reviews and Test/Acceptance QA before enabling the capability.
 
 These acceptance checks were applied to the runtime implementation below and
-the subsequent subtraction/multiply extension. The next recommended task is a
-scope decision for guarded local expressions/fusion, before implementation. Broader
-GPU lowering, reductions, fusion, async APIs and other SM targets remain separate
-work. The decision adds no user priority or deadline.
+the subsequent subtraction/multiply extension. The [local-expression scope
+decision](MLIR_CUDA_EXPRESSIONS_DECISION.md) now defines the next implementation
+and parity gates; that CUDA capability is not yet implemented. Broader GPU
+lowering, reductions, automatic graph fusion, async APIs and other SM targets
+remain separate work. The decision adds no user priority or deadline.
 
 
 ## Runtime usage and verification — 2026-09-28
