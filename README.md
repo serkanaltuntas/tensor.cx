@@ -63,7 +63,7 @@ x86_64 with external LLVM 21.1.8 tools. See the
 - [`docs/MLIR_RUNTIME_INTEGRATION_DECISION.md`](docs/MLIR_RUNTIME_INTEGRATION_DECISION.md):
   CPU-first runtime integration, setup, and acceptance evidence.
 - [`docs/MLIR_CUDA_INTEGRATION_DECISION.md`](docs/MLIR_CUDA_INTEGRATION_DECISION.md):
-  CUDA add compile/launch usage, ABI/toolchain scope and sm_52 validation.
+  CUDA add/subtract/multiply compile/launch usage, ABI/toolchain scope and sm_52 validation.
 
 ## Development Setup
 
@@ -140,7 +140,7 @@ The prototype exposes only device index 0. float32 add/multiply require exact
 shape/dtype matches; scalars and empty contiguous tensors work. Copies preserve
 float32/int32, but int32 fill/arithmetic, matmul, reductions, activations,
 normalization, and broad generated CUDA kernels are not implemented. A separate
-explicit MLIR compiler supports guarded float32 add on the validated sm_52
+explicit MLIR compiler supports guarded float32 add/subtract/multiply on the validated sm_52
 host; see [usage and requirements](docs/MLIR_CUDA_INTEGRATION_DECISION.md#runtime-usage-and-verification--2026-09-28). Operations are
 synchronous and release the Python GIL during execution. CUDA is registered
 only when its compiled backend and a usable device are available. CPU remains

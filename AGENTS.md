@@ -264,7 +264,7 @@ Current phase:
 Phase 9 and Phase 10 are complete. The first optional MLIR CPU runtime slice
 is implemented and locally validated; see docs/MLIR_RUNTIME_INTEGRATION_DECISION.md.
 Broader compiler/backend work remains outside that slice. CUDA generated-kernel
-add runtime integration is implemented on the validated sm_52 environment;
+add/subtract/multiply runtime integration is implemented on the validated sm_52 environment;
 see docs/MLIR_CUDA_INTEGRATION_DECISION.md for usage, tests and strict subset.
 Wider generated operations or targets require their own parity/acceptance tests.
 ```

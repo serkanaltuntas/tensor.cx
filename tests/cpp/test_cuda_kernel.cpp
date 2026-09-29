@@ -2,6 +2,7 @@
 #include <cuda_runtime_api.h>
 #include <array>
 #include <fstream>
+#include <filesystem>
 #include <functional>
 #include <future>
 #include <iostream>
@@ -74,6 +75,30 @@ int main(int argc, char** argv) {
     check(to_cpu(destination.value()).value().float_data() == std::vector<float>({-1, -2, -3, -4}),
           "caller output mutated");
     restored();
+    // Each operation keeps its own entry/manifest and dispatches via the registry.
+    for (const std::string operation : {"sub", "mul"}) {
+      const auto fixture = std::filesystem::path(argv[1]).parent_path() / ("cuda_" + operation + "_sm52.ptx");
+      std::ifstream stream(fixture);
+      const std::string code((std::istreambuf_iterator<char>(stream)), {});
+      const auto entry = "cortex_" + operation + "_v1";
+      auto candidate = CudaKernelModule::load(code, entry, {"tttu", 2, 3});
+      check(static_cast<bool>(candidate), "arithmetic module failed to load");
+      if (!candidate) continue;
+      check(!CudaKernelModule::load(code, "cortex_add_v1", {"tttu", 2, 3}), "wrong operation manifest accepted");
+      outputs[0] = out;
+      e.compilation_target = CompilationTarget{KernelArtifactKind::kBinary, candidate.value()->artifact_id(), entry};
+      check(backend.execute(e).ok(), "arithmetic dispatch failed");
+      auto arithmetic = from_core_tensor(outputs[0]);
+      const auto expected = operation == "sub" ? std::vector<float>{-4, -4, -3, -4}
+                                               : std::vector<float>{5, 12, -3, -4};
+      check(arithmetic && to_cpu(arithmetic.value()).value().float_data() == expected,
+            "arithmetic partial output mismatch");
+      outputs[0] = out;
+      e.compilation_target->entry_point = "cortex_add_v1";
+      check(!backend.execute(e).ok() && outputs[0].buffer == out.buffer,
+            "artifact accepted another valid operation entry");
+      restored();
+    }
     // Static primitive paths must share the same primary context/restoration.
     std::array<Tensor, 2> primitive_inputs{a, b};
     BackendExecution primitive{BackendOpClass::kPrimitive, OpDesc{OpKind::kAdd}, primitive_inputs, outputs,

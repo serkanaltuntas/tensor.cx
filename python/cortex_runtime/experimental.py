@@ -189,7 +189,7 @@ class CompiledCpuKernel:
 
 @dataclass(frozen=True, slots=True)
 class CompiledCudaKernel:
-    """Optional MLIR CUDA add artifact; launch returns a new CUDA tensor."""
+    """Optional MLIR CUDA elementwise artifact; launch returns a new CUDA tensor."""
 
     name: str
     target: str

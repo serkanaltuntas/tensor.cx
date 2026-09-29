@@ -13,7 +13,6 @@ namespace {
 std::mutex registry_mutex;
 std::unordered_map<std::string, std::weak_ptr<CudaKernelModule>> registry;
 std::atomic<std::uint64_t> next_id{1};
-constexpr const char* entry_name = "cortex_add_v1";
 Status invalid(std::string message) { return {StatusCode::kInvalidArgument, std::move(message)}; }
 Expected<std::shared_ptr<CudaKernelModule>> resolve(const std::string& id) {
   std::lock_guard lock(registry_mutex);
@@ -35,8 +34,8 @@ bool once(const std::string& text, const std::string& pattern) {
 }
 }  // namespace
 
-std::string kernel_manifest(const KernelSignature& s) {
-  return "cortex.cuda.v1|linux-x86_64|llvm-21.1.8|sm52|ptx78|add-f32-v1|" +
+std::string kernel_manifest(const KernelSignature& s, const std::string& operation) {
+  return "cortex.cuda.v1|linux-x86_64|llvm-21.1.8|sm52|ptx78|" + operation + "-f32-v1|" +
          s.kinds + "|" + std::to_string(s.output_index) + "|" + std::to_string(s.guard_index);
 }
 
@@ -87,9 +86,13 @@ Expected<std::shared_ptr<CudaKernelModule>> CudaKernelModule::load(
     const std::string& ptx, const std::string& entry, KernelSignature signature) {
   try {
     if (!valid_signature(signature)) return invalid("invalid CUDA kernel signature");
-    if (entry != entry_name) return invalid("unsupported CUDA entry point");
+    std::string operation;
+    if (entry == "cortex_add_v1") operation = "add";
+    else if (entry == "cortex_sub_v1") operation = "sub";
+    else if (entry == "cortex_mul_v1") operation = "mul";
+    else return invalid("unsupported CUDA entry point");
     if (ptx.size() > 1024 * 1024 || ptx.find('\0') != std::string::npos ||
-        !ptx.starts_with("// " + kernel_manifest(signature) + "\n") ||
+        !ptx.starts_with("// " + kernel_manifest(signature, operation) + "\n") ||
         !once(ptx, R"((^|\n)\.version 7\.8(\r?\n))") ||
         !once(ptx, R"((^|\n)\.target sm_52(\r?\n))") ||
         !once(ptx, R"((^|\n)\.address_size 64(\r?\n))")) {
@@ -139,6 +142,7 @@ Expected<std::shared_ptr<CudaKernelModule>> CudaKernelModule::load(
     if (auto status = driver_status(cuDeviceGetAttribute(&module->impl_->max_grid,
                    CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_X, 0), "CUDA grid limit"); !status.ok()) return status;
     module->impl_->max_block = std::min({device_block, dimension_block, function_block});
+    module->entry_ = entry;
     module->signature_ = std::move(signature);
     module->id_ = "cuda-kernel-" + std::to_string(next_id.fetch_add(1));
     {
@@ -220,14 +224,16 @@ Expected<CudaTensor> CudaKernelModule::launch(std::span<const KernelArgument> ar
 
 Status execute_compiled_kernel(const BackendExecution& e) {
   if (auto status = validate_kernel_execution_contract(e); !status.ok()) return status;
-  if (e.outputs.size() != 1 || e.compilation_target->artifact_kind != KernelArtifactKind::kBinary ||
-      e.compilation_target->entry_point != entry_name) return invalid("unsupported CUDA kernel artifact/output");
+  if (e.outputs.size() != 1 || e.compilation_target->artifact_kind != KernelArtifactKind::kBinary) return invalid("unsupported CUDA kernel artifact/output");
   const auto& l = *e.launch;
   if (l.grid_y != 1 || l.grid_z != 1 || l.threads_per_group_y != 1 || l.threads_per_group_z != 1) {
     return invalid("CUDA kernel requires one-dimensional launch");
   }
   auto module = resolve(e.compilation_target->artifact);
   if (!module) return module.status();
+  if (e.compilation_target->entry_point != module.value()->entry_point()) {
+    return invalid("CUDA kernel entry does not match artifact");
+  }
   auto result = module.value()->launch(e.kernel_arguments, e.outputs[0], l.grid_x, l.threads_per_group_x);
   if (!result) return result.status();
   e.outputs[0] = to_core_tensor(result.value());
@@ -243,7 +249,7 @@ Expected<CudaTensor> launch_compiled_kernel(const std::shared_ptr<CudaKernelModu
   std::array<Tensor, 1> outputs{*arguments[index].tensor};
   if (!threads) return module->launch(arguments, outputs[0], threads, block);
   BackendExecution e{BackendOpClass::kKernel, {}, {}, outputs, LaunchConfig{threads, 1, 1, block, 1, 1},
-    CompilationTarget{KernelArtifactKind::kBinary, module->artifact_id(), entry_name}, arguments};
+    CompilationTarget{KernelArtifactKind::kBinary, module->artifact_id(), module->entry_point()}, arguments};
   CudaBackend backend;
   if (auto status = backend.execute(e); !status.ok()) return status;
   return from_core_tensor(outputs[0]);

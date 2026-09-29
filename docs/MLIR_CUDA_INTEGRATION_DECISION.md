@@ -1,6 +1,6 @@
 # MLIR CUDA integration: ABI and toolchain decision
 
-Date: 2026-09-28 · Baseline: `636e3e7` · Status: **bounded CUDA add runtime implemented and locally validated**.
+Date: 2026-09-28 · Baseline: `636e3e7` · Status: **bounded CUDA add/subtract/multiply runtime implemented** (extended 2026-09-29).
 
 This answers the next-work request after the [CPU runtime slice](MLIR_RUNTIME_INTEGRATION_DECISION.md).
 The original decision and device-only research probe are retained below as
@@ -16,13 +16,15 @@ returns a distinct `CompiledCudaKernel` with `.launch(...)`. This API is
 CPU MLIR compilation and static CUDA operations retain their existing behavior.
 No automatic target/compiler fallback is allowed.
 
-First enable only guarded float32 elementwise add with one output, two input
+The initial add slice, extended on 2026-09-29, supports guarded float32
+elementwise add/subtract/multiply with one output, two input
 buffers, one uint32 guard parameter, contiguous exact-match shapes, and the
 canonical global-index pattern used by the CPU slice. Support scalar, empty,
 multidimensional and partial-prefix inputs through flattening. Reject loops,
 reductions, offset/strided access, unused parameters, mixed arithmetic,
 comparisons over floats and broader expression bodies before invoking tools.
-Subtraction/multiply and more DSL constructs require their own parity coverage.
+Each body contains exactly one binary operation over two input loads. Nested
+expressions and additional DSL constructs remain outside this slice.
 
 The returned CUDA tensor is a new value, matching the compiled CPU/reference
 ownership contract: privately copy the original output including its unwritten
@@ -211,9 +213,9 @@ semantics, other GPUs, Metal behavior or performance.
    unavailable-backend coverage. Run native sanitizer checks where applicable,
    two code reviews and Test/Acceptance QA before enabling the capability.
 
-These acceptance checks were applied to the runtime implementation below. The
-next recommended extension is subtraction/multiply within the same guarded
-float32 contract, with independent parity tests before enabling either. Broader
+These acceptance checks were applied to the runtime implementation below and
+the subsequent subtraction/multiply extension. The next recommended task is a
+scope decision for guarded local expressions/fusion, before implementation. Broader
 GPU lowering, reductions, fusion, async APIs and other SM targets remain separate
 work. The decision adds no user priority or deadline.
 
@@ -246,8 +248,9 @@ assert out.cpu().numpy()[0] == 0.0
 
 Exactly two distinct input parameter names, one output parameter and one guard
 are supported; actual input/output tensor objects may alias. Parameter order
-may vary, including a leading uint32 scalar. Only the single guarded
-`out[i] = a[i] + b[i]` store is enabled. Other bodies fail before tools run.
+may vary, including a leading uint32 scalar. Only a single guarded
+`out[i] = a[i] + b[i]`, `out[i] = a[i] - b[i]`, or
+`out[i] = a[i] * b[i]` store is enabled. Other bodies fail before tools run.
 `compile(target="cuda")` still fails unless `compiler="mlir"` is explicit.
 
 Implementation files: `_compiler/cuda.py` validates/emits/lowers device code;
@@ -306,3 +309,43 @@ was restored before the final full-suite run. Skips cover unavailable Metal
 execution and deferred backend capabilities. Metal execution and remote CI
 results are not claimed by local Nightblade validation. No performance claim
 is made.
+
+
+## Guarded subtraction/multiply extension — 2026-09-29
+
+The public compile/launch API and ownership contract are unchanged. Replace
+`+` in the usage example above with `-` or `*` to compile subtraction or
+multiplication; change the result assertion to `0.0` for subtraction or `1.0`
+for multiplication. This does not add a static CUDA subtraction primitive.
+
+The compiler emits `arith.addf`, `arith.subf`, or `arith.mulf` without fast-math
+flags. Entries are `cortex_add_v1`, `cortex_sub_v1`, and `cortex_mul_v1`;
+manifest operation tags are respectively `add-f32-v1`, `sub-f32-v1`, and
+`mul-f32-v1`. The native loader accepts only these entry/tag pairings, and
+backend dispatch checks the requested entry against the resolved module.
+The add ABI and fixture remain unchanged. The sub/mul PTX fixtures are generated
+by the runtime emitter with the pinned LLVM toolchain; tests compare all three
+fixtures against fresh lowering.
+
+Parity tests cover the Python CPU reference, compiled MLIR CPU, NumPy and
+static CUDA add/multiply where available. Distinct operands check subtraction
+order, including reordered parameters. Scalar/empty/multidimensional shapes,
+block boundaries, partial prefixes, all input/output alias combinations,
+repeated and concurrent launches, signed zero, subnormals, infinities and NaNs
+are covered. Native tests exercise each new entry with real Cortex buffers,
+partial outputs, context restoration and mismatched operation rejection.
+
+The validation commands above passed on Nightblade for this extension:
+
+| Configuration | Result |
+| --- | --- |
+| CUDA runtime integration tests, required LLVM and CUDA | 231 passed |
+| Full suite, CUDA enabled and required LLVM/CUDA | 589 passed, 149 skipped |
+| Actual CUDA-off build, required LLVM | 315 passed, 423 skipped |
+| Actual CUDA-off build, LLVM absent | 259 passed, 479 skipped |
+| Native CUDA CTest | 4/4 passed |
+| Native CUDA ASan/UBSan CTest | 4/4 passed |
+
+The CUDA-off extension links neither CUDA nor LLVM libraries. The CUDA-enabled
+build is restored after these checks. The existing sm_52/toolchain restrictions remain; Metal execution and remote CI
+are not covered by local Nightblade validation. No performance claim is made.

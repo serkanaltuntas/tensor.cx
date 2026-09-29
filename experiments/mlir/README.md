@@ -89,6 +89,6 @@ uv run python experiments/mlir/probe_cuda.py
 Both require `CORTEX_LLVM_BIN` selecting LLVM 21.1.8. The second additionally
 requires CUDA 12.4 headers/libraries/ptxas, `g++-13` (or `--cxx`), and sm_52.
 Output artifacts live in a temporary directory and are removed after validation.
-The separate runtime now supports the validated guarded CUDA add subset. These
+The separate runtime now supports the validated guarded CUDA add/subtract/multiply subset. These
 research harnesses remain independent historical/toolchain evidence; runtime
 acceptance additionally exercises parsed Cortex IR, Cortex buffers and backend execution.

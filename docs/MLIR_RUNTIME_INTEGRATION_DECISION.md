@@ -237,7 +237,7 @@ Tool failures, version mismatches and per-command 60-second timeouts raise
 `KernelCompileError`/`ValueError`/`TypeError`. No interpreter fallback occurs.
 The CPU runtime supports Linux x86_64 only; the existing MSL/Metal API remains
 the default. Rowsum/reductions and generated Metal via MLIR remain deferred;
-the narrow CUDA add extension is documented in the [CUDA record](MLIR_CUDA_INTEGRATION_DECISION.md).
+the narrow CUDA add/subtract/multiply extension is documented in the [CUDA record](MLIR_CUDA_INTEGRATION_DECISION.md).
 
 ## Implementation validation — 2026-09-28
 

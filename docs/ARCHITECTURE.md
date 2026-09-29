@@ -204,9 +204,9 @@ Guidelines:
   must cross into Python only at the binding boundary.
 
 
-### Generated CUDA add
+### Generated CUDA elementwise arithmetic
 
-The optional MLIR CUDA add path uses private Python device lowering and a
+The optional MLIR CUDA add/subtract/multiply path uses private Python device lowering and a
 backend-owned PTX module. All CUDA buffers/modules retain the device-0 primary
 context; scoped push/pop preserves a caller's foreign Driver context.
 Nonempty launches enter `CudaBackend::execute` through existing core metadata.

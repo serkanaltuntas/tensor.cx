@@ -241,10 +241,10 @@ ownership, toolchain errors, and validation are maintained in the
 [MLIR runtime decision](MLIR_RUNTIME_INTEGRATION_DECISION.md#using-the-cpu-runtime).
 
 
-## Optional MLIR CUDA add compilation
+## Optional MLIR CUDA elementwise compilation
 
 `kernel.compile(target="cuda", compiler="mlir").launch(...)` executes the narrow
-guarded float32 add subset and returns a new CUDA tensor without mutating the
+guarded float32 add/subtract/multiply subset and returns a new CUDA tensor without mutating the
 supplied output. The canonical index/guard and exact shapes are required; the
 two input parameter names must differ, but tensor arguments may alias.
 Supported host/toolchain, block limits, context/module ownership and verification
