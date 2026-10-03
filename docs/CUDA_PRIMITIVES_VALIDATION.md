@@ -33,11 +33,15 @@ project tolerances; this record does not promise bitwise equality across GPUs.
 
 ## Implementation
 
-`kernels/primitives.cu` contains a 16x16 shared-memory tiled matmul, grid-stride
-unary kernels, and one CUDA lane per independent axis slice. The latter keeps
-CPU accumulation order and supports non-final axes without host transfers.
-Parallelizing long reductions is a future measured optimization; these kernels
-are not claimed to match vendor-library throughput. There is no fast-math mode.
+`kernels/primitives.cu` contains a 16x16 shared-memory tiled matmul and grid-stride
+unary kernels. Short or strided axis slices use one CUDA lane per slice.
+Contiguous rows of at least 256 elements use one block per row: lanes stage
+coalesced loads and parallel transforms, lane zero sums each tile left to right,
+and lanes write the outputs in parallel. Softmax reuses its computed
+exponentials. Both paths preserve CPU accumulation order without host transfers.
+The grid-stride block loop supports more than 65535 rows. Shared row state is
+synchronized before reuse. See [measured results](CUDA_PERFORMANCE.md).
+These kernels are not claimed to match vendor-library throughput. There is no fast-math mode.
 The C++ core's operation types and dispatch contract are unchanged.
 
 Concrete device/buffer/shape/stride/dtype validation and operation-specific

@@ -107,6 +107,31 @@ int main() {
         }
       }
     }
+    // Long contiguous rows exercise the cooperative path under device
+    // memcheck/racecheck as well as ordinary native acceptance.
+    for (const std::int64_t width : {256, 257, 4097}) {
+      std::vector<float> values(3 * width);
+      for (std::size_t i = 0; i < values.size(); ++i)
+        values[i] = i < static_cast<std::size_t>(2 * width) ? static_cast<float>(i % 17) / 17 : 0.3F;
+      cpu::CpuTensor source({3, width}, values);
+      auto device = cuda::from_cpu(source).value();
+      std::array<Tensor, 1> gpu_inputs{cuda::to_core_tensor(device)}, cpu_inputs{cpu::to_core_tensor(source)};
+      std::array<Tensor, 1> gpu_outputs{}, cpu_outputs{};
+      cpu::CpuBackend reference;
+      for (auto kind : {OpKind::kSum, OpKind::kMax, OpKind::kMean,
+                        OpKind::kSoftmax, OpKind::kRmsNorm, OpKind::kLayerNorm}) {
+        OpDesc op{kind}; op.axis = 1;
+        BackendExecution gpu{BackendOpClass::kPrimitive, op, gpu_inputs, gpu_outputs};
+        BackendExecution cpu{BackendOpClass::kPrimitive, op, cpu_inputs, cpu_outputs};
+        require(reference.execute(cpu).ok(), "staged reference failed");
+        require(backend.execute(gpu).ok(), "staged CUDA failed");
+        auto actual = cuda::to_cpu(cuda::from_core_tensor(gpu_outputs[0]).value()).value();
+        auto expected = cpu::from_core_tensor(cpu_outputs[0]);
+        require(actual.shape() == expected.shape(), "staged shape mismatch");
+        for (std::size_t i = 0; i < actual.float_data().size(); ++i)
+          require(std::abs(actual.float_data()[i] - expected.float_data()[i]) < 1e-4F, "staged value mismatch");
+      }
+    }
     const Tensor previous_output = outputs[0];
     for (int scenario = 0; scenario < 9; ++scenario) {
       inputs[0] = original;

@@ -9,7 +9,7 @@ Run from the source checkout after installing the CUDA-enabled package:
 
 ```bash
 export CORTEX_LLVM_BIN="$PWD/build/mlir-toolchain/root/usr/lib/llvm-21/bin"
-uv run python benchmarks/bench_cuda.py --output /tmp/cortex-cuda-performance.json
+uv run --no-sync python benchmarks/bench_cuda.py --output /tmp/cortex-cuda-performance.json
 ```
 
 Defaults are 31 measured iterations after 5 warmups for each execution case,
@@ -17,7 +17,7 @@ and 5 fresh compilation measurements after one compilation warmup. The size
 sweep is 1K, 16K, 256K, 1M and 16M float32 elements. A short functional check is:
 
 ```bash
-uv run python benchmarks/bench_cuda.py --sizes 17 --repeats 3 --warmup 1 \
+uv run --no-sync python benchmarks/bench_cuda.py --sizes 17 --repeats 3 --warmup 1 \
   --compile-repeats 1 --output /tmp/cortex-cuda-smoke.json
 ```
 
@@ -85,12 +85,11 @@ an output template, so it is not guaranteed faster at every size.
 
 ## Acceptance status
 
-Measurement infrastructure and CPU parity checks are implemented. Performance
-acceptance remains open until reproducible measurements support actual
-improvements. The first full sweep encountered another project's active GPU
-compute job; it cannot establish an uncontended baseline or a speedup claim.
-The full product goal, including measured optimization, remains in
-[CUDA_PRODUCT_COMPLETION.md](CUDA_PRODUCT_COMPLETION.md).
+Measurement infrastructure, CPU parity checks and a measured long-row
+optimization are implemented. The comparison below establishes a local
+Nightblade improvement within its stated shared-desktop limits. It does not
+establish performance on other GPUs or an overall workload speedup. The full
+product goal remains in [CUDA_PRODUCT_COMPLETION.md](CUDA_PRODUCT_COMPLETION.md).
 
 2026-10-03 verification: **11 benchmark tests passed**, including real CUDA
 report generation, required CUDA/LLVM failures, rejection of incorrect output,
@@ -105,6 +104,89 @@ source identified by its embedded SHA-256, before this benchmark was committed.
 
 ```bash
 CORTEX_REQUIRE_MLIR_CUDA=1 uv run pytest -q tests/python/test_cuda_benchmark.py
-uv run python benchmarks/bench_cuda.py --repeats 7 --warmup 2 \
+uv run --no-sync python benchmarks/bench_cuda.py --repeats 7 --warmup 2 \
   --compile-repeats 3 --output /tmp/cortex-cuda-shared-load.json
 ```
+
+## Contiguous axis optimization — 2026-10-03
+
+Rows of at least 256 contiguous elements now use coalesced shared-memory tiles,
+parallel transforms and parallel output writes. Lane zero retains the original
+left-to-right float32 accumulation order; softmax caches each exponential.
+Short rows and strided axes keep the original kernel. Numerical behavior,
+including cancellation, NaNs, infinities and constant-row normalization, remains
+covered by CPU comparisons. This is an optimization of the static CUDA
+primitives, not a change to the MLIR compiler or automatic fusion.
+
+Four full 71-case sweeps used the same script, input seed and configuration:
+31 timed samples after 5 warmups, plus 5 compilation samples. All results in
+all four runs passed CPU parity. Original JSON samples and provenance are kept
+in [before 1](../benchmarks/results/cuda-axis-staging/before-1.json),
+[before 2](../benchmarks/results/cuda-axis-staging/before-2.json),
+[after 1](../benchmarks/results/cuda-axis-staging/after-1.json) and
+[after 2](../benchmarks/results/cuda-axis-staging/after-2.json).
+The [complete comparison](../benchmarks/results/cuda-axis-staging/comparison.csv)
+includes every provider/case, each run's median/p10/p90 and the mean of the two
+medians per build. Speedup below is before mean median divided by after mean
+median; it is not an aggregate throughput score.
+
+| Operation | Shape, axis 1 | Before medians, ms (runs 1 / 2) | After medians, ms (runs 1 / 2) | Ratio |
+| --- | --- | --- | --- | --- |
+| sum | 32×4096 | 0.2060 / 0.2058 | 0.0956 / 0.0852 | 2.28× |
+| max | 32×4096 | 1.3480 / 1.3482 | 0.3783 / 0.3649 | 3.63× |
+| mean | 32×4096 | 0.1828 / 0.2058 | 0.0862 / 0.0852 | 2.27× |
+| softmax | 32×4096 | 3.0387 / 3.1501 | 0.5791 / 0.5715 | 5.38× |
+| rmsnorm | 32×4096 | 1.3277 / 1.3513 | 0.2312 / 0.2178 | 5.97× |
+| layernorm | 32×4096 | 1.5155 / 1.5512 | 0.2974 / 0.2680 | 5.42× |
+| sum | 1×65536 | 1.7491 / 1.7597 | 1.0934 / 1.0684 | 1.62× |
+| max | 1×65536 | 17.2910 / 17.3036 | 5.0728 / 5.0321 | 3.42× |
+| mean | 1×65536 | 1.7490 / 1.7510 | 0.9713 / 0.9709 | 1.80× |
+| softmax | 1×65536 | 38.3963 / 38.4022 | 5.5344 / 5.5064 | 6.96× |
+| rmsnorm | 1×65536 | 15.2046 / 15.2072 | 1.0019 / 0.9912 | 15.26× |
+| layernorm | 1×65536 | 16.8659 / 16.8736 | 1.6299 / 1.6282 | 10.36× |
+
+The loaded baseline extension SHA-256 starts `dc399436e583`, and the optimized
+extension starts `96ae63b48420`; full hashes are in every report. Both pairs
+match internally. The first baseline used the clean `40a3940` checkout. The
+second baseline captured source edits that had not been rebuilt: its identical
+loaded-extension hash establishes that it still measured the old code.
+Both optimized runs measured the implementation committed with this report,
+while HEAD still named `40a3940`. All four benchmark-script hashes match.
+Use `uv run --no-sync` to avoid implicitly changing the installed CUDA build.
+
+There was no concurrent project training process observed in these runs.
+An additional GPU process (282 MiB) was present at every
+endpoint, so the reports correctly retain the shared-GPU warning. No other
+build/test/GPU task from this work ran during measurement. Endpoint GPU
+conditions were comparable: start 54–59°C at 1139/3505 MHz (SM/memory), finish
+63–64°C at 1328/3304 MHz. These snapshots do not prove exclusive use or fixed
+clocks throughout each run. The repeated, large long-row improvements support
+this bounded comparison; they must not be generalized to other hardware.
+
+Unchanged paths show noise and some worse observations. Mean medians increased
+about 15% for sum on `(32,128)`, 17%/16% for strided softmax/LayerNorm, and 19%
+for `256×256×256` matmul. For example, that matmul measured 0.1126/0.1451 ms
+before and 0.1495/0.1561 ms after. We have not established the cause of those
+changes, and do not claim that all cases are regression-free. The raw samples
+and comparison preserve them. MLP resident/end-to-end ratios are only 1.02×
+and 1.01×; its short normalization rows do not use the new path, so no MLP
+speedup is claimed. Dispatch at width 256 is correctness-tested; these timing
+results specifically cover widths 4096 and 65536, not every enabled shape.
+
+Verification of this implementation: **286 CUDA primitive tests passed**,
+including 151 new boundary/numerical tests; **4/4 native contracts passed**.
+Native contracts and all 151 new Python tests each passed device memcheck and
+racecheck with zero errors or hazards. The CUDA/LLVM-required full Python suite
+passed **1131 tests**, with **138 expected skips** for unavailable/unsupported
+paths. CUDA acceptance is also re-run without skips by the exact-commit
+[push gate](CUDA_CONTINUOUS_VALIDATION.md).
+
+```bash
+CORTEX_REQUIRE_BACKENDS=cuda uv run --no-sync pytest -q tests/python/test_cuda_primitives.py
+CORTEX_REQUIRE_CUDA=1 CORTEX_REQUIRE_MLIR_CUDA=1 uv run --no-sync ctest --test-dir build/cpp-cuda --output-on-failure
+CORTEX_REQUIRE_BACKENDS=cuda uv run --no-sync compute-sanitizer --tool memcheck --error-exitcode 1 .venv/bin/python -m pytest -q tests/python/test_cuda_primitives.py -k staged
+CORTEX_REQUIRE_BACKENDS=cuda uv run --no-sync compute-sanitizer --tool racecheck --error-exitcode 1 .venv/bin/python -m pytest -q tests/python/test_cuda_primitives.py -k staged
+CORTEX_REQUIRE_BACKENDS=cuda CORTEX_REQUIRE_MLIR=1 CORTEX_REQUIRE_MLIR_CUDA=1 uv run --no-sync pytest -q
+```
+
+The full-suite and benchmark commands use the `CORTEX_LLVM_BIN` setting above.

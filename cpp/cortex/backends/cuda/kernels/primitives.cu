@@ -26,8 +26,8 @@ __global__ void unary(const float* x, float* out, std::size_t n, OpKind op) {
     }
   }
 }
-// One lane per independent slice preserves the CPU accumulation order. This
-// supports arbitrary axes; parallel reduction of long slices is a later tuning step.
+// One lane per independent slice preserves the CPU accumulation order. Keep
+// this path for short rows and strided axes, where neighboring lanes coalesce.
 __global__ void axis_kernel(const float* x,float* out,std::size_t groups,
     std::size_t reduce,std::size_t inner,OpKind op,float eps) {
   for (std::size_t group=std::size_t(blockIdx.x)*blockDim.x+threadIdx.x;
@@ -80,6 +80,104 @@ __global__ void axis_kernel(const float* x,float* out,std::size_t groups,
     }
   }
 }
+enum class Transform { identity, square, centered_square, exponential };
+
+// Stage coalesced loads and parallel transforms, then accumulate in the same
+// left-to-right float32 order as the CPU. A tree sum would change cancellation,
+// overflow and normalization behavior. Only lane zero's return value is used.
+__device__ float staged_sum(const float* x, float* out, std::size_t n,
+    float* tile, Transform transform, float center, bool& equal) {
+  float sum = 0;
+  for (std::size_t start = 0; start < n; start += threads) {
+    const auto index = start + threadIdx.x;
+    float value = 0;
+    if (index < n) {
+      value = x[index];
+      equal = equal && value == center;
+      if (transform == Transform::square) value = __fmul_rn(value, value);
+      else if (transform == Transform::centered_square) {
+        const float difference = value - center;
+        value = __fmul_rn(difference, difference);
+      } else if (transform == Transform::exponential) {
+        value = expf(value - center);
+        out[index] = value;
+      }
+    }
+    tile[threadIdx.x] = value;
+    __syncthreads();
+    if (threadIdx.x == 0) {
+      const auto count = n - start < threads ? n - start : threads;
+      for (std::size_t j = 0; j < count; ++j) sum = __fadd_rn(sum, tile[j]);
+    }
+    __syncthreads(); // Do not replace a tile while lane zero still reads it.
+  }
+  return sum;
+}
+
+// One block per contiguous row. Long rows benefit from coalesced global
+// memory access and parallel transcendental/output work without reassociation.
+__global__ void staged_axis(const float* x, float* out, std::size_t groups,
+    std::size_t reduce, OpKind op, float eps) {
+  __shared__ float tile[threads], center, denominator;
+  for (std::size_t group = blockIdx.x; group < groups; group += gridDim.x) {
+    const float* row = x + group * reduce;
+    float* result = out;
+    if (op == OpKind::kSoftmax || op == OpKind::kRmsNorm || op == OpKind::kLayerNorm)
+      result += group * reduce;
+    bool equal = true;
+    if (op == OpKind::kMax || op == OpKind::kSoftmax) {
+      float maximum = -CUDART_INF_F;
+      for (std::size_t start = 0; start < reduce; start += threads) {
+        const auto index = start + threadIdx.x;
+        tile[threadIdx.x] = index < reduce ? row[index] : -CUDART_INF_F;
+        __syncthreads();
+        if (threadIdx.x == 0 && !isnan(maximum)) {
+          const auto count = reduce - start < threads ? reduce - start : threads;
+          for (std::size_t j = 0; j < count; ++j) {
+            const float value = tile[j];
+            if (isnan(value)) { maximum = value; break; }
+            if (maximum < value) maximum = value;
+          }
+        }
+        __syncthreads();
+      }
+      if (threadIdx.x == 0) center = maximum;
+      __syncthreads();
+      if (op == OpKind::kMax) {
+        if (threadIdx.x == 0) out[group] = center;
+      } else {
+        const float sum = staged_sum(row, result, reduce, tile, Transform::exponential, center, equal);
+        if (threadIdx.x == 0) denominator = sum;
+        __syncthreads();
+        for (std::size_t r = threadIdx.x; r < reduce; r += threads) result[r] /= denominator;
+      }
+    } else {
+      const float first = row[0];
+      const auto transform = op == OpKind::kRmsNorm ? Transform::square : Transform::identity;
+      float sum = staged_sum(row, result, reduce, tile, transform, first, equal);
+      if (op == OpKind::kSum || op == OpKind::kMean) {
+        if (threadIdx.x == 0) out[group] = op == OpKind::kSum ? sum : sum / static_cast<float>(reduce);
+      } else {
+        const bool constant = __syncthreads_and(equal) && isfinite(first);
+        if (op == OpKind::kLayerNorm && constant) {
+          for (std::size_t r = threadIdx.x; r < reduce; r += threads) result[r] = eps == 0 ? nanf("") : 0.0F;
+        } else {
+          if (threadIdx.x == 0) center = op == OpKind::kLayerNorm ? sum / static_cast<float>(reduce) : 0;
+          __syncthreads();
+          if (op == OpKind::kLayerNorm)
+            sum = staged_sum(row, result, reduce, tile, Transform::centered_square, center, equal);
+          if (threadIdx.x == 0) denominator = __fadd_rn(sum / static_cast<float>(reduce), eps);
+          __syncthreads();
+          const float scale = 1.0F / sqrtf(denominator);
+          for (std::size_t r = threadIdx.x; r < reduce; r += threads)
+            result[r] = (op == OpKind::kLayerNorm && denominator == 0) ? nanf("") :
+              __fmul_rn(op == OpKind::kLayerNorm ? row[r] - center : row[r], scale);
+        }
+      }
+    }
+    __syncthreads(); // All lanes must finish before reusing shared row state.
+  }
+}
 __global__ void matmul(const float* a,const float* b,float* out,
     std::size_t m,std::size_t n,std::size_t k,std::size_t tile_count) {
   __shared__ float left[16][16],right[16][16];
@@ -107,6 +205,10 @@ cudaError_t launch_unary(const float* x,float* out,std::size_t n,OpKind op) {
 cudaError_t launch_axis(const float* x,float* out,std::size_t groups,std::size_t reduce,
     std::size_t inner,OpKind op,float eps) {
   if(!groups || (!reduce && (op==OpKind::kSoftmax || op==OpKind::kRmsNorm || op==OpKind::kLayerNorm)))return cudaSuccess;
+  if (inner == 1 && reduce >= threads) {
+    staged_axis<<<static_cast<unsigned>(std::min<std::size_t>(groups,65535)),threads>>>(x,out,groups,reduce,op,eps);
+    return finish();
+  }
   axis_kernel<<<blocks(groups),threads>>>(x,out,groups,reduce,inner,op,eps);return finish();
 }
 cudaError_t launch_matmul(const float* a,const float* b,float* out,std::size_t m,std::size_t n,std::size_t k) {

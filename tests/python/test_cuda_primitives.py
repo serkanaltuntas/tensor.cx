@@ -105,3 +105,53 @@ def test_normalization_constant_rows(op,eps,value):
     expected=op(cx.tensor(a),axis=-1,eps=eps).numpy()
     actual=op(cx.tensor(a,device='cuda'),axis=-1,eps=eps).numpy()
     np.testing.assert_allclose(actual,expected,rtol=1e-5,atol=1e-5,equal_nan=True)
+
+
+@pytest.mark.parametrize('op', AXIS_OPS)
+@pytest.mark.parametrize('width', [255, 256, 257, 4095, 4096, 4097, 65536])
+def test_contiguous_staged_axis_boundaries(op, width):
+    rng = np.random.default_rng(width)
+    data = rng.uniform(-1, 1, (2, 3, width)).astype(np.float32)
+    cpu, gpu = cx.tensor(data), cx.tensor(data, device='cuda')
+    expected, actual = op(cpu, axis=-1), op(gpu, axis=-1)
+    cx.testing.assert_allclose(actual, expected, kind='reduction')
+    if op in (cx.sum, cx.max, cx.mean):
+        # Coalesced staging must not change reduction order or rounding.
+        np.testing.assert_array_equal(actual.numpy(), expected.numpy())
+    np.testing.assert_array_equal(gpu.numpy(), data)
+
+
+@pytest.mark.parametrize('op', AXIS_OPS)
+@pytest.mark.parametrize('special', [np.nan, np.inf, -np.inf, 1e38, 1e-38])
+@pytest.mark.parametrize('index', [255, 256, 512])
+def test_contiguous_staged_axis_specials(op, special, index):
+    data = np.ones((2, 513), dtype=np.float32)
+    data[0, index] = special
+    data[1, :3] = [1e20, -1e20, 1.0]
+    expected = op(cx.tensor(data), axis=1)
+    actual = op(cx.tensor(data, device='cuda'), axis=1)
+    np.testing.assert_allclose(actual.numpy(), expected.numpy(), rtol=1e-5, atol=1e-5, equal_nan=True)
+
+
+@pytest.mark.parametrize('op', [cx.layernorm, cx.rmsnorm])
+@pytest.mark.parametrize('eps', [0.0, 1e-45, 1e-5])
+@pytest.mark.parametrize('value', [0.0, 0.3, 1e38])
+def test_contiguous_staged_constant_rows(op, eps, value):
+    data = np.full((3, 257), value, dtype=np.float32)
+    expected = op(cx.tensor(data), axis=-1, eps=eps)
+    actual = op(cx.tensor(data, device='cuda'), axis=-1, eps=eps)
+    np.testing.assert_allclose(actual.numpy(), expected.numpy(), rtol=1e-5, atol=1e-5, equal_nan=True)
+
+
+def test_contiguous_staged_grid_stride_and_signed_zero():
+    # Cross the grid cap so block zero processes another row using shared state.
+    data = np.zeros((65536, 256), dtype=np.float32)
+    data[-1] = 1
+    expected = cx.sum(cx.tensor(data), axis=-1)
+    actual = cx.sum(cx.tensor(data, device='cuda'), axis=-1)
+    np.testing.assert_array_equal(actual.numpy(), expected.numpy())
+    zeros = np.zeros((2, 257), dtype=np.float32)
+    zeros[0, 0] = -0.0
+    expected = cx.max(cx.tensor(zeros), axis=-1).numpy()
+    actual = cx.max(cx.tensor(zeros, device='cuda'), axis=-1).numpy()
+    np.testing.assert_array_equal(np.signbit(actual), np.signbit(expected))

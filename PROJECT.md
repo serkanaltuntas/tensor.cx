@@ -56,7 +56,9 @@ CUDA primitives:        float32 matmul, reductions, activations and normalizatio
                         implemented; docs/CUDA_PRIMITIVES_VALIDATION.md
 Distribution:           CPU/CUDA sdist and wheel installs locally verified;
                         docs/DISTRIBUTION.md (Nightblade host/ABI limits)
-Next implementation:    performance, compatibility and continuous GPU validation
+CUDA performance:       long contiguous axis optimization measured on Nightblade;
+                        docs/CUDA_PERFORMANCE.md (shared-desktop limits)
+Next implementation:    compatibility and repository-wide continuous GPU validation
 Open scope:             other SM/host versions and broader compiler features
 ```
 
