@@ -52,7 +52,9 @@ CUDA MLIR:              guarded float32 add/subtract/multiply implemented on sm_
 Expressions:            bounded CUDA local/nested expressions implemented
                         docs/MLIR_CUDA_EXPRESSIONS_DECISION.md (2026-09-29)
 Active user goal:       complete CUDA product list; docs/CUDA_PRODUCT_COMPLETION.md
-Next implementation:    CUDA operator coverage and end-to-end workload
+CUDA primitives:        float32 matmul, reductions, activations and normalization
+                        implemented; docs/CUDA_PRIMITIVES_VALIDATION.md
+Next implementation:    performance, compatibility, GPU validation and distribution
 Open scope:             other SM/host versions and broader compiler features
 ```
 

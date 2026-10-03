@@ -3,6 +3,7 @@
 #include <iostream>
 #include <limits>
 #include <stdexcept>
+#include <cmath>
 
 #include "cortex/backends/cuda/cuda_backend.h"
 #include "cortex/backends/cpu/cpu_backend.h"
@@ -73,6 +74,39 @@ int main() {
       require(bool(result) && result.value().float_data() == std::vector<float>(3, expected),
               "binary value mismatch");
     }
+    {
+      cpu::CpuTensor source({2,2},std::vector<float>{1,2,3,4});
+      auto device=cuda::from_cpu(source);
+      require(bool(device),"primitive input copy failed");
+      std::array<Tensor,2> gpu_inputs{cuda::to_core_tensor(device.value()),cuda::to_core_tensor(device.value())};
+      std::array<Tensor,2> cpu_inputs{cpu::to_core_tensor(source),cpu::to_core_tensor(source)};
+      std::array<Tensor,1> gpu_outputs{},cpu_outputs{};
+      cpu::CpuBackend reference;
+      for(const auto kind:{OpKind::kMatmul,OpKind::kSum,OpKind::kMax,OpKind::kMean,
+          OpKind::kExp,OpKind::kGelu,OpKind::kSilu,OpKind::kSoftmax,OpKind::kRmsNorm,OpKind::kLayerNorm}) {
+        OpDesc op{kind};op.axis=1;
+        const std::size_t count=kind==OpKind::kMatmul?2:1;
+        BackendExecution gpu{BackendOpClass::kPrimitive,op,std::span(gpu_inputs).first(count),gpu_outputs};
+        BackendExecution cpu{BackendOpClass::kPrimitive,op,std::span(cpu_inputs).first(count),cpu_outputs};
+        require(reference.execute(cpu).ok(),"CPU primitive failed");
+        require(backend.execute(gpu).ok(),"CUDA primitive failed");
+        auto actual=cuda::to_cpu(cuda::from_core_tensor(gpu_outputs[0]).value()).value();
+        auto expected=cpu::from_core_tensor(cpu_outputs[0]);
+        require(actual.shape()==expected.shape(),"primitive shape mismatch");
+        for(std::size_t i=0;i<actual.float_data().size();++i)
+          require(std::abs(actual.float_data()[i]-expected.float_data()[i])<1e-4F,"primitive value mismatch");
+        auto previous=gpu_outputs[0].buffer;
+        gpu_inputs[0].offset=1;
+        invalid(backend.execute(gpu));
+        require(gpu_outputs[0].buffer==previous,"primitive failure published output");
+        gpu_inputs[0].offset=0;
+        if(kind==OpKind::kRmsNorm || kind==OpKind::kLayerNorm) {
+          gpu.op.epsilon=-1;
+          invalid(backend.execute(gpu));
+          require(gpu_outputs[0].buffer==previous,"epsilon failure published output");
+        }
+      }
+    }
     const Tensor previous_output = outputs[0];
     for (int scenario = 0; scenario < 9; ++scenario) {
       inputs[0] = original;
@@ -94,7 +128,7 @@ int main() {
     auto unsupported = binary;
     unsupported.op.kind = OpKind::kMatmul;
     invalid(backend.execute(unsupported));
-    // A valid generated-kernel contract must still be rejected by this prototype.
+    // A kernel contract with an unknown artifact must still be rejected.
     KernelArgument arg{KernelArgumentKind::kTensor, &original, 0};
     BackendExecution kernel{BackendOpClass::kKernel, {}, {}, outputs,
       LaunchConfig{3, 1, 1, 32, 1, 1},

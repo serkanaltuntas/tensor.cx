@@ -50,7 +50,8 @@ for discovery and copies. See [validation evidence](CUDA_PHASE9_VALIDATION.md).
 ## What works today (runtime through Phase 9, plus the Phase 10 MLIR prototype)
 
 - Optional CUDA backend: device 0 discovery, float32/int32 CPU↔CUDA copies,
-  float32 fill/add/multiply, synchronous execution through the shared ABI.
+  float32 fill/add/multiply, matmul, sum/max/mean, exp/GELU/SiLU, softmax/RMSNorm/LayerNorm;
+  synchronous execution through the shared ABI. [Extended primitive validation](CUDA_PRIMITIVES_VALIDATION.md).
 - CPU reference backend: `float32`/`int32`, contiguous 1-D/2-D, add / multiply /
   fill / zeros / ones / empty, exact NumPy round-trip.
 - Metal backend: device discovery, buffer host↔device copy, static MSL kernels

@@ -277,6 +277,7 @@ if(CORTEX_ENABLE_CUDA)
     cpp/cortex/backends/cuda/cuda_context.cpp
     cpp/cortex/backends/cuda/cuda_kernel.cpp
     cpp/cortex/backends/cuda/kernels/elementwise.cu
+    cpp/cortex/backends/cuda/kernels/primitives.cu
   )
   target_compile_features(cortex_cuda PUBLIC cxx_std_20)
   target_compile_options(cortex_cuda PRIVATE

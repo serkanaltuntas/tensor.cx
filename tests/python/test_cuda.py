@@ -64,10 +64,9 @@ def test_cuda_int32_copy_but_no_arithmetic(cuda):
     lambda x: cx.rmsnorm(x, axis=0), lambda x: cx.layernorm(x, axis=0),
     lambda x: cx.matmul(x, x), lambda x: cx.matmul_backends(x.device),
 ])
-def test_cuda_unsupported_operations_are_explicit(cuda, operation):
+def test_cuda_float32_operations_are_available(cuda, operation):
     x = cx.ones((2, 2), device=cuda)
-    with pytest.raises(ValueError, match="CUDA prototype does not support"):
-        operation(x)
+    assert operation(x) is not None
 
 
 @pytest.mark.parametrize("shape", [(-1,), (True,), (1.5,), (2**62,)])

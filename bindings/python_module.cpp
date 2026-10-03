@@ -653,8 +653,20 @@ cortex::cuda::CudaTensor binary_op(const cortex::cuda::CudaTensor& lhs,
   return unwrap(cortex::cuda::from_core_tensor(outputs[0]));
 }
 
+cortex::cuda::CudaTensor cuda_primitive(const cortex::cuda::CudaTensor& input, OpDesc op,
+                                      const cortex::cuda::CudaTensor* right=nullptr) {
+  cortex::cuda::CudaBackend backend;
+  std::array<cortex::Tensor,2> inputs{cortex::cuda::to_core_tensor(input),{}};
+  if(right)inputs[1]=cortex::cuda::to_core_tensor(*right);
+  std::array<cortex::Tensor,1> outputs{};
+  const cortex::BackendExecution execution{cortex::BackendOpClass::kPrimitive,op,
+      std::span<const cortex::Tensor>(inputs.data(),right?2:1),outputs,std::nullopt,std::nullopt};
+  const auto status=without_gil([&]{return backend.execute(execution);});
+  if(!status.ok())throw_status(status);
+  return unwrap(cortex::cuda::from_core_tensor(outputs[0]));
+}
 nb::list cuda_backend_matmul_backends() {
-  throw std::invalid_argument("CUDA prototype does not support matmul");
+  nb::list result;result.append("auto");result.append("custom");return result;
 }
 #endif
 
@@ -1101,25 +1113,28 @@ NB_MODULE(_core, module) {
   module.def("multiply", [](const CudaTensor& lhs, const CudaTensor& rhs) {
     return binary_op(lhs, rhs, OpKind::kMultiply);
   }, nb::arg("lhs"), nb::arg("rhs"));
-  // Explicit unsupported-operation errors instead of opaque overload failures.
-  for (const char* name : {"exp", "gelu", "silu"}) {
-    module.def(name, [](const CudaTensor&) -> CudaTensor {
-      throw std::invalid_argument("CUDA prototype does not support unary operations");
-    }, nb::arg("input"));
+  for (auto [name,kind] : {std::pair{"exp",OpKind::kExp}, {"gelu",OpKind::kGelu}, {"silu",OpKind::kSilu}}) {
+    module.def(name,[kind](const CudaTensor& input){return cuda_primitive(input,OpDesc{kind});},nb::arg("input"));
   }
-  for (const char* name : {"sum", "max", "mean", "softmax"}) {
-    module.def(name, [](const CudaTensor&, std::int64_t) -> CudaTensor {
-      throw std::invalid_argument("CUDA prototype does not support reductions or normalization");
-    }, nb::arg("input"), nb::arg("axis"));
+  for (auto [name,kind] : {std::pair{"sum",OpKind::kSum}, {"max",OpKind::kMax},
+                          {"mean",OpKind::kMean},{"softmax",OpKind::kSoftmax}}) {
+    module.def(name,[kind](const CudaTensor& input,std::int64_t axis){
+      OpDesc op{kind};op.axis=axis;return cuda_primitive(input,op);
+    },nb::arg("input"),nb::arg("axis"));
   }
-  for (const char* name : {"rmsnorm", "layernorm"}) {
-    module.def(name, [](const CudaTensor&, std::int64_t, double) -> CudaTensor {
-      throw std::invalid_argument("CUDA prototype does not support normalization");
-    }, nb::arg("input"), nb::arg("axis"), nb::arg("eps") = 1.0e-5);
+  for (auto [name,kind] : {std::pair{"rmsnorm",OpKind::kRmsNorm},{"layernorm",OpKind::kLayerNorm}}) {
+    module.def(name,[kind](const CudaTensor& input,std::int64_t axis,double eps){
+      OpDesc op{kind};op.axis=axis;op.epsilon=eps;return cuda_primitive(input,op);
+    },nb::arg("input"),nb::arg("axis"),nb::arg("eps")=1.0e-5);
   }
-  module.def("matmul", [](const CudaTensor&, const CudaTensor&, const std::string&) -> CudaTensor {
-    throw std::invalid_argument("CUDA prototype does not support matmul");
-  }, nb::arg("lhs"), nb::arg("rhs"), nb::arg("backend") = "auto");
+  module.def("matmul",[](const CudaTensor& lhs,const CudaTensor& rhs,const std::string& backend){
+    OpDesc op{OpKind::kMatmul};
+    if(backend=="auto")op.matmul_preference=MatmulPreference::kAuto;
+    else if(backend=="custom")op.matmul_preference=MatmulPreference::kCustom;
+    else throw std::invalid_argument("CUDA matmul supports auto or custom");
+    return cuda_primitive(lhs,op,&rhs);
+  },nb::arg("lhs"),nb::arg("rhs"),nb::arg("backend")="auto");
+
 #endif
 
 #if CORTEX_ENABLE_METAL

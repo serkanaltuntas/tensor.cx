@@ -271,7 +271,9 @@ Wider generated operations or targets require their own parity/acceptance tests.
 
 `docs/CUDA_PHASE9_ENVIRONMENT.md` records the selected host and entry criteria;
 `docs/CUDA_PHASE9_VALIDATION.md` records acceptance evidence. CUDA remains a
-small optional prototype: discovery, allocation/copy, float32 fill/add/multiply.
+small optional backend: discovery, allocation/copy and float32 primitives.
+The user-authorized product extension adds matmul, reductions, activations and
+normalization; see docs/CUDA_PRIMITIVES_VALIDATION.md and the full goal ledger.
 Do not enable broader CUDA capabilities without implementation and CPU parity
 validation. `docs/PHASE_SEQUENCING_DECISION.md` retains the historical exception
 that allowed Phase 10 research before CUDA was available; it grants no general
