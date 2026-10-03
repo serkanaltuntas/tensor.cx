@@ -118,5 +118,12 @@ under `build/distribution-ci-audited/`. The validator's nine regression tests
 passed (`uv run --no-sync pytest -q tests/python/test_distribution_validator.py`):
 stderr/JSON separation, failure-log retention, refusal to overwrite existing
 evidence, and rejection of contaminated/unresolved/wrong-backend dependencies.
-No remote Actions pass is claimed. The full product requirement
-ledger is [CUDA_PRODUCT_COMPLETION.md](CUDA_PRODUCT_COMPLETION.md).
+The remote [CPU distribution job for `2281ca9`](https://github.com/serkanaltuntas/cortex-runtime/actions/runs/37118427687/job/111189637894)
+also passed and retained its artifact, as verified on 2026-10-03.
+That workflow's overall result was failure because the macOS jobs exposed a
+hardcoded `/tmp` assumption in a distribution-validator test. The fixture now
+uses the platform temporary directory; the production linkage audit is
+unchanged. Default and custom-`TMPDIR` local test runs each pass all nine cases.
+CPU packaging success does not establish remote GPU execution or portable
+CUDA wheels. The full product requirement ledger is
+[CUDA_PRODUCT_COMPLETION.md](CUDA_PRODUCT_COMPLETION.md).

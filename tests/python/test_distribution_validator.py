@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 
 import pytest
 
@@ -41,7 +42,8 @@ def test_refuses_to_overwrite_existing_run(tmp_path):
     assert sorted(p.name for p in tmp_path.iterdir()) == ['manifest.json']
 
 
-@pytest.mark.parametrize('path', ['/tmp/runtime/libcudart.so.12', '/tmp/cuda-driver-stub/libcuda.so.1',
+@pytest.mark.parametrize('path', [str(Path(tempfile.gettempdir()) / 'runtime/libcudart.so.12'),
+                                 '/tmp/cuda-driver-stub/libcuda.so.1',
                                  str(validator.ROOT / 'build/libcudart.so.12')])
 def test_rejects_contaminated_dependency_resolution(tmp_path, path):
     with pytest.raises(RuntimeError, match='contaminated'):

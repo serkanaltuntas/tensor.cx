@@ -9,8 +9,8 @@ Other remotes and remote branches are outside this hook's scope.
 This is a local push gate, not a hosted GitHub Actions GPU runner. Pushes from
 other computers, changes made through GitHub and pull requests are not covered.
 On 2026-10-03 the self-hosted runner list was empty. An isolated GPU runner
-is still required for repository-wide coverage. The CPU, packaging and CUDA
-compile-only Actions jobs remain separate.
+is still required for repository-wide coverage. The CPU, packaging and CUDA compile-only Actions
+jobs remain separate; their success does not establish GPU execution.
 
 ## Acceptance path
 
