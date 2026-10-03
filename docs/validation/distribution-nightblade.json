@@ -1,0 +1,384 @@
+{
+  "schema_version": 1,
+  "started_utc": "2026-10-03T10:13:56.003494+00:00",
+  "python": "3.12.14 (main, Sep  1 2026, 14:16:52) [Clang 22.1.3 ]",
+  "platform": "Linux-7.0.0-34-generic-x86_64-with-glibc2.43",
+  "variants": {
+    "cpu": {
+      "wheel": "cortex_runtime-0.1.0-cp312-cp312-linux_x86_64.whl",
+      "sha256": "d83b94899228df87f9ad8b57cfd1493942dbf1159efd253210293749b6c8f841",
+      "members": [
+        "cortex_runtime/__init__.py",
+        "cortex_runtime/_compiler/__init__.py",
+        "cortex_runtime/_compiler/cpu.py",
+        "cortex_runtime/_compiler/cuda.py",
+        "cortex_runtime/_compiler/emitter.py",
+        "cortex_runtime/_core.cpython-312-x86_64-linux-gnu.so",
+        "cortex_runtime/backend.py",
+        "cortex_runtime/device.py",
+        "cortex_runtime/experimental.py",
+        "cortex_runtime/tensor.py",
+        "cortex_runtime/testing.py",
+        "cortex_runtime-0.1.0.dist-info/METADATA",
+        "cortex_runtime-0.1.0.dist-info/WHEEL",
+        "cortex_runtime-0.1.0.dist-info/licenses/LICENSE",
+        "cortex_runtime-0.1.0.dist-info/RECORD"
+      ],
+      "probes": [
+        {
+          "mode": "without-llvm",
+          "result": {
+            "variant": "cpu",
+            "device": "cpu",
+            "mlir": false,
+            "checks": [
+              "copy",
+              "fill",
+              "add",
+              "multiply",
+              "matmul",
+              "exp",
+              "gelu",
+              "silu",
+              "sum:0",
+              "sum:-1",
+              "max:0",
+              "max:-1",
+              "mean:0",
+              "mean:-1",
+              "softmax:0",
+              "softmax:-1",
+              "rmsnorm:0",
+              "rmsnorm:-1",
+              "layernorm:0",
+              "layernorm:-1",
+              "missing_llvm_error"
+            ],
+            "package": "lib/python3.12/site-packages/cortex_runtime/__init__.py",
+            "extension": "lib/python3.12/site-packages/cortex_runtime/_core.cpython-312-x86_64-linux-gnu.so",
+            "version": "0.1.0",
+            "numpy": "2.5.3"
+          }
+        },
+        {
+          "mode": "hidden-gpu",
+          "result": {
+            "variant": "cpu",
+            "device": "cpu",
+            "mlir": false,
+            "checks": [
+              "copy",
+              "fill",
+              "add",
+              "multiply",
+              "matmul",
+              "exp",
+              "gelu",
+              "silu",
+              "sum:0",
+              "sum:-1",
+              "max:0",
+              "max:-1",
+              "mean:0",
+              "mean:-1",
+              "softmax:0",
+              "softmax:-1",
+              "rmsnorm:0",
+              "rmsnorm:-1",
+              "layernorm:0",
+              "layernorm:-1",
+              "missing_llvm_error"
+            ],
+            "package": "lib/python3.12/site-packages/cortex_runtime/__init__.py",
+            "extension": "lib/python3.12/site-packages/cortex_runtime/_core.cpython-312-x86_64-linux-gnu.so",
+            "version": "0.1.0",
+            "numpy": "2.5.3"
+          }
+        },
+        {
+          "mode": "with-llvm",
+          "result": {
+            "variant": "cpu",
+            "device": "cpu",
+            "mlir": true,
+            "checks": [
+              "copy",
+              "fill",
+              "add",
+              "multiply",
+              "matmul",
+              "exp",
+              "gelu",
+              "silu",
+              "sum:0",
+              "sum:-1",
+              "max:0",
+              "max:-1",
+              "mean:0",
+              "mean:-1",
+              "softmax:0",
+              "softmax:-1",
+              "rmsnorm:0",
+              "rmsnorm:-1",
+              "layernorm:0",
+              "layernorm:-1",
+              "mlir_expression",
+              "mlir_preserves_input"
+            ],
+            "package": "lib/python3.12/site-packages/cortex_runtime/__init__.py",
+            "extension": "lib/python3.12/site-packages/cortex_runtime/_core.cpython-312-x86_64-linux-gnu.so",
+            "version": "0.1.0",
+            "numpy": "2.5.3"
+          }
+        }
+      ],
+      "cmake_args": "-DCORTEX_ENABLE_METAL=OFF -DCORTEX_ENABLE_CUDA=OFF",
+      "compiler_environment": {
+        "CC": "gcc-13",
+        "CXX": "g++-13",
+        "CUDACXX": "nvcc",
+        "CUDAHOSTCXX": "g++-13"
+      },
+      "installed": "cortex-runtime [direct reference omitted]\nnumpy==2.5.3",
+      "linkage": "linux-vdso.so.1 (0x0000796d1238a000)\n\tlibstdc++.so.6 => /usr/lib/x86_64-linux-gnu/libstdc++.so.6 (0x0000796d12000000)\n\tlibm.so.6 => /usr/lib/x86_64-linux-gnu/libm.so.6 (0x0000796d11eda000)\n\tlibgcc_s.so.1 => /usr/lib/x86_64-linux-gnu/libgcc_s.so.1 (0x0000796d122e7000)\n\tlibc.so.6 => /usr/lib/x86_64-linux-gnu/libc.so.6 (0x0000796d11c00000)\n\t/lib64/ld-linux-x86-64.so.2 (0x0000796d1238c000)",
+      "elf_needed": [
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6"
+      ],
+      "elf_runpath": [],
+      "elf_symbol_versions": [
+        "CXXABI_1.3",
+        "CXXABI_1.3.11",
+        "CXXABI_1.3.13",
+        "CXXABI_1.3.3",
+        "CXXABI_1.3.5",
+        "CXXABI_1.3.8",
+        "CXXABI_1.3.9",
+        "GLIBCXX_3.4",
+        "GLIBCXX_3.4.11",
+        "GLIBCXX_3.4.18",
+        "GLIBCXX_3.4.21",
+        "GLIBCXX_3.4.29",
+        "GLIBCXX_3.4.31",
+        "GLIBC_2.14",
+        "GLIBC_2.2.5",
+        "GLIBC_2.27",
+        "GLIBC_2.3.4",
+        "GLIBC_2.32",
+        "GLIBC_2.34",
+        "GLIBC_2.4",
+        "GLIBC_2.43"
+      ],
+      "mlp": {
+        "device": "cpu",
+        "device_name": "CPU",
+        "shape": [
+          32,
+          10
+        ],
+        "cpu_parity": true,
+        "inference_median_ms": 0.29782799992972286,
+        "repeats": 3
+      }
+    },
+    "cuda": {
+      "wheel": "cortex_runtime-0.1.0-cp312-cp312-linux_x86_64.whl",
+      "sha256": "36a24e5ac3885cc6ccf53abda7a1f3ee07c4fbc6a56787e5e540f04f0a145846",
+      "members": [
+        "cortex_runtime/__init__.py",
+        "cortex_runtime/_compiler/__init__.py",
+        "cortex_runtime/_compiler/cpu.py",
+        "cortex_runtime/_compiler/cuda.py",
+        "cortex_runtime/_compiler/emitter.py",
+        "cortex_runtime/_core.cpython-312-x86_64-linux-gnu.so",
+        "cortex_runtime/backend.py",
+        "cortex_runtime/device.py",
+        "cortex_runtime/experimental.py",
+        "cortex_runtime/tensor.py",
+        "cortex_runtime/testing.py",
+        "cortex_runtime-0.1.0.dist-info/METADATA",
+        "cortex_runtime-0.1.0.dist-info/WHEEL",
+        "cortex_runtime-0.1.0.dist-info/licenses/LICENSE",
+        "cortex_runtime-0.1.0.dist-info/RECORD"
+      ],
+      "probes": [
+        {
+          "mode": "without-llvm",
+          "result": {
+            "variant": "cuda",
+            "device": "cuda",
+            "mlir": false,
+            "checks": [
+              "copy",
+              "fill",
+              "add",
+              "multiply",
+              "matmul",
+              "exp",
+              "gelu",
+              "silu",
+              "sum:0",
+              "sum:-1",
+              "max:0",
+              "max:-1",
+              "mean:0",
+              "mean:-1",
+              "softmax:0",
+              "softmax:-1",
+              "rmsnorm:0",
+              "rmsnorm:-1",
+              "layernorm:0",
+              "layernorm:-1",
+              "missing_llvm_error"
+            ],
+            "package": "lib/python3.12/site-packages/cortex_runtime/__init__.py",
+            "extension": "lib/python3.12/site-packages/cortex_runtime/_core.cpython-312-x86_64-linux-gnu.so",
+            "version": "0.1.0",
+            "numpy": "2.5.3"
+          }
+        },
+        {
+          "mode": "hidden-gpu",
+          "result": {
+            "variant": "cuda",
+            "device": "cpu",
+            "mlir": false,
+            "checks": [
+              "copy",
+              "fill",
+              "add",
+              "multiply",
+              "matmul",
+              "exp",
+              "gelu",
+              "silu",
+              "sum:0",
+              "sum:-1",
+              "max:0",
+              "max:-1",
+              "mean:0",
+              "mean:-1",
+              "softmax:0",
+              "softmax:-1",
+              "rmsnorm:0",
+              "rmsnorm:-1",
+              "layernorm:0",
+              "layernorm:-1",
+              "missing_llvm_error"
+            ],
+            "package": "lib/python3.12/site-packages/cortex_runtime/__init__.py",
+            "extension": "lib/python3.12/site-packages/cortex_runtime/_core.cpython-312-x86_64-linux-gnu.so",
+            "version": "0.1.0",
+            "numpy": "2.5.3"
+          }
+        },
+        {
+          "mode": "with-llvm",
+          "result": {
+            "variant": "cuda",
+            "device": "cuda",
+            "mlir": true,
+            "checks": [
+              "copy",
+              "fill",
+              "add",
+              "multiply",
+              "matmul",
+              "exp",
+              "gelu",
+              "silu",
+              "sum:0",
+              "sum:-1",
+              "max:0",
+              "max:-1",
+              "mean:0",
+              "mean:-1",
+              "softmax:0",
+              "softmax:-1",
+              "rmsnorm:0",
+              "rmsnorm:-1",
+              "layernorm:0",
+              "layernorm:-1",
+              "mlir_expression",
+              "mlir_preserves_input"
+            ],
+            "package": "lib/python3.12/site-packages/cortex_runtime/__init__.py",
+            "extension": "lib/python3.12/site-packages/cortex_runtime/_core.cpython-312-x86_64-linux-gnu.so",
+            "version": "0.1.0",
+            "numpy": "2.5.3"
+          }
+        }
+      ],
+      "cmake_args": "-DCORTEX_ENABLE_METAL=OFF -DCORTEX_ENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=52",
+      "compiler_environment": {
+        "CC": "gcc-13",
+        "CXX": "g++-13",
+        "CUDACXX": "nvcc",
+        "CUDAHOSTCXX": "g++-13"
+      },
+      "installed": "cortex-runtime [direct reference omitted]\nnumpy==2.5.3",
+      "linkage": "linux-vdso.so.1 (0x00007b747c409000)\n\tlibcudart.so.12 => /usr/lib/x86_64-linux-gnu/libcudart.so.12 (0x00007b747c000000)\n\tlibcuda.so.1 => /usr/lib/x86_64-linux-gnu/libcuda.so.1 (0x00007b7476200000)\n\tlibstdc++.so.6 => /usr/lib/x86_64-linux-gnu/libstdc++.so.6 (0x00007b7475e00000)\n\tlibm.so.6 => /usr/lib/x86_64-linux-gnu/libm.so.6 (0x00007b747beda000)\n\tlibgcc_s.so.1 => /usr/lib/x86_64-linux-gnu/libgcc_s.so.1 (0x00007b747c313000)\n\tlibc.so.6 => /usr/lib/x86_64-linux-gnu/libc.so.6 (0x00007b7475a00000)\n\t/lib64/ld-linux-x86-64.so.2 (0x00007b747c40b000)\n\tlibdl.so.2 => /usr/lib/x86_64-linux-gnu/libdl.so.2 (0x00007b747c30e000)\n\tlibpthread.so.0 => /usr/lib/x86_64-linux-gnu/libpthread.so.0 (0x00007b747c309000)\n\tlibrt.so.1 => /usr/lib/x86_64-linux-gnu/librt.so.1 (0x00007b747c304000)",
+      "elf_needed": [
+        "libcudart.so.12",
+        "libcuda.so.1",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6"
+      ],
+      "elf_runpath": [],
+      "elf_symbol_versions": [
+        "CXXABI_1.3",
+        "CXXABI_1.3.11",
+        "CXXABI_1.3.13",
+        "CXXABI_1.3.3",
+        "CXXABI_1.3.5",
+        "CXXABI_1.3.8",
+        "CXXABI_1.3.9",
+        "GLIBCXX_3.4",
+        "GLIBCXX_3.4.11",
+        "GLIBCXX_3.4.14",
+        "GLIBCXX_3.4.15",
+        "GLIBCXX_3.4.18",
+        "GLIBCXX_3.4.20",
+        "GLIBCXX_3.4.21",
+        "GLIBCXX_3.4.29",
+        "GLIBCXX_3.4.31",
+        "GLIBCXX_3.4.9",
+        "GLIBC_2.14",
+        "GLIBC_2.2.5",
+        "GLIBC_2.27",
+        "GLIBC_2.3.4",
+        "GLIBC_2.32",
+        "GLIBC_2.34",
+        "GLIBC_2.4",
+        "GLIBC_2.43"
+      ],
+      "mlp": {
+        "device": "cuda",
+        "device_name": "NVIDIA GeForce GTX 980 Ti",
+        "shape": [
+          32,
+          10
+        ],
+        "cpu_parity": true,
+        "inference_median_ms": 0.8172340003511636,
+        "repeats": 3
+      }
+    }
+  },
+  "validator_sha256": "0dd1a755940e02ab0ecb52baadfdb7bdaffe9bf6f29eeea754282c519886584b",
+  "probe_sha256": "0eec2674f9e046db9b861637294517a7ff3e5c9968fe58f54fc4a0aa30b3b141",
+  "uv": "uv 0.12.17 (x86_64-unknown-linux-gnu)",
+  "sdist": {
+    "file": "source/cortex_runtime-0.1.0.tar.gz",
+    "sha256": "2d6cc6a0f7bb27742e7d1b9a24e28c91b984322cac5c7de0d93249d4cd56d01d"
+  },
+  "finished_utc": "2026-10-03T10:14:38.936700+00:00",
+  "publication": {
+    "format": "cortex-public-report-v1",
+    "scope": "known local identifiers removed; arbitrary text requires review"
+  }
+}

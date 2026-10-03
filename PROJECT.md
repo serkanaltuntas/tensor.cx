@@ -54,7 +54,9 @@ Expressions:            bounded CUDA local/nested expressions implemented
 Active user goal:       complete CUDA product list; docs/CUDA_PRODUCT_COMPLETION.md
 CUDA primitives:        float32 matmul, reductions, activations and normalization
                         implemented; docs/CUDA_PRIMITIVES_VALIDATION.md
-Next implementation:    performance, compatibility, GPU validation and distribution
+Distribution:           CPU/CUDA sdist and wheel installs locally verified;
+                        docs/DISTRIBUTION.md (Nightblade host/ABI limits)
+Next implementation:    performance, compatibility and continuous GPU validation
 Open scope:             other SM/host versions and broader compiler features
 ```
 

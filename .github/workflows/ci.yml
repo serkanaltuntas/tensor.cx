@@ -5,6 +5,22 @@ on:
   pull_request:
 
 jobs:
+  distribution-cpu:
+    name: CPU source distribution and wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Build from sdist and validate isolated wheel install
+        run: uv run --no-project --python 3.12 python tools/validate_distribution.py --variants cpu --output build/distribution-ci
+      - name: Retain artifacts and validation logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cpu-distribution
+          path: build/distribution-ci/
+          retention-days: 14
+
   cpu:
     name: CPU path (py${{ matrix.python }})
     runs-on: ubuntu-latest

@@ -48,6 +48,9 @@ sdist.include = [
   "bindings/**",
   "python/**",
   "tests/cpp/**",
+  "examples/**",
+  "tools/**",
+  "docs/**",
 ]
 
 [tool.pytest.ini_options]

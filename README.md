@@ -70,6 +70,8 @@ x86_64 with external LLVM 21.1.8 tools. See the
   active CUDA product completion work and remaining evidence.
 - [`docs/CUDA_PERFORMANCE.md`](docs/CUDA_PERFORMANCE.md): reproducible CUDA/MLIR
   compile, copy, primitive and end-to-end benchmarks with CPU parity.
+- [`docs/DISTRIBUTION.md`](docs/DISTRIBUTION.md): source archive and wheel
+  validation, fresh installation, external dependencies and supported hosts.
 - [`docs/CUDA_PRIMITIVES_VALIDATION.md`](docs/CUDA_PRIMITIVES_VALIDATION.md):
   CUDA primitive semantics, CPU parity and a runnable inference example.
 
