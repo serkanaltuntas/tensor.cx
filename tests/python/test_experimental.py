@@ -121,10 +121,58 @@ kernel void add_kernel(
     uint3 group_size [[threads_per_threadgroup]]
 ) {
     uint i = ((block_position.x * group_size.x) + local_position.x);
-    if (i < n) {
+    if ((i < n)) {
         out[i] = (a[i] + b[i]);
     }
 }"""
+
+
+def _comparison_scaled_kernel():
+    @cx.experimental.kernel
+    def compare_scale(a, b, out, n):
+        i = cx.experimental.program_id(0) * cx.experimental.block_size() + cx.experimental.thread_id()
+        if i < n:
+            out[i] = (a[i] < b[i]) * 2.0
+
+    return compare_scale
+
+
+def test_experimental_msl_preserves_comparison_precedence():
+    compare_scale = _comparison_scaled_kernel()
+    assert "out[i] = ((a[i] < b[i]) * 2.0f);" in compare_scale.emit_msl()
+    a = cx.tensor([1.0, 3.0], device="cpu")
+    b = cx.tensor([2.0, 2.0], device="cpu")
+    out = cx.zeros((2,), device="cpu")
+    np.testing.assert_array_equal(compare_scale.reference(a, b, out, 2).numpy(), [2.0, 0.0])
+
+
+@pytest.mark.skipif(not _has_metal_compiler(), reason="Apple Metal compiler unavailable")
+def test_metal_comparison_expression_compiles_without_device():
+    compiled = _comparison_scaled_kernel().compile(target="metal")
+    assert compiled.metallib.startswith(b"MTLB")
+
+
+@pytest.mark.skipif(not _has_metal_compiler(), reason="Apple Metal compiler unavailable")
+@pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
+@pytest.mark.parametrize("reported_length", [0, 1, 2**60])
+def test_metal_comparison_and_sequence_argument_lifetime(reported_length):
+    from cortex_runtime import _core
+
+    class MisreportedList(list):
+        def __len__(self):
+            return reported_length
+
+    kernel = _comparison_scaled_kernel()
+    compiled = kernel.compile(target="metal")
+    a = cx.tensor([1.0, 3.0], device="metal")
+    b = cx.tensor([2.0, 2.0], device="metal")
+    out = cx.zeros((2,), device="metal")
+    reference = kernel.reference(a.cpu(), b.cpu(), out.cpu(), 2)
+    _core.launch_metal_library_function(
+        compiled.metallib, compiled.name,
+        MisreportedList([a._impl, b._impl, out._impl, 2]), out._impl, 2, 2,
+    )
+    np.testing.assert_array_equal(out.numpy(), reference.numpy())
 
 
 def test_experimental_kernel_emit_msl_requires_output_store():

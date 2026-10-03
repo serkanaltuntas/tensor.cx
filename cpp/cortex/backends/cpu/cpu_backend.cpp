@@ -741,7 +741,9 @@ CpuTensor execute_unary(const OpDesc& op, const CpuTensor& input) {
       throw std::invalid_argument("softmax only supports float32 tensors");
     }
     CpuTensor result(input.dtype(), input.shape());
-    compute_softmax(input, result, dims);
+    if (input.size() != 0) {
+      compute_softmax(input, result, dims);
+    }
     return result;
   }
   if (op.kind == OpKind::kRmsNorm) {

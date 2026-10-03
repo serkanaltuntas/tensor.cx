@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import numpy as np
 
 import cortex_runtime as cx
 from cortex_runtime.experimental import (
@@ -139,6 +140,37 @@ def test_emit_mlir_covers_float_sub_and_mul():
     mlir_text = emit_mlir(sub_mul_kernel.parse_ir())
     assert "arith.subf" in mlir_text
     assert "arith.mulf" in mlir_text
+
+
+def _float_inequality_kernel():
+    @cx.experimental.kernel
+    def float_inequality(a, b, out, n):
+        i = cx.experimental.program_id(0) * cx.experimental.block_size() + cx.experimental.thread_id()
+        if i < n:
+            different = a[i] != b[i]
+            if different:
+                if i < n:
+                    out[i] = 1.0
+    return float_inequality
+
+
+def test_mlir_float_inequality_is_unordered():
+    assert "arith.cmpf une," in emit_mlir(_float_inequality_kernel().parse_ir())
+
+
+def test_mlir_float_inequality_nan_execution(tmp_path):
+    llvm_bin = _mlir_toolchain_or_skip()
+    from lower_add import compile_mlir_to_library, run_add_kernel
+
+    kernel = _float_inequality_kernel()
+    a = np.array([-np.inf, np.inf, np.nan, np.nan, 0, 1, 1], dtype=np.float32)
+    b = np.array([-np.inf, -np.inf, 0, np.nan, -0.0, 1, 2], dtype=np.float32)
+    out = np.zeros_like(a)
+    reference = kernel.reference(cx.tensor(a), cx.tensor(b), cx.tensor(out), a.size)
+    library = compile_mlir_to_library(emit_mlir(kernel.parse_ir()), llvm_bin, tmp_path)
+    run_add_kernel(library, kernel.name, a, b, out, a.size, a.size, 4)
+    np.testing.assert_array_equal(out, [0, 1, 1, 1, 0, 0, 1])
+    np.testing.assert_array_equal(out, reference.numpy())
 
 
 def test_emit_mlir_formats_float_constants_as_valid_mlir():

@@ -205,6 +205,11 @@ wraparound, C literal typing for signed-vs-unsigned comparisons, float32
 arithmetic); because CPU tensors are immutable values it returns a new cpu
 Tensor instead of mutating `out`.
 
+Emitted MSL preserves parentheses around comparisons used inside other
+expressions. Floating-point `!=` is true when either operand is NaN in both
+the reference and the general MLIR emitter. This does not widen the bounded
+MLIR runtime subset to accept comparison-based kernel bodies.
+
 The public API should move slowly:
 
 ```text

@@ -1,7 +1,10 @@
 #include <array>
 #include <iostream>
+#include <limits>
+#include <memory>
 #include <optional>
 #include <span>
+#include <stdexcept>
 #include <string>
 
 #include "cortex/backends/cpu/cpu_backend.h"
@@ -53,6 +56,29 @@ cortex::Tensor fill_descriptor(cortex::Device device = cortex::Device{"cpu", 0})
 }  // namespace
 
 int main() {
+  // Malformed native metadata must not wrap its byte count to a small buffer.
+  for (auto dtype : {cortex::DType::kFloat32, cortex::DType::kInt32}) {
+    for (std::size_t elements : {0U, 2U}) {
+      const auto count = std::numeric_limits<std::size_t>::max() /
+                             cortex::dtype_size(dtype) + 1 + elements;
+      const auto buffer = std::make_shared<cortex::cpu::CpuBuffer>(dtype, elements);
+      try {
+        cortex::cpu::CpuTensor invalid(dtype, {static_cast<cortex::Dim>(count)}, buffer);
+        std::cerr << "CPU tensor accepted overflowing byte size\n";
+        ++failures;
+      } catch (const std::invalid_argument&) {
+        // Expected before any allocation or buffer access.
+      }
+      cortex::Tensor metadata{dtype, {static_cast<cortex::Dim>(count)}, {1},
+                              {"cpu", 0}, buffer, 0};
+      try {
+        cortex::cpu::from_core_tensor(metadata);
+        std::cerr << "CPU conversion accepted overflowing byte size\n";
+        ++failures;
+      } catch (const std::invalid_argument&) {
+      }
+    }
+  }
   expect_ok("null backend contract smoke", cortex::null_backend::contract_smoke_test());
   expect_ok("cpu backend contract smoke", cortex::cpu::contract_smoke_test());
 

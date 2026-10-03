@@ -1776,8 +1776,8 @@ def _emit_msl_expression(expression: IRExpression) -> str:
     if isinstance(expression, IRCompare):
         op = _MSL_COMPARE_OPS[expression.op]
         return (
-            f"{_emit_msl_expression(expression.lhs)} {op} "
-            f"{_emit_msl_expression(expression.rhs)}"
+            f"({_emit_msl_expression(expression.lhs)} {op} "
+            f"{_emit_msl_expression(expression.rhs)})"
         )
     if isinstance(expression, IRLoad):
         return f"{expression.buffer}[{_emit_msl_expression(expression.index)}]"

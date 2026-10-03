@@ -138,6 +138,20 @@ def test_native_revalidates(compiled, threads, case):
         _core._launch_cpu_kernel(compiled["add"]._module, args, threads, block)
 
 
+@pytest.mark.parametrize("reported_length", [0, 1, 2**60])
+def test_native_arguments_do_not_trust_sequence_length(compiled, reported_length):
+    class MisreportedList(list):
+        def __len__(self):
+            return reported_length
+
+    a = cx.ones((4,), device="cpu")
+    out = cx.zeros((4,), device="cpu")
+    values = MisreportedList([a._impl, a._impl, out._impl, 4])
+    result = _core._launch_cpu_kernel(compiled["add"]._module, values, 4, 2)
+    np.testing.assert_array_equal(cx.Tensor(result).numpy(), [2.0] * 4)
+    np.testing.assert_array_equal(out.numpy(), [0.0] * 4)
+
+
 def test_explicit_api_only():
     with pytest.raises(NotImplementedError):
         add.compile(target="cpu")

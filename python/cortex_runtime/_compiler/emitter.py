@@ -71,7 +71,7 @@ _FLOAT_COMPARE_PREDICATES = {
     "gt": "ogt",
     "gte": "oge",
     "eq": "oeq",
-    "neq": "one",
+    "neq": "une",  # NaN != x is true, matching the reference and MSL.
 }
 
 

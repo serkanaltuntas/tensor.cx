@@ -1,3 +1,6 @@
+import subprocess
+import sys
+
 import numpy as np
 import pytest
 
@@ -6,6 +9,17 @@ import cortex_runtime as cx
 
 HUGE_SHAPE = (3_037_000_500, 3_037_000_500)
 STRIDE_OVERFLOW_SHAPE = (0, 9_223_372_036_854_775_807, 2)
+
+
+def test_softmax_huge_empty_axis_returns_without_iterating_rows():
+    result = subprocess.run(
+        [sys.executable, "-c", "import cortex_runtime as cx; "
+         "x = cx.empty((10**12, 0), device='cpu'); "
+         "y = cx.softmax(x, axis=1); "
+         "assert y.shape == (10**12, 0) and y.numpy().size == 0"],
+        capture_output=True, text=True, timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def _gelu_reference(values):

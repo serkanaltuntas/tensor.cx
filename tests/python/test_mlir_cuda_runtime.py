@@ -125,6 +125,21 @@ def test_prefix_alias_repeat(compiled, kernel, threads, alias):
         np.testing.assert_array_equal(value.numpy(), original)
 
 
+@pytest.mark.parametrize("reported_length", [0, 1, 2**60])
+def test_native_arguments_do_not_trust_sequence_length(compiled, kernel, reported_length):
+    class MisreportedList(list):
+        def __len__(self):
+            return reported_length
+
+    a = cx.ones((4,), device="cuda")
+    out = cx.zeros((4,), device="cuda")
+    values = MisreportedList([a._impl, a._impl, out._impl, 4])
+    result = cx.Tensor(_core._launch_cuda_kernel(compiled._module, values, 4, 2))
+    expected = kernel.reference(a.cpu(), a.cpu(), out.cpu(), 4)
+    np.testing.assert_array_equal(result.numpy(), expected.numpy())
+    np.testing.assert_array_equal(out.numpy(), [0.0] * 4)
+
+
 def test_reordered_scalar_first(compiled, kernel):
     dsl = {"add": reordered, "subtract": reordered_subtract, "multiply": reordered_multiply}[kernel.name]
     native = dsl.compile(target="cuda", compiler="mlir")

@@ -1,5 +1,6 @@
 #include "cortex/backends/cpu/cpu_tensor.h"
 
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <utility>
@@ -28,7 +29,12 @@ CpuTensor::CpuTensor(DType dtype, Shape shape, std::shared_ptr<CpuBuffer> buffer
   if (buffer_->dtype() != dtype_) {
     throw std::invalid_argument("CPU buffer dtype mismatch");
   }
-  if (buffer_->nbytes() != static_cast<std::size_t>(size_) * dtype_size(dtype_)) {
+  const auto element_bytes = dtype_size(dtype_);
+  if (static_cast<std::uint64_t>(size_) >
+      std::numeric_limits<std::size_t>::max() / element_bytes) {
+    throw std::invalid_argument("CPU tensor byte size overflow");
+  }
+  if (buffer_->nbytes() != static_cast<std::size_t>(size_) * element_bytes) {
     throw std::invalid_argument("CPU buffer size does not match tensor shape");
   }
 }

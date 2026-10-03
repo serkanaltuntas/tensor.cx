@@ -8,6 +8,7 @@
 #include <array>
 #include <cstdint>
 #include <cstring>
+#include <deque>
 #include <limits>
 #include <optional>
 #include <span>
@@ -713,14 +714,14 @@ const BackendRoute& require_available_backend_route(const std::string& name) {
 
 #if CORTEX_ENABLE_METAL
 struct ParsedKernelArguments {
-  std::vector<cortex::Tensor> tensor_storage;
+  std::deque<cortex::Tensor> tensor_storage;
   std::vector<cortex::KernelArgument> arguments;
 };
 
 ParsedKernelArguments parse_backend_kernel_arguments(nb::sequence arguments) {
   ParsedKernelArguments parsed;
-  parsed.tensor_storage.reserve(nb::len(arguments));
-  parsed.arguments.reserve(nb::len(arguments));
+  // Python sequences may iterate more items than __len__ reports. Tensor
+  // addresses must remain stable as arguments are appended.
   for (nb::handle item : arguments) {
     if (nb::isinstance<cortex::metal::MetalTensor>(item)) {
       const auto& tensor = nb::cast<const cortex::metal::MetalTensor&>(item);
@@ -807,10 +808,8 @@ NB_MODULE(_core, module) {
   module.def("_launch_cuda_kernel",
       [](std::shared_ptr<cortex::cuda::CudaKernelModule> compiled, nb::sequence values,
          nb::handle threads, nb::handle block) {
-    std::vector<cortex::Tensor> tensors;
+    std::deque<cortex::Tensor> tensors;
     std::vector<cortex::KernelArgument> arguments;
-    tensors.reserve(nb::len(values));
-    arguments.reserve(nb::len(values));
     for (nb::handle value : values) {
       if (nb::isinstance<cortex::cuda::CudaTensor>(value)) {
         tensors.push_back(cortex::cuda::to_core_tensor(nb::cast<const cortex::cuda::CudaTensor&>(value)));
@@ -838,10 +837,8 @@ NB_MODULE(_core, module) {
   module.def("_launch_cpu_kernel",
       [](std::shared_ptr<cortex::cpu::CpuKernelModule> compiled, nb::sequence values,
          nb::handle threads, nb::handle block) {
-    std::vector<cortex::Tensor> tensors;
+    std::deque<cortex::Tensor> tensors;
     std::vector<cortex::KernelArgument> arguments;
-    tensors.reserve(nb::len(values));
-    arguments.reserve(nb::len(values));
     for (nb::handle value : values) {
       if (nb::isinstance<CpuTensor>(value)) {
         tensors.push_back(cortex::cpu::to_core_tensor(nb::cast<const CpuTensor&>(value)));
