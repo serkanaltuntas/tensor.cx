@@ -16,6 +16,11 @@ import xml.etree.ElementTree as ET
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'tools'))
+try:
+    from publication_report import write_public_report
+finally:
+    sys.path.pop(0)
 TEST_FILES = ('test_cuda.py', 'test_cuda_primitives.py', 'test_mlir_cuda_runtime.py',
               'test_mlir_cuda_expressions.py')
 
@@ -108,7 +113,7 @@ def validate(revision, llvm_bin):
                 snapshot, build_env, output / 'install.log')
             runner = ['uv', 'run', '--no-project', '--python', python]
             report['dependencies'] = run(['uv', 'pip', 'freeze', '--python', python], snapshot, env, output / 'dependencies.log')
-            report['gpu'] = run(['nvidia-smi', '--query-gpu=name,uuid,compute_cap,driver_version', '--format=csv'],
+            report['gpu'] = run(['nvidia-smi', '--query-gpu=name,compute_cap,driver_version', '--format=csv'],
                                 snapshot, env, output / 'gpu.log')
             report['nvcc'] = run(['nvcc', '--version'], snapshot, env, output / 'nvcc.log')
             # Ignore PYTEST_ADDOPTS and fail on every skip/xfail in the selected
@@ -150,7 +155,7 @@ def validate(revision, llvm_bin):
         raise
     finally:
         report['finished_utc'] = datetime.now(timezone.utc).isoformat()
-        (output / 'result.json').write_text(json.dumps(report, indent=2) + '\n')
+        write_public_report(output / 'result.json', report, root=ROOT)
     print(f'CUDA gate passed: {resolved}; {output / "result.json"}', flush=True)
 
 

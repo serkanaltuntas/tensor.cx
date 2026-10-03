@@ -37,20 +37,28 @@ dev = [
 
 [tool.scikit-build]
 wheel.packages = ["python/cortex_runtime"]
+wheel.license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 
 # Explicitly include the native sources in the sdist so a source build works
 # regardless of scikit-build-core's git-vs-heuristic file discovery.
 sdist.include = [
   "CMakeLists.txt",
   "LICENSE",
-  "cmake/**",
-  "cpp/**",
-  "bindings/**",
-  "python/**",
-  "tests/cpp/**",
-  "examples/**",
-  "tools/**",
-  "docs/**",
+  "THIRD_PARTY_NOTICES.md",
+  "cmake/*.py",
+  "cpp/**/*.cpp", "cpp/**/*.h", "cpp/**/*.cu", "cpp/**/*.metal", "cpp/**/*.mm",
+  "bindings/*.cpp",
+  "python/**/*.py",
+  "tests/cpp/**/*.cpp", "tests/cpp/**/*.ptx",
+  "examples/*.py",
+  "tools/*.py",
+  "docs/**/*.md", "docs/**/*.json",
+]
+sdist.exclude = [
+  "**/__pycache__/**", "**/*.pyc", "**/*.pyo",
+  ".env", ".env.*", "**/.env", "**/.env.*",
+  "**/*.key", "**/*.pem", "**/*.p12", "**/*.pfx",
+  "build/**", "dist/**", ".venv/**", ".git/**",
 ]
 
 [tool.pytest.ini_options]

@@ -20,6 +20,11 @@ from cortex_runtime._compiler.cpu import toolchain
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tools"))
+try:
+    from publication_report import public_report
+finally:
+    sys.path.pop(0)
 DEFAULT_SIZES = (1024, 16384, 262144, 1048576, 16777216)
 
 
@@ -89,17 +94,17 @@ def digest(path):
 
 
 def gpu_snapshot():
-    return command(["nvidia-smi", "--query-gpu=index,name,uuid,compute_cap,driver_version,"
+    return command(["nvidia-smi", "--query-gpu=index,name,compute_cap,driver_version,"
                     "memory.used,temperature.gpu,pstate,clocks.sm,clocks.mem,power.draw,utilization.gpu",
                     "--format=csv"])
 
 
 def compute_processes():
-    raw = command(["nvidia-smi", "--query-compute-apps=pid,used_gpu_memory,gpu_uuid",
+    raw = command(["nvidia-smi", "--query-compute-apps=pid,used_gpu_memory",
                    "--format=csv,noheader,nounits"])
-    # Retain provenance without collecting executable paths or command lines.
-    return [{"pid": int(pid), "memory_mib": memory.strip(), "gpu_uuid": uuid.strip()}
-            for pid, memory, uuid in csv.reader(raw.splitlines())
+    # PIDs are used only to exclude this benchmark, never written to reports.
+    return [{"memory_mib": memory.strip()}
+            for pid, memory in csv.reader(raw.splitlines())
             if int(pid) != os.getpid()]
 
 
@@ -123,7 +128,7 @@ def run(args):
     metadata = {
         "started_utc": datetime.now(timezone.utc).isoformat(),
         "revision": command(["git", "rev-parse", "HEAD"]),
-        "git_status": command(["git", "status", "--porcelain"]),
+        "git_dirty": bool(command(["git", "status", "--porcelain"])),
         "tracked_diff_sha256": hashlib.sha256(command(["git", "diff", "HEAD"]).encode()).hexdigest(),
         "benchmark_sha256": digest(__file__), "extension_sha256": digest(_core.__file__),
         "python": sys.version, "platform": platform.platform(), "numpy": np.__version__,
@@ -131,8 +136,6 @@ def run(args):
         "llvm": {name: command([str(path), "--version"]) for name, path in llvm.items()},
         "gpu_before": gpu_snapshot(), "seed": 17,
         "other_compute_processes_before": compute_processes(),
-        "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
-        "cuda_device_order": os.environ.get("CUDA_DEVICE_ORDER"),
     }
     rows = []
 
@@ -231,11 +234,11 @@ def run(args):
     if metadata["other_compute_processes_observed"]:
         print("WARNING: other GPU compute processes observed; timings are from a shared GPU.", file=sys.stderr)
     metadata["finished_utc"] = datetime.now(timezone.utc).isoformat()
-    return {"schema_version": 1, "metadata": metadata,
+    return public_report({"schema_version": 1, "metadata": metadata,
             "config": {"sizes": list(args.sizes), "repeats": args.repeats,
                        "warmup": args.warmup, "compile_repeats": args.compile_repeats},
             "measurement": "synchronous public API wall time; validation and returned-result cleanup excluded",
-            "results": rows}
+            "results": rows}, root=ROOT)
 
 
 def main():

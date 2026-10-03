@@ -155,7 +155,7 @@ while HEAD still named `40a3940`. All four benchmark-script hashes match.
 Use `uv run --no-sync` to avoid implicitly changing the installed CUDA build.
 
 There was no concurrent project training process observed in these runs.
-An additional GPU process (282 MiB) was present at every
+An additional GPU process using 282 MiB was present at every
 endpoint, so the reports correctly retain the shared-GPU warning. No other
 build/test/GPU task from this work ran during measurement. Endpoint GPU
 conditions were comparable: start 54–59°C at 1139/3505 MHz (SM/memory), finish

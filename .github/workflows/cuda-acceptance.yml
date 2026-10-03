@@ -44,11 +44,11 @@ jobs:
           test "$(git rev-parse HEAD)" = "$CORTEX_CI_SHA"
           uv run --no-project --python 3.12 python tools/cuda_push_gate.py \
             --revision "$CORTEX_CI_SHA" --llvm-bin "$CORTEX_LLVM_BIN"
-      - name: Retain CUDA acceptance evidence
+      - name: Retain public CUDA acceptance summary
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: cuda-sm52-${{ github.run_id }}-${{ github.run_attempt }}
-          path: build/cuda-gate/
+          path: build/cuda-gate/*/result.json
           if-no-files-found: warn
           retention-days: 14

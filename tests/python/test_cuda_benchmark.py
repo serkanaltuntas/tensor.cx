@@ -56,8 +56,8 @@ def test_incorrect_output_cannot_produce_measurements():
 
 
 def test_compute_process_snapshot_excludes_self(monkeypatch):
-    monkeypatch.setattr(bench, "command", lambda args: f"{os.getpid()}, 350, GPU-test\n42, 100, GPU-other")
-    assert bench.compute_processes() == [{"pid": 42, "memory_mib": "100", "gpu_uuid": "GPU-other"}]
+    monkeypatch.setattr(bench, "command", lambda args: f"{os.getpid()}, 350\n42, 100")
+    assert bench.compute_processes() == [{"memory_mib": "100"}]
     monkeypatch.setattr(bench, "command", lambda args: "")
     assert bench.compute_processes() == []
 
@@ -97,6 +97,10 @@ def test_real_cuda_report(tmp_path):
     assert result.returncode == 0, result.stderr
     report = json.loads(output.read_text())
     assert report["schema_version"] == 1
+    assert report["publication"]["format"] == "cortex-public-report-v1"
+    assert isinstance(report["metadata"]["git_dirty"], bool)
+    assert "GPU-" not in output.read_text()
+    assert str(ROOT) not in output.read_text()
     assert report["metadata"]["gpu_before"]
     assert isinstance(report["metadata"]["other_compute_processes_observed"], bool)
     assert len(report["metadata"]["extension_sha256"]) == 64

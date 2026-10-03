@@ -103,16 +103,11 @@ without asking again. Do not commit half-finished work, known-failing changes,
 or changes that have not been verified. If verification cannot be run, report
 that clearly and do not auto-commit unless the user explicitly asks.
 
-Commit with the repository-local identity:
-
-```text
-User: Serkan Altuntas
-Email: serkan@altuntas.dev
-Signing: enabled
-```
-
-Use the existing signing setup on this computer. Do not disable signing, change
-the signing key, or commit with a different author.
+Commit with the contributor's configured Git identity. Never impersonate the
+maintainer or another contributor. Maintainer automation uses the existing
+repository-local signing setup; do not disable signing or change its key.
+Do not commit credentials, personal paths, device identifiers or raw local logs.
+Before publishing artifacts, follow CONTRIBUTING.md and the publication checks.
 
 ## Reviewer Agent Gate
 

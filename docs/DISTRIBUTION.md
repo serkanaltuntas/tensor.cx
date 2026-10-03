@@ -94,7 +94,8 @@ that an artifact built elsewhere matches the retained validation report.
 ## Continuous checks and current evidence
 
 The `CPU source distribution and wheel` CI job runs the same validator with
-`--variants cpu`, without LLVM, and retains artifacts/logs for 14 days. It does
+`--variants cpu`, without LLVM, and retains successful validated artifacts and a sanitized manifest for 14 days.
+Raw diagnostic logs remain local and are not uploaded automatically. It does
 not establish real GPU validation; that separate product requirement remains
 open. CI wiring is checked locally; a remote passing run must be inspected
 before claiming remote validation.
@@ -127,3 +128,20 @@ unchanged. Default and custom-`TMPDIR` local test runs each pass all nine cases.
 CPU packaging success does not establish remote GPU execution or portable
 CUDA wheels. The full product requirement ledger is
 [CUDA_PRODUCT_COMPLETION.md](CUDA_PRODUCT_COMPLETION.md).
+
+## Publication hygiene
+
+Source archives exclude bytecode caches, private configuration and key files.
+Validation rejects these members in both sdist and wheels, and requires the
+embedded third-party notices in each wheel. JSON summaries remove known local
+paths, direct dependency URLs and device/process identifiers. This is targeted
+metadata sanitation; arbitrary diagnostic text still requires a secret scan
+and human review. Raw logs and previous artifacts stay local under `build/`.
+
+Historical reports were sanitized for publication on 2026-10-04. Their test
+results, measurement samples, original revision IDs and source/artifact hashes
+remain evidence of the original runs, before history redaction; they are not
+claims that the newly rewritten commit IDs were used for those runs. Old IDs
+may not resolve from the rewritten branch. The sanitized JSON is an edited
+public summary, not the original byte-for-byte log. Current validation runs
+must identify the new revision separately.

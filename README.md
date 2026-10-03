@@ -35,13 +35,17 @@ Metal tensor operations, matmul, reductions, selected neural-network primitives,
 an experimental Metal kernel DSL, a hardened backend execution ABI, and a
 completed Phase 10 MLIR decision prototype. Phase 9 CUDA is complete: the
 optional backend supports discovery, float32/int32 copies, and float32
-fill/add/multiply on a validated NVIDIA host. Explicit experimental MLIR CPU
+elementwise operations, matmul, reductions and normalization on a validated
+NVIDIA host. Explicit experimental MLIR CPU
 compile/launch is available for guarded float32 elementwise kernels on Linux
 x86_64 with external LLVM 21.1.8 tools. See the
 [usage and limitations](docs/MLIR_RUNTIME_INTEGRATION_DECISION.md#using-the-cpu-runtime).
 
 ## Documentation Map
 
+- [`CONTRIBUTING.md`](CONTRIBUTING.md): contributions, validation and publication hygiene.
+- [`SECURITY.md`](SECURITY.md): private vulnerability reporting and trust boundaries.
+- [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md): notices included in source and wheels.
 - [`PROJECT.md`](PROJECT.md): source of truth for project purpose, roadmap,
   phase status, acceptance criteria, and major engineering decisions.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md): short status summary, what works today,
@@ -232,7 +236,8 @@ record `docs/MLIR_DECISION.md` answers "yes" — the experimental add kernel
 lowers Cortex IR → MLIR → native code and matches the CPU reference
 (`experiments/mlir/`) — the follow-up integration decision defines the now-implemented
 optional compiled CPU path. LLVM/MLIR remains an external toolchain used only
-by explicit CPU compilation. Phase 5 provides
+by explicit compilation; the bounded experimental CUDA path also requires the
+validated CUDA toolchain. Phase 5 provides
 CPU reference matmul, a correctness-first custom Metal matmul kernel, and an
 optimized Metal primitive path. Phase 6 adds `sum`, `max`, `mean`, `exp`,
 `gelu`, `silu`, `softmax`, `rmsnorm`, and `layernorm` on CPU and Metal. The

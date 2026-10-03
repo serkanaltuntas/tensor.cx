@@ -84,3 +84,28 @@ def test_pytest_controller_rejects_non_strict_xpass_and_skip(tmp_path, body):
     result = subprocess.run([sys.executable, '-I', str(gate.ROOT / 'tools/cuda_gate_pytest.py'),
                              '-q', str(test)], cwd=tmp_path, text=True, capture_output=True)
     assert result.returncode == (0 if body.startswith('def ') else 1), result.stdout + result.stderr
+
+
+def test_failed_gate_writes_public_report_without_changing_failure(monkeypatch, tmp_path):
+    import json
+
+    (tmp_path / 'tools').mkdir()
+    (tmp_path / 'tools/cuda_gate_pytest.py').write_text('# fixture')
+    monkeypatch.setattr(gate, 'ROOT', tmp_path)
+    monkeypatch.setattr(gate.subprocess, 'check_output',
+                        lambda argv, **kwargs: '' if '--local-env-vars' in argv else 'a' * 40)
+
+    def fail(*args, **kwargs):
+        raise RuntimeError(f'failed; see {tmp_path}/private-diagnostic.log')
+
+    monkeypatch.setattr(gate, 'run', fail)
+    with pytest.raises(RuntimeError, match='failed'):
+        gate.validate('a' * 40, tmp_path)
+    reports = list(tmp_path.glob('build/cuda-gate/*/result.json'))
+    assert len(reports) == 1
+    report = json.loads(reports[0].read_text())
+    assert report['status'] == 'failed'
+    assert report['revision'] == 'a' * 40
+    assert report['publication']['format'] == 'cortex-public-report-v1'
+    assert str(tmp_path) not in reports[0].read_text()
+    assert 'private-diagnostic.log' not in report['error']

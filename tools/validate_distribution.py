@@ -17,6 +17,33 @@ import zipfile
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'tools'))
+try:
+    from publication_report import write_public_report
+finally:
+    sys.path.pop(0)
+
+
+def audit_archive_members(names):
+    """Reject local caches and private files even if build includes override Git."""
+    for name in names:
+        path = Path(name)
+        private_names = {'id_rsa', 'id_ed25519', '.netrc', '.npmrc', 'credentials',
+                         'credentials.json', 'secrets.json'}
+        if (any(part in {'__pycache__', '.git', '.venv', '.codex', '.claude', '.ssh', '.aws', '.gnupg'} for part in path.parts)
+                or path.suffix.lower() in {'.pyc', '.pyo', '.key', '.pem', '.p12', '.pfx', '.bundle'}
+                or path.name.lower() in private_names
+                or path.name.lower() == '.env' or path.name.lower().startswith('.env.')):
+            raise RuntimeError(f'private/cache file in distribution: {name}')
+
+
+def audit_wheel_notices(archive):
+    notices = [n for n in archive.namelist() if n.endswith('/licenses/THIRD_PARTY_NOTICES.md')]
+    if len(notices) != 1:
+        raise RuntimeError('wheel missing third-party notices')
+    text = archive.read(notices[0]).decode()
+    if not all(name in text for name in ('Wenzel Jakob', 'Thibaut Goetghebuer-Planchon', 'Apple Inc.')):
+        raise RuntimeError('wheel has incomplete third-party notices')
 
 
 def sha256(path):
@@ -80,7 +107,8 @@ def main():
     manifest['sdist'] = {'file': str(sdist.relative_to(output)), 'sha256': sha256(sdist)}
     with tarfile.open(sdist) as archive:
         members = archive.getnames()
-        for required in ('CMakeLists.txt', 'pyproject.toml', 'LICENSE', 'bindings/python_module.cpp',
+        audit_archive_members(members)
+        for required in ('CMakeLists.txt', 'pyproject.toml', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'bindings/python_module.cpp',
                          'cpp/cortex/backends/cuda/kernels/primitives.cu',
                          'python/cortex_runtime/_compiler/cuda.py', 'tools/distribution_probe.py',
                          'examples/cuda_mlp.py'):
@@ -100,6 +128,8 @@ def main():
         wheel = only(destination, '*.whl')
         with zipfile.ZipFile(wheel) as archive:
             names = archive.namelist()
+            audit_archive_members(names)
+            audit_wheel_notices(archive)
             if any(name.endswith('.pth') or 'editable' in name for name in names):
                 raise RuntimeError('editable artifacts in wheel')
             for required in ('cortex_runtime/__init__.py', 'cortex_runtime/_compiler/cuda.py'):
@@ -153,7 +183,7 @@ def main():
             record['mlp'] = json.loads(raw)
         manifest['variants'][variant] = record
     manifest['finished_utc'] = datetime.now(timezone.utc).isoformat()
-    (output / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+    write_public_report(output / 'manifest.json', manifest, root=ROOT)
     print(f'validated artifacts and evidence: {output}')
 
 

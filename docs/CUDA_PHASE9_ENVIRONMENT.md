@@ -23,7 +23,7 @@ Validation log: CUDA_PHASE9_VALIDATION.md
 
 The previous 2026-06-30 preflight used an Apple Silicon Mac without NVIDIA
 hardware. That blocker is superseded by the validated Nightblade environment.
-The user authorized completing the CUDA-blocked project work on 2026-09-28.
+CUDA implementation resumed on 2026-09-28 after this environment passed the gate.
 The first implementation slice is discovery/allocation/copy through the existing
 backend registry, followed by float32 fill/add/multiply through BackendExecution.
 

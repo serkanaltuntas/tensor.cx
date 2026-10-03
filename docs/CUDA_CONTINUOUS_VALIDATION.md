@@ -20,8 +20,9 @@ and manual dispatch. It checks out `github.sha` explicitly and verifies HEAD
 before archiving it. For a PR this is GitHub's test merge commit, not merely
 the branch head. Permissions are read-only for repository contents, checkout
 does not persist credentials, and shared dependency caching is disabled.
-The workflow retains `build/cuda-gate/` logs, JUnit and `result.json` for 14 days,
-including partial evidence on failure. Its job timeout is 30 minutes.
+The workflow publishes only the sanitized `result.json` summary for 14 days,
+including failure status. Raw logs and JUnit remain local to the runner; retain
+them privately for diagnosis rather than uploading the entire build directory. Its job timeout is 30 minutes.
 
 The workflow is **prepared, not deployed GPU coverage**. Automatic jobs require
 repository variable `CORTEX_CUDA_CI_ENABLED` to equal `true`. With the variable
@@ -50,7 +51,7 @@ Runner contract:
   creates its own Python 3.12 environment and installs the snapshot.
 - A dedicated, disposable runner environment with no personal home directory,
   SSH/GPG keys, workspace records or Docker socket exposed to job code.
-  The current developer login on Nightblade is not this environment.
+  A developer desktop account is not an isolated CI environment.
 
 Provision the selected isolated GPU environment first, then use GitHub's
 [runner registration instructions](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/add-runners)

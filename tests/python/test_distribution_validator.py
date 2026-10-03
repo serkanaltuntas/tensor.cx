@@ -59,3 +59,34 @@ def test_allows_system_and_wheel_bundled_dependencies(tmp_path):
 def test_rejects_wrong_or_missing_dependency(linkage, tmp_path):
     with pytest.raises(RuntimeError, match='unexpected or unresolved'):
         validator.audit_linkage(linkage, 'cpu', tmp_path)
+
+
+@pytest.mark.parametrize('name', [
+    'project/python/pkg/__pycache__/module.cpython-312.pyc',
+    'project/.env', 'project/.env.production', 'pkg/client.key',
+    'project/.git/config', 'pkg/auth.pem', 'project/before.bundle',
+    'project/.netrc', 'project/.ssh/config', 'pkg/credentials.json',
+])
+def test_rejects_private_distribution_members(name):
+    with pytest.raises(RuntimeError, match='private/cache'):
+        validator.audit_archive_members([name])
+
+
+def test_accepts_source_and_notice_members():
+    validator.audit_archive_members(['project/cpp/core.cpp', 'pkg/_core.so',
+                                     'project/THIRD_PARTY_NOTICES.md'])
+
+
+def test_wheel_requires_embedded_third_party_notices(tmp_path):
+    import zipfile
+    wheel = tmp_path / 'fixture.whl'
+    with zipfile.ZipFile(wheel, 'w') as archive:
+        archive.writestr('pkg.dist-info/licenses/LICENSE', 'Apache-2.0')
+    with zipfile.ZipFile(wheel) as archive:
+        with pytest.raises(RuntimeError, match='missing third-party'):
+            validator.audit_wheel_notices(archive)
+    with zipfile.ZipFile(wheel, 'a') as archive:
+        archive.writestr('pkg.dist-info/licenses/THIRD_PARTY_NOTICES.md',
+                         (validator.ROOT / 'THIRD_PARTY_NOTICES.md').read_text())
+    with zipfile.ZipFile(wheel) as archive:
+        validator.audit_wheel_notices(archive)

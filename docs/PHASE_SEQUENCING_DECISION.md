@@ -70,7 +70,7 @@ Phase 9 remains paused on the CUDA environment decision, unchanged.
 
 ## Local MLIR Toolchain Status
 
-Checked on this Mac (`<checkout> on 2026-07-05: no build or
+Checked on this Mac on 2026-07-05: no build or
 install step was actually needed. The `llvm@21` Homebrew keg already installed
 on this machine ships MLIR — Homebrew's `llvm` formula builds the MLIR project
 alongside LLVM/Clang.
