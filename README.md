@@ -72,6 +72,8 @@ x86_64 with external LLVM 21.1.8 tools. See the
   compile, copy, primitive and end-to-end benchmarks with CPU parity.
 - [`docs/DISTRIBUTION.md`](docs/DISTRIBUTION.md): source archive and wheel
   validation, fresh installation, external dependencies and supported hosts.
+- [`docs/CUDA_CONTINUOUS_VALIDATION.md`](docs/CUDA_CONTINUOUS_VALIDATION.md):
+  exact-commit CUDA acceptance and Nightblade's opt-in local push gate.
 - [`docs/CUDA_PRIMITIVES_VALIDATION.md`](docs/CUDA_PRIMITIVES_VALIDATION.md):
   CUDA primitive semantics, CPU parity and a runnable inference example.
 

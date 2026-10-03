@@ -12,7 +12,7 @@ increments; a completed increment does not complete the overall objective.
 | CUDA operator coverage | Matmul, sum/max/mean, exp/GELU/SiLU, softmax, RMSNorm and LayerNorm through shared dispatch, CPU parity and errors | Locally verified; [primitive validation](CUDA_PRIMITIVES_VALIDATION.md) |
 | Other GPU/toolchain support | Explicit support matrix, runtime selection, actual execution evidence on additional NVIDIA architectures; no inferred support from compile-only checks | Pending; only Nightblade sm_52 accessible so far |
 | Performance | Reproducible compile/launch/copy/end-to-end measurements and measured optimizations; no unsupported speedup claims | [Measurement harness](CUDA_PERFORMANCE.md) implemented; clean baseline and measured optimization pending (shared GPU compute load observed) |
-| Continuous GPU validation | Working GPU execution runner/process with strict no-skip acceptance and retained run evidence, alongside CPU/build CI | Pending |
+| Continuous GPU validation | Working GPU execution runner/process with strict no-skip acceptance and retained run evidence, alongside CPU/build CI | [Nightblade push gate](CUDA_CONTINUOUS_VALIDATION.md) implemented and locally exercised; repository-wide remote/PR GPU runner coverage still pending access |
 | Product workload and distribution | Defined end-to-end workload, clean wheel installation, packaged artifacts/dependencies, documented supported environments and release checks | MLP and CPU/CUDA sdist→wheel clean-install checks locally verified on Nightblade; [distribution evidence and host limits](DISTRIBUTION.md). CPU packaging CI added; remote run not yet verified |
 
 Implementation sequence: expressions and acceptance, operator coverage, an

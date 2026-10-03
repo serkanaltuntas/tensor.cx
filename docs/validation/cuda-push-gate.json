@@ -1,0 +1,63 @@
+{
+  "date": "2026-10-03",
+  "scope": "Local pre-push hook exercised with Git protocol input and inherited GIT_DIR; no remote update in this recorded rehearsal.",
+  "passing_hook_run": {
+    "schema_version": 1,
+    "revision": "40529ae01092fd566d7993178ddd4e0f690b16d4",
+    "started_utc": "20261003T103314.116644Z",
+    "controller_sha256": "8a8a7ec7e65952568b84fd45199ecbb6bbea8664f61b74bdc3ccc2bd0c34b3e1",
+    "pytest_controller_sha256": "be2ff4e74f27ce51dcdde9356de7b37f6def303aaf46a1ba8acaec75a263e98e",
+    "status": "passed",
+    "source_archive_sha256": "5123bd26d8dfbc3d2787609287da1475de0c6f925db866fd52ad5c1b3ce7e245",
+    "dependencies": "cmake==4.4.3\ncortex-runtime [direct reference omitted]\niniconfig==2.3.0\nnanobind==3.1.0\nninja==1.13.2\nnumpy==2.5.3\npackaging==26.3\npluggy==1.6.0\npygments==2.21.0\npytest==9.1.1",
+    "gpu": "name, uuid, compute_cap, driver_version\nNVIDIA GeForce GTX 980 Ti, <gpu>, 5.2, 580.178.04",
+    "nvcc": "nvcc: NVIDIA (R) Cuda compiler driver\nCopyright (c) 2005-2024 NVIDIA Corporation\nBuilt on Thu_Mar_28_02:18:24_PDT_2024\nCuda compilation tools, release 12.4, V12.4.131\nBuild cuda_12.4.r12.4/compiler.34097967_0",
+    "python": {
+      "tests": 595,
+      "skipped": 0,
+      "failures": 0,
+      "errors": 0
+    },
+    "native": {
+      "tests": 4,
+      "skipped": 0,
+      "failures": 0,
+      "errors": 0
+    },
+    "device_sanitizers": [
+      "memcheck",
+      "racecheck"
+    ],
+    "mlp": {
+      "device": "cuda",
+      "device_name": "NVIDIA GeForce GTX 980 Ti",
+      "shape": [
+        32,
+        10
+      ],
+      "cpu_parity": true,
+      "inference_median_ms": 0.1379609993819031,
+      "repeats": 3
+    },
+    "finished_utc": "2026-10-03T10:34:17.152680+00:00"
+  },
+  "hidden_gpu_failure": {
+    "schema_version": 1,
+    "revision": "40529ae01092fd566d7993178ddd4e0f690b16d4",
+    "started_utc": "20261003T102615.561324Z",
+    "controller_sha256": "435851825c6ebc9009ea3efa571f381baa1f596d9d645394e8943acc5df247a4",
+    "status": "failed",
+    "source_archive_sha256": "5123bd26d8dfbc3d2787609287da1475de0c6f925db866fd52ad5c1b3ce7e245",
+    "dependencies": "cmake==4.4.3\ncortex-runtime [direct reference omitted]\niniconfig==2.3.0\nnanobind==3.1.0\nninja==1.13.2\nnumpy==2.5.3\npackaging==26.3\npluggy==1.6.0\npygments==2.21.0\npytest==9.1.1",
+    "gpu": "name, uuid, compute_cap, driver_version\nNVIDIA GeForce GTX 980 Ti, <gpu>, 5.2, 580.178.04",
+    "nvcc": "nvcc: NVIDIA (R) Cuda compiler driver\nCopyright (c) 2005-2024 NVIDIA Corporation\nBuilt on Thu_Mar_28_02:18:24_PDT_2024\nCuda compilation tools, release 12.4, V12.4.131\nBuild cuda_12.4.r12.4/compiler.34097967_0",
+    "error": "command failed (4); see <project>",
+    "finished_utc": "2026-10-03T10:26:45.833431+00:00"
+  },
+  "hidden_gpu_diagnostic": "ERROR: required backend(s) unavailable: cuda; unset CORTEX_REQUIRE_BACKENDS or fix backend registration\n\n",
+  "unit_tests": 14,
+  "publication": {
+    "format": "cortex-public-report-v1",
+    "scope": "known local identifiers removed; arbitrary text requires review"
+  }
+}

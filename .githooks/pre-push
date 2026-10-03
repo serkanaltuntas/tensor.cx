@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+# Local installation is explicit; ordinary clones do not activate this hook.
+[ "$1" = origin ] || exit 0
+cd "$(git rev-parse --show-toplevel)"
+exec uv run --no-project --python 3.12 python tools/cuda_push_gate.py --pre-push
