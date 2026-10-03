@@ -12,8 +12,9 @@ Mapping (mirrors the semantics of the Phase 7 MSL emitter):
 - Integer values are tracked as unsigned (`u32`) or possibly-negative (`s32`,
   introduced only by negative constants) the same way the MSL emitter's type
   inference does. Arithmetic is two's-complement and sign-agnostic
-  (`arith.addi/subi/muli`). Ordered comparisons are emitted as unsigned
-  (`cmpi ult/...`) and are only allowed on `u32` operands; an ordered
+  (`arith.addi/subi/muli`). Local/scalar ordered comparisons are unsigned
+  (`cmpi ult/...`); inline expressions containing only integer literals use
+  signed predicates, matching C literal types before assignment. An ordered
   comparison involving an `s32` value is rejected loudly because MSL would
   compile it as a signed compare and the two paths would silently diverge.
   `==`/`!=` are sign-agnostic and stay allowed.
@@ -64,6 +65,7 @@ _INT_TYPES = ("u32", "s32")
 _INT_BINARY_OPS = {"add": "arith.addi", "sub": "arith.subi", "mul": "arith.muli"}
 _FLOAT_BINARY_OPS = {"add": "arith.addf", "sub": "arith.subf", "mul": "arith.mulf"}
 _UNSIGNED_ORDERED_PREDICATES = {"lt": "ult", "lte": "ule", "gt": "ugt", "gte": "uge"}
+_SIGNED_ORDERED_PREDICATES = {"lt": "slt", "lte": "sle", "gt": "sgt", "gte": "sge"}
 _EQUALITY_PREDICATES = {"eq": "eq", "neq": "ne"}
 _FLOAT_COMPARE_PREDICATES = {
     "lt": "olt",
@@ -395,6 +397,18 @@ def _emit_for(
         context[name] = (result_value, context[name][1])
 
 
+def _is_integer_literal_expression(expression) -> bool:
+    # MSL emits unsuffixed decimal literals as signed int. Assigning the same
+    # expression to a local can declare a uint, so inspect the expression tree
+    # rather than treating a name holding a literal value as a literal itself.
+    if isinstance(expression, IRConstant):
+        return type(expression.value) is int
+    if isinstance(expression, IRBinaryOp):
+        return (_is_integer_literal_expression(expression.lhs)
+                and _is_integer_literal_expression(expression.rhs))
+    return False
+
+
 def _emit_expression(
     emitter: _Emitter,
     expression,
@@ -495,6 +509,9 @@ def _emit_expression(
                     "are not supported by the MLIR prototype (MSL compiles "
                     "them as signed compares)"
                 )
+            if (_is_integer_literal_expression(expression.lhs)
+                    and _is_integer_literal_expression(expression.rhs)):
+                predicate = _SIGNED_ORDERED_PREDICATES[expression.op]
         emitter.emit(
             indent, f"{value} = arith.cmpi {predicate}, {lhs}, {rhs} : i32"
         )

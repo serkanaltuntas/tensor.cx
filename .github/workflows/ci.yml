@@ -216,7 +216,9 @@ jobs:
           enable-cache: true
 
       - name: Create virtual environment
-        run: uv venv --python 3.12
+        run: |
+          uv venv --python 3.12
+          uv pip install "cmake>=3.21"
 
       # The disabled variant locks the PROJECT.md §9.2 guarantee that custom MSL
       # matmul still builds without the optimized primitive path. Hosted macOS
@@ -227,6 +229,35 @@ jobs:
 
       - name: Run tests
         run: uv run pytest
+
+      - name: Build native CPU and Metal contracts
+        env:
+          CORTEX_METAL_CMAKE_ARGS: ${{ matrix.cmake_args }}
+        run: |
+          NANOBIND_DIR="$(uv run --no-sync python -c 'import nanobind; print(nanobind.cmake_dir())')"
+          PYTHON_EXECUTABLE="$(uv run --no-sync python -c 'import sys; print(sys.executable)')"
+          read -r -a METAL_OPTIONS <<< "$CORTEX_METAL_CMAKE_ARGS"
+          uv run --no-sync cmake -S . -B build/cpp-metal-tests \
+            "${METAL_OPTIONS[@]}" \
+            -DCORTEX_BUILD_TESTS=ON \
+            -Dnanobind_DIR="${NANOBIND_DIR}" \
+            -DPython_EXECUTABLE="${PYTHON_EXECUTABLE}"
+          uv run --no-sync cmake --build build/cpp-metal-tests --parallel 2
+
+      - name: Run native contracts and report device skips
+        run: |
+          uv run --no-sync ctest --test-dir build/cpp-metal-tests \
+            --no-tests=error --verbose --output-junit native-results.xml
+
+      - name: Retain native Metal validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-native-${{ strategy.job-index }}
+          path: |
+            build/cpp-metal-tests/native-results.xml
+            build/cpp-metal-tests/Testing/Temporary/LastTest.log
+          retention-days: 14
 
   cuda-build:
     name: CUDA prototype build (no GPU)

@@ -44,8 +44,12 @@ Validated behaviors (see `experiments/mlir/lower_add.py`):
   (`cortex_`-prefixed) parameter names, missing output store, non-`(0)`
   `program_id` axes, comparison results used in arithmetic, and ordered
   comparisons involving negative integer constants (MSL types those as
-  signed `int` and compiles a signed compare; the prototype only emits
-  unsigned predicates, so it refuses rather than silently diverging).
+  signed `int`; that general signed-local path remains unsupported).
+- Inline integer-literal expressions use signed ordered comparisons before
+  assignment, matching MSL/C: `(1 - 2) < 0` is true. A local declared as `uint`
+  from the same expression retains unsigned comparisons, as do scalar and
+  thread-index expressions. This correction does not widen the bounded public
+  CPU/CUDA runtime subset.
 
 ## The mapping
 
@@ -62,8 +66,10 @@ launch grid (Metal dispatch)   scf.for over the global thread index, with
 program_id(0)/thread_id()/     derived from the loop variable:
 block_size()                   gi / bs, gi % bs, bs
 +, -, * (int / float)          arith.addi/subi/muli / arith.addf/subf/mulf
-comparisons                    arith.cmpi (unsigned; eq/ne sign-agnostic;
-                               signed ordered compares rejected loudly) /
+comparisons                    arith.cmpi (unsigned locals/scalars;
+                               signed inline literal expressions;
+                               eq/ne sign-agnostic; negative-constant
+                               ordered compares rejected loudly) /
                                arith.cmpf
 if without else                scf.if
 load / store                   memref.load / memref.store (index_castui)

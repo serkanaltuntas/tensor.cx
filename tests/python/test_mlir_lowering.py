@@ -173,6 +173,55 @@ def test_mlir_float_inequality_nan_execution(tmp_path):
     np.testing.assert_array_equal(out, reference.numpy())
 
 
+def _integer_comparison_kernels():
+    @cx.experimental.kernel
+    def inline_literal(a, b, out, n):
+        i = cx.experimental.program_id(0) * cx.experimental.block_size() + cx.experimental.thread_id()
+        if (1 - 2) < 0:
+            if i < n:
+                out[i] = a[i] + b[i]
+
+    @cx.experimental.kernel
+    def named_literal(a, b, out, n):
+        i = cx.experimental.program_id(0) * cx.experimental.block_size() + cx.experimental.thread_id()
+        k = 1 - 2
+        if k < 0:
+            if i < n:
+                out[i] = a[i] + b[i]
+
+    @cx.experimental.kernel
+    def mixed_literal(a, b, out, n):
+        i = cx.experimental.program_id(0) * cx.experimental.block_size() + cx.experimental.thread_id()
+        if (n - n - 1) < 0:
+            if i < n:
+                out[i] = a[i] + b[i]
+
+    return inline_literal, named_literal, mixed_literal
+
+
+@pytest.mark.parametrize("case", range(3))
+def test_mlir_integer_comparison_literal_vs_local_typing(case):
+    emitted = emit_mlir(_integer_comparison_kernels()[case].parse_ir())
+    assert ("arith.cmpi slt," in emitted) == (case == 0)
+    assert "arith.cmpi ult," in emitted  # The global-index guard stays unsigned.
+
+
+@pytest.mark.parametrize("case", range(3))
+def test_mlir_integer_comparison_execution(tmp_path, case):
+    llvm_bin = _mlir_toolchain_or_skip()
+    from lower_add import compile_mlir_to_library, run_add_kernel
+
+    kernel = _integer_comparison_kernels()[case]
+    a = np.array([2.0], dtype=np.float32)
+    b = np.array([3.0], dtype=np.float32)
+    out = np.zeros_like(a)
+    reference = kernel.reference(cx.tensor(a), cx.tensor(b), cx.tensor(out), 1)
+    library = compile_mlir_to_library(emit_mlir(kernel.parse_ir()), llvm_bin, tmp_path)
+    run_add_kernel(library, kernel.name, a, b, out, 1, 1, 4)
+    np.testing.assert_array_equal(reference.numpy(), [5.0] if case == 0 else [0.0])
+    np.testing.assert_array_equal(out, reference.numpy())
+
+
 def test_emit_mlir_formats_float_constants_as_valid_mlir():
     # Python repr of 1e-5 is '1e-05', which MLIR's float grammar rejects; the
     # emitter must narrow to f32 and always include a decimal point.
