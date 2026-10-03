@@ -90,6 +90,7 @@ Expected<std::shared_ptr<CudaKernelModule>> CudaKernelModule::load(
     if (entry == "cortex_add_v1") operation = "add";
     else if (entry == "cortex_sub_v1") operation = "sub";
     else if (entry == "cortex_mul_v1") operation = "mul";
+    else if (entry == "cortex_expr_v1") operation = "expr";
     else return invalid("unsupported CUDA entry point");
     if (ptx.size() > 1024 * 1024 || ptx.find('\0') != std::string::npos ||
         !ptx.starts_with("// " + kernel_manifest(signature, operation) + "\n") ||

@@ -249,3 +249,5 @@ supplied output. The canonical index/guard and exact shapes are required; the
 two input parameter names must differ, but tensor arguments may alias.
 Supported host/toolchain, block limits, context/module ownership and verification
 are maintained in the [CUDA integration record](MLIR_CUDA_INTEGRATION_DECISION.md).
+Bounded locals and nested arithmetic are supported by the
+[expression extension](MLIR_CUDA_EXPRESSIONS_DECISION.md), with separate float32 rounding.

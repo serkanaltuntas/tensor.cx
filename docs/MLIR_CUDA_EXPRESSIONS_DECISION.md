@@ -1,12 +1,12 @@
 # MLIR CUDA guarded local expressions: scope decision
 
-Date: 2026-09-29 · Baseline: `480425f` · Status: **scope selected; CUDA implementation pending**.
+Date: 2026-09-29 · Baseline: `480425f` · Status: **implemented on Nightblade, 2026-10-03; verification recorded below**.
 
 This is the next bounded extension after [CUDA add/subtract/multiply](MLIR_CUDA_INTEGRATION_DECISION.md).
-It changes no runtime behavior or phase-completion status. The current CUDA
-compiler still rejects local assignments and nested arithmetic. The user's
-request to continue authorizes this scope decision; it supplies no deadline or
-performance target.
+The original decision was documentation-only. The 2026-10-03 implementation
+now supports this bounded subset; it does not change phase-completion status.
+The broader [CUDA product completion goal](CUDA_PRODUCT_COMPLETION.md) remains
+active beyond this compiler increment.
 
 ## Selected subset
 
@@ -33,8 +33,8 @@ canonical global index and the single outer `if i < n` guard. Inside that guard:
   once, without expanding local references. Reject larger bodies before tools.
   These are initial compiler complexity limits, not hardware limits.
 
-Example intended for the future CUDA implementation; it runs through the
-existing CPU compiler today when saved as inspectable Python source:
+Save this example as inspectable Python source. Both explicit CPU and CUDA
+compilation are available in their documented environments:
 
 ```python
 import cortex_runtime as cx
@@ -47,10 +47,12 @@ def blend(a, b, out, n):
         scaled = delta * 0.5
         out[i] = scaled + b[i]
 
-# Available now:
-compiled = blend.compile(target="cpu", compiler="mlir")
-# Future acceptance target, currently rejected:
-# compiled = blend.compile(target="cuda", compiler="mlir")
+compiled = blend.compile(target="cuda", compiler="mlir")
+a = cx.ones((257,), device="cuda")
+b = cx.zeros((257,), device="cuda")
+result = compiled.launch(a, b, b, 257)
+assert result.cpu().numpy()[0] == 0.5
+assert b.cpu().numpy()[0] == 0.0
 ```
 
 The equivalent nested store `(a[i] - b[i]) * 0.5 + b[i]` is in scope. This is
@@ -147,8 +149,8 @@ Code inspection at `480425f` found CPU local/nested expression support in
 [`_signature`](../python/cortex_runtime/_compiler/cpu.py), the shared
 [emitter](../python/cortex_runtime/_compiler/emitter.py), and the float32
 [reference interpreter](../python/cortex_runtime/experimental.py). The current
-[CUDA signature validator](../python/cortex_runtime/_compiler/cuda.py) requires
-one binary store over two loads and deliberately rejects this extension.
+[CUDA signature validator](../python/cortex_runtime/_compiler/cuda.py) required
+one binary store over two loads and deliberately rejected this extension.
 
 On 2026-09-29, a temporary inspectable Python probe compiled local and nested
 forms of the example plus `product = a[i] * b[i]; out[i] = product - 1.0` on
@@ -168,3 +170,37 @@ CORTEX_LLVM_BIN="$PWD/build/mlir-toolchain/root/usr/lib/llvm-21/bin" CORTEX_REQU
 
 **30 passed, 265 deselected**. The probe was temporary; no new runtime, test
 fixture or public capability is shipped in this documentation-only decision.
+
+
+## Implementation verification — 2026-10-03
+
+The private CUDA compiler now validates bounded direct IR before recursive
+shared validation, emits local SSA bindings/nested arithmetic and retains the
+old three single-operation entry/fixture paths unchanged. Native loading adds
+only the `cortex_expr_v1`/`expr-f32-v1` pairing. The checked expression fixture
+computes `a*b-1` with separate `mul.rn.f32` and `add.rn.f32` instructions;
+no `fma`/`mad` instruction appears. Real CUDA execution gives zero for the
+rounding discriminator above. Signed zero and subnormal checks also passed.
+The fixture ran through native Cortex buffers before public expression tests.
+
+Final local evidence (CUDA-enabled build restored after CUDA-off checks):
+
+| Configuration | Result |
+| --- | --- |
+| Full Python suite, required LLVM and CUDA, including expression tests | 800 passed, 149 skipped |
+| Actual CUDA-off build with required LLVM | 334 passed, 615 skipped |
+| Actual CUDA-off build with LLVM absent | 277 passed, 672 skipped |
+| Native CTest, including expression fixture | 4/4 passed |
+| Native ASan/UBSan with the documented Nightblade workaround | 4/4 passed |
+
+The CUDA-off extension's dynamic dependencies contain neither CUDA nor LLVM.
+Tests exercise exact complexity bounds with real CPU/GPU compilation, as well
+as one-over rejection before tools. Code review found an index/parameter
+shadowing gap in direct IR; the fix and before-tools regression are included.
+GPU-free MLIR CI now selects expression fixture lowering and validation tests.
+Commands follow the [CUDA integration verification](MLIR_CUDA_INTEGRATION_DECISION.md#runtime-usage-and-verification--2026-09-28),
+with `tests/python/test_mlir_cuda_expressions.py` for focused expression coverage.
+
+Broader operator, GPU compatibility, performance and packaging work is tracked separately; this feature is not overall product
+completion. Metal execution and other NVIDIA architectures have not been
+verified by this increment.

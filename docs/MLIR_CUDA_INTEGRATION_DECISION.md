@@ -23,8 +23,8 @@ canonical global-index pattern used by the CPU slice. Support scalar, empty,
 multidimensional and partial-prefix inputs through flattening. Reject loops,
 reductions, offset/strided access, unused parameters, mixed arithmetic,
 comparisons over floats and broader expression bodies before invoking tools.
-Each body contains exactly one binary operation over two input loads. Nested
-expressions and additional DSL constructs remain outside this slice.
+The original single-operation path is preserved. Bounded local/nested
+expressions are now supported by the [expression extension](MLIR_CUDA_EXPRESSIONS_DECISION.md).
 
 The returned CUDA tensor is a new value, matching the compiled CPU/reference
 ownership contract: privately copy the original output including its unwritten
@@ -216,7 +216,7 @@ semantics, other GPUs, Metal behavior or performance.
 These acceptance checks were applied to the runtime implementation below and
 the subsequent subtraction/multiply extension. The [local-expression scope
 decision](MLIR_CUDA_EXPRESSIONS_DECISION.md) now defines the next implementation
-and parity gates; that CUDA capability is not yet implemented. Broader GPU
+and parity gates; that bounded CUDA capability is now implemented. Broader GPU
 lowering, reductions, automatic graph fusion, async APIs and other SM targets
 remain separate work. The decision adds no user priority or deadline.
 
@@ -251,7 +251,8 @@ Exactly two distinct input parameter names, one output parameter and one guard
 are supported; actual input/output tensor objects may alias. Parameter order
 may vary, including a leading uint32 scalar. Only a single guarded
 `out[i] = a[i] + b[i]`, `out[i] = a[i] - b[i]`, or
-`out[i] = a[i] * b[i]` store is enabled. Other bodies fail before tools run.
+`out[i] = a[i] * b[i]` store uses the original entry path. The bounded
+[expression extension](MLIR_CUDA_EXPRESSIONS_DECISION.md) handles local/nested bodies.
 `compile(target="cuda")` still fails unless `compiler="mlir"` is explicit.
 
 Implementation files: `_compiler/cuda.py` validates/emits/lowers device code;

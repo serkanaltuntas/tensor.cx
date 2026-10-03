@@ -93,9 +93,9 @@ it does not add LLVM/MLIR to the C++ core or backend build. See PROJECT.md §16 
   is implemented. The [CUDA ABI/toolchain decision](MLIR_CUDA_INTEGRATION_DECISION.md)
   and guarded add/subtract/multiply runtime are implemented on sm_52 with primary-context and
   native module ownership through Cortex buffers. The [guarded local-expression
-  scope](MLIR_CUDA_EXPRESSIONS_DECISION.md) is selected; implementation and parity
-  gates are next. CUDA still rejects local/nested expressions. Broader compiler
-  features and other targets remain gated.
+  scope](MLIR_CUDA_EXPRESSIONS_DECISION.md) is implemented with bounded local/nested
+  arithmetic. The [CUDA product completion goal](CUDA_PRODUCT_COMPLETION.md)
+  tracks operator coverage, compatibility, measurements, GPU CI and distribution.
 
 - **PyTorch portability strategy.** The current roadmap keeps Cortex Runtime
   independent from PyTorch, but a future integration can be staged through a

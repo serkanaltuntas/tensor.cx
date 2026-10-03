@@ -76,7 +76,7 @@ int main(int argc, char** argv) {
           "caller output mutated");
     restored();
     // Each operation keeps its own entry/manifest and dispatches via the registry.
-    for (const std::string operation : {"sub", "mul"}) {
+    for (const std::string operation : {"sub", "mul", "expr"}) {
       const auto fixture = std::filesystem::path(argv[1]).parent_path() / ("cuda_" + operation + "_sm52.ptx");
       std::ifstream stream(fixture);
       const std::string code((std::istreambuf_iterator<char>(stream)), {});
@@ -90,7 +90,8 @@ int main(int argc, char** argv) {
       check(backend.execute(e).ok(), "arithmetic dispatch failed");
       auto arithmetic = from_core_tensor(outputs[0]);
       const auto expected = operation == "sub" ? std::vector<float>{-4, -4, -3, -4}
-                                               : std::vector<float>{5, 12, -3, -4};
+                                               : operation == "mul" ? std::vector<float>{5, 12, -3, -4}
+                                                                    : std::vector<float>{4, 11, -3, -4};
       check(arithmetic && to_cpu(arithmetic.value()).value().float_data() == expected,
             "arithmetic partial output mismatch");
       outputs[0] = out;

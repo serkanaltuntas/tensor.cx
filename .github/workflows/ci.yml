@@ -165,7 +165,7 @@ jobs:
         env:
           CORTEX_LLVM_BIN: ${{ runner.temp }}/llvm-bin
           CORTEX_REQUIRE_MLIR: "1"
-        run: uv run pytest tests/python/test_mlir_cuda_runtime.py -k "gpu_emitter or malformed_serialized or unsupported_before_tools or default_cuda" -v -rs
+        run: uv run pytest tests/python/test_mlir_cuda_runtime.py tests/python/test_mlir_cuda_expressions.py -k "gpu_emitter or malformed_serialized or unsupported_before_tools or default_cuda or expression_invalid_before_tools or expression_bounds" -v -rs
 
       # Guard the job's purpose: pin the end-to-end lowering test by node id so a
       # rename/removal or a stray selection filter makes pytest error (exit 4)

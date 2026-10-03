@@ -65,7 +65,9 @@ x86_64 with external LLVM 21.1.8 tools. See the
 - [`docs/MLIR_CUDA_INTEGRATION_DECISION.md`](docs/MLIR_CUDA_INTEGRATION_DECISION.md):
   CUDA add/subtract/multiply compile/launch usage, ABI/toolchain scope and sm_52 validation.
 - [`docs/MLIR_CUDA_EXPRESSIONS_DECISION.md`](docs/MLIR_CUDA_EXPRESSIONS_DECISION.md):
-  selected scope and acceptance gates for local expressions; CUDA implementation pending.
+  bounded local/nested expression support and its numerical/ownership contract.
+- [`docs/CUDA_PRODUCT_COMPLETION.md`](docs/CUDA_PRODUCT_COMPLETION.md):
+  active CUDA product completion work and remaining evidence.
 
 ## Development Setup
 
