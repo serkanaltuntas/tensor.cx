@@ -11,7 +11,7 @@ increments; a completed increment does not complete the overall objective.
 | Expression acceptance suite | Required GPU runs, sanitizer results, malformed input and lifecycle checks, reviewed documentation | Locally verified; full Python 800 passed/149 skipped, native and sanitizer 4/4 each |
 | CUDA operator coverage | Matmul, sum/max/mean, exp/GELU/SiLU, softmax, RMSNorm and LayerNorm through shared dispatch, CPU parity and errors | Locally verified; [primitive validation](CUDA_PRIMITIVES_VALIDATION.md) |
 | Other GPU/toolchain support | Explicit support matrix, runtime selection, actual execution evidence on additional NVIDIA architectures; no inferred support from compile-only checks | Pending; only Nightblade sm_52 accessible so far |
-| Performance | Reproducible compile/launch/copy/end-to-end measurements and measured optimizations; no unsupported speedup claims | Pending |
+| Performance | Reproducible compile/launch/copy/end-to-end measurements and measured optimizations; no unsupported speedup claims | [Measurement harness](CUDA_PERFORMANCE.md) implemented; clean baseline and measured optimization pending (shared GPU compute load observed) |
 | Continuous GPU validation | Working GPU execution runner/process with strict no-skip acceptance and retained run evidence, alongside CPU/build CI | Pending |
 | Product workload and distribution | Defined end-to-end workload, clean wheel installation, packaged artifacts/dependencies, documented supported environments and release checks | MLP example implemented; clean distribution/release checks pending |
 

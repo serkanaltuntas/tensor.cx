@@ -68,6 +68,8 @@ x86_64 with external LLVM 21.1.8 tools. See the
   bounded local/nested expression support and its numerical/ownership contract.
 - [`docs/CUDA_PRODUCT_COMPLETION.md`](docs/CUDA_PRODUCT_COMPLETION.md):
   active CUDA product completion work and remaining evidence.
+- [`docs/CUDA_PERFORMANCE.md`](docs/CUDA_PERFORMANCE.md): reproducible CUDA/MLIR
+  compile, copy, primitive and end-to-end benchmarks with CPU parity.
 - [`docs/CUDA_PRIMITIVES_VALIDATION.md`](docs/CUDA_PRIMITIVES_VALIDATION.md):
   CUDA primitive semantics, CPU parity and a runnable inference example.
 
