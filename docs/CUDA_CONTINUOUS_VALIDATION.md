@@ -12,6 +12,71 @@ On 2026-10-03 the self-hosted runner list was empty. An isolated GPU runner
 is still required for repository-wide coverage. The CPU, packaging and CUDA compile-only Actions
 jobs remain separate; their success does not establish GPU execution.
 
+## GitHub workflow and runner rollout
+
+[`cuda-acceptance.yml`](../.github/workflows/cuda-acceptance.yml) connects the
+same strict acceptance command to main pushes, same-repository pull requests,
+and manual dispatch. It checks out `github.sha` explicitly and verifies HEAD
+before archiving it. For a PR this is GitHub's test merge commit, not merely
+the branch head. Permissions are read-only for repository contents, checkout
+does not persist credentials, and shared dependency caching is disabled.
+The workflow retains `build/cuda-gate/` logs, JUnit and `result.json` for 14 days,
+including partial evidence on failure. Its job timeout is 30 minutes.
+
+The workflow is **prepared, not deployed GPU coverage**. Automatic jobs require
+repository variable `CORTEX_CUDA_CI_ENABLED` to equal `true`. With the variable
+unset, those jobs skip; a skip is not a passing GPU acceptance result. Manual
+dispatch bypasses this rollout switch to validate a new runner. It still
+requires actual hardware and fails on absent CUDA/LLVM prerequisites.
+Do not use the job as an enforced GPU acceptance check until deployment has
+passed a manual run, a main push and a PR merge-commit run with retained logs.
+
+2026-10-03 preparation checks: actionlint 1.7.12 passed both workflow files.
+The workflow's acceptance command ran locally against `0412144`, passing 746
+Python tests, four native contracts, memcheck/racecheck and the MLP. The
+[retained rehearsal](validation/cuda-workflow-rehearsal.json) binds these
+results to the workflow hash and explicitly records that no GitHub GPU runner
+was registered or exercised. It is command-level evidence, not a deployment.
+
+Runner contract:
+
+- Linux x86_64, labels `self-hosted`, `linux`, `x64`, `cortex-cuda-sm52`.
+- The existing validated environment: sm_52, CUDA Runtime 12.4, Driver API
+  13.0, LLVM 21.1.8, GCC/G++ 13, `nvcc`, `compute-sanitizer`, Git and working
+  driver libraries. The native runtime enforces the documented environment
+  gate; a runner label alone is not compatibility evidence.
+- Repository variable `CORTEX_CUDA_LLVM_BIN` contains the absolute LLVM `bin`
+  path **inside the runner environment**. `setup-uv` supplies uv; the gate
+  creates its own Python 3.12 environment and installs the snapshot.
+- A dedicated, disposable runner environment with no personal home directory,
+  SSH/GPG keys, workspace records or Docker socket exposed to job code.
+  The current developer login on Nightblade is not this environment.
+
+Provision the selected isolated GPU environment first, then use GitHub's
+[runner registration instructions](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/add-runners)
+for this repository and assign the custom label. Keep registration credentials
+out of Git and reports. GitHub supports
+[ephemeral registration](https://docs.github.com/en/actions/reference/runners/self-hosted-runners)
+with `--ephemeral`; that handles one job only. Continuous coverage additionally
+requires replenishing and cleaning runner environments between jobs, not
+leaving a single completed ephemeral registration as a claimed deployment.
+
+After a manual run passes, verify that the uploaded `result.json` names the
+event SHA, reports `status: passed`, contains at least 595 Python tests and four
+native contracts without skips/errors/failures, and includes both device
+sanitizers and the CUDA MLP. The current suite has 746 Python acceptance tests.
+Enable the automatic-run variable only after the runner lifecycle is ready,
+then verify push and PR runs before closing the continuous-validation ledger.
+This workflow does not provision a machine, register a runner or change branch
+protection by itself.
+
+Fork PRs do not run on this runner. Extending that scope requires a reviewed
+isolation and approval policy; `pull_request_target` must not be used to run
+untrusted head code with privileged base-repository credentials. See GitHub's
+[self-hosted runner security guidance](https://docs.github.com/en/actions/reference/security/secure-use).
+This restriction and the still-unregistered runner remain explicit rollout
+limits, not evidence that repository-wide GPU acceptance is complete.
+
 ## Acceptance path
 
 `tools/cuda_push_gate.py` archives the exact commit with `git archive`, extracts
