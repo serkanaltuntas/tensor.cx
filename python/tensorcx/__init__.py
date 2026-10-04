@@ -6,6 +6,20 @@ from . import _core, experimental, testing
 from .device import Device, best_device, device, device_name, devices, is_available
 from .tensor import (
     Tensor,
+    masked_select,
+    all,
+    any,
+    where,
+    logical_not,
+    logical_xor,
+    logical_or,
+    logical_and,
+    greater_equal,
+    greater,
+    less_equal,
+    less,
+    not_equal,
+    equal,
     astype,
     split,
     stack,
@@ -35,6 +49,7 @@ from .tensor import (
 __version__ = _core.version()
 float32 = _core.float32
 int32 = _core.int32
+bool = _core.bool
 
 
 def version() -> str:
@@ -44,6 +59,20 @@ def version() -> str:
 
 __all__ = [
     "Tensor",
+    "masked_select",
+    "all",
+    "any",
+    "where",
+    "logical_not",
+    "logical_xor",
+    "logical_or",
+    "logical_and",
+    "greater_equal",
+    "greater",
+    "less_equal",
+    "less",
+    "not_equal",
+    "equal",
     "__version__",
     "Device",
     "astype",
@@ -61,6 +90,7 @@ __all__ = [
     "float32",
     "gelu",
     "int32",
+    "bool",
     "is_available",
     "layernorm",
     "matmul",

@@ -119,10 +119,12 @@ add_library(tensorcx_core STATIC
   cpp/tensorcx/core/backend.cpp
   cpp/tensorcx/core/dtype.cpp
   cpp/tensorcx/core/operation.cpp
+  cpp/tensorcx/core/predicate.cpp
   cpp/tensorcx/core/shape.cpp
   cpp/tensorcx/core/status.cpp
   cpp/tensorcx/backends/cpu/cpu_kernel.cpp
   cpp/tensorcx/backends/cpu/cpu_backend.cpp
+  cpp/tensorcx/backends/cpu/cpu_predicate.cpp
   cpp/tensorcx/backends/cpu/cpu_buffer.cpp
   cpp/tensorcx/backends/cpu/cpu_tensor.cpp
   cpp/tensorcx/backends/null/null_backend.cpp
@@ -192,6 +194,7 @@ if(TENSORCX_ENABLE_METAL)
             -fno-fast-math -c ${TENSORCX_METAL_KERNEL_SOURCE}
             -o ${TENSORCX_METAL_AIR}
     DEPENDS ${TENSORCX_METAL_KERNEL_SOURCE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/cpp/tensorcx/backends/metal/kernels/predicate.metal
     VERBATIM
   )
   add_custom_command(
@@ -284,6 +287,8 @@ if(TENSORCX_ENABLE_CUDA)
   find_package(CUDAToolkit 12.4 REQUIRED)
   add_library(tensorcx_cuda STATIC
     cpp/tensorcx/backends/cuda/cuda_backend.cpp
+    cpp/tensorcx/backends/cuda/cuda_predicate.cpp
+    cpp/tensorcx/backends/cuda/kernels/predicate.cu
     cpp/tensorcx/backends/cuda/cuda_context.cpp
     cpp/tensorcx/backends/cuda/cuda_kernel.cpp
     cpp/tensorcx/backends/cuda/kernels/elementwise.cu

@@ -18,12 +18,17 @@ Start with `import tensorcx as cx`. The following example works on CPU:
 | Inspect | `Tensor.shape`, `.dtype`, `.device` | Metadata for a contiguous row-major tensor |
 | Transfer | `.to(device)`, `.cpu()`, `.numpy()` | Explicit device transfers; NumPy export copies to host |
 | Elementwise | `a + b`, `a - b`, `a * b`, `a / b`, `-a` | Broadcast-compatible shapes, same dtype/device; real scalars work on either side; division requires float32 |
-| Convert dtype | `x.astype(dtype)`, `cx.astype(x, dtype)` | Explicit float32/int32 conversion on the same device; copies by default |
+| Convert dtype | `x.astype(dtype)`, `cx.astype(x, dtype)` | Explicit float32/int32/bool conversion on the same device; copies by default |
 | Reshape | `x.reshape(shape)`, `cx.reshape(x, shape)` | Shares storage; same element count; one inferred `-1` allowed |
 | Transpose | `x.transpose(axes=None)`, `cx.transpose(x, axes=None)`, `x.T` | Reverses axes by default; always copies into a contiguous buffer on the same device |
 | Singleton axes | `x.squeeze(axis=None)`, `x.expand_dims(axis)`; also `cx.squeeze`, `cx.expand_dims` | Remove/insert size-one axes as views sharing storage |
 | Index / slice | `x[key]` | Integers, slices, negative steps, ellipsis and new axes; independent contiguous copies |
 | Join / split | `cx.concat`, `cx.stack`, `cx.split`, `x.split` | Same dtype/device; split uses equal sections or NumPy-style cut indices; all outputs copy |
+| Compare | `==`, `!=`, `<`, `<=`, `>`, `>=`; `cx.equal`, etc. | Same dtype/device; broadcasting and matching scalars; bool output |
+| Boolean logic | `&`, `&#124;`, `^`, `~`; `cx.logical_and`, etc. | Bool tensors/scalars; broadcasting |
+| Conditional selection | `cx.where(condition, x, y)` | Bool condition; same-dtype branches; three-way broadcasting |
+| Boolean reduction | `cx.any`, `cx.all`; `x.any`, `x.all` | Bool inputs; axes and keepdims like numeric reductions |
+| Mask selection | `x[mask]`, `cx.masked_select(x, mask)` | Bool mask matches leading dimensions; stable contiguous copy |
 | Matrix multiply | `cx.matmul(a, b)` | Float32, 2D inputs, matching inner dimensions |
 | Reduce | `cx.sum(x, axis=None, keepdims=False)`, `max`, `mean` | All axes by default; integer or axis sequence; `keepdims=True` retains selected axes with size 1 |
 | Activate | `cx.exp(x)`, `gelu`, `silu` | Float32 |
@@ -71,8 +76,26 @@ Support varies by backend, particularly for `int32`. See the
 
 Basic slicing supports negative indices/steps and clips slice bounds. Integer
 selection returns a tensor even for a scalar. Concat joins an existing axis;
-stack inserts a new one. Split returns a tuple of independent copies. Boolean
-masks, advanced indexing, indexed assignment, autograd, batched matmul and
+stack inserts a new one. Split returns a tuple of independent copies. Advanced integer indexing, mixed mask/index tuples, indexed assignment,
+autograd, batched matmul and
 general strided views are not implemented. Normalizations require one explicit axis.
 The [experimental kernel subset](/docs/experimental/) has its own arithmetic
 rules and does not extend the ordinary tensor operators.
+
+## Boolean masks
+
+Boolean input infers `cx.bool`; mixed boolean/numeric input needs an explicit
+`dtype`. Numeric casts to bool use nonzero truth, including NaN and infinity;
+bool casts back to numbers as 0/1. Arithmetic on bool tensors is rejected.
+Comparisons use IEEE rules: NaN compares unequal to every value, including itself.
+
+`where` selects already-computed branches; it is not lazy control flow. All tensor
+arguments must share a device. Mask indexing does not broadcast: a `(2,)` mask
+on `(2, 3)` selects rows, while a `(2, 3)` mask produces a flat vector. A scalar
+bool Tensor mask adds a leading axis of size 0 or 1. Selection copies preserve
+order and stored bits. GPU selection reads back only the selected count to size
+its output; it does not export the tensor to NumPy.
+
+`any`/`all` accept bool inputs, all/single/multiple axes and `keepdims`; empty
+reductions return false/true respectively. Python `bool(x)` requires exactly one
+element and reads that value to the host; use `x.any()` or `x.all()` for a mask.

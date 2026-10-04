@@ -132,7 +132,9 @@ documentation. This order does not claim that later packages are implemented.
 
 1. **Basic indexing/slicing, concat, stack, split:** implemented as contiguous
    copies; [contract and verification](TENSOR_API.md#basic-indexing-and-joining).
-2. **Comparisons and masks:** boolean tensors, `where`, conditional computation.
+2. **Comparisons and masks:** implemented: boolean tensors, six comparisons,
+   logical masks, `where`, `any`/`all`, and boolean selection;
+   [contract and verification](TENSOR_API.md#comparisons-and-boolean-masks).
 3. **Batched matmul:** batch and higher-dimensional inputs.
 4. **Math gaps:** `log`, `sqrt`, `abs`, `min`, `argmax`, `clip`, `topk`.
 5. **Inference:** linear, affine normalization, embedding, then attention.

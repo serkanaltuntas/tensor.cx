@@ -8,6 +8,8 @@
 #include <utility>
 
 #include "tensorcx/backends/cuda/cuda_kernels.h"
+#include "tensorcx/backends/cuda/cuda_predicate.h"
+#include "tensorcx/core/predicate.h"
 #include "tensorcx/backends/cuda/cuda_buffer.h"
 #include "tensorcx/backends/cuda/cuda_kernel.h"
 
@@ -29,12 +31,12 @@ bool is_elementwise_unary(OpKind kind) {
          kind == OpKind::kSilu || kind == OpKind::kNegate;
 }
 Expected<std::size_t> byte_size(DType dtype, const Shape& shape) {
-  if (dtype != DType::kFloat32 && dtype != DType::kInt32) return invalid("unsupported CUDA dtype");
+  if (dtype != DType::kFloat32 && dtype != DType::kInt32 && dtype != DType::kBool) return invalid("unsupported CUDA dtype");
   const auto count = static_cast<std::uint64_t>(numel(shape));
-  if (count > std::numeric_limits<std::size_t>::max() / sizeof(float)) {
+  if (count > std::numeric_limits<std::size_t>::max() / dtype_size(dtype)) {
     return invalid("CUDA buffer size overflow");
   }
-  return static_cast<std::size_t>(count) * sizeof(float);
+  return static_cast<std::size_t>(count) * dtype_size(dtype);
 }
 }  // namespace
 
@@ -94,9 +96,7 @@ Expected<CudaTensor> from_cpu(const cpu::CpuTensor& tensor) {
     auto buffer = CudaBuffer::create(tensor.dtype(), tensor.shape());
     if (!buffer) return buffer.status();
     if (buffer.value()->nbytes()) {
-      const void* source = tensor.dtype() == DType::kFloat32
-                               ? static_cast<const void*>(tensor.float_data().data())
-                               : static_cast<const void*>(tensor.int32_data().data());
+      const void* source = tensor.data();
       const auto error = cudaMemcpy(buffer.value()->data(), source,
                                     buffer.value()->nbytes(), cudaMemcpyHostToDevice);
       if (error != cudaSuccess) return runtime_status(error, "CPU to CUDA copy");
@@ -118,9 +118,7 @@ Expected<cpu::CpuTensor> to_cpu(const CudaTensor& tensor) {
     if (auto status = device.status(); !status.ok()) return status;
     cpu::CpuTensor result(tensor.dtype(), tensor.shape());
     if (tensor.nbytes()) {
-      void* destination = tensor.dtype() == DType::kFloat32
-                              ? static_cast<void*>(result.mutable_float_data().data())
-                              : static_cast<void*>(result.mutable_int32_data().data());
+      void* destination = result.mutable_data();
       const auto error = cudaMemcpy(destination, tensor.buffer()->data(), tensor.nbytes(),
                                     cudaMemcpyDeviceToHost);
       if (error != cudaSuccess) return runtime_status(error, "CUDA to CPU copy");
@@ -170,6 +168,24 @@ Status CudaBackend::execute(const BackendExecution& execution) {
       auto tensor=from_core_tensor(input);
       if (!tensor) return tensor.status();
     }
+    if (is_predicate_elementwise(kind) || kind == OpKind::kAny || kind == OpKind::kAll || kind == OpKind::kMaskedSelect)
+      return execute_predicate(execution);
+    if (kind == OpKind::kFill && execution.outputs[0].dtype == DType::kBool) {
+      const auto shape = execution.outputs[0].shape;
+      ContextScope device;
+      if (!device.ready()) return device.status();
+      auto buffer = CudaBuffer::create(DType::kBool, shape);
+      if (!buffer) return buffer.status();
+      if (buffer.value()->nbytes()) {
+        auto status = runtime_status(cudaMemset(buffer.value()->data(), execution.op.scalar_value != 0,
+                                               buffer.value()->nbytes()), "CUDA bool fill");
+        if (!status.ok()) return status;
+        status = runtime_status(cudaDeviceSynchronize(), "CUDA bool fill synchronize");
+        if (!status.ok()) return status;
+      }
+      execution.outputs[0] = to_core_tensor(CudaTensor(DType::kBool, shape, buffer.move_value()));
+      return Status::Ok();
+    }
     if (kind == OpKind::kTranspose || kind == OpKind::kSlice) {
       const auto& input = execution.inputs[0];
       const auto plan = kind == OpKind::kTranspose
@@ -201,7 +217,7 @@ Status CudaBackend::execute(const BackendExecution& execution) {
         }
         // Rank-zero kernels copy one word without reading the null metadata.
         const auto status = runtime_status(launch_transpose(source->data(), result.value()->data(), count,
-            static_cast<const Dim*>(device_metadata.get()), rank, plan.offset), "CUDA index copy");
+            static_cast<const Dim*>(device_metadata.get()), rank, plan.offset, input.dtype), "CUDA index copy");
         if (!status.ok()) return status;
       }
       execution.outputs[0] = to_core_tensor(CudaTensor(input.dtype, plan.output_shape, result.move_value()));
@@ -226,7 +242,7 @@ Status CudaBackend::execute(const BackendExecution& execution) {
           const auto block = input.shape[plan.axis] * plan.inner;
           const auto source = std::static_pointer_cast<CudaBuffer>(input.buffer);
           auto status = runtime_status(launch_concat(source->data(), result.value()->data(),
-              static_cast<std::size_t>(numel(input.shape)), block, output_block, offset), "CUDA concat");
+              static_cast<std::size_t>(numel(input.shape)), block, output_block, offset, dtype), "CUDA concat");
           if (!status.ok()) return status;
           offset += block;
         }
@@ -237,7 +253,7 @@ Status CudaBackend::execute(const BackendExecution& execution) {
     if (kind == OpKind::kCast) {
       const auto& input = execution.inputs[0];
       const auto target = execution.op.target_dtype;
-      if (target != DType::kFloat32 && target != DType::kInt32)
+      if (target != DType::kFloat32 && target != DType::kInt32 && target != DType::kBool)
         return invalid("unsupported cast target dtype");
       ContextScope device;
       if (!device.ready()) return device.status();
@@ -264,7 +280,9 @@ Status CudaBackend::execute(const BackendExecution& execution) {
       if (count) {
         const auto error = input.dtype == target
             ? cudaMemcpy(result.value()->data(), source->data(), source->nbytes(), cudaMemcpyDeviceToDevice)
-            : launch_cast(source->data(), result.value()->data(), count, input.dtype);
+            : input.dtype == DType::kBool || target == DType::kBool
+                ? launch_bool_cast(source->data(), result.value()->data(), count, input.dtype, target)
+                : launch_cast(source->data(), result.value()->data(), count, input.dtype);
         auto status = runtime_status(error, "CUDA tensor cast");
         if (!status.ok()) return status;
         // Device-to-device copies can return before completion. Cast kernels

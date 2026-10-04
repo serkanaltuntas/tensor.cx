@@ -606,31 +606,21 @@ def test_tensor_rejects_unsupported_device_before_materializing_data():
         cx.ones((2**62,), dtype=cx.float32, device="missing")
 
 
-def test_tensor_rejects_bool_data():
+def test_tensor_bool_data_and_explicit_conversion():
     from tensorcx import _core
 
-    with pytest.raises(ValueError, match="bool tensor data is not supported"):
-        cx.tensor(True, device="cpu")
-    with pytest.raises(ValueError, match="bool tensor data is not supported"):
-        cx.tensor(np.bool_(True), device="cpu")
-    with pytest.raises(ValueError, match="bool tensor data is not supported"):
-        cx.tensor([True, False], device="cpu")
-    with pytest.raises(ValueError, match="bool tensor data is not supported"):
-        cx.tensor([[True, False]], device="cpu")
-    with pytest.raises(ValueError, match="bool tensor data is not supported"):
-        cx.tensor([1, True], device="cpu")
-    with pytest.raises(ValueError, match="bool tensor data is not supported"):
-        _core.tensor([True], device="cpu")
-    with pytest.raises(ValueError, match="bool tensor data is not supported"):
-        _core.tensor([np.bool_(True)], device="cpu")
-    with pytest.raises(ValueError, match="bool tensor data is not supported"):
-        _core.tensor_from_flat([True], shape=(1,), dtype="int32", device="cpu")
-    with pytest.raises(ValueError, match="bool tensor data is not supported"):
-        _core.tensor_from_flat([True], shape=(1,), dtype="float32", device="cpu")
-    with pytest.raises(ValueError, match="bool tensor data is not supported"):
-        _core.tensor_from_flat([np.bool_(True)], shape=(1,), dtype="int32", device="cpu")
-    with pytest.raises(ValueError, match="bool tensor data is not supported"):
-        _core.tensor_from_flat([np.bool_(True)], shape=(1,), dtype="float32", device="cpu")
+    for data in (True, np.bool_(True), [True, False], [[True, False]]):
+        result = cx.tensor(data)
+        assert result.dtype == cx.bool
+        np.testing.assert_array_equal(result.numpy(), np.asarray(data))
+    with pytest.raises(ValueError, match="mixed boolean"):
+        cx.tensor([1, True])
+    for value in (True, np.bool_(True)):
+        assert _core.tensor([value], device="cpu").dtype == "bool"
+        for dtype in ("int32", "float32", "bool"):
+            result = _core.tensor_from_flat([value], shape=(1,), dtype=dtype, device="cpu")
+            assert result.dtype == dtype
+            np.testing.assert_array_equal(result.numpy(), np.array([1], dtype=dtype))
 
 
 def test_tensor_rejects_int_out_of_int32_range():

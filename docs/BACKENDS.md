@@ -178,7 +178,8 @@ and contiguous-metadata validation. CUDA Runtime API resources stay inside
 `cpp/tensorcx/backends/cuda/`; nvcc compiles static kernels at build time.
 Device selection is scoped per calling thread and restored afterward. Each
 operation waits for completion before returning and publishes output metadata
-only after success. Copies and explicit casts support float32/int32; arithmetic
+only after success. Copies and explicit casts support float32/int32/bool; comparisons and selection
+support all three dtypes, and boolean logic/any/all run on-device. Arithmetic
 is float32-only and accepts broadcast-compatible shapes. Checked float-to-int
 casts validate on the device and read back only a status flag. See the
 [tensor API contract](TENSOR_API.md).

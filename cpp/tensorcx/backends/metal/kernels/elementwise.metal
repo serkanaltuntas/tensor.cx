@@ -1,6 +1,7 @@
 #include <metal_stdlib>
 
 using namespace metal;
+#include "predicate.metal"
 
 // Three ulong entries per axis: output extent, left stride, right stride.
 // Dynamic metadata avoids imposing an artificial tensor-rank limit. Broadcast
@@ -580,4 +581,32 @@ kernel void reduce_max_i32(device const int* input [[buffer(0)]],
     max_value = max(max_value, input[base + reduce_index * inner_n]);
   }
   out[id] = max_value;
+}
+
+kernel void transpose_bool(device const uchar* input [[buffer(0)]],
+                           device uchar* out [[buffer(1)]],
+                           constant uint& n [[buffer(2)]],
+                           device const long* metadata [[buffer(3)]],
+                           constant ulong& rank [[buffer(4)]],
+                           constant long& offset [[buffer(5)]],
+                           uint id [[thread_position_in_grid]]) {
+  if (id < n) {
+    long remaining = id, source = offset;
+    for (ulong axis = rank; axis > 0; --axis) {
+      const ulong entry = (axis - 1) * 2;
+      source += (remaining % metadata[entry]) * metadata[entry + 1];
+      remaining /= metadata[entry];
+    }
+    out[id] = input[source];
+  }
+}
+
+kernel void concat_bool(device const uchar* input [[buffer(0)]],
+                        device uchar* out [[buffer(1)]],
+                        constant uint& n [[buffer(2)]],
+                        constant ulong& block [[buffer(3)]],
+                        constant ulong& output_block [[buffer(4)]],
+                        constant ulong& offset [[buffer(5)]],
+                        uint id [[thread_position_in_grid]]) {
+  if (id < n) out[(id / block) * output_block + offset + id % block] = input[id];
 }

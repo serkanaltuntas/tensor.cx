@@ -1,3 +1,5 @@
+#include "predicate_contract.h"
+
 #include <array>
 #include <bit>
 #include <cmath>
@@ -380,6 +382,13 @@ void multi_axis_contract_tests() {
 }  // namespace
 
 int main() {
+  try {
+    tensorcx::cpu::CpuBackend backend;
+    predicate_contract(backend, tensorcx::cpu::to_core_tensor, tensorcx::cpu::from_core_tensor);
+  } catch (const std::exception& error) {
+    std::cerr << "CPU predicate contract failed: " << error.what() << '\n';
+    ++failures;
+  }
   {
     using namespace tensorcx;
     cpu::CpuBackend backend;

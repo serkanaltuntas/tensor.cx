@@ -1,3 +1,5 @@
+#include "predicate_contract.h"
+
 #include <array>
 #include <bit>
 #include <cmath>
@@ -369,6 +371,20 @@ int main() {
   if (!status.ok()) {
     std::cerr << "metal backend contract smoke failed with status "
               << static_cast<int>(status.code()) << ": " << status.message() << '\n';
+    return 1;
+  }
+
+  try {
+    tensorcx::metal::MetalBackend backend;
+    predicate_contract(backend,
+      [](const tensorcx::cpu::CpuTensor& value) {
+        return tensorcx::metal::to_core_tensor(tensorcx::metal::from_cpu(value).value());
+      },
+      [](const tensorcx::Tensor& value) {
+        return tensorcx::metal::to_cpu(tensorcx::metal::from_core_tensor(value)).value();
+      });
+  } catch (const std::exception& error) {
+    std::cerr << "Metal predicate contract failed: " << error.what() << '\n';
     return 1;
   }
 

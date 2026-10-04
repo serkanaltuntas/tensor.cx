@@ -3,7 +3,7 @@
 User-requested increment, 2026-10-04: basic arithmetic and Python/NumPy real
 scalars, contiguous reshape, and reduction `keepdims`, followed by explicit
 `astype` conversion, tensor broadcasting, and shape operations (`transpose`,
-`squeeze`, `expand_dims`), followed by all-axis/multi-axis reductions and basic indexing/concat/stack/split. These extend the original API;
+`squeeze`, `expand_dims`), followed by all-axis/multi-axis reductions and basic indexing/concat/stack/split, then boolean comparisons and masks. These extend the original API;
 they do not change the historical Phase 9/10 acceptance records.
 
 ## Arithmetic
@@ -43,7 +43,7 @@ Metal/CUDA kernels use the shared `Backend::execute` path.
 ## Explicit dtype conversion
 
 `x.astype(dtype, copy=True)` and `cx.astype(x, dtype, copy=True)` accept
-`cx.float32`/`"float32"` and `cx.int32`/`"int32"` on CPU, Metal and CUDA. They
+`cx.float32`/`"float32"`, `cx.int32`/`"int32"` and `cx.bool`/`"bool"` on CPU, Metal and CUDA. They
 preserve shape and device, including rank-0 and empty tensors. `copy` is a
 keyword-only Python/NumPy boolean. With the default, even a same-dtype cast owns
 a new buffer. `copy=False` returns the input for an unchanged dtype; a changed
@@ -56,6 +56,8 @@ dtype still allocates. Reshape views and inputs are never mutated.
   `[-2147483648, 2147483648)` raise `ValueError`. Each value is checked
   before conversion; any invalid value fails the operation without publishing
   a result or changing caller tensors.
+- Numeric to bool maps zero (including signed zero) to false and every nonzero
+  value, NaN and infinity to true. Bool to numeric yields 0 or 1.
 - Same-dtype copies preserve the stored bits, including signed zero and NaN.
 
 Conversion executes natively on the selected device. Checked GPU float-to-int
@@ -114,7 +116,7 @@ using the same ownership rules as reshape. An empty axis tuple returns an
 unchanged-shape view. Axis values follow the integer protocol; booleans,
 strings, non-integral values and values outside signed 64-bit bounds are rejected.
 
-All three operations support float32/int32 on CPU, Metal and CUDA, including
+All three operations support float32/int32/bool on CPU, Metal and CUDA, including
 scalars and empty tensors. Transpose preserves stored bits (including NaN
 payloads and signed zero), with native CPU/MSL/CUDA execution and only O(rank)
 metadata transferred to a GPU. It adds no arbitrary rank cap. The existing
@@ -135,8 +137,9 @@ print(x.expand_dims((0, -1)).squeeze().shape)  # (2, 3)
 `...`, `None` for new axes, and tuples combining them. Negative integers count
 from the end; slices clip their bounds like Python/NumPy. Selecting all axes
 with integers returns a rank-0 **Tensor**. Even `x[...]` and `x[()]` copy.
-Boolean masks, advanced array/list indexing and indexed assignment are not
-supported. Invalid integer indices raise `IndexError`; invalid slice bounds or
+Boolean Tensor masks have the separate contract below. Advanced integer
+array/list indexing, masks combined with other indices, and indexed assignment
+are not supported. Invalid integer indices raise `IndexError`; invalid slice bounds or
 zero steps raise `ValueError`.
 
 - `cx.concat(tensors, axis=0)` joins a non-empty iterable along an existing axis.
@@ -150,7 +153,7 @@ zero steps raise `ValueError`.
   produce empty pieces. Empty axes can be divided into positive section counts.
 
 All operations preserve dtype/device and stored bits on CPU, Metal and CUDA,
-including float32/int32, scalar stack and empty outputs. Inputs to a join must
+including float32/int32/bool, scalar stack and empty outputs. Inputs to a join must
 share dtype/device; no casting, broadcasting or device transfers occur. Axes
 accept integers (including negative axes); booleans are rejected. Every result
 owns independent contiguous storage, including each split piece and a
@@ -226,7 +229,7 @@ print(x.mean(axis=(0, 1), keepdims=True).numpy())  # [[2.5]]
 
 `tests/python/test_tensor_api.py`, `tests/python/test_cast_broadcast.py`,
 `tests/python/test_shape_ops.py`, `tests/python/test_multi_axis_reductions.py`
-and `tests/python/test_indexing_joining.py`
+`tests/python/test_indexing_joining.py` and `tests/python/test_boolean_masks.py`
 check the public contract on every available
 backend. CUDA acceptance requires a GPU before collection and includes these
 files without skips; native contracts cover arithmetic, cast, broadcast and
@@ -299,3 +302,70 @@ releases, diagnostics, interoperability, inference primitives, compiler caching,
 profiling, more dtypes, and asynchronous execution. These need their own scopes
 and acceptance evidence; [PyTorch integration](PYTORCH_PORTABILITY_ROADMAP.md)
 remains a separate staged track.
+
+## Comparisons and boolean masks
+
+`cx.bool` / `"bool"` is a one-byte dtype on CPU, Metal and CUDA. Boolean input
+infers it; mixed boolean/numeric constructor input requires an explicit dtype.
+`empty`, `zeros`, `ones`, copies, casts and shape/index/join operations support it.
+Numeric arithmetic, numeric reductions and normalizations reject bool tensors.
+
+- Six operators (`==`, `!=`, `<`, `<=`, `>`, `>=`) and `cx.equal`, `not_equal`,
+  `less`, `less_equal`, `greater`, `greater_equal` return bool tensors. Operands
+  share dtype/device and follow binary broadcasting. Float32 comparisons use
+  IEEE rules (NaN is unequal even to itself); int32 comparisons are exact.
+- Python/NumPy scalars follow the tensor dtype: real nonboolean scalars for
+  float32, in-range integers for int32, and booleans for bool. No implicit
+  tensor casts or transfers occur. Scalar constants become rank-0 tensors on
+  the operand device; input tensors stay on that device.
+- `&`, `|`, `^`, `~` and `cx.logical_and`, `logical_or`, `logical_xor`,
+  `logical_not` operate on bool tensors with broadcasting. Parenthesize each
+  comparison, for example `(x > 0) & (x < 10)`.
+- `cx.where(condition, x, y)` / `x.where(condition, y)` broadcasts all three
+  inputs. The condition is a bool Tensor; branches have the same dtype/device
+  and may be matching scalars. If both branches are scalars, their inferred
+  dtypes must match. This selects stored values, preserving signed zero and
+  NaN payloads; it does not lazily evaluate branches.
+- `cx.any(x, axis=None, keepdims=False)` / `all` and Tensor methods accept bool
+  inputs only. All/single/multiple/negative axes, empty axis selections and
+  `keepdims` follow the numeric reduction contract. Empty reductions yield
+  false for any and true for all. Every output owns a new buffer.
+- `x[mask]` and `cx.masked_select(x, mask)` require a bool Tensor mask on the
+  same device whose shape matches the input's leading dimensions, without
+  broadcasting. Result shape is `(selected_count, *unmasked_trailing_shape)`.
+  Thus a full-shape mask flattens selected elements; a row mask keeps remaining
+  axes. Scalar bool Tensor masks add a leading size-0/1 axis. Selection is
+  stable in row-major order and copies into independent contiguous storage.
+  Mixed mask/basic-index tuples, integer-array indexing and assignment remain
+  unsupported; Python bool indices are rejected.
+- `bool(x)` requires exactly one element (of any supported dtype), including
+  high-rank singleton shapes. Empty/multielement tensors raise `ValueError`;
+  use `any`/`all` to state the intended reduction. Truth conversion reads one
+  value back to the host.
+
+The native operations use the shared `Backend::execute` contract. GPU
+comparisons, logical operations, where and reductions do not export tensors
+through CPU/NumPy. Mask selection uses a device prefix sum and gather; only
+its final selected count is read back to size the output. The current scan
+uses O(n log n) work and O(n) scratch space with synchronous launches; it is a
+correctness-first implementation, not a tuned compaction benchmark claim.
+Generated-kernel dtype/operator subsets remain unchanged.
+
+Verification: `tests/python/test_boolean_masks.py` covers NumPy/CPU parity,
+IEEE values, integer precision, scalars, broadcasting, empty/high-rank tensors,
+ownership, invalid inputs and the no-host-fallback contract. Native
+`predicate_contract.h` exercises CPU/Metal/CUDA byte storage, all new primitive
+families and invalid descriptors without replacing outputs on failure; it is
+also included in the CUDA push gate's GPU sanitizer runs.
+
+
+Boolean/mask local acceptance on 2026-10-04: 560 new CPU/CUDA tests passed;
+the full required-CUDA/LLVM suite passed 2959 with 160 expected platform/Metal
+skips. Native and ASan/UBSan contracts passed 4/4; the 560 new tests passed
+GPU memcheck/racecheck with zero errors or hazards. Fresh CPU/CUDA sdist-to-wheel
+installations passed with LLVM present/absent and GPU hidden, and installed
+wheels passed 280 CPU / 560 CPU+CUDA tests. Website checking/build, four preview
+tests, five Workers tests, deploy dry run and the operations snippet passed.
+Two code reviews and independent test/acceptance QA closed their findings.
+Metal compilation and device execution remain the separate macOS CI gate;
+these local results do not cover additional NVIDIA architectures.

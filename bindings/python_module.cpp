@@ -5,6 +5,7 @@
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/shared_ptr.h>
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstring>
@@ -70,16 +71,17 @@ DType parse_dtype(nb::handle dtype, DType inferred) {
   }
 
   if (!nb::isinstance<nb::str>(dtype)) {
-    throw std::invalid_argument("unsupported dtype: expected float32 or int32");
+    throw std::invalid_argument("unsupported dtype: expected float32, int32 or bool");
   }
   const std::string name = nb::cast<std::string>(dtype);
   if (name == "float32") {
     return DType::kFloat32;
   }
+  if (name == "bool") return DType::kBool;
   if (name == "int32") {
     return DType::kInt32;
   }
-  throw std::invalid_argument("unsupported dtype: expected float32 or int32");
+  throw std::invalid_argument("unsupported dtype: expected float32, int32 or bool");
 }
 
 bool is_index_like(nb::handle item) {
@@ -118,9 +120,7 @@ void validate_cpu_device(const std::string& device) {
 // int32 range. Translate that into a clear ValueError matching the error
 // taxonomy instead of leaking an opaque "std::bad_cast".
 std::int32_t cast_int32_or_throw(nb::handle item) {
-  if (is_bool_like(item)) {
-    throw std::invalid_argument("bool tensor data is not supported");
-  }
+  if (is_bool_like(item)) return PyObject_IsTrue(item.ptr()) != 0;
   try {
     return nb::cast<std::int32_t>(item);
   } catch (const std::exception&) {
@@ -129,9 +129,7 @@ std::int32_t cast_int32_or_throw(nb::handle item) {
 }
 
 float cast_float32_or_throw(nb::handle item) {
-  if (is_bool_like(item)) {
-    throw std::invalid_argument("bool tensor data is not supported");
-  }
+  if (is_bool_like(item)) return PyObject_IsTrue(item.ptr()) != 0;
   try {
     return nb::cast<float>(item);
   } catch (const std::exception&) {
@@ -179,6 +177,14 @@ Shape parse_shape(nb::handle shape) {
   return result;
 }
 
+std::uint8_t cast_bool_or_throw(nb::handle value) {
+  if (!PyNumber_Check(value.ptr()) || PyComplex_Check(value.ptr()))
+    throw std::invalid_argument("bool data must contain real numbers or booleans");
+  const int truth = PyObject_IsTrue(value.ptr());
+  if (truth < 0) throw nb::python_error();
+  return truth != 0;
+}
+
 CpuTensor tensor_from_sequence(nb::handle data, nb::handle dtype, const std::string& device) {
   validate_cpu_device(device);
 
@@ -196,11 +202,20 @@ CpuTensor tensor_from_sequence(nb::handle data, nb::handle dtype, const std::str
     }
   }
 
-  const DType inferred = saw_float ? DType::kFloat32 : DType::kInt32;
+  const bool all_bool = !items.empty() && std::all_of(items.begin(), items.end(), [](const nb::object& item) { return is_bool_like(item); });
+  if (dtype.is_none() && !all_bool && std::any_of(items.begin(), items.end(), [](const nb::object& item) { return is_bool_like(item); }))
+    throw std::invalid_argument("mixed boolean and numeric data requires an explicit dtype");
+  const DType inferred = all_bool ? DType::kBool : saw_float ? DType::kFloat32 : DType::kInt32;
   const DType actual_dtype = parse_dtype(dtype, inferred);
   Shape shape{static_cast<tensorcx::Dim>(items.size())};
 
   switch (actual_dtype) {
+    case DType::kBool: {
+      std::vector<std::uint8_t> values;
+      values.reserve(items.size());
+      for (const auto& item : items) values.push_back(cast_bool_or_throw(item));
+      return CpuTensor(std::move(shape), std::move(values));
+    }
     case DType::kFloat32: {
       std::vector<float> values;
       values.reserve(items.size());
@@ -243,6 +258,16 @@ CpuTensor tensor_from_flat_sequence(
   };
 
   switch (actual_dtype) {
+    case DType::kBool: {
+      std::vector<std::uint8_t> values;
+      for (nb::handle item : nb::iter(data)) {
+        reject_excess_length(values.size());
+        values.push_back(cast_bool_or_throw(item));
+      }
+      if (static_cast<std::int64_t>(values.size()) != expected_size)
+        throw std::invalid_argument("tensor data length does not match shape");
+      return CpuTensor(parsed_shape, std::move(values));
+    }
     case DType::kFloat32: {
       std::vector<float> values;
       for (nb::handle item : nb::iter(data)) {
@@ -298,8 +323,18 @@ nb::object make_numpy_array(const std::vector<T>& data, const Shape& shape) {
   return nb::cast(nb::ndarray<nb::numpy, T>(owned, ndim, dims.data(), owner));
 }
 
+nb::object make_bool_numpy(const CpuTensor& tensor) {
+  const auto& data = tensor.bool_data();
+  auto* owned = new bool[data.size()];
+  for (std::size_t i = 0; i < data.size(); ++i) owned[i] = data[i] != 0;
+  nb::capsule owner(owned, [](void* ptr) noexcept { delete[] static_cast<bool*>(ptr); });
+  std::vector<std::size_t> dims(tensor.shape().begin(), tensor.shape().end());
+  return nb::cast(nb::ndarray<nb::numpy, bool>(owned, dims.size(), dims.data(), owner));
+}
+
 nb::object tensor_to_numpy(const CpuTensor& tensor) {
   switch (tensor.dtype()) {
+    case DType::kBool: return make_bool_numpy(tensor);
     case DType::kFloat32:
       return make_numpy_array<float>(tensor.float_data(), tensor.shape());
     case DType::kInt32:
@@ -703,7 +738,17 @@ NativeTensor reshape_tensor(const NativeTensor& input, nb::handle requested_shap
 }
 
 template <typename NativeTensor, typename Backend, typename Convert>
-void bind_concat(nb::module_& module, Convert convert) {
+void bind_multi_input_tensor_ops(nb::module_& module, Convert convert) {
+  module.def("where", [convert](const NativeTensor& condition, const NativeTensor& a, const NativeTensor& b) {
+    std::array<tensorcx::Tensor, 3> inputs{to_core_tensor(condition), to_core_tensor(a), to_core_tensor(b)};
+    std::array<tensorcx::Tensor, 1> outputs;
+    Backend backend;
+    tensorcx::BackendExecution execution;
+    execution.op = OpDesc{OpKind::kWhere}; execution.inputs = inputs; execution.outputs = outputs;
+    const auto status = without_gil([&] { return backend.execute(execution); });
+    if (!status.ok()) throw_status(status);
+    return convert(outputs[0]);
+  }, nb::arg("condition"), nb::arg("x"), nb::arg("y"));
   module.def("_concat", [convert](const NativeTensor& first, nb::iterable rest, nb::handle axis) {
     OpDesc op{OpKind::kConcat}; op.axis = cast_dim_or_throw(axis);
     std::vector<tensorcx::Tensor> inputs{to_core_tensor(first)};
@@ -725,7 +770,8 @@ void bind_concat(nb::module_& module, Convert convert) {
 template <typename NativeTensor, typename ExecuteSingle>
 void bind_tensor_extensions(nb::module_& module, ExecuteSingle execute_single) {
   for (auto [name, kind] : {std::pair{"_sum_axes", OpKind::kSum},
-                            {"_max_axes", OpKind::kMax}, {"_mean_axes", OpKind::kMean}}) {
+                            {"_max_axes", OpKind::kMax}, {"_mean_axes", OpKind::kMean},
+                            {"_any_axes", OpKind::kAny}, {"_all_axes", OpKind::kAll}}) {
     module.def(name, [kind, execute_single](const NativeTensor& input, nb::handle axes) {
       OpDesc op{kind}; op.reduction_axes = parse_shape(axes);
       return execute_single(input, op);
@@ -759,6 +805,17 @@ void bind_tensor_extensions(nb::module_& module, ExecuteSingle execute_single) {
       return binary_op(lhs, rhs, kind);
     }, nb::arg("lhs"), nb::arg("rhs"));
   }
+  for (auto [name, kind] : {std::pair{"equal", OpKind::kEqual}, {"not_equal", OpKind::kNotEqual},
+       {"less", OpKind::kLess}, {"less_equal", OpKind::kLessEqual}, {"greater", OpKind::kGreater},
+       {"greater_equal", OpKind::kGreaterEqual}, {"logical_and", OpKind::kLogicalAnd},
+       {"logical_or", OpKind::kLogicalOr}, {"logical_xor", OpKind::kLogicalXor}, {"masked_select", OpKind::kMaskedSelect}}) {
+    module.def(name, [kind](const NativeTensor& lhs, const NativeTensor& rhs) {
+      return binary_op(lhs, rhs, kind);
+    }, nb::arg("lhs"), nb::arg("rhs"));
+  }
+  module.def("logical_not", [execute_single](const NativeTensor& input) {
+    return execute_single(input, OpDesc{OpKind::kLogicalNot});
+  }, nb::arg("input"));
   module.def("negative", [execute_single](const NativeTensor& input) {
     return execute_single(input, OpDesc{OpKind::kNegate});
   }, nb::arg("input"));
@@ -973,6 +1030,7 @@ NB_MODULE(_core, module) {
   module.def("version", []() { return TENSORCX_RUNTIME_VERSION; });
   module.attr("float32") = "float32";
   module.attr("int32") = "int32";
+  module.attr("bool") = "bool";
   module.def("_backend_contract_smoke_test", []() {
     const auto status = tensorcx::null_backend::contract_smoke_test();
     if (!status.ok()) {
@@ -1069,7 +1127,7 @@ NB_MODULE(_core, module) {
              nb::arg("lhs"),
              nb::arg("rhs"));
   bind_tensor_extensions<CpuTensor>(module, cpu_single_input_backend_op);
-  bind_concat<CpuTensor, tensorcx::cpu::CpuBackend>(module, tensorcx::cpu::from_core_tensor);
+  bind_multi_input_tensor_ops<CpuTensor, tensorcx::cpu::CpuBackend>(module, tensorcx::cpu::from_core_tensor);
   module.def("multiply",
              [](const CpuTensor& lhs, const CpuTensor& rhs) {
                return binary_op(lhs, rhs, OpKind::kMultiply);
@@ -1216,7 +1274,7 @@ NB_MODULE(_core, module) {
       })
       .def_prop_ro("device", [](const CudaTensor&) { return "cuda"; })
       .def_prop_ro("nbytes", &CudaTensor::nbytes);
-  bind_concat<CudaTensor, tensorcx::cuda::CudaBackend>(module, [](const tensorcx::Tensor& tensor) {
+  bind_multi_input_tensor_ops<CudaTensor, tensorcx::cuda::CudaBackend>(module, [](const tensorcx::Tensor& tensor) {
     return unwrap(tensorcx::cuda::from_core_tensor(tensor));
   });
   bind_tensor_extensions<CudaTensor>(module, [](const CudaTensor& input, const OpDesc& op) {
@@ -1285,7 +1343,7 @@ NB_MODULE(_core, module) {
       });
 
   bind_tensor_extensions<tensorcx::metal::MetalTensor>(module, metal_single_input_backend_op);
-  bind_concat<tensorcx::metal::MetalTensor, tensorcx::metal::MetalBackend>(
+  bind_multi_input_tensor_ops<tensorcx::metal::MetalTensor, tensorcx::metal::MetalBackend>(
       module, tensorcx::metal::from_core_tensor);
   module.def("cpu_to_metal",
              [](const CpuTensor& tensor) {

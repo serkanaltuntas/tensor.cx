@@ -21,8 +21,14 @@ plain C++ tensor/backend APIs.
 
 ## Current Behavior
 
+Native comparisons, boolean logic, where, any/all and boolean mask selection
+follow the [tensor API contract](TENSOR_API.md#comparisons-and-boolean-masks).
+Mask selection uses a device prefix scan and gather, reading back only its
+selected count; bool storage occupies one byte per element.
+
+
 Current Metal support includes exact CPU/Metal/CPU tensor copy round-trips for
-contiguous `float32` and `int32` tensors, static Metal kernels for add,
+contiguous `float32`, `int32` and `bool` tensors, static Metal kernels for add,
 multiply, fill, `exp`, `gelu`, `silu`, `softmax`, `rmsnorm`, `layernorm`,
 `sum`, `max`, and `mean`, a naive custom MSL matmul kernel for `float32`, and an
 optional MPSGraph-backed matmul path for the Apple optimized primitive route.

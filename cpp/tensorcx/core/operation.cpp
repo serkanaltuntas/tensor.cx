@@ -9,6 +9,16 @@ std::optional<PrimitiveOpSchema> primitive_op_schema(OpKind kind) {
     case OpKind::kSubtract:
     case OpKind::kDivide:
     case OpKind::kMatmul:
+    case OpKind::kEqual:
+    case OpKind::kNotEqual:
+    case OpKind::kLess:
+    case OpKind::kLessEqual:
+    case OpKind::kGreater:
+    case OpKind::kGreaterEqual:
+    case OpKind::kLogicalAnd:
+    case OpKind::kLogicalOr:
+    case OpKind::kLogicalXor:
+    case OpKind::kMaskedSelect:
       return PrimitiveOpSchema{2, 1};
     case OpKind::kSum:
     case OpKind::kMax:
@@ -27,7 +37,12 @@ std::optional<PrimitiveOpSchema> primitive_op_schema(OpKind kind) {
     case OpKind::kCast:
     case OpKind::kTranspose:
     case OpKind::kSlice:
+    case OpKind::kLogicalNot:
+    case OpKind::kAny:
+    case OpKind::kAll:
       return PrimitiveOpSchema{1, 1};
+    case OpKind::kWhere:
+      return PrimitiveOpSchema{3, 1};
     case OpKind::kConcat:
       return PrimitiveOpSchema{1, 1, true};
     case OpKind::kFill:

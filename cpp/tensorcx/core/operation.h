@@ -34,6 +34,20 @@ enum class OpKind {
   kTranspose,
   kSlice,
   kConcat,
+  kEqual,
+  kNotEqual,
+  kLess,
+  kLessEqual,
+  kGreater,
+  kGreaterEqual,
+  kLogicalAnd,
+  kLogicalOr,
+  kLogicalXor,
+  kLogicalNot,
+  kWhere,
+  kAny,
+  kAll,
+  kMaskedSelect,
 };
 
 enum class MatmulPreference {

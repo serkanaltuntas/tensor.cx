@@ -46,7 +46,8 @@ __global__ void broadcast_binary_f32(const float* lhs, const float* rhs, float* 
   }
 }
 
-__global__ void transpose_bits(const std::uint32_t* input, std::uint32_t* output,
+template<typename Word>
+__global__ void transpose_bits(const Word* input, Word* output,
                                std::size_t count, const Dim* metadata, std::size_t rank, Dim offset) {
   for (std::size_t i = std::size_t(blockIdx.x) * blockDim.x + threadIdx.x;
        i < count; i += std::size_t(blockDim.x) * gridDim.x) {
@@ -61,7 +62,8 @@ __global__ void transpose_bits(const std::uint32_t* input, std::uint32_t* output
   }
 }
 
-__global__ void concat_bits(const std::uint32_t* input, std::uint32_t* output,
+template<typename Word>
+__global__ void concat_bits(const Word* input, Word* output,
                             std::size_t count, Dim block, Dim output_block, Dim offset) {
   for (std::size_t i = std::size_t(blockIdx.x) * blockDim.x + threadIdx.x;
        i < count; i += std::size_t(blockDim.x) * gridDim.x)
@@ -132,16 +134,26 @@ cudaError_t launch_broadcast_binary(const float* lhs, const float* rhs, float* o
 }
 
 cudaError_t launch_transpose(const void* input, void* output, std::size_t count,
-                             const Dim* metadata, std::size_t rank, Dim offset) {
+                             const Dim* metadata, std::size_t rank, Dim offset, DType dtype) {
   if (count == 0) return cudaSuccess;
+  if (dtype == DType::kBool) {
+    transpose_bits<<<blocks(count), kThreads>>>(static_cast<const std::uint8_t*>(input),
+        static_cast<std::uint8_t*>(output), count, metadata, rank, offset);
+    return finish_launch();
+  }
   transpose_bits<<<blocks(count), kThreads>>>(static_cast<const std::uint32_t*>(input),
       static_cast<std::uint32_t*>(output), count, metadata, rank, offset);
   return finish_launch();
 }
 
 cudaError_t launch_concat(const void* input, void* output, std::size_t count,
-                          Dim block, Dim output_block, Dim offset) {
+                          Dim block, Dim output_block, Dim offset, DType dtype) {
   if (count == 0) return cudaSuccess;
+  if (dtype == DType::kBool) {
+    concat_bits<<<blocks(count), kThreads>>>(static_cast<const std::uint8_t*>(input),
+        static_cast<std::uint8_t*>(output), count, block, output_block, offset);
+    return finish_launch();
+  }
   concat_bits<<<blocks(count), kThreads>>>(static_cast<const std::uint32_t*>(input),
       static_cast<std::uint32_t*>(output), count, block, output_block, offset);
   return finish_launch();

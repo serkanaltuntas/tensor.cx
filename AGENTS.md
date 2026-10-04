@@ -369,7 +369,8 @@ broadcasting, implicit casts, or silent reinterpretation in that original scope.
 The user-authorized post-v0.1 API extension now includes explicit float32/int32
 `astype`, ordinary binary tensor broadcasting, contiguous-copy transpose, and
 shared-storage squeeze/expand_dims, all-axis/multi-axis sum/max/mean, and
-basic indexing plus concat/stack/split as contiguous copies;
+basic indexing plus concat/stack/split as contiguous copies, followed by bool
+tensors, comparisons, logical masks, where, any/all and masked selection;
 see `docs/TENSOR_API.md`. Normalizations still require one explicit axis.
 Implicit dtype promotion, device transfer, general strides and generated-kernel
 broadcasting remain outside that extension.
@@ -451,8 +452,7 @@ int32:                  exact equality
 
 Looser tolerances for reductions/matmul are intentional — GPU and CPU accumulate
 in different orders. Bit-exact equality is correct for integer ops. Boolean
-tensors are not currently exposed; if added later, they should use exact
-equality.
+tensors also use exact equality.
 
 Run the most relevant test command before finishing a task. Typical commands:
 

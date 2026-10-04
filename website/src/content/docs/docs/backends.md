@@ -9,22 +9,24 @@ only device index 0 is exposed.
 
 | Capability | CPU | Metal | CUDA |
 | --- | --- | --- | --- |
-| Float32/int32 tensor copy | Yes | Yes | Yes |
+| Float32/int32/bool tensor copy | Yes | Yes | Yes |
 | Float32 fill, add, multiply | Yes | Yes | Yes |
 | Int32 fill, add, multiply | Yes | Yes | No |
 | Float32 subtract, divide, negate and scalar arithmetic | Yes | Yes | Yes |
 | Int32 subtract, negate and scalar add/subtract/multiply | Yes | Yes | No |
-| Contiguous reshape (float32/int32) | Yes | Yes | Yes |
-| Transpose to contiguous copy (float32/int32) | Yes | Yes | Yes |
-| Squeeze / expand dims views (float32/int32) | Yes | Yes | Yes |
-| Basic indexing / slicing copies (float32/int32) | Yes | Yes | Yes |
-| Concat / stack / split copies (float32/int32) | Yes | Yes | Yes |
-| Explicit float32/int32 conversion | Yes | Yes | Yes |
+| Contiguous reshape (float32/int32/bool) | Yes | Yes | Yes |
+| Transpose to contiguous copy (float32/int32/bool) | Yes | Yes | Yes |
+| Squeeze / expand dims views (float32/int32/bool) | Yes | Yes | Yes |
+| Basic indexing / slicing copies (float32/int32/bool) | Yes | Yes | Yes |
+| Concat / stack / split copies (float32/int32/bool) | Yes | Yes | Yes |
+| Explicit float32/int32/bool conversion | Yes | Yes | Yes |
+| Comparisons and `where` (float32/int32/bool) | Yes | Yes | Yes |
+| Bool fill, logic, any/all and mask selection | Yes | Yes | Yes |
 | Binary arithmetic broadcasting | Yes | Yes | Yes, float32 |
 | Float32 2D matmul | Yes | Custom + optional optimized path | Custom path |
 | Float32 sum, max, mean | Yes | Yes | Yes |
 | Int32 sum, max | Yes | Yes | No |
-| Reduction `keepdims` | Yes | Yes | Yes, float32 |
+| Numeric reduction `keepdims` | Yes | Yes | Yes, float32 |
 | All-axis / multi-axis sum, max, mean | Yes | Yes | Yes, float32 |
 | Float32 exp, GELU, SiLU | Yes | Yes | Yes |
 | Float32 softmax, RMSNorm, LayerNorm | Yes | Yes | Yes |

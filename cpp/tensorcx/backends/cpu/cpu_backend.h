@@ -14,6 +14,9 @@ class CpuBackend final : public Backend {
 
 CpuTensor empty(Shape shape, DType dtype);
 CpuTensor fill(Shape shape, DType dtype, double value);
+CpuTensor predicate(const OpDesc& op, std::span<const CpuTensor> inputs);
+CpuTensor reduce_boolean(const OpDesc& op, const CpuTensor& input);
+CpuTensor masked_select(const CpuTensor& input, const CpuTensor& mask);
 CpuTensor execute_unary(const OpDesc& op, const CpuTensor& input);
 CpuTensor execute_binary(const OpDesc& op, const CpuTensor& lhs, const CpuTensor& rhs);
 CpuTensor reduce(const OpDesc& op, const CpuTensor& input);

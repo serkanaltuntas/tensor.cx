@@ -20,6 +20,7 @@
 #include "tensorcx/backends/metal/metal_mpsgraph.h"
 #endif
 #include "tensorcx/core/shape.h"
+#include "tensorcx/core/predicate.h"
 
 namespace tensorcx::metal {
 namespace {
@@ -183,6 +184,15 @@ Status MetalBackend::execute(const BackendExecution& execution) {
       return contract;
     }
 
+    if (is_predicate_elementwise(execution.op.kind) || execution.op.kind == OpKind::kAny ||
+        execution.op.kind == OpKind::kAll || execution.op.kind == OpKind::kMaskedSelect) {
+      std::vector<MetalTensor> inputs;
+      for (const auto& input : execution.inputs) inputs.push_back(from_core_tensor(input));
+      auto result = execute_predicate(execution.op, inputs);
+      if (!result) return result.status();
+      execution.outputs[0] = to_core_tensor(result.move_value());
+      return Status::Ok();
+    }
     switch (execution.op.kind) {
       case OpKind::kAdd:
       case OpKind::kSubtract:
@@ -294,46 +304,17 @@ Expected<MetalTensor> from_cpu(const cpu::CpuTensor& tensor) {
   }
   auto buffer = buffer_result.move_value();
 
-  switch (tensor.dtype()) {
-    case DType::kFloat32: {
-      const Status status = buffer->copy_from_host(tensor.float_data().data(), buffer->nbytes());
-      if (!status.ok()) {
-        return status;
-      }
-      break;
-    }
-    case DType::kInt32: {
-      const Status status = buffer->copy_from_host(tensor.int32_data().data(), buffer->nbytes());
-      if (!status.ok()) {
-        return status;
-      }
-      break;
-    }
-  }
+  const auto status = buffer->copy_from_host(tensor.data(), buffer->nbytes());
+  if (!status.ok()) return status;
 
   return MetalTensor(tensor.dtype(), tensor.shape(), std::move(buffer));
 }
 
 Expected<cpu::CpuTensor> to_cpu(const MetalTensor& tensor) {
-  switch (tensor.dtype()) {
-    case DType::kFloat32: {
-      std::vector<float> values(static_cast<std::size_t>(tensor.size()));
-      const Status status = tensor.buffer()->copy_to_host(values.data(), tensor.nbytes());
-      if (!status.ok()) {
-        return status;
-      }
-      return cpu::CpuTensor(tensor.shape(), std::move(values));
-    }
-    case DType::kInt32: {
-      std::vector<std::int32_t> values(static_cast<std::size_t>(tensor.size()));
-      const Status status = tensor.buffer()->copy_to_host(values.data(), tensor.nbytes());
-      if (!status.ok()) {
-        return status;
-      }
-      return cpu::CpuTensor(tensor.shape(), std::move(values));
-    }
-  }
-  return Status(StatusCode::kInvalidArgument, "unsupported Metal tensor dtype");
+  cpu::CpuTensor result(tensor.dtype(), tensor.shape());
+  const auto status = tensor.buffer()->copy_to_host(result.mutable_data(), tensor.nbytes());
+  if (!status.ok()) return status;
+  return result;
 }
 
 Tensor to_core_tensor(const MetalTensor& tensor) {

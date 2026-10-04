@@ -157,10 +157,10 @@ print(y.cpu().numpy()[:3])  # [2. 2. 2.]
 The prototype exposes only device index 0. float32 add/subtract/multiply/divide
 support broadcast-compatible shapes with matching dtypes; Python/NumPy real scalars, negation,
 rank-0 and empty contiguous tensors work. Copies preserve
-float32/int32, and `astype` converts explicitly between them on the device.
+float32/int32/bool, and `astype` converts explicitly between them on the device.
 Float32 matmul (`auto`/`custom`), sum/max/mean, exp/GELU/SiLU,
 softmax, RMSNorm and LayerNorm are implemented; see [semantics and validation](docs/CUDA_PRIMITIVES_VALIDATION.md).
-Transpose supports both dtypes and returns a contiguous device copy; squeeze
+Transpose supports float32/int32/bool and returns a contiguous device copy; squeeze
 and expand_dims share storage without copying, like reshape.
 Int32 fill/arithmetic/reductions and broad generated CUDA kernels remain unsupported. A separate
 explicit MLIR compiler supports guarded float32 add/subtract/multiply on the validated sm_52
@@ -306,11 +306,11 @@ print(ln.cpu().numpy().shape)
 - `cx.testing.assert_allclose` requires equal shapes (including scalar rank).
   If either input has an integer or boolean dtype, it compares values exactly;
   floating-point tolerances apply only when both inputs are floating point.
-- Supported dtypes are `float32` and `int32`. Float inputs are narrowed to
+- Supported dtypes are `float32`, `int32` and `bool`. Float inputs are narrowed to
   `float32`, so values may lose precision or overflow to `inf`.
 - Arithmetic accepts broadcast-compatible tensors or real scalars on either
   side, without dtype promotion or device transfer. Division requires float32.
-  `astype(dtype, copy=True)` explicitly converts float32/int32 on the same
+  `astype(dtype, copy=True)` explicitly converts float32/int32/bool on the same
   device; float-to-int truncates toward zero and rejects non-finite/out-of-range
   values. See [the full contract](docs/TENSOR_API.md).
 - `int32` add/subtract/multiply/negate overflow wraps (defined two's-complement), matching
@@ -323,12 +323,17 @@ print(ln.cpu().numpy().shape)
 - `x.transpose(axes=None)` / `cx.transpose(x, axes=None)` and `x.T` permute axes
   into a new contiguous buffer on the same device, including identity/scalar
   copies. `x.squeeze(axis=None)` and `x.expand_dims(axis)` (also top-level
-  functions) share storage; float32/int32 work on CPU, Metal and CUDA.
+  functions) share storage; float32/int32/bool work on CPU, Metal and CUDA.
 - Basic `x[key]` indexing/slicing, `cx.concat`, `cx.stack`, and `cx.split`
-  return independent contiguous copies on CPU/Metal/CUDA (float32/int32).
+  return independent contiguous copies on CPU/Metal/CUDA (float32/int32/bool).
   Negative steps, integer indices, ellipsis and new axes are supported;
-  masks/advanced indexing and indexed assignment are not. Split accepts equal
+  boolean Tensor masks are supported separately; advanced integer indexing and
+  indexed assignment are not. Split accepts equal
   section counts or NumPy-style cut indices; see [the contract](docs/TENSOR_API.md).
+- Comparisons (`==`, `!=`, `<`, `<=`, `>`, `>=`) return bool tensors. Boolean
+  logic (`&`, `|`, `^`, `~`), `where`, `any`/`all`, and `x[mask]` execute natively
+  on CPU/Metal/CUDA. Masks match leading dimensions; full masks flatten the
+  selected elements. See [the contract](docs/TENSOR_API.md#comparisons-and-boolean-masks).
 - `x.reshape(shape)` / `cx.reshape(x, shape)` create a contiguous view sharing
   the native buffer; one dimension may be `-1`. NumPy export still copies.
 - `softmax` requires an explicit `axis`, preserves the input shape, supports

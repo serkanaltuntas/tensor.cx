@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import builtins
 import operator
+import math
 from typing import Any
 
 import numpy as np
@@ -83,6 +84,59 @@ class Tensor:
 
     def __neg__(self) -> "Tensor":
         return Tensor(_core.negative(self._impl))
+
+    def __bool__(self) -> bool:
+        if math.prod(self.shape) != 1:
+            raise ValueError("tensor truth value requires exactly one element; use any() or all()")
+        return builtins.bool(self.reshape(()).numpy().item())
+
+    def any(self, axis=None, keepdims=False) -> "Tensor":
+        return any(self, axis=axis, keepdims=keepdims)
+
+    def all(self, axis=None, keepdims=False) -> "Tensor":
+        return all(self, axis=axis, keepdims=keepdims)
+
+    def where(self, condition, other) -> "Tensor":
+        return where(condition, self, other)
+
+    def __eq__(self, other) -> "Tensor":
+        return equal(self, other)
+
+    def __ne__(self, other) -> "Tensor":
+        return not_equal(self, other)
+
+    def __lt__(self, other) -> "Tensor":
+        return less(self, other)
+
+    def __le__(self, other) -> "Tensor":
+        return less_equal(self, other)
+
+    def __gt__(self, other) -> "Tensor":
+        return greater(self, other)
+
+    def __ge__(self, other) -> "Tensor":
+        return greater_equal(self, other)
+
+    def __and__(self, other) -> "Tensor":
+        return logical_and(self, other)
+
+    def __or__(self, other) -> "Tensor":
+        return logical_or(self, other)
+
+    def __xor__(self, other) -> "Tensor":
+        return logical_xor(self, other)
+
+    def __rand__(self, other) -> "Tensor":
+        return logical_and(other, self)
+
+    def __ror__(self, other) -> "Tensor":
+        return logical_or(other, self)
+
+    def __rxor__(self, other) -> "Tensor":
+        return logical_xor(other, self)
+
+    def __invert__(self) -> "Tensor":
+        return logical_not(self)
 
     def __getitem__(self, key) -> "Tensor":
         return _getitem(self, key)
@@ -196,7 +250,7 @@ def _axis_sequence(axes) -> tuple[tuple[int, ...], bool]:
 
 def _axes_in_rank(axes: tuple[int, ...], rank: int, *, label: str = "axis") -> tuple[int, ...]:
     normalized = tuple(axis + rank if axis < 0 else axis for axis in axes)
-    if any(axis < 0 or axis >= rank for axis in normalized):
+    if builtins.any(axis < 0 or axis >= rank for axis in normalized):
         raise ValueError(f"{label} is out of range")
     if len(set(normalized)) != len(normalized):
         raise ValueError("axes must not repeat")
@@ -236,7 +290,7 @@ def squeeze(input: Tensor, axis=None) -> Tensor:
         if not shape and single and values[0] in (0, -1):
             return reshape(input, ())
         selected = set(_axes_in_rank(values, len(shape)))
-        if any(shape[i] != 1 for i in selected):
+        if builtins.any(shape[i] != 1 for i in selected):
             raise ValueError("cannot squeeze an axis whose size is not one")
     return reshape(input, tuple(size for i, size in enumerate(shape) if i not in selected))
 
@@ -262,8 +316,8 @@ def astype(input: Tensor, dtype: str, *, copy: bool = True) -> Tensor:
     """
     if not isinstance(input, Tensor):
         raise TypeError("astype expects a Tensor argument")
-    if not isinstance(dtype, str) or dtype not in ("float32", "int32"):
-        raise ValueError("astype dtype must be 'float32' or 'int32'")
+    if not isinstance(dtype, str) or dtype not in ("float32", "int32", "bool"):
+        raise ValueError("astype dtype must be 'float32', 'int32' or 'bool'")
     if not isinstance(copy, (bool, np.bool_)):
         raise TypeError("copy must be a boolean")
     if not copy and input.dtype == dtype:
@@ -282,10 +336,10 @@ def _contains_bool_data(data) -> bool:
         if data.dtype.kind == "b":
             return True
         if data.dtype.kind == "O":
-            return any(_contains_bool_data(item) for item in data.flat)
+            return builtins.any(_contains_bool_data(item) for item in data.flat)
         return False
     if isinstance(data, (list, tuple)):
-        return any(_contains_bool_data(item) for item in data)
+        return builtins.any(_contains_bool_data(item) for item in data)
     return False
 
 
@@ -336,16 +390,16 @@ def _normalize_axis(axis) -> int:
 def tensor(data, dtype: str | None = None, device: str | Device | None = None) -> Tensor:
     target = _normalize_device(device)
     _validate_creation_device(target)
-    if _contains_bool_data(data):
-        raise ValueError("bool tensor data is not supported")
     array = np.asarray(data)
+    if dtype is None and array.dtype.kind != "b" and _contains_bool_data(data):
+        raise ValueError("mixed boolean and numeric data requires an explicit dtype")
     # Infer the dtype from the array once, for every rank. Resolving it here
     # (rather than letting the C++ 1-D factory infer from Python element types)
     # keeps an empty float array float32 instead of defaulting to int32 when
     # there are no elements to inspect.
     actual_dtype = dtype
     if actual_dtype is None:
-        actual_dtype = "float32" if np.issubdtype(array.dtype, np.floating) else "int32"
+        actual_dtype = "bool" if array.dtype.kind == "b" else "float32" if np.issubdtype(array.dtype, np.floating) else "int32"
     if array.ndim == 1:
         cpu_tensor = Tensor(
             _core.tensor(array.reshape(-1).tolist(), dtype=actual_dtype, device="cpu")
@@ -421,7 +475,7 @@ def _reduce(input: Tensor, axis, keepdims: bool, name: str) -> Tensor:
         scalar_reduction = rank == 0 and single and values[0] in (0, -1)
         axes = () if scalar_reduction else _axes_in_rank(values, rank, label="reduction axis")
     # Preserve the original one-axis path, including scalar 0/-1 semantics.
-    if scalar_reduction or len(axes) == 1:
+    if name not in ("any", "all") and (scalar_reduction or len(axes) == 1):
         result = Tensor(getattr(_core, name)(input._impl, axis=axes[0] if axes else 0))
     else:
         result = Tensor(getattr(_core, f"_{name}_axes")(input._impl, axes))
@@ -496,6 +550,10 @@ def _index_integer(value, label: str) -> int:
 
 
 def _getitem(x: Tensor, key) -> Tensor:
+    if isinstance(key, Tensor):
+        return masked_select(x, key)
+    if isinstance(key, tuple) and len(key) == 1 and isinstance(key[0], Tensor):
+        return masked_select(x, key[0])
     keys = key if isinstance(key, tuple) else (key,)
     ellipses = builtins.sum(item is Ellipsis for item in keys)
     if ellipses > 1:
@@ -549,10 +607,10 @@ def _tensor_sequence(tensors) -> tuple[Tensor, ...]:
         inputs = tuple(tensors)
     except TypeError as error:
         raise ValueError("expected an iterable of tensors") from error
-    if not inputs or any(not isinstance(x, Tensor) for x in inputs):
+    if not inputs or builtins.any(not isinstance(x, Tensor) for x in inputs):
         raise ValueError("expected a non-empty iterable of tensors")
     first = inputs[0]
-    if any(x.dtype != first.dtype or x.device != first.device for x in inputs):
+    if builtins.any(x.dtype != first.dtype or x.device != first.device for x in inputs):
         raise ValueError("all tensors must have the same dtype and device")
     return inputs
 
@@ -567,7 +625,7 @@ def concat(tensors, axis=0) -> Tensor:
 def stack(tensors, axis=0) -> Tensor:
     """Join equal-shaped tensors along a new axis (including scalar inputs)."""
     inputs = _tensor_sequence(tensors)
-    if any(x.shape != inputs[0].shape for x in inputs):
+    if builtins.any(x.shape != inputs[0].shape for x in inputs):
         raise ValueError("stack inputs must have equal shapes")
     axis = _axes_in_rank((_normalize_axis(axis),), len(inputs[0].shape) + 1)[0]
     return concat([expand_dims(x, axis) for x in inputs], axis)
@@ -599,3 +657,106 @@ def split(x: Tensor, indices_or_sections, axis=0) -> tuple[Tensor, ...]:
         key[axis] = slice(start, stop)
         outputs.append(x[tuple(key)])
     return tuple(outputs)
+
+
+def _predicate_scalar(value, reference: Tensor) -> Tensor:
+    if reference.dtype == "bool":
+        if not isinstance(value, (bool, np.bool_)):
+            raise TypeError("a bool tensor requires boolean scalar operands")
+    else:
+        if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, float, np.integer, np.floating)):
+            raise TypeError("numeric tensor operands must be real numeric scalars")
+        if reference.dtype == "int32":
+            if not isinstance(value, (int, np.integer)) or not -(2**31) <= int(value) < 2**31:
+                raise ValueError("int32 operands require integer scalars in the int32 range")
+    return tensor(value, dtype=reference.dtype, device=reference.device)
+
+
+def _predicate_pair(lhs, rhs, name: str) -> Tensor:
+    if not isinstance(lhs, Tensor) and not isinstance(rhs, Tensor):
+        raise TypeError(f"{name} requires at least one Tensor operand")
+    reference = lhs if isinstance(lhs, Tensor) else rhs
+    lhs = lhs if isinstance(lhs, Tensor) else _predicate_scalar(lhs, reference)
+    rhs = rhs if isinstance(rhs, Tensor) else _predicate_scalar(rhs, reference)
+    if lhs.device != rhs.device:
+        raise ValueError("operands must be on the same device")
+    return Tensor(getattr(_core, name)(lhs._impl, rhs._impl))
+
+
+def equal(lhs, rhs) -> Tensor:
+    return _predicate_pair(lhs, rhs, "equal")
+
+
+def not_equal(lhs, rhs) -> Tensor:
+    return _predicate_pair(lhs, rhs, "not_equal")
+
+
+def less(lhs, rhs) -> Tensor:
+    return _predicate_pair(lhs, rhs, "less")
+
+
+def less_equal(lhs, rhs) -> Tensor:
+    return _predicate_pair(lhs, rhs, "less_equal")
+
+
+def greater(lhs, rhs) -> Tensor:
+    return _predicate_pair(lhs, rhs, "greater")
+
+
+def greater_equal(lhs, rhs) -> Tensor:
+    return _predicate_pair(lhs, rhs, "greater_equal")
+
+
+def logical_and(lhs, rhs) -> Tensor:
+    return _predicate_pair(lhs, rhs, "logical_and")
+
+
+def logical_or(lhs, rhs) -> Tensor:
+    return _predicate_pair(lhs, rhs, "logical_or")
+
+
+def logical_xor(lhs, rhs) -> Tensor:
+    return _predicate_pair(lhs, rhs, "logical_xor")
+
+
+def logical_not(input: Tensor) -> Tensor:
+    if not isinstance(input, Tensor):
+        raise TypeError("logical_not requires a Tensor")
+    return Tensor(_core.logical_not(input._impl))
+
+
+def where(condition: Tensor, x, y) -> Tensor:
+    """Select broadcast-compatible values using a boolean condition."""
+    if not isinstance(condition, Tensor) or condition.dtype != "bool":
+        raise TypeError("where condition must be a bool Tensor")
+    reference = x if isinstance(x, Tensor) else y if isinstance(y, Tensor) else None
+    if reference is not None:
+        if reference.device != condition.device:
+            raise ValueError("where operands must be on the same device")
+        x = x if isinstance(x, Tensor) else _predicate_scalar(x, reference)
+        y = y if isinstance(y, Tensor) else _predicate_scalar(y, reference)
+    else:
+        x = tensor(x, device=condition.device)
+        y = tensor(y, device=condition.device)
+    if x.device != condition.device or y.device != condition.device:
+        raise ValueError("where operands must be on the same device")
+    return Tensor(_core.where(condition._impl, x._impl, y._impl))
+
+
+def any(input: Tensor, axis=None, keepdims=False) -> Tensor:
+    """Reduce bool tensors with false as the identity for an empty selection."""
+    return _reduce(input, axis, keepdims, "any")
+
+
+def all(input: Tensor, axis=None, keepdims=False) -> Tensor:
+    """Reduce bool tensors with true as the identity for an empty selection."""
+    return _reduce(input, axis, keepdims, "all")
+
+
+def masked_select(input: Tensor, mask: Tensor) -> Tensor:
+    """Select matching leading dimensions, preserving trailing dimensions."""
+    if not isinstance(input, Tensor) or not isinstance(mask, Tensor):
+        raise TypeError("masked_select requires Tensor arguments")
+    if input.device != mask.device:
+        raise ValueError("mask and input must be on the same device")
+    return Tensor(_core.masked_select(input._impl, mask._impl))

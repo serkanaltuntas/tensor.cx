@@ -19,7 +19,7 @@ backend contracts, and testing small tensor workloads. APIs may change.
 
 ## A deliberately compact runtime
 
-- Contiguous row-major tensors, with `float32` and a smaller `int32` operation set.
+- Contiguous row-major tensors, with `float32`, a smaller `int32` operation set, and boolean masks.
 - Explicit device transfers and synchronous execution.
 - Elementwise add/multiply, 2D matmul, axis reductions, and selected activations
   and normalization operations.

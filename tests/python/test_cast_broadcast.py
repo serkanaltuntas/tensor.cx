@@ -76,7 +76,7 @@ def test_astype_same_dtype_preserves_special_float_bits(device_name):
 
 def test_astype_argument_errors(device_name):
     x = cx.tensor([1.0], device=device_name)
-    for dtype in (None, "float64", "int64", "bool", np.float32, np.dtype("float32"), True, 1):
+    for dtype in (None, "float64", "int64", np.float32, np.dtype("float32"), True, 1):
         with pytest.raises(ValueError, match="dtype"):
             x.astype(dtype)
     for copy in (None, 0, 1, "false", []):

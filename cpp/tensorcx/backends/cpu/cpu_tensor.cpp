@@ -61,6 +61,14 @@ CpuTensor::CpuTensor(Shape shape, std::vector<std::int32_t> values)
   }
 }
 
+CpuTensor::CpuTensor(Shape shape, std::vector<std::uint8_t> values)
+    : CpuTensor(DType::kBool, std::move(shape), std::make_shared<CpuBuffer>(std::move(values))) {}
+
+const std::vector<std::uint8_t>& CpuTensor::bool_data() const { return buffer_->bool_data(); }
+std::vector<std::uint8_t>& CpuTensor::mutable_bool_data() { return buffer_->mutable_bool_data(); }
+const void* CpuTensor::data() const { return buffer_->data(); }
+void* CpuTensor::mutable_data() { return buffer_->mutable_data(); }
+
 const std::vector<float>& CpuTensor::float_data() const {
   return buffer_->float_data();
 }

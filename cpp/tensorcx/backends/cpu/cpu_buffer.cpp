@@ -15,6 +15,11 @@ CpuBuffer::CpuBuffer(DType dtype, std::size_t elements) : dtype_(dtype) {
     case DType::kInt32:
       data_ = std::vector<std::int32_t>(elements);
       break;
+    case DType::kBool:
+      data_ = std::vector<std::uint8_t>(elements);
+      break;
+    default:
+      throw std::invalid_argument("unknown CPU buffer dtype");
   }
 }
 
@@ -24,12 +29,30 @@ CpuBuffer::CpuBuffer(std::vector<float> values)
 CpuBuffer::CpuBuffer(std::vector<std::int32_t> values)
     : dtype_(DType::kInt32), data_(std::move(values)) {}
 
+CpuBuffer::CpuBuffer(std::vector<std::uint8_t> values)
+    : dtype_(DType::kBool), data_(std::move(values)) {}
+
+const std::vector<std::uint8_t>& CpuBuffer::bool_data() const {
+  return std::get<std::vector<std::uint8_t>>(data_);
+}
+std::vector<std::uint8_t>& CpuBuffer::mutable_bool_data() {
+  return std::get<std::vector<std::uint8_t>>(data_);
+}
+const void* CpuBuffer::data() const {
+  return std::visit([](const auto& values) -> const void* { return values.data(); }, data_);
+}
+void* CpuBuffer::mutable_data() {
+  return std::visit([](auto& values) -> void* { return values.data(); }, data_);
+}
+
 std::size_t CpuBuffer::nbytes() const {
   switch (dtype_) {
     case DType::kFloat32:
       return float_data().size() * dtype_size(dtype_);
     case DType::kInt32:
       return int32_data().size() * dtype_size(dtype_);
+    case DType::kBool:
+      return bool_data().size();
   }
   throw std::invalid_argument("unknown CPU buffer dtype");
 }

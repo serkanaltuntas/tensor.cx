@@ -17,6 +17,8 @@
 #include "tensorcx/backends/metal/metal_dispatch_data.h"
 #include "tensorcx/backends/metal/metal_kernels_data.h"
 #include "tensorcx/core/dtype.h"
+#include "tensorcx/core/predicate.h"
+#include "tensorcx/backends/metal/metal_backend.h"
 
 namespace tensorcx::metal {
 namespace {
@@ -52,6 +54,8 @@ Expected<const char*> fill_kernel_name(DType dtype) {
       return "fill_f32";
     case DType::kInt32:
       return "fill_i32";
+    case DType::kBool:
+      return "fill_bool";
   }
   return Status(StatusCode::kInvalidArgument, "unsupported Metal fill dtype");
 }
@@ -483,6 +487,33 @@ class KernelRuntime {
     if (std::strcmp(name, "concat_bits") == 0) {
       return pipeline_slot(concat_bits_, name);
     }
+    if (std::strcmp(name, "predicate_values") == 0) {
+      return pipeline_slot(predicate_values_, name);
+    }
+    if (std::strcmp(name, "reduce_bool") == 0) {
+      return pipeline_slot(reduce_bool_, name);
+    }
+    if (std::strcmp(name, "cast_bool") == 0) {
+      return pipeline_slot(cast_bool_, name);
+    }
+    if (std::strcmp(name, "fill_bool") == 0) {
+      return pipeline_slot(fill_bool_, name);
+    }
+    if (std::strcmp(name, "mask_prefix") == 0) {
+      return pipeline_slot(mask_prefix_, name);
+    }
+    if (std::strcmp(name, "mask_scan") == 0) {
+      return pipeline_slot(mask_scan_, name);
+    }
+    if (std::strcmp(name, "mask_copy") == 0) {
+      return pipeline_slot(mask_copy_, name);
+    }
+    if (std::strcmp(name, "transpose_bool") == 0) {
+      return pipeline_slot(transpose_bool_, name);
+    }
+    if (std::strcmp(name, "concat_bool") == 0) {
+      return pipeline_slot(concat_bool_, name);
+    }
     if (std::strcmp(name, "transpose_bits") == 0) {
       return pipeline_slot(transpose_bits_, name);
     }
@@ -633,6 +664,15 @@ class KernelRuntime {
   NS::SharedPtr<MTL::ComputePipelineState> broadcast_f32_;
   NS::SharedPtr<MTL::ComputePipelineState> broadcast_i32_;
   NS::SharedPtr<MTL::ComputePipelineState> copy_bits_;
+  NS::SharedPtr<MTL::ComputePipelineState> predicate_values_;
+  NS::SharedPtr<MTL::ComputePipelineState> reduce_bool_;
+  NS::SharedPtr<MTL::ComputePipelineState> cast_bool_;
+  NS::SharedPtr<MTL::ComputePipelineState> fill_bool_;
+  NS::SharedPtr<MTL::ComputePipelineState> mask_prefix_;
+  NS::SharedPtr<MTL::ComputePipelineState> mask_scan_;
+  NS::SharedPtr<MTL::ComputePipelineState> mask_copy_;
+  NS::SharedPtr<MTL::ComputePipelineState> transpose_bool_;
+  NS::SharedPtr<MTL::ComputePipelineState> concat_bool_;
   NS::SharedPtr<MTL::ComputePipelineState> transpose_bits_;
   NS::SharedPtr<MTL::ComputePipelineState> concat_bits_;
   NS::SharedPtr<MTL::ComputePipelineState> cast_i32_f32_;
@@ -722,7 +762,7 @@ Status run_threads(MTL::ComputePipelineState& pipeline,
 namespace {
 
 Expected<MetalTensor> execute_cast(const OpDesc& op, const MetalTensor& input) {
-  if (op.target_dtype != DType::kFloat32 && op.target_dtype != DType::kInt32) {
+  if (op.target_dtype != DType::kFloat32 && op.target_dtype != DType::kInt32 && op.target_dtype != DType::kBool) {
     return Status(StatusCode::kInvalidArgument, "unsupported Metal cast dtype");
   }
   auto count_result = checked_thread_count(input.size());
@@ -736,7 +776,8 @@ Expected<MetalTensor> execute_cast(const OpDesc& op, const MetalTensor& input) {
 
   const bool checked_conversion = input.dtype() == DType::kFloat32 &&
                                   op.target_dtype == DType::kInt32;
-  const char* name = input.dtype() == op.target_dtype ? "copy_bits" :
+  const bool bool_cast = input.dtype() == DType::kBool || op.target_dtype == DType::kBool;
+  const char* name = bool_cast ? "cast_bool" : input.dtype() == op.target_dtype ? "copy_bits" :
                      checked_conversion ? "cast_f32_i32" : "cast_i32_f32";
   std::shared_ptr<MetalBuffer> invalid_buffer;
   std::uint32_t invalid = 0;
@@ -755,6 +796,11 @@ Expected<MetalTensor> execute_cast(const OpDesc& op, const MetalTensor& input) {
         encoder.setBuffer(buffer->native(), 0, 1);
         encoder.setBytes(&count, sizeof(count), 2);
         if (invalid_buffer) encoder.setBuffer(invalid_buffer->native(), 0, 3);
+        if (bool_cast) {
+          const std::uint32_t source = input.dtype() == DType::kFloat32 ? 0 : input.dtype() == DType::kInt32 ? 1 : 2;
+          const std::uint32_t target = op.target_dtype == DType::kFloat32 ? 0 : op.target_dtype == DType::kInt32 ? 1 : 2;
+          encoder.setBytes(&source, sizeof(source), 3); encoder.setBytes(&target, sizeof(target), 4);
+        }
       });
   if (!status.ok()) return status;
   if (invalid_buffer) {
@@ -809,7 +855,7 @@ Expected<MetalTensor> execute_transpose(const OpDesc& op, const MetalTensor& inp
   auto metadata_buffer = metadata_result.move_value();
   auto status = metadata_buffer->copy_from_host(metadata.data(), metadata_buffer->nbytes());
   if (!status.ok()) return status;
-  auto pipeline = runtime().pipeline("transpose_bits");
+  auto pipeline = runtime().pipeline(input.dtype() == DType::kBool ? "transpose_bool" : "transpose_bits");
   if (!pipeline) return pipeline.status();
   status = run_threads(*pipeline.move_value(), count, [&](MTL::ComputeCommandEncoder& encoder) {
     encoder.setBuffer(input.buffer()->native(), 0, 0);
@@ -1043,7 +1089,7 @@ Expected<MetalTensor> execute_concat(const OpDesc& op, const std::vector<MetalTe
   auto buffer = allocated.move_value();
   MetalTensor result(dtype, plan.output_shape, buffer);
   if (count_result.value() == 0) return result;
-  auto pipeline = runtime().pipeline("concat_bits");
+  auto pipeline = runtime().pipeline(dtype == DType::kBool ? "concat_bool" : "concat_bits");
   if (!pipeline) return pipeline.status();
   const std::uint64_t output_block = plan.output_shape[plan.axis] * plan.inner;
   std::uint64_t offset = 0;
@@ -1066,6 +1112,150 @@ Expected<MetalTensor> execute_concat(const OpDesc& op, const std::vector<MetalTe
   return result;
 }
 
+namespace {
+std::uint32_t predicate_operation_code(OpKind kind) {
+  switch (kind) {
+    case OpKind::kEqual: return 0; case OpKind::kNotEqual: return 1;
+    case OpKind::kLess: return 2; case OpKind::kLessEqual: return 3;
+    case OpKind::kGreater: return 4; case OpKind::kGreaterEqual: return 5;
+    case OpKind::kLogicalAnd: return 6; case OpKind::kLogicalOr: return 7;
+    case OpKind::kLogicalXor: return 8; case OpKind::kLogicalNot: return 9;
+    case OpKind::kWhere: return 10;
+    default: throw std::invalid_argument("unknown predicate operation");
+  }
+}
+std::uint32_t predicate_dtype_code(DType dtype) {
+  return dtype == DType::kFloat32 ? 0 : dtype == DType::kInt32 ? 1 : 2;
+}
+Expected<std::shared_ptr<MetalBuffer>> predicate_metadata(Shape metadata) {
+  // Metal requires a bound buffer even when scalar kernels never index it.
+  if (metadata.empty()) metadata.push_back(0);
+  if (metadata.size() > std::numeric_limits<std::size_t>::max() / sizeof(Dim))
+    return Status(StatusCode::kInvalidArgument, "predicate metadata size overflow");
+  auto buffer = MetalBuffer::create(DType::kInt32, metadata.size() * 2);
+  if (!buffer) return buffer.status();
+  const auto status = buffer.value()->copy_from_host(metadata.data(), metadata.size() * sizeof(Dim));
+  if (!status.ok()) return status;
+  return buffer;
+}
+}
+
+Expected<MetalTensor> execute_predicate(const OpDesc& op, const std::vector<MetalTensor>& inputs) {
+  if (is_predicate_elementwise(op.kind)) {
+    std::vector<Tensor> descriptors;
+    for (const auto& input : inputs) descriptors.push_back(to_core_tensor(input));
+    const auto plan = make_predicate_plan(op, descriptors);
+    auto count_result = checked_thread_count(numel(plan.output_shape));
+    if (!count_result) return count_result.status();
+    const auto count = count_result.value();
+    auto buffer = MetalBuffer::create(plan.output_dtype, count);
+    if (!buffer) return buffer.status();
+    MetalTensor result(plan.output_dtype, plan.output_shape, buffer.value());
+    if (!count) return result;
+    Shape metadata = plan.output_shape;
+    for (const auto& strides : plan.input_strides) metadata.insert(metadata.end(), strides.begin(), strides.end());
+    auto gpu_metadata = predicate_metadata(std::move(metadata));
+    if (!gpu_metadata) return gpu_metadata.status();
+    auto pipeline = runtime().pipeline("predicate_values");
+    if (!pipeline) return pipeline.status();
+    const std::uint64_t rank = plan.output_shape.size();
+    const auto code = predicate_operation_code(op.kind);
+    const auto dtype = predicate_dtype_code(inputs[op.kind == OpKind::kWhere ? 1 : 0].dtype());
+    const auto status = run_threads(*pipeline.value(), count, [&](MTL::ComputeCommandEncoder& encoder) {
+      for (std::size_t i = 0; i < 3; ++i) encoder.setBuffer(inputs[i < inputs.size() ? i : 0].buffer()->native(), 0, i);
+      encoder.setBuffer(buffer.value()->native(), 0, 3);
+      encoder.setBytes(&count, sizeof(count), 4); encoder.setBuffer(gpu_metadata.value()->native(), 0, 5);
+      encoder.setBytes(&rank, sizeof(rank), 6); encoder.setBytes(&code, sizeof(code), 7);
+      encoder.setBytes(&dtype, sizeof(dtype), 8);
+    });
+    if (!status.ok()) return status;
+    return result;
+  }
+  const auto& input = inputs[0];
+  if (op.kind == OpKind::kAny || op.kind == OpKind::kAll) {
+    if (input.dtype() != DType::kBool) return Status(StatusCode::kInvalidArgument, "any/all require bool tensors");
+    const auto axes = op.reduction_axes.value_or(input.shape().empty() ? Shape{} : Shape{op.axis});
+    const auto plan = make_reduction_plan(input.shape(), axes);
+    if (!plan.reduction_size)
+      return fill(OpDesc{OpKind::kFill}, plan.output_shape, DType::kBool, op.kind == OpKind::kAll);
+    auto count_result = checked_thread_count(numel(plan.output_shape));
+    if (!count_result) return count_result.status();
+    const auto count = count_result.value();
+    auto buffer = MetalBuffer::create(DType::kBool, count);
+    if (!buffer) return buffer.status();
+    MetalTensor result(DType::kBool, plan.output_shape, buffer.value());
+    if (!count) return result;
+    auto metadata = predicate_metadata(plan.index_metadata);
+    if (!metadata) return metadata.status();
+    auto pipeline = runtime().pipeline("reduce_bool");
+    if (!pipeline) return pipeline.status();
+    const std::uint64_t rank = input.shape().size();
+    const std::uint32_t all = op.kind == OpKind::kAll;
+    const auto status = run_threads(*pipeline.value(), count, [&](MTL::ComputeCommandEncoder& encoder) {
+      encoder.setBuffer(input.buffer()->native(), 0, 0); encoder.setBuffer(buffer.value()->native(), 0, 1);
+      encoder.setBytes(&count, sizeof(count), 2); encoder.setBytes(&plan.reduction_size, sizeof(plan.reduction_size), 3);
+      encoder.setBuffer(metadata.value()->native(), 0, 4); encoder.setBytes(&rank, sizeof(rank), 5);
+      encoder.setBytes(&all, sizeof(all), 6);
+    });
+    if (!status.ok()) return status;
+    return result;
+  }
+  const auto& mask = inputs[1];
+  const auto plan = make_masked_select_plan(to_core_tensor(input), to_core_tensor(mask));
+  auto mask_count_result = checked_thread_count(mask.size());
+  auto input_count_result = checked_thread_count(input.size());
+  if (!mask_count_result) return mask_count_result.status();
+  if (!input_count_result) return input_count_result.status();
+  const auto count = mask_count_result.value(), input_count = input_count_result.value();
+  Dim selected = 0;
+  std::shared_ptr<MetalBuffer> prefix;
+  if (count) {
+    auto first = MetalBuffer::create(DType::kInt32, static_cast<std::size_t>(count) * 2);
+    auto second = MetalBuffer::create(DType::kInt32, static_cast<std::size_t>(count) * 2);
+    if (!first) return first.status();
+    if (!second) return second.status();
+    prefix = first.move_value(); auto temporary = second.move_value();
+    auto initialize = runtime().pipeline("mask_prefix"), scan = runtime().pipeline("mask_scan");
+    if (!initialize) return initialize.status();
+    if (!scan) return scan.status();
+    auto status = run_threads(*initialize.value(), count, [&](MTL::ComputeCommandEncoder& encoder) {
+      encoder.setBuffer(mask.buffer()->native(), 0, 0); encoder.setBuffer(prefix->native(), 0, 1);
+      encoder.setBytes(&count, sizeof(count), 2);
+    });
+    if (!status.ok()) return status;
+    for (std::uint64_t step = 1; step < count; step *= 2) {
+      status = run_threads(*scan.value(), count, [&](MTL::ComputeCommandEncoder& encoder) {
+        encoder.setBuffer(prefix->native(), 0, 0); encoder.setBuffer(temporary->native(), 0, 1);
+        encoder.setBytes(&count, sizeof(count), 2); encoder.setBytes(&step, sizeof(step), 3);
+      });
+      if (!status.ok()) return status;
+      std::swap(prefix, temporary);
+    }
+    // All commands completed; shared storage permits reading only the final
+    // eight-byte count. The tensor and mask contents stay on the device.
+    std::memcpy(&selected, static_cast<const Dim*>(prefix->native()->contents()) + count - 1, sizeof(selected));
+  }
+  Shape shape{selected}; shape.insert(shape.end(), plan.tail_shape.begin(), plan.tail_shape.end());
+  const auto output_count = numel(shape);
+  auto buffer = MetalBuffer::create(input.dtype(), static_cast<std::size_t>(output_count));
+  if (!buffer) return buffer.status();
+  MetalTensor result(input.dtype(), shape, buffer.value());
+  if (output_count) {
+    auto pipeline = runtime().pipeline("mask_copy");
+    if (!pipeline) return pipeline.status();
+    const std::uint64_t block = plan.block_size;
+    const auto dtype = predicate_dtype_code(input.dtype());
+    const auto status = run_threads(*pipeline.value(), input_count, [&](MTL::ComputeCommandEncoder& encoder) {
+      encoder.setBuffer(input.buffer()->native(), 0, 0); encoder.setBuffer(mask.buffer()->native(), 0, 1);
+      encoder.setBuffer(prefix->native(), 0, 2); encoder.setBuffer(buffer.value()->native(), 0, 3);
+      encoder.setBytes(&input_count, sizeof(input_count), 4); encoder.setBytes(&block, sizeof(block), 5);
+      encoder.setBytes(&dtype, sizeof(dtype), 6);
+    });
+    if (!status.ok()) return status;
+  }
+  return result;
+}
+
 Expected<MetalTensor> execute_unary(const OpDesc& op, const MetalTensor& input) {
   if (op.kind == OpKind::kTranspose || op.kind == OpKind::kSlice) {
     return execute_transpose(op, input);
@@ -1073,6 +1263,8 @@ Expected<MetalTensor> execute_unary(const OpDesc& op, const MetalTensor& input) 
   if (op.kind == OpKind::kCast) {
     return execute_cast(op, input);
   }
+  if (input.dtype() == DType::kBool)
+    return Status(StatusCode::kInvalidArgument, "numeric operations do not support bool tensors");
   if (op.kind == OpKind::kAddScalar || op.kind == OpKind::kSubtractScalar ||
       op.kind == OpKind::kMultiplyScalar || op.kind == OpKind::kDivideScalar) {
     return execute_scalar(op, input);
@@ -1123,6 +1315,8 @@ Expected<MetalTensor> execute_unary(const OpDesc& op, const MetalTensor& input) 
 }
 
 Expected<MetalTensor> execute_binary(const OpDesc& op, const MetalTensor& lhs, const MetalTensor& rhs) {
+  if (lhs.dtype() == DType::kBool || rhs.dtype() == DType::kBool)
+    return Status(StatusCode::kInvalidArgument, "arithmetic does not support bool tensors");
   if (lhs.dtype() != rhs.dtype()) {
     return Status(StatusCode::kInvalidArgument, "dtype mismatch for Metal binary operation");
   }
@@ -1244,6 +1438,11 @@ Expected<MetalTensor> fill(const OpDesc& op, Shape shape, DType dtype, double va
   const Status run_status = run_threads(*pipeline_result.move_value(), thread_count, [&](MTL::ComputeCommandEncoder& encoder) {
     encoder.setBuffer(output_buffer->native(), 0, 0);
     switch (dtype) {
+      case DType::kBool: {
+        const std::uint8_t fill_value = value != 0;
+        encoder.setBytes(&fill_value, sizeof(fill_value), 1);
+        break;
+      }
       case DType::kFloat32: {
         const float fill_value = static_cast<float>(value);
         encoder.setBytes(&fill_value, sizeof(fill_value), 1);
@@ -1324,6 +1523,8 @@ static Expected<MetalTensor> reduce_selected_axes(const OpDesc& op, const MetalT
 }
 
 Expected<MetalTensor> reduce(const OpDesc& op, const MetalTensor& input) {
+  if (input.dtype() == DType::kBool)
+    return Status(StatusCode::kInvalidArgument, "numeric reductions do not support bool tensors");
   if (op.reduction_axes) return reduce_selected_axes(op, input);
   auto dims_result = checked_reduction_dims(input, op);
   if (!dims_result) {

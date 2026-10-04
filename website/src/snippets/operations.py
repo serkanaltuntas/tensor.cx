@@ -46,3 +46,11 @@ print(cx.concat([values, values], axis=0).shape)  # (4, 3)
 print(cx.stack([values, values], axis=1).shape)  # (2, 2, 3)
 parts = values.split([1], axis=1)
 print([part.shape for part in parts])  # [(2, 1), (2, 2)]
+
+mask = values > 3
+print(mask.dtype)  # bool
+print(values[mask].numpy())  # [4 5 6]
+print(cx.where(mask, values, 0).numpy())
+# [[0 0 0]
+#  [4 5 6]]
+print(mask.any(axis=1).numpy())  # [False  True]

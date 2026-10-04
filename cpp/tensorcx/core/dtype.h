@@ -8,6 +8,7 @@ namespace tensorcx {
 enum class DType {
   kFloat32,
   kInt32,
+  kBool,
 };
 
 std::string_view dtype_name(DType dtype);

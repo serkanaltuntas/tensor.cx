@@ -62,7 +62,8 @@ Open scope:             other SM/host versions and broader compiler features
 API increment:          arithmetic/scalars, contiguous reshape and keepdims;
                         explicit casts, tensor broadcasting, transpose,
                         squeeze, expand_dims, all-axis/multi-axis reductions, and
-                        basic indexing/concat/stack/split;
+                        basic indexing/concat/stack/split, bool comparisons,
+                        logical masks, where, any/all and masked selection;
                         docs/TENSOR_API.md (acceptance tracked separately)
 ```
 

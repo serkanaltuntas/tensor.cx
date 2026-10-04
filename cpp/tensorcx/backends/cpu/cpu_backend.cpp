@@ -15,6 +15,7 @@
 #include <utility>
 
 #include "tensorcx/core/dtype.h"
+#include "tensorcx/core/predicate.h"
 
 namespace tensorcx::cpu {
 
@@ -247,6 +248,21 @@ Status CpuBackend::execute(const BackendExecution& execution) {
       return contract;
     }
 
+    if (is_predicate_elementwise(execution.op.kind)) {
+      std::vector<CpuTensor> inputs;
+      for (const auto& input : execution.inputs) inputs.push_back(from_core_tensor(input));
+      execution.outputs[0] = to_core_tensor(predicate(execution.op, inputs));
+      return Status::Ok();
+    }
+    if (execution.op.kind == OpKind::kAny || execution.op.kind == OpKind::kAll) {
+      execution.outputs[0] = to_core_tensor(reduce_boolean(execution.op, from_core_tensor(execution.inputs[0])));
+      return Status::Ok();
+    }
+    if (execution.op.kind == OpKind::kMaskedSelect) {
+      execution.outputs[0] = to_core_tensor(masked_select(from_core_tensor(execution.inputs[0]),
+                                                        from_core_tensor(execution.inputs[1])));
+      return Status::Ok();
+    }
     switch (execution.op.kind) {
       case OpKind::kFill: {
         const Tensor descriptor = execution.outputs[0];
@@ -311,6 +327,7 @@ Status CpuBackend::execute(const BackendExecution& execution) {
                             source.data() + pos, static_cast<std::size_t>(block) * sizeof(source[0]));
             };
             if (dtype == DType::kFloat32) copy(input.float_data(), result.mutable_float_data());
+            else if (dtype == DType::kBool) copy(input.bool_data(), result.mutable_bool_data());
             else copy(input.int32_data(), result.mutable_int32_data());
             offset += block;
           }
@@ -747,6 +764,11 @@ CpuTensor fill(Shape shape, DType dtype, double value) {
 
   CpuTensor result(dtype, std::move(shape));
   switch (dtype) {
+    case DType::kBool: {
+      auto& data = result.mutable_bool_data();
+      std::fill(data.begin(), data.end(), static_cast<std::uint8_t>(value != 0));
+      break;
+    }
     case DType::kFloat32: {
       auto& data = result.mutable_float_data();
       std::fill(data.begin(), data.end(), static_cast<float>(value));
@@ -785,12 +807,31 @@ CpuTensor execute_unary(const OpDesc& op, const CpuTensor& input) {
     };
     if (input.dtype() == DType::kFloat32) {
       permute(input.float_data(), result.mutable_float_data());
+    } else if (input.dtype() == DType::kBool) {
+      permute(input.bool_data(), result.mutable_bool_data());
     } else {
       permute(input.int32_data(), result.mutable_int32_data());
     }
     return result;
   }
   if (op.kind == OpKind::kCast) {
+    if (input.dtype() == DType::kBool && op.target_dtype == DType::kBool)
+      return CpuTensor(input.shape(), input.bool_data());
+    if (input.dtype() == DType::kBool || op.target_dtype == DType::kBool) {
+      CpuTensor result(op.target_dtype, input.shape());
+      const auto convert = [&](const auto& source) {
+        for (std::size_t i = 0; i < source.size(); ++i) {
+          const bool value = source[i] != 0;
+          if (op.target_dtype == DType::kBool) result.mutable_bool_data()[i] = value;
+          else if (op.target_dtype == DType::kFloat32) result.mutable_float_data()[i] = value;
+          else result.mutable_int32_data()[i] = value;
+        }
+      };
+      if (input.dtype() == DType::kFloat32) convert(input.float_data());
+      else if (input.dtype() == DType::kInt32) convert(input.int32_data());
+      else convert(input.bool_data());
+      return result;
+    }
     if (op.target_dtype != DType::kFloat32 && op.target_dtype != DType::kInt32) {
       throw std::invalid_argument("unsupported cast target dtype");
     }
@@ -818,6 +859,7 @@ CpuTensor execute_unary(const OpDesc& op, const CpuTensor& input) {
     for (std::size_t i = 0; i < out.size(); ++i) out[i] = static_cast<float>(values[i]);
     return result;
   }
+  if (input.dtype() == DType::kBool) throw std::invalid_argument("numeric operations do not support bool");
   const bool scalar_op = op.kind == OpKind::kAddScalar || op.kind == OpKind::kSubtractScalar ||
                          op.kind == OpKind::kMultiplyScalar || op.kind == OpKind::kDivideScalar;
   if (op.kind == OpKind::kNegate || scalar_op) {
@@ -952,6 +994,8 @@ CpuTensor execute_unary(const OpDesc& op, const CpuTensor& input) {
 }
 
 CpuTensor execute_binary(const OpDesc& op, const CpuTensor& lhs, const CpuTensor& rhs) {
+  if (lhs.dtype() == DType::kBool || rhs.dtype() == DType::kBool)
+    throw std::invalid_argument("arithmetic does not support bool tensors");
   validate_binary_inputs(lhs, rhs);
   if (op.kind != OpKind::kAdd && op.kind != OpKind::kSubtract &&
       op.kind != OpKind::kMultiply && op.kind != OpKind::kDivide) {
@@ -1034,6 +1078,7 @@ CpuTensor execute_binary(const OpDesc& op, const CpuTensor& lhs, const CpuTensor
 }
 
 CpuTensor reduce(const OpDesc& op, const CpuTensor& input) {
+  if (input.dtype() == DType::kBool) throw std::invalid_argument("numeric reductions do not support bool tensors");
   if (op.reduction_axes) {
     if (op.kind != OpKind::kSum && op.kind != OpKind::kMax && op.kind != OpKind::kMean)
       throw std::invalid_argument("unsupported CPU reduction operation");

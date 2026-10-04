@@ -28,6 +28,8 @@ std::string_view dtype_name(DType dtype) {
       return "float32";
     case DType::kInt32:
       return "int32";
+    case DType::kBool:
+      return "bool";
   }
   throw std::invalid_argument("unknown dtype");
 }
@@ -38,6 +40,8 @@ std::size_t dtype_size(DType dtype) {
       return sizeof(float);
     case DType::kInt32:
       return sizeof(std::int32_t);
+    case DType::kBool:
+      return sizeof(std::uint8_t);
   }
   throw std::invalid_argument("unknown dtype");
 }
