@@ -1,5 +1,10 @@
 # Continuous CUDA validation
 
+> Naming update (2026-10-04): commands, source paths, and symbols in this living
+> document use the current tensorcx spelling. Dated results describe runs
+> under the former names; they are not new validation runs. For historical
+> revisions, use the reverse mapping in [NAMING.md](NAMING.md).
+
 Nightblade has an opt-in local `pre-push` gate for updates to `origin/main`.
 The hook validates the **outgoing commit SHA** supplied by Git, including a
 topic branch pushed to remote `main`. It does not validate the current working
@@ -25,7 +30,7 @@ including failure status. Raw logs and JUnit remain local to the runner; retain
 them privately for diagnosis rather than uploading the entire build directory. Its job timeout is 30 minutes.
 
 The workflow is **prepared, not deployed GPU coverage**. Automatic jobs require
-repository variable `CORTEX_CUDA_CI_ENABLED` to equal `true`. With the variable
+repository variable `TENSORCX_CUDA_CI_ENABLED` to equal `true`. With the variable
 unset, those jobs skip; a skip is not a passing GPU acceptance result. Manual
 dispatch bypasses this rollout switch to validate a new runner. It still
 requires actual hardware and fails on absent CUDA/LLVM prerequisites.
@@ -41,12 +46,12 @@ was registered or exercised. It is command-level evidence, not a deployment.
 
 Runner contract:
 
-- Linux x86_64, labels `self-hosted`, `linux`, `x64`, `cortex-cuda-sm52`.
+- Linux x86_64, labels `self-hosted`, `linux`, `x64`, `tensorcx-cuda-sm52`.
 - The existing validated environment: sm_52, CUDA Runtime 12.4, Driver API
   13.0, LLVM 21.1.8, GCC/G++ 13, `nvcc`, `compute-sanitizer`, Git and working
   driver libraries. The native runtime enforces the documented environment
   gate; a runner label alone is not compatibility evidence.
-- Repository variable `CORTEX_CUDA_LLVM_BIN` contains the absolute LLVM `bin`
+- Repository variable `TENSORCX_CUDA_LLVM_BIN` contains the absolute LLVM `bin`
   path **inside the runner environment**. `setup-uv` supplies uv; the gate
   creates its own Python 3.12 environment and installs the snapshot.
 - A dedicated, disposable runner environment with no personal home directory,
@@ -124,7 +129,7 @@ Do not overwrite or mask existing hooks; integrate them deliberately if present.
 Nightblade had no custom hooks when this gate was installed.
 
 ```bash
-git config --local cortex.cudaLlvmBin "$PWD/build/mlir-toolchain/root/usr/lib/llvm-21/bin"
+git config --local tensorcx.cudaLlvmBin "$PWD/build/mlir-toolchain/root/usr/lib/llvm-21/bin"
 git config --local core.hooksPath .githooks
 git push origin main
 ```

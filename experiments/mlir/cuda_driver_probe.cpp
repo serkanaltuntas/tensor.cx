@@ -1,4 +1,4 @@
-// Research-only Runtime/Driver interoperability probe. No Cortex backend hooks.
+// Research-only Runtime/Driver interoperability probe. No tensor.cx backend hooks.
 #include <cuda.h>
 #include <cuda_runtime_api.h>
 
@@ -156,7 +156,7 @@ int main(int argc, char** argv) {
       ContextScope scope(primary.context);
       Module module(ptx.c_str());
       CUfunction function{};
-      driver(cuModuleGetFunction(&function, module.module, "cortex_add"));
+      driver(cuModuleGetFunction(&function, module.module, "tensorcx_add"));
       std::cout << "{\"device\":\"sm_52\",\"cases\":[";
       bool first = true;
       for (const auto size : {0u, 1u, 255u, 256u, 257u}) {

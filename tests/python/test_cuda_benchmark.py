@@ -10,9 +10,9 @@ import sys
 import numpy as np
 import pytest
 
-import cortex_runtime as cx
-from cortex_runtime import _core
-from cortex_runtime._compiler.cpu import toolchain
+import tensorcx as cx
+from tensorcx import _core
+from tensorcx._compiler.cpu import toolchain
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -89,7 +89,7 @@ def test_real_cuda_report(tmp_path):
         _core._cuda_kernel_support()
         toolchain()
     except RuntimeError as error:
-        if os.environ.get("CORTEX_REQUIRE_MLIR_CUDA"):
+        if os.environ.get("TENSORCX_REQUIRE_MLIR_CUDA"):
             pytest.fail(str(error))
         pytest.skip(str(error))
     output = tmp_path / "report.json"
@@ -114,7 +114,7 @@ def test_real_cuda_report(tmp_path):
             assert len(provider["samples_ms"]) == (1 if row["case"] == "compile" else 3)
             assert 0 < provider["p10_ms"] <= provider["median_ms"] <= provider["p90_ms"]
     missing_tools = tmp_path / "missing-tools.json"
-    result = run_script(missing_tools, {**os.environ, "CORTEX_LLVM_BIN": str(tmp_path)})
+    result = run_script(missing_tools, {**os.environ, "TENSORCX_LLVM_BIN": str(tmp_path)})
     assert result.returncode != 0
     assert "MLIR requires executable" in result.stderr
     assert not missing_tools.exists()

@@ -3,12 +3,12 @@
 #include <iostream>
 #include <limits>
 
-#include "cortex/backends/cpu/cpu_backend.h"
-#include "cortex/backends/cpu/cpu_kernel.h"
-#include "cortex/backends/null/null_backend.h"
+#include "tensorcx/backends/cpu/cpu_backend.h"
+#include "tensorcx/backends/cpu/cpu_kernel.h"
+#include "tensorcx/backends/null/null_backend.h"
 
-using namespace cortex;
-using namespace cortex::cpu;
+using namespace tensorcx;
+using namespace tensorcx::cpu;
 
 class ForeignBuffer final : public Buffer {
  public:
@@ -21,7 +21,7 @@ int main(int argc, char** argv) {
     if (!result) { std::cerr << message << '\n'; ++failures; }
   };
   if (argc != 4) return 2;
-  check(!CpuKernelModule::load("/missing/cortex.so", {"ttu", 1, 2}), "missing library accepted");
+  check(!CpuKernelModule::load("/missing/tensorcx.so", {"ttu", 1, 2}), "missing library accepted");
   check(!CpuKernelModule::load(argv[2], {"ttu", 1, 2}), "bad manifest accepted");
   check(!CpuKernelModule::load(argv[3], {"ttu", 1, 2}), "missing symbol accepted");
   check(!CpuKernelModule::load(argv[1], {"tzu", 1, 2}), "invalid signature accepted");
@@ -41,7 +41,7 @@ int main(int argc, char** argv) {
       {KernelArgumentKind::kUInt32, nullptr, 2}}};
   BackendExecution execution{BackendOpClass::kKernel, {}, {}, outputs,
       LaunchConfig{2, 1, 1, 7, 1, 1},
-      CompilationTarget{KernelArtifactKind::kBinary, artifact, "cortex_launch_v1"}, arguments};
+      CompilationTarget{KernelArtifactKind::kBinary, artifact, "tensorcx_launch_v1"}, arguments};
   CpuBackend backend;
   check(backend.execute(execution).ok(), "valid execution rejected");
   check(from_core_tensor(outputs[0]).float_data() == std::vector<float>({3, 4, -3, -4}),
@@ -56,7 +56,7 @@ int main(int argc, char** argv) {
                   {KernelArgumentKind::kUInt32, nullptr, 2}}};
     execution = {BackendOpClass::kKernel, {}, {}, outputs,
       LaunchConfig{2, 1, 1, 7, 1, 1},
-      CompilationTarget{KernelArtifactKind::kBinary, artifact, "cortex_launch_v1"}, arguments};
+      CompilationTarget{KernelArtifactKind::kBinary, artifact, "tensorcx_launch_v1"}, arguments};
     mutate();
     const auto original = outputs[0].buffer;
     check(!backend.execute(execution).ok(), name);

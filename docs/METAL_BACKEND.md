@@ -1,6 +1,6 @@
 # Metal Backend
 
-The Metal backend lives in `cpp/cortex/backends/metal/` and is intentionally
+The Metal backend lives in `cpp/tensorcx/backends/metal/` and is intentionally
 isolated from the backend-neutral core.
 
 ## Host API
@@ -15,7 +15,7 @@ path.
 Metal objects are stored with `NS::SharedPtr`. Owned Apple objects are adopted
 with `NS::TransferPtr`. Do not store raw owning `MTL::` or `NS::` pointers.
 
-`MTL::` and `NS::` types must remain inside `cpp/cortex/backends/metal/`.
+`MTL::` and `NS::` types must remain inside `cpp/tensorcx/backends/metal/`.
 Public Python bindings and backend-neutral core headers should talk to Metal via
 plain C++ tensor/backend APIs.
 
@@ -35,7 +35,7 @@ zero-length Metal buffer, and their copy and kernel paths are no-ops.
 
 The MPSGraph integration is isolated in `metal_mpsgraph.mm`. The backend-neutral
 core and Python binding surface do not expose MPSGraph or Objective-C types.
-Building with `-DCORTEX_ENABLE_MPSGRAPH=OFF` removes the MPSGraph path while
+Building with `-DTENSORCX_ENABLE_MPSGRAPH=OFF` removes the MPSGraph path while
 leaving the custom MSL matmul path available.
 
 Phase 7 also has a narrow experimental generated-kernel hook for

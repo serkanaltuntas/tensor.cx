@@ -9,10 +9,10 @@ import sys
 import numpy as np
 import pytest
 
-import cortex_runtime as cx
-from cortex_runtime import _core
-from cortex_runtime._compiler import cpu
-from cortex_runtime.experimental import KernelCompileError
+import tensorcx as cx
+from tensorcx import _core
+from tensorcx._compiler import cpu
+from tensorcx.experimental import KernelCompileError
 
 
 @cx.experimental.kernel
@@ -52,7 +52,7 @@ def require_tools():
             raise RuntimeError("requires Linux x86_64")
         cpu.toolchain()
     except RuntimeError as error:
-        if os.environ.get("CORTEX_REQUIRE_MLIR"):
+        if os.environ.get("TENSORCX_REQUIRE_MLIR"):
             pytest.fail(str(error))
         pytest.skip(str(error))
 
@@ -168,9 +168,9 @@ def test_explicit_api_only():
 def test_runtime_require_mode(monkeypatch, required):
     monkeypatch.setattr(cpu, "toolchain", lambda: (_ for _ in ()).throw(RuntimeError("missing")))
     if required:
-        monkeypatch.setenv("CORTEX_REQUIRE_MLIR", "1")
+        monkeypatch.setenv("TENSORCX_REQUIRE_MLIR", "1")
     else:
-        monkeypatch.delenv("CORTEX_REQUIRE_MLIR", raising=False)
+        monkeypatch.delenv("TENSORCX_REQUIRE_MLIR", raising=False)
     with pytest.raises(pytest.fail.Exception if required else pytest.skip.Exception):
         require_tools()
 
@@ -178,17 +178,17 @@ def test_runtime_require_mode(monkeypatch, required):
 def test_import_never_discovers_llvm():
     result = subprocess.run(
         [sys.executable, "-c",
-         "import sys; import cortex_runtime; "
-         "assert 'cortex_runtime._compiler.cpu' not in sys.modules; "
-         "assert 'cortex_runtime._compiler.emitter' not in sys.modules; "
-         "assert 'cortex_runtime._compiler.cuda' not in sys.modules"],
+         "import sys; import tensorcx; "
+         "assert 'tensorcx._compiler.cpu' not in sys.modules; "
+         "assert 'tensorcx._compiler.emitter' not in sys.modules; "
+         "assert 'tensorcx._compiler.cuda' not in sys.modules"],
         capture_output=True, text=True, check=False,
-        env={**os.environ, "CORTEX_LLVM_BIN": "/nonexistent"})
+        env={**os.environ, "TENSORCX_LLVM_BIN": "/nonexistent"})
     assert result.returncode == 0, result.stderr
 
 
 def test_explicit_missing_tools_never_fall_back(monkeypatch, tmp_path):
-    monkeypatch.setenv("CORTEX_LLVM_BIN", str(tmp_path))
+    monkeypatch.setenv("TENSORCX_LLVM_BIN", str(tmp_path))
     monkeypatch.setattr(cpu.shutil, "which", lambda _: pytest.fail("unexpected PATH fallback"))
     with pytest.raises(RuntimeError, match="requires executable"):
         cpu.toolchain()
@@ -198,7 +198,7 @@ def test_version_mismatch(monkeypatch, tmp_path):
     executable = tmp_path / "mlir-opt"
     executable.write_text("")
     executable.chmod(0o755)
-    monkeypatch.setenv("CORTEX_LLVM_BIN", str(tmp_path))
+    monkeypatch.setenv("TENSORCX_LLVM_BIN", str(tmp_path))
     monkeypatch.setattr(cpu, "_run", lambda _: "LLVM version 21.1.7")
     with pytest.raises(RuntimeError, match="requires LLVM 21.1.8"):
         cpu.toolchain()
@@ -246,7 +246,7 @@ def test_unsupported_runtime_subset_before_tools(monkeypatch, body):
     with tempfile.TemporaryDirectory() as directory:
         path = Path(directory) / "unsupported.py"
         path.write_text(
-            "import cortex_runtime as cx\n@cx.experimental.kernel\ndef bad(a, b, out, n):\n"
+            "import tensorcx as cx\n@cx.experimental.kernel\ndef bad(a, b, out, n):\n"
             "    i = cx.experimental.program_id(0) * cx.experimental.block_size() + cx.experimental.thread_id()\n"
             "    if i < n:\n        " + body + "\n")
         spec = importlib.util.spec_from_file_location("unsupported", path)
@@ -274,6 +274,6 @@ def test_successful_compile_cleans_scratch(compiled, monkeypatch, tmp_path):
 
 
 def test_empty_explicit_directory(monkeypatch):
-    monkeypatch.setenv("CORTEX_LLVM_BIN", "")
+    monkeypatch.setenv("TENSORCX_LLVM_BIN", "")
     with pytest.raises(RuntimeError, match="must name"):
         cpu.toolchain()

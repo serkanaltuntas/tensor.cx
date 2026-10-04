@@ -79,10 +79,10 @@ def validate(revision, llvm_bin):
                 'PYTEST_PLUGINS', 'CMAKE_ARGS', 'LD_LIBRARY_PATH', 'LD_PRELOAD'):
         env.pop(key, None)
     env.update(CC='gcc-13', CXX='g++-13', CUDACXX='nvcc', CUDAHOSTCXX='g++-13',
-               CMAKE_BUILD_PARALLEL_LEVEL='2', CORTEX_LLVM_BIN=str(llvm_bin),
-               CORTEX_REQUIRE_BACKENDS='cuda', CORTEX_REQUIRE_CUDA='1',
-               CORTEX_REQUIRE_MLIR='1', CORTEX_REQUIRE_MLIR_CUDA='1',
-               CORTEX_REQUIRE_BACKEND_CAPABILITIES='cuda:copy,cuda:tensor_factories_float32,'
+               CMAKE_BUILD_PARALLEL_LEVEL='2', TENSORCX_LLVM_BIN=str(llvm_bin),
+               TENSORCX_REQUIRE_BACKENDS='cuda', TENSORCX_REQUIRE_CUDA='1',
+               TENSORCX_REQUIRE_MLIR='1', TENSORCX_REQUIRE_MLIR_CUDA='1',
+               TENSORCX_REQUIRE_BACKEND_CAPABILITIES='cuda:copy,cuda:tensor_factories_float32,'
                'cuda:binary_ops_float32,cuda:unary_float32,cuda:reductions_float32,cuda:normalization_float32')
     resolved = subprocess.check_output(['git', 'rev-parse', '--verify', '--end-of-options', revision + '^{commit}'],
                                        cwd=ROOT, text=True).strip()
@@ -97,7 +97,7 @@ def validate(revision, llvm_bin):
     try:
         # Archive the commit, never the mutable working tree. All compilation
         # and test files come from this snapshot in a disposable environment.
-        with tempfile.TemporaryDirectory(prefix='cortex-cuda-gate-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='tensorcx-cuda-gate-') as temporary:
             work = Path(temporary)
             snapshot = work / 'source'
             snapshot.mkdir()
@@ -108,7 +108,7 @@ def validate(revision, llvm_bin):
                 source.extractall(snapshot, filter='data')
             python = work / 'env/bin/python'
             run(['uv', 'venv', work / 'env', '--python', sys.executable], snapshot, env, output / 'venv.log')
-            build_env = {**env, 'CMAKE_ARGS': '-DCORTEX_ENABLE_METAL=OFF -DCORTEX_ENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=52'}
+            build_env = {**env, 'CMAKE_ARGS': '-DTENSORCX_ENABLE_METAL=OFF -DTENSORCX_ENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=52'}
             run(['uv', 'pip', 'install', '--python', python, str(snapshot) + '[dev]', 'cmake>=3.21', 'ninja'],
                 snapshot, build_env, output / 'install.log')
             runner = ['uv', 'run', '--no-project', '--python', python]
@@ -130,18 +130,18 @@ def validate(revision, llvm_bin):
                            snapshot, env, output / 'nanobind.log')
             native = work / 'native'
             run([*runner, 'cmake', '-S', snapshot, '-B', native, '-G', 'Ninja',
-                 '-DCORTEX_ENABLE_METAL=OFF', '-DCORTEX_ENABLE_CUDA=ON', '-DCMAKE_CUDA_ARCHITECTURES=52',
-                 '-DCORTEX_BUILD_TESTS=ON', '-Dnanobind_DIR=' + nanobind, '-DPython_EXECUTABLE=' + str(python)],
+                 '-DTENSORCX_ENABLE_METAL=OFF', '-DTENSORCX_ENABLE_CUDA=ON', '-DCMAKE_CUDA_ARCHITECTURES=52',
+                 '-DTENSORCX_BUILD_TESTS=ON', '-Dnanobind_DIR=' + nanobind, '-DPython_EXECUTABLE=' + str(python)],
                 snapshot, env, output / 'configure.log')
             run([*runner, 'cmake', '--build', native], snapshot, env, output / 'build.log')
             run([*runner, 'ctest', '--test-dir', native, '--no-tests=error', '--output-on-failure',
                  '--output-junit', output / 'ctest.xml'], snapshot, env, output / 'ctest.log')
             report['native'] = junit_result(output / 'ctest.xml', 4,
-                ('cortex_cpu_kernel_tests', 'cortex_backend_contract_tests',
-                 'cortex_cuda_kernel_tests', 'cortex_cuda_backend_contract_tests'))
+                ('tensorcx_cpu_kernel_tests', 'tensorcx_backend_contract_tests',
+                 'tensorcx_cuda_kernel_tests', 'tensorcx_cuda_backend_contract_tests'))
             for tool in ('memcheck', 'racecheck'):
                 run(['compute-sanitizer', '--tool', tool, '--error-exitcode', '1',
-                     native / 'cortex_cuda_backend_contract_tests'], snapshot, env, output / (tool + '.log'))
+                     native / 'tensorcx_cuda_backend_contract_tests'], snapshot, env, output / (tool + '.log'))
             report['device_sanitizers'] = ['memcheck', 'racecheck']
             raw = run([*runner, 'python', '-I', snapshot / 'examples/cuda_mlp.py', '--device', 'cuda', '--repeats', '3'],
                       snapshot, env, output / 'mlp.log')
@@ -171,10 +171,10 @@ def main():
         return
     llvm = args.llvm_bin
     if llvm is None:
-        config = subprocess.run(['git', 'config', '--get', 'cortex.cudaLlvmBin'],
+        config = subprocess.run(['git', 'config', '--get', 'tensorcx.cudaLlvmBin'],
                                 cwd=ROOT, text=True, capture_output=True)
         if config.returncode or not config.stdout.strip():
-            parser.error('configure cortex.cudaLlvmBin or provide --llvm-bin')
+            parser.error('configure tensorcx.cudaLlvmBin or provide --llvm-bin')
         llvm = Path(config.stdout.strip())
     for revision in revisions:
         validate(revision, llvm.resolve())

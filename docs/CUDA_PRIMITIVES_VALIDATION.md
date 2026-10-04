@@ -1,5 +1,10 @@
 # CUDA float32 primitive extension
 
+> Naming update (2026-10-04): commands, source paths, and symbols in this living
+> document use the current tensorcx spelling. Dated results describe runs
+> under the former names; they are not new validation runs. For historical
+> revisions, use the reverse mapping in [NAMING.md](NAMING.md).
+
 Date: 2026-10-03. Extends the completed Phase 9 prototype under the user's
 [full CUDA product goal](CUDA_PRODUCT_COMPLETION.md). This is operator coverage,
 not completion of compatibility, performance, GPU CI or distribution work.
@@ -9,7 +14,7 @@ not completion of compatibility, performance, GPU CI or distribution work.
 All operations compute on CUDA device 0, use `CudaBackend::execute`, retain
 primary-context ownership, run synchronously and publish a new output only on
 success. Input tensors remain unchanged. Inputs must be contiguous float32
-Cortex CUDA tensors; no implicit CPU fallback or dtype conversion is introduced.
+tensor.cx CUDA tensors; no implicit CPU fallback or dtype conversion is introduced.
 
 | Operation | Contract |
 | --- | --- |
@@ -68,10 +73,10 @@ backend explicitly; the CUDA command never silently falls back to CPU.
 Nightblade GTX 980 Ti, CUDA 12.4/GCC 13, Driver 580.178.04. Validation commands:
 
 ```bash
-CORTEX_REQUIRE_BACKENDS=cuda CORTEX_REQUIRE_BACKEND_CAPABILITIES=cuda:unary_float32,cuda:reductions_float32,cuda:normalization_float32 uv run pytest tests/python/test_cuda.py tests/python/test_cuda_primitives.py tests/python/test_backend_parity.py -q
-CORTEX_LLVM_BIN="$PWD/build/mlir-toolchain/root/usr/lib/llvm-21/bin" CORTEX_REQUIRE_MLIR=1 CORTEX_REQUIRE_MLIR_CUDA=1 CORTEX_REQUIRE_BACKENDS=cuda uv run pytest -q
+TENSORCX_REQUIRE_BACKENDS=cuda TENSORCX_REQUIRE_BACKEND_CAPABILITIES=cuda:unary_float32,cuda:reductions_float32,cuda:normalization_float32 uv run pytest tests/python/test_cuda.py tests/python/test_cuda_primitives.py tests/python/test_backend_parity.py -q
+TENSORCX_LLVM_BIN="$PWD/build/mlir-toolchain/root/usr/lib/llvm-21/bin" TENSORCX_REQUIRE_MLIR=1 TENSORCX_REQUIRE_MLIR_CUDA=1 TENSORCX_REQUIRE_BACKENDS=cuda uv run pytest -q
 uv run cmake --build build/cpp-cuda
-CORTEX_REQUIRE_CUDA=1 CORTEX_REQUIRE_MLIR_CUDA=1 uv run ctest --test-dir build/cpp-cuda --output-on-failure
+TENSORCX_REQUIRE_CUDA=1 TENSORCX_REQUIRE_MLIR_CUDA=1 uv run ctest --test-dir build/cpp-cuda --output-on-failure
 ```
 
 Run native ASan/UBSan using the existing [Nightblade shadow-gap workaround](CUDA_PHASE9_VALIDATION.md).
@@ -101,8 +106,8 @@ was restored and focused tests and the MLP example passed again. Run device
 instrumentation with the Toolkit's `compute-sanitizer`, for example:
 
 ```bash
-CORTEX_REQUIRE_BACKENDS=cuda uv run compute-sanitizer --tool memcheck --error-exitcode 1 python -m pytest tests/python/test_cuda_primitives.py -q
-CORTEX_REQUIRE_BACKENDS=cuda uv run compute-sanitizer --tool racecheck --error-exitcode 1 python -m pytest tests/python/test_cuda_primitives.py -k matmul -q
+TENSORCX_REQUIRE_BACKENDS=cuda uv run compute-sanitizer --tool memcheck --error-exitcode 1 python -m pytest tests/python/test_cuda_primitives.py -q
+TENSORCX_REQUIRE_BACKENDS=cuda uv run compute-sanitizer --tool racecheck --error-exitcode 1 python -m pytest tests/python/test_cuda_primitives.py -k matmul -q
 ```
 
 The initial full parity run caught a changed binary dtype-mismatch error;

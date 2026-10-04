@@ -4,7 +4,7 @@ import sys
 import numpy as np
 import pytest
 
-import cortex_runtime as cx
+import tensorcx as cx
 
 
 HUGE_SHAPE = (3_037_000_500, 3_037_000_500)
@@ -13,7 +13,7 @@ STRIDE_OVERFLOW_SHAPE = (0, 9_223_372_036_854_775_807, 2)
 
 def test_softmax_huge_empty_axis_returns_without_iterating_rows():
     result = subprocess.run(
-        [sys.executable, "-c", "import cortex_runtime as cx; "
+        [sys.executable, "-c", "import tensorcx as cx; "
          "x = cx.empty((10**12, 0), device='cpu'); "
          "y = cx.softmax(x, axis=1); "
          "assert y.shape == (10**12, 0) and y.numpy().size == 0"],
@@ -595,7 +595,7 @@ def test_tensor_rejects_unsupported_device_before_materializing_data():
 
 
 def test_tensor_rejects_bool_data():
-    from cortex_runtime import _core
+    from tensorcx import _core
 
     with pytest.raises(ValueError, match="bool tensor data is not supported"):
         cx.tensor(True, device="cpu")
@@ -629,7 +629,7 @@ def test_tensor_rejects_int_out_of_int32_range():
 
 
 def test_tensor_rejects_float32_values_that_cannot_be_cast():
-    from cortex_runtime import _core
+    from tensorcx import _core
 
     with pytest.raises(ValueError, match="not convertible to float32"):
         cx.tensor([object()], dtype=cx.float32)
@@ -648,7 +648,7 @@ def test_scalar_input_preserves_rank0():
 
 
 def test_fill_rejects_int32_value_out_of_range():
-    from cortex_runtime import _core
+    from tensorcx import _core
 
     with pytest.raises(ValueError, match="fill value is out of range for int32"):
         _core.fill((2,), dtype="int32", value=3e9, device="cpu")
@@ -663,7 +663,7 @@ def test_fill_rejects_int32_value_out_of_range():
 
 
 def test_fill_accepts_int32_boundary_values():
-    from cortex_runtime import _core
+    from tensorcx import _core
 
     lower = _core.fill((2,), dtype="int32", value=-(2**31), device="cpu")
     upper = _core.fill((2,), dtype="int32", value=2**31 - 1, device="cpu")
@@ -714,7 +714,7 @@ def test_randn_accepts_numpy_integer_shape():
 def test_rank0_scalar_numpy_round_trip():
     # Rank-0 tensors are reachable via the low-level factory; numpy() must emit a
     # 0-d array, not crash on the empty shape.
-    from cortex_runtime import _core
+    from tensorcx import _core
 
     for dtype, np_dtype in (("float32", np.float32), ("int32", np.int32)):
         scalar = cx.Tensor(_core.zeros((), dtype=dtype, device="cpu"))
@@ -727,7 +727,7 @@ def test_rank0_scalar_numpy_round_trip():
 def test_native_tensor_factory_rejects_nested_sequence():
     # The native _core.tensor is the flat 1-D factory; nested data must route
     # through the public cx.tensor() wrapper instead of mis-flattening here.
-    from cortex_runtime import _core
+    from tensorcx import _core
 
     with pytest.raises(ValueError, match="flat numeric sequence"):
         _core.tensor([[1, 2], [3, 4]])
@@ -740,7 +740,7 @@ def test_tensor_from_flat_rejects_generator_longer_than_shape():
     # pins the early-termination behavior itself, not just the error message.
     import itertools
 
-    from cortex_runtime import _core
+    from tensorcx import _core
 
     def counting(iterable, consumed):
         for item in iterable:
@@ -766,7 +766,7 @@ def test_tensor_from_flat_rejects_generator_longer_than_shape():
 
 
 def test_tensor_from_flat_accepts_exact_length_generator():
-    from cortex_runtime import _core
+    from tensorcx import _core
 
     float_tensor = cx.Tensor(
         _core.tensor_from_flat(

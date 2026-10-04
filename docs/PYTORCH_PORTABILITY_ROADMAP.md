@@ -1,48 +1,48 @@
 # PyTorch Portability Roadmap
 
-This document compares three possible product and engineering tracks for Cortex
+This document compares three possible product and engineering tracks for tensor.cx
 Runtime. It is not the phase ledger. The current project phase and formal
 acceptance criteria remain in [`PROJECT.md`](../PROJECT.md).
 
-The central question is whether Cortex Runtime should stay focused on its
+The central question is whether tensor.cx should stay focused on its
 current runtime/compiler roadmap, become a narrow PyTorch extension path, or
 grow into a portability layer that lets PyTorch run on more accelerator
 backends.
 
 ## Executive Summary
 
-Cortex Runtime should first become a correct, backend-neutral tensor runtime.
+tensor.cx should first become a correct, backend-neutral tensor runtime.
 That is the foundation for every other path.
 
 After that, the lowest-risk PyTorch integration is a custom operation bridge:
-PyTorch remains the framework, while selected operations call into Cortex
+PyTorch remains the framework, while selected operations call into tensor.cx
 Runtime kernels or primitives.
 
 Only after the runtime and custom operation bridge are proven should the project
 consider a full PyTorch backend / ATen bridge. That third track is the closest
 match for the long-term portability vision, but it is also a much larger product
-line than the current Cortex Runtime roadmap.
+line than the current tensor.cx roadmap.
 
 ```text
-Track 1: Cortex Runtime core
+Track 1: tensor.cx core
   Build the portable runtime and compiler foundation.
 
 Track 2: PyTorch custom op bridge
-  Let PyTorch call selected Cortex Runtime operations.
+  Let PyTorch call selected tensor.cx operations.
 
 Track 3: PyTorch backend / ATen bridge
-  Make Cortex Runtime a backend substrate for PyTorch devices.
+  Make tensor.cx a backend substrate for PyTorch devices.
 ```
 
 ## Track Comparison
 
 | Track | Primary goal | PyTorch role | Scope | Risk | Performance target |
 | --- | --- | --- | --- | --- | --- |
-| Cortex Runtime core | Build a standalone tensor runtime and compiler foundation | Independent | Runtime, devices, buffers, ops, kernels, compiler experiments | Medium | Strong performance for supported Cortex ops |
-| PyTorch custom op bridge | Call selected Cortex kernels from PyTorch | PyTorch stays the main framework | Narrow integration for specific ops or fused kernels | Medium-high | Match or beat PyTorch for selected operations |
-| PyTorch backend / ATen bridge | Let PyTorch run on Cortex-backed accelerators | PyTorch frontend and autograd, Cortex backend substrate | Broad ATen/device/backend integration | Very high | Competitive performance on real PyTorch workloads |
+| tensor.cx core | Build a standalone tensor runtime and compiler foundation | Independent | Runtime, devices, buffers, ops, kernels, compiler experiments | Medium | Strong performance for supported tensor.cx ops |
+| PyTorch custom op bridge | Call selected tensor.cx kernels from PyTorch | PyTorch stays the main framework | Narrow integration for specific ops or fused kernels | Medium-high | Match or beat PyTorch for selected operations |
+| PyTorch backend / ATen bridge | Let PyTorch run on tensor.cx-backed accelerators | PyTorch frontend and autograd, tensor.cx backend substrate | Broad ATen/device/backend integration | Very high | Competitive performance on real PyTorch workloads |
 
-## Track 1: Cortex Runtime Core
+## Track 1: tensor.cx Core
 
 This is the current project roadmap.
 
@@ -61,7 +61,7 @@ references, tests, and carefully expanding operator coverage.
 
 ### What This Track Should Deliver
 
-- A reliable Python tensor API for Cortex-owned tensors.
+- A reliable Python tensor API for tensor.cx-owned tensors.
 - Backend-neutral C++ abstractions for devices, buffers, tensors, and operation
   dispatch.
 - A mandatory CPU reference path for every accelerator operation.
@@ -80,7 +80,7 @@ references, tests, and carefully expanding operator coverage.
 
 ### Success Criteria
 
-This track succeeds when Cortex Runtime can reliably run its own supported
+This track succeeds when tensor.cx can reliably run its own supported
 operations across CPU and accelerator backends with clear semantics, strong
 tests, and honest benchmarks.
 
@@ -88,19 +88,19 @@ tests, and honest benchmarks.
 
 This is the recommended first PyTorch integration path.
 
-The idea is to let PyTorch call Cortex Runtime for selected operations without
-trying to make Cortex Runtime responsible for all of PyTorch.
+The idea is to let PyTorch call tensor.cx for selected operations without
+trying to make tensor.cx responsible for all of PyTorch.
 
 ```text
 PyTorch model / training or inference code
   -> selected custom op
-  -> torch-cortex bridge
-  -> Cortex Runtime OpDesc / kernel / primitive
+  -> torch-tensorcx bridge
+  -> tensor.cx OpDesc / kernel / primitive
   -> accelerator backend
 ```
 
 PyTorch remains responsible for tensors, modules, autograd, optimizers, data
-loading, and the broader training system. Cortex Runtime is used only where it
+loading, and the broader training system. tensor.cx is used only where it
 has a specific kernel, primitive, or portability advantage.
 
 ### Good First Targets
@@ -115,8 +115,8 @@ has a specific kernel, primitive, or portability advantage.
 ### Required Capabilities
 
 - A stable C ABI or C++ API boundary that PyTorch extensions can call.
-- A `torch-cortex` extension package.
-- Tensor data movement between PyTorch tensors and Cortex Runtime buffers.
+- A `torch-tensorcx` extension package.
+- Tensor data movement between PyTorch tensors and tensor.cx buffers.
 - Clear ownership rules for temporary buffers and device memory.
 - CPU fallback or explicit unsupported-operation errors.
 - Per-op benchmarks against native PyTorch.
@@ -124,24 +124,24 @@ has a specific kernel, primitive, or portability advantage.
 
 ### Success Criteria
 
-This track succeeds when a PyTorch program can call a small set of Cortex-backed
+This track succeeds when a PyTorch program can call a small set of tensor.cx-backed
 operations, get correct results, and show useful performance or portability
 value for those operations.
 
-It does not need to make arbitrary PyTorch models run on Cortex devices.
+It does not need to make arbitrary PyTorch models run on tensor.cx devices.
 
 ## Track 3: PyTorch Backend / ATen Bridge
 
 This is the long-term portability vision.
 
-The goal is to make Cortex Runtime act as a substrate under PyTorch so that
-PyTorch can target accelerators through Cortex Runtime.
+The goal is to make tensor.cx act as a substrate under PyTorch so that
+PyTorch can target accelerators through tensor.cx.
 
 ```text
 PyTorch frontend, nn.Module, autograd, optimizers
   -> PyTorch dispatcher / ATen backend integration
-  -> torch-cortex device backend
-  -> Cortex Runtime operation dispatch or compiler
+  -> torch-tensorcx device backend
+  -> tensor.cx operation dispatch or compiler
   -> Metal / CUDA / ROCm / Vulkan / SPIR-V / other backend
   -> accelerator
 ```
@@ -151,13 +151,13 @@ If successful, user code could eventually look like this:
 ```python
 import torch
 
-model = model.to("cortex")
-x = x.to("cortex")
+model = model.to("tensorcx")
+x = x.to("tensorcx")
 y = model(x)
 ```
 
 This is the closest path to making PyTorch more portable across accelerators.
-It is also much larger than the current Cortex Runtime roadmap.
+It is also much larger than the current tensor.cx roadmap.
 
 ### Required Capabilities
 
@@ -187,7 +187,7 @@ primitive libraries, or an optimizing compiler path.
 
 ### Success Criteria
 
-This track succeeds only when real PyTorch workloads can run on a Cortex-backed
+This track succeeds only when real PyTorch workloads can run on a tensor.cx-backed
 device with correct behavior and competitive performance for a defined workload
 class.
 
@@ -208,14 +208,14 @@ The tracks should not run as three equal priorities from the start.
 
 ### Stage 1: Finish The Runtime Foundation
 
-Continue the current Cortex Runtime roadmap until the core backend boundaries,
+Continue the current tensor.cx roadmap until the core backend boundaries,
 operation dispatch, CPU reference behavior, Metal path, benchmarks, and docs are
 stable.
 
 Decision gate:
 
 ```text
-Cortex can add new ops without changing core architecture.
+tensor.cx can add new ops without changing core architecture.
 CPU-vs-device tests are routine.
 Benchmarks exist for each performance claim.
 Backend-specific code stays behind backend boundaries.
@@ -223,8 +223,8 @@ Backend-specific code stays behind backend boundaries.
 
 ### Stage 2: Build A Narrow PyTorch Custom Op Bridge
 
-Add a small `torch-cortex` integration package and route a few selected PyTorch
-custom operations into Cortex Runtime.
+Add a small `torch-tensorcx` integration package and route a few selected PyTorch
+custom operations into tensor.cx.
 
 Decision gate:
 
@@ -232,12 +232,12 @@ Decision gate:
 At least one PyTorch custom op is correct.
 The op has clear CPU fallback or unsupported behavior.
 The op is benchmarked against native PyTorch where possible.
-The bridge does not compromise Cortex Runtime's backend-neutral design.
+The bridge does not compromise tensor.cx's backend-neutral design.
 ```
 
 ### Stage 3: Evaluate A Real PyTorch Backend
 
-Only begin the ATen backend track after the custom op bridge proves that Cortex
+Only begin the ATen backend track after the custom op bridge proves that tensor.cx
 Runtime has practical value from PyTorch.
 
 Decision gate:
@@ -255,13 +255,13 @@ Unsupported behavior is explicit.
 The best path is incremental:
 
 ```text
-1. Build Cortex Runtime well.
+1. Build tensor.cx well.
 2. Prove value inside PyTorch through selected custom ops.
 3. Use that evidence to decide whether a full PyTorch backend is justified.
 ```
 
 This keeps the current project grounded while leaving room for the larger
-portability vision. Cortex Runtime should not try to become a PyTorch
+portability vision. tensor.cx should not try to become a PyTorch
 replacement. The stronger long-term role is to become a clean accelerator
 substrate that PyTorch or other frameworks can target when that integration is
 worth the cost.
@@ -269,7 +269,7 @@ worth the cost.
 ## Non-Goals For The Near Term
 
 - A drop-in replacement for PyTorch.
-- Running arbitrary PyTorch training systems on Cortex devices.
+- Running arbitrary PyTorch training systems on tensor.cx devices.
 - Matching native PyTorch performance across all operators.
 - Supporting every dtype, layout, view, and dispatch path.
 - Supporting every legacy or unsupported accelerator at full capacity.
@@ -282,8 +282,8 @@ worth the cost.
   Metal?
 - Should the first PyTorch integration be inference-only, training-capable, or
   explicitly split?
-- Should Cortex Runtime expose a stable C ABI before PyTorch integration starts?
-- Should the compiler path target Cortex-owned IR first, MLIR first, or a smaller
+- Should tensor.cx expose a stable C ABI before PyTorch integration starts?
+- Should the compiler path target tensor.cx-owned IR first, MLIR first, or a smaller
   backend-specific lowering path?
 - What is the smallest PyTorch workload that would prove the backend vision is
   real without expanding into a full framework project too early?

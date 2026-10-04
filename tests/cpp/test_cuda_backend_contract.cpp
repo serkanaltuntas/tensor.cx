@@ -5,10 +5,10 @@
 #include <stdexcept>
 #include <cmath>
 
-#include "cortex/backends/cuda/cuda_backend.h"
-#include "cortex/backends/cpu/cpu_backend.h"
+#include "tensorcx/backends/cuda/cuda_backend.h"
+#include "tensorcx/backends/cpu/cpu_backend.h"
 
-using namespace cortex;
+using namespace tensorcx;
 namespace {
 void require(bool result, const char* message) {
   if (!result) throw std::runtime_error(message);
@@ -51,7 +51,7 @@ int main() {
     invalid(backend.execute(malformed));
     outputs[0] = descriptor();
     if (!cuda::available()) {
-      if (std::getenv("CORTEX_REQUIRE_CUDA")) {
+      if (std::getenv("TENSORCX_REQUIRE_CUDA")) {
         throw std::runtime_error("required CUDA device unavailable");
       }
       std::cout << "CUDA device unavailable; metadata validation passed\n";

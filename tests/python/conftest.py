@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-import cortex_runtime as cx
+import tensorcx as cx
 
 
 BACKEND_ORDER = ("cpu", "metal", "cuda")
@@ -89,7 +89,7 @@ def pytest_configure(config):
         raise pytest.UsageError(
             "required backend(s) unavailable: "
             + ", ".join(unavailable)
-            + "; unset CORTEX_REQUIRE_BACKENDS or fix backend registration"
+            + "; unset TENSORCX_REQUIRE_BACKENDS or fix backend registration"
         )
 
     missing = []
@@ -147,12 +147,12 @@ def _backend_param(name: str, capability: str):
 
 
 def _required_backends() -> frozenset[str]:
-    raw = os.environ.get("CORTEX_REQUIRE_BACKENDS", "")
+    raw = os.environ.get("TENSORCX_REQUIRE_BACKENDS", "")
     return frozenset(name.strip() for name in raw.split(",") if name.strip())
 
 
 def _required_backend_capabilities() -> dict[str, frozenset[str]]:
-    raw = os.environ.get("CORTEX_REQUIRE_BACKEND_CAPABILITIES", "")
+    raw = os.environ.get("TENSORCX_REQUIRE_BACKEND_CAPABILITIES", "")
     required = {}
     for item in (part.strip() for part in raw.split(",")):
         if not item:
@@ -162,12 +162,12 @@ def _required_backend_capabilities() -> dict[str, frozenset[str]]:
         capability = capability.strip()
         if not separator or not backend or not capability:
             raise pytest.UsageError(
-                "CORTEX_REQUIRE_BACKEND_CAPABILITIES entries must use "
+                "TENSORCX_REQUIRE_BACKEND_CAPABILITIES entries must use "
                 "backend:capability"
             )
         if capability not in KNOWN_CAPABILITIES:
             raise pytest.UsageError(
-                "CORTEX_REQUIRE_BACKEND_CAPABILITIES contains unknown "
+                "TENSORCX_REQUIRE_BACKEND_CAPABILITIES contains unknown "
                 f"capability: {capability}"
             )
         required.setdefault(backend, set()).add(capability)

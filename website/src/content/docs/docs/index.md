@@ -3,7 +3,7 @@ title: Introduction
 description: A small Python-first tensor runtime with a CPU reference and explicit accelerator backends.
 ---
 
-Cortex Runtime is an independent, Apache-2.0 licensed project for exploring
+tensor.cx is an independent, Apache-2.0 licensed project for exploring
 tensor execution. A Python API sits above a backend-neutral C++20 core, with
 CPU, Apple Metal, and an optional CUDA backend.
 

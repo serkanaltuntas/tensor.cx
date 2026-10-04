@@ -1,11 +1,11 @@
-"""Phase 10 tests: Cortex IR -> MLIR emission and end-to-end lowering.
+"""Phase 10 tests: tensor.cx IR -> MLIR emission and end-to-end lowering.
 
 The emitter tests need no MLIR toolchain (text generation only) and run in
 CPU CI. The end-to-end test lowers through mlir-opt/mlir-translate/clang and
 executes the native code; it skips cleanly when the toolchain is unavailable,
 matching the Metal-test convention.
 
-Setting ``CORTEX_REQUIRE_MLIR=1`` turns that clean skip into a hard failure, so
+Setting ``TENSORCX_REQUIRE_MLIR=1`` turns that clean skip into a hard failure, so
 the dedicated CI job (which installs LLVM/MLIR) actually exercises the lowering
 evidence instead of silently green-skipping when the toolchain install breaks.
 """
@@ -18,8 +18,8 @@ from pathlib import Path
 import pytest
 import numpy as np
 
-import cortex_runtime as cx
-from cortex_runtime.experimental import (
+import tensorcx as cx
+from tensorcx.experimental import (
     IRAssign,
     IRBinaryOp,
     IRCompare,
@@ -34,7 +34,7 @@ EXPERIMENT_DIR = REPO_ROOT / "experiments" / "mlir"
 
 sys.path.insert(0, str(EXPERIMENT_DIR))
 try:
-    from cortex_ir_to_mlir import (  # noqa: E402
+    from tensorcx_ir_to_mlir import (  # noqa: E402
         MlirEmitError,
         emit_mlir,
         format_f32_constant,
@@ -48,7 +48,7 @@ finally:
 def _mlir_toolchain_or_skip():
     """Return the LLVM/MLIR bin dir, or skip when it is unavailable.
 
-    When ``CORTEX_REQUIRE_MLIR`` is set (the dedicated CI job sets it after
+    When ``TENSORCX_REQUIRE_MLIR`` is set (the dedicated CI job sets it after
     installing the toolchain), a missing toolchain is a hard failure instead of
     a skip, so a broken toolchain install cannot green-skip the lowering
     evidence.
@@ -58,8 +58,8 @@ def _mlir_toolchain_or_skip():
         message = (
             "MLIR toolchain (mlir-opt/mlir-translate/clang) is unavailable"
         )
-        if os.environ.get("CORTEX_REQUIRE_MLIR"):
-            pytest.fail(f"CORTEX_REQUIRE_MLIR is set but {message}")
+        if os.environ.get("TENSORCX_REQUIRE_MLIR"):
+            pytest.fail(f"TENSORCX_REQUIRE_MLIR is set but {message}")
         pytest.skip(message)
     return llvm_bin
 
@@ -76,14 +76,14 @@ def test_toolchain_helper_returns_bin_when_present(monkeypatch, tmp_path):
 
 
 def test_toolchain_helper_skips_when_missing_and_not_required(monkeypatch):
-    monkeypatch.delenv("CORTEX_REQUIRE_MLIR", raising=False)
+    monkeypatch.delenv("TENSORCX_REQUIRE_MLIR", raising=False)
     monkeypatch.setattr(sys.modules[__name__], "find_llvm_bin", lambda: None)
     with pytest.raises(pytest.skip.Exception):
         _mlir_toolchain_or_skip()
 
 
 def test_toolchain_helper_fails_when_missing_and_required(monkeypatch):
-    monkeypatch.setenv("CORTEX_REQUIRE_MLIR", "1")
+    monkeypatch.setenv("TENSORCX_REQUIRE_MLIR", "1")
     monkeypatch.setattr(sys.modules[__name__], "find_llvm_bin", lambda: None)
     with pytest.raises(pytest.fail.Exception):
         _mlir_toolchain_or_skip()
@@ -108,14 +108,14 @@ def test_emit_mlir_structure_for_add_kernel():
     # Buffers become dynamic memrefs, scalars i32, plus the two harness args.
     assert (
         "func.func @add_kernel(%a: memref<?xf32>, %b: memref<?xf32>, "
-        "%out: memref<?xf32>, %n: i32, %cortex_thread_count: i32, "
-        "%cortex_block_size: i32)" in mlir_text
+        "%out: memref<?xf32>, %n: i32, %tensorcx_thread_count: i32, "
+        "%tensorcx_block_size: i32)" in mlir_text
     )
     assert "attributes { llvm.emit_c_interface }" in mlir_text
     # The Metal grid maps to one scf.for over the global thread index.
-    assert "scf.for %cortex_gi" in mlir_text
-    assert "arith.divui %cortex_gi_i32, %cortex_block_size" in mlir_text
-    assert "arith.remui %cortex_gi_i32, %cortex_block_size" in mlir_text
+    assert "scf.for %tensorcx_gi" in mlir_text
+    assert "arith.divui %tensorcx_gi_i32, %tensorcx_block_size" in mlir_text
+    assert "arith.remui %tensorcx_gi_i32, %tensorcx_block_size" in mlir_text
     # Guard comparison is unsigned, matching the MSL uint semantics.
     assert "arith.cmpi ult," in mlir_text
     assert "scf.if" in mlir_text
@@ -294,12 +294,12 @@ def test_emit_mlir_rejects_mixed_type_arithmetic():
 
 def test_emit_mlir_rejects_reserved_parameter_names():
     @cx.experimental.kernel
-    def clashing_kernel(a, out, cortex_thread_count):
+    def clashing_kernel(a, out, tensorcx_thread_count):
         i = (
             cx.experimental.program_id(0) * cx.experimental.block_size()
             + cx.experimental.thread_id()
         )
-        if i < cortex_thread_count:
+        if i < tensorcx_thread_count:
             out[i] = a[i] + a[i]
 
     with pytest.raises(MlirEmitError, match="reserved by the MLIR harness"):
@@ -319,7 +319,7 @@ def test_emit_mlir_requires_an_output_store():
 def test_emit_mlir_rejects_nonzero_program_id_axis():
     # The Python parser already enforces program_id(0); hand-built IR must not
     # silently emit axis-0 code for another axis.
-    from cortex_runtime.experimental import IRCall
+    from tensorcx.experimental import IRCall
 
     kernel_ir = IRKernel(
         name="axis1",
@@ -434,7 +434,7 @@ def test_end_to_end_mlir_rowsum_matches_cpu_reference():
 def test_emit_mlir_rejects_bool_loop_carried_values():
     # An i1 accumulator would emit iter_args/yield typed i32 for an i1 SSA
     # value — type-invalid MLIR; the emitter must refuse loudly instead.
-    from cortex_runtime.experimental import IRFor
+    from tensorcx.experimental import IRFor
 
     kernel_ir = IRKernel(
         name="bool_carry",

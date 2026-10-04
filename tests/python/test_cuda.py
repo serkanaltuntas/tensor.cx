@@ -6,15 +6,15 @@ import sys
 
 import pytest
 
-import cortex_runtime as cx
-from cortex_runtime import backend
+import tensorcx as cx
+from tensorcx import backend
 
 
 def test_cuda_hidden_device_import_still_has_cpu():
     environment = {**os.environ, "CUDA_VISIBLE_DEVICES": ""}
     subprocess.run(
         [sys.executable, "-c", """
-import cortex_runtime as cx
+import tensorcx as cx
 assert not cx.is_available('cuda')
 assert 'cuda' not in cx.devices()
 assert 'cpu' in cx.devices()

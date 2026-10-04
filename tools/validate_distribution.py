@@ -91,7 +91,7 @@ def main():
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
     env = os.environ.copy()
-    for key in ('PYTHONPATH', 'PYTHONHOME', 'VIRTUAL_ENV', 'CMAKE_ARGS', 'CORTEX_LLVM_BIN',
+    for key in ('PYTHONPATH', 'PYTHONHOME', 'VIRTUAL_ENV', 'CMAKE_ARGS', 'TENSORCX_LLVM_BIN',
                 'LD_LIBRARY_PATH', 'LD_PRELOAD'):
         env.pop(key, None)
     env['CMAKE_BUILD_PARALLEL_LEVEL'] = '2'
@@ -109,8 +109,8 @@ def main():
         members = archive.getnames()
         audit_archive_members(members)
         for required in ('CMakeLists.txt', 'pyproject.toml', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'bindings/python_module.cpp',
-                         'cpp/cortex/backends/cuda/kernels/primitives.cu',
-                         'python/cortex_runtime/_compiler/cuda.py', 'tools/distribution_probe.py',
+                         'cpp/tensorcx/backends/cuda/kernels/primitives.cu',
+                         'python/tensorcx/_compiler/cuda.py', 'tools/distribution_probe.py',
                          'examples/cuda_mlp.py'):
             if not any(member.endswith('/' + required) for member in members):
                 raise RuntimeError(f'sdist missing {required}')
@@ -121,7 +121,7 @@ def main():
         print(f'building and validating {variant}', flush=True)
         destination = output / variant
         destination.mkdir()
-        build_env = {**env, 'CMAKE_ARGS': '-DCORTEX_ENABLE_METAL=OFF -DCORTEX_ENABLE_CUDA=' +
+        build_env = {**env, 'CMAKE_ARGS': '-DTENSORCX_ENABLE_METAL=OFF -DTENSORCX_ENABLE_CUDA=' +
                      ('ON -DCMAKE_CUDA_ARCHITECTURES=52' if variant == 'cuda' else 'OFF')}
         run(['uv', 'build', '--wheel', sdist, '--python', sys.executable, '--out-dir', destination],
             ROOT, build_env, destination / 'build.log')
@@ -132,10 +132,10 @@ def main():
             audit_wheel_notices(archive)
             if any(name.endswith('.pth') or 'editable' in name for name in names):
                 raise RuntimeError('editable artifacts in wheel')
-            for required in ('cortex_runtime/__init__.py', 'cortex_runtime/_compiler/cuda.py'):
+            for required in ('tensorcx/__init__.py', 'tensorcx/_compiler/cuda.py'):
                 if required not in names:
                     raise RuntimeError(f'wheel missing {required}')
-            if len([name for name in names if name.startswith('cortex_runtime/_core.') and name.endswith('.so')]) != 1:
+            if len([name for name in names if name.startswith('tensorcx/_core.') and name.endswith('.so')]) != 1:
                 raise RuntimeError('wheel must contain one native extension')
             if not any(name.endswith('/licenses/LICENSE') for name in names):
                 raise RuntimeError('wheel missing license')
@@ -144,7 +144,7 @@ def main():
                   'compiler_environment': {key: env.get(key) for key in ('CC', 'CXX', 'CUDACXX', 'CUDAHOSTCXX')}}
         # The test interpreter and working directory are outside the checkout.
         # -I ignores Python path overrides, current directory and user packages.
-        with tempfile.TemporaryDirectory(prefix='cortex-wheel-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='tensorcx-wheel-') as temporary:
             work = Path(temporary)
             python = work / 'env/bin/python'
             run(['uv', 'venv', work / 'env', '--python', sys.executable], ROOT, env, destination / 'venv.log')
@@ -153,7 +153,7 @@ def main():
             record['installed'] = run(['uv', 'pip', 'freeze', '--python', python], ROOT, env, destination / 'freeze.log')
             (work / 'probe.py').write_bytes(probe)
             (work / 'mlp.py').write_bytes(example)
-            runtime_env = {**env, 'CORTEX_LLVM_BIN': str(work / 'absent-llvm')}
+            runtime_env = {**env, 'TENSORCX_LLVM_BIN': str(work / 'absent-llvm')}
             command = ['uv', 'run', '--no-project', '--python', python, 'python', '-I']
             modes = [('without-llvm', []), ('hidden-gpu', ['--hidden-gpu'])]
             if args.llvm_bin:
@@ -163,11 +163,11 @@ def main():
                 if mode == 'hidden-gpu':
                     selected_env['CUDA_VISIBLE_DEVICES'] = ''
                 if mode == 'with-llvm':
-                    selected_env['CORTEX_LLVM_BIN'] = str(args.llvm_bin.resolve())
+                    selected_env['TENSORCX_LLVM_BIN'] = str(args.llvm_bin.resolve())
                 raw = run([*command, work / 'probe.py', '--variant', variant, *flags],
                           work, selected_env, destination / (mode + '.log'))
                 record['probes'].append({'mode': mode, 'result': json.loads(raw)})
-            extension = only(work / 'env/lib', 'python*/site-packages/cortex_runtime/_core*.so')
+            extension = only(work / 'env/lib', 'python*/site-packages/tensorcx/_core*.so')
             linkage = run(['ldd', extension], work, env, destination / 'linkage.log')
             audit_linkage(linkage, variant, work)
             record['linkage'] = linkage

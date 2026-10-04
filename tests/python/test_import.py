@@ -2,12 +2,18 @@ from importlib.metadata import version
 
 import pytest
 
-import cortex_runtime as cx
+import tensorcx as cx
 
 
 def test_version_matches_package_metadata():
-    assert cx.__version__ == version("cortex-runtime")
+    assert cx.__version__ == version("tensorcx")
     assert cx.version() == cx.__version__
+
+
+def test_public_and_native_module_identity():
+    assert cx.__name__ == "tensorcx"
+    assert cx._core.__name__ == "tensorcx._core"
+    assert cx.tensor([1.0, 2.0]).numpy().tolist() == [1.0, 2.0]
 
 
 def test_backend_contract_smoke_test():

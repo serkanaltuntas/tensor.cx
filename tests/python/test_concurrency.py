@@ -23,7 +23,7 @@ import threading
 import numpy as np
 import pytest
 
-import cortex_runtime as cx
+import tensorcx as cx
 
 THREADS = 8
 ITERATIONS = 25
@@ -206,7 +206,7 @@ def _cold_start_concurrent_first_use(backend_name, exercise_unary):
         f"""
         import threading
         import numpy as np
-        import cortex_runtime as cx
+        import tensorcx as cx
 
         THREADS = {THREADS}
         SIZE = 1024

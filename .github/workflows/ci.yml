@@ -86,7 +86,7 @@ jobs:
         run: uv venv --python ${{ matrix.python }}
 
       - name: Install editable package
-        run: CMAKE_ARGS="-DCORTEX_ENABLE_METAL=OFF" uv pip install -e ".[dev]"
+        run: CMAKE_ARGS="-DTENSORCX_ENABLE_METAL=OFF" uv pip install -e ".[dev]"
 
       - name: Run CPU tests
         run: uv run pytest
@@ -101,8 +101,8 @@ jobs:
           NANOBIND_DIR="$(uv run python -c 'import nanobind; print(nanobind.cmake_dir())')"
           PYTHON_EXECUTABLE="$(uv run python -c 'import sys; print(sys.executable)')"
           cmake -S . -B build/cpp-tests \
-            -DCORTEX_ENABLE_METAL=OFF \
-            -DCORTEX_BUILD_TESTS=ON \
+            -DTENSORCX_ENABLE_METAL=OFF \
+            -DTENSORCX_BUILD_TESTS=ON \
             -Dnanobind_DIR="${NANOBIND_DIR}" \
             -DPython_EXECUTABLE="${PYTHON_EXECUTABLE}"
 
@@ -138,9 +138,9 @@ jobs:
           PYTHON_EXECUTABLE="$(uv run python -c 'import sys; print(sys.executable)')"
           cmake -S . -B build/cpp-sanitizers \
             -DCMAKE_BUILD_TYPE=Debug \
-            -DCORTEX_ENABLE_METAL=OFF \
-            -DCORTEX_BUILD_TESTS=ON \
-            -DCORTEX_ENABLE_SANITIZERS=ON \
+            -DTENSORCX_ENABLE_METAL=OFF \
+            -DTENSORCX_BUILD_TESTS=ON \
+            -DTENSORCX_ENABLE_SANITIZERS=ON \
             -Dnanobind_DIR="${NANOBIND_DIR}" \
             -DPython_EXECUTABLE="${PYTHON_EXECUTABLE}"
 
@@ -157,9 +157,9 @@ jobs:
     name: MLIR CPU runtime and lowering
     runs-on: ubuntu-latest
 
-    # Phase 10 evidence: the Cortex IR -> MLIR -> native add prototype skips in
+    # Phase 10 evidence: the tensor.cx IR -> MLIR -> native add prototype skips in
     # the other jobs because they have no LLVM/MLIR toolchain. This job installs
-    # LLVM/MLIR 21.1.8 and runs runtime plus lowering tests with CORTEX_REQUIRE_MLIR=1, which
+    # LLVM/MLIR 21.1.8 and runs runtime plus lowering tests with TENSORCX_REQUIRE_MLIR=1, which
     # turns a missing toolchain into a hard failure so the evidence is actually
     # exercised rather than silently green-skipped (see docs/MLIR_DECISION.md).
     steps:
@@ -209,27 +209,27 @@ jobs:
         run: uv venv --python 3.12
 
       - name: Install editable package
-        run: CMAKE_ARGS="-DCORTEX_ENABLE_METAL=OFF" uv pip install -e ".[dev]"
+        run: CMAKE_ARGS="-DTENSORCX_ENABLE_METAL=OFF" uv pip install -e ".[dev]"
 
       # Full file under require-mode: every toolchain-dependent test (current or
-      # future) must run, not skip. CORTEX_REQUIRE_MLIR turns a missing
+      # future) must run, not skip. TENSORCX_REQUIRE_MLIR turns a missing
       # toolchain into a failure instead of a skip.
       - name: Run MLIR CPU runtime and lowering tests (must not skip)
         env:
-          CORTEX_LLVM_BIN: ${{ runner.temp }}/llvm-bin
-          CORTEX_REQUIRE_MLIR: "1"
+          TENSORCX_LLVM_BIN: ${{ runner.temp }}/llvm-bin
+          TENSORCX_REQUIRE_MLIR: "1"
         run: uv run pytest tests/python/test_mlir_lowering.py tests/python/test_mlir_runtime.py -v -rs
 
       - name: Check CUDA device lowering without a CUDA SDK or GPU
         env:
-          CORTEX_LLVM_BIN: ${{ runner.temp }}/llvm-bin
-          CORTEX_REQUIRE_MLIR: "1"
+          TENSORCX_LLVM_BIN: ${{ runner.temp }}/llvm-bin
+          TENSORCX_REQUIRE_MLIR: "1"
         run: uv run pytest tests/python/test_mlir_cuda_probe.py -k "not driver_runtime_probe" -v -rs
 
       - name: Check runtime CUDA emitter without CUDA
         env:
-          CORTEX_LLVM_BIN: ${{ runner.temp }}/llvm-bin
-          CORTEX_REQUIRE_MLIR: "1"
+          TENSORCX_LLVM_BIN: ${{ runner.temp }}/llvm-bin
+          TENSORCX_REQUIRE_MLIR: "1"
         run: uv run pytest tests/python/test_mlir_cuda_runtime.py tests/python/test_mlir_cuda_expressions.py -k "gpu_emitter or malformed_serialized or unsupported_before_tools or default_cuda or expression_invalid_before_tools or expression_bounds" -v -rs
 
       # Guard the job's purpose: pin the end-to-end lowering test by node id so a
@@ -237,8 +237,8 @@ jobs:
       # instead of the job going green without the evidence ever executing.
       - name: Assert end-to-end lowering test actually executed
         env:
-          CORTEX_LLVM_BIN: ${{ runner.temp }}/llvm-bin
-          CORTEX_REQUIRE_MLIR: "1"
+          TENSORCX_LLVM_BIN: ${{ runner.temp }}/llvm-bin
+          TENSORCX_REQUIRE_MLIR: "1"
         run: |
           uv run pytest -v -rs \
             "tests/python/test_mlir_lowering.py::test_end_to_end_mlir_lowering_matches_cpu_reference"
@@ -251,9 +251,9 @@ jobs:
       matrix:
         include:
           - variant: Metal on, MPSGraph off
-            cmake_args: "-DCORTEX_ENABLE_METAL=ON -DCORTEX_ENABLE_MPSGRAPH=OFF"
+            cmake_args: "-DTENSORCX_ENABLE_METAL=ON -DTENSORCX_ENABLE_MPSGRAPH=OFF"
           - variant: Metal on, MPSGraph on
-            cmake_args: "-DCORTEX_ENABLE_METAL=ON"
+            cmake_args: "-DTENSORCX_ENABLE_METAL=ON"
 
     steps:
       - name: Check out repository
@@ -281,14 +281,14 @@ jobs:
 
       - name: Build native CPU and Metal contracts
         env:
-          CORTEX_METAL_CMAKE_ARGS: ${{ matrix.cmake_args }}
+          TENSORCX_METAL_CMAKE_ARGS: ${{ matrix.cmake_args }}
         run: |
           NANOBIND_DIR="$(uv run --no-sync python -c 'import nanobind; print(nanobind.cmake_dir())')"
           PYTHON_EXECUTABLE="$(uv run --no-sync python -c 'import sys; print(sys.executable)')"
-          read -r -a METAL_OPTIONS <<< "$CORTEX_METAL_CMAKE_ARGS"
+          read -r -a METAL_OPTIONS <<< "$TENSORCX_METAL_CMAKE_ARGS"
           uv run --no-sync cmake -S . -B build/cpp-metal-tests \
             "${METAL_OPTIONS[@]}" \
-            -DCORTEX_BUILD_TESTS=ON \
+            -DTENSORCX_BUILD_TESTS=ON \
             -Dnanobind_DIR="${NANOBIND_DIR}" \
             -DPython_EXECUTABLE="${PYTHON_EXECUTABLE}"
           uv run --no-sync cmake --build build/cpp-metal-tests --parallel 2
@@ -330,7 +330,7 @@ jobs:
           uv pip install cmake ninja "nanobind>=2.4"
 
       - name: Build CUDA-enabled package
-        run: CMAKE_ARGS="-DCORTEX_ENABLE_METAL=OFF -DCORTEX_ENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=52" uv pip install -e ".[dev]"
+        run: CMAKE_ARGS="-DTENSORCX_ENABLE_METAL=OFF -DTENSORCX_ENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=52" uv pip install -e ".[dev]"
 
       - name: Provide Driver stub for the GPU-free build check
         run: |
@@ -340,14 +340,14 @@ jobs:
 
       - name: Verify CPU fallback and CUDA unavailability
         run: |
-          uv run python -c "import cortex_runtime as cx; assert hasattr(cx._core, 'CudaTensor'); assert not cx.is_available('cuda')"
+          uv run python -c "import tensorcx as cx; assert hasattr(cx._core, 'CudaTensor'); assert not cx.is_available('cuda')"
           uv run pytest
 
       - name: Build and run C++ contracts
         run: |
           uv run cmake -S . -B build/cpp-cuda -G Ninja \
-            -DCORTEX_ENABLE_METAL=OFF -DCORTEX_ENABLE_CUDA=ON \
-            -DCMAKE_CUDA_ARCHITECTURES=52 -DCORTEX_BUILD_TESTS=ON \
+            -DTENSORCX_ENABLE_METAL=OFF -DTENSORCX_ENABLE_CUDA=ON \
+            -DCMAKE_CUDA_ARCHITECTURES=52 -DTENSORCX_BUILD_TESTS=ON \
             -Dnanobind_DIR="$(uv run python -c 'import nanobind; print(nanobind.cmake_dir())')" \
             -DPython_EXECUTABLE="$(uv run python -c 'import sys; print(sys.executable)')"
           uv run cmake --build build/cpp-cuda

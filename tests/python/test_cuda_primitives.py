@@ -2,7 +2,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 import pytest
-import cortex_runtime as cx
+import tensorcx as cx
 
 pytestmark=pytest.mark.skipif(not cx.is_available('cuda'),reason='CUDA unavailable')
 

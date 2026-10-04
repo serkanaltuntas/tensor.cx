@@ -1,5 +1,10 @@
 # Distribution and release validation
 
+> Naming update (2026-10-04): commands, source paths, and symbols in this living
+> document use the current tensorcx spelling. Dated results describe runs
+> under the former names; they are not new validation runs. For historical
+> revisions, use the reverse mapping in [NAMING.md](NAMING.md).
+
 The release check builds an sdist, builds CPU and CUDA wheels **from that
 sdist**, and installs each into a separate temporary uv environment. It runs
 outside the source checkout with Python `-I`, verifies the package and native
@@ -84,7 +89,7 @@ To install a validated artifact in a separate environment:
 ```bash
 uv venv build/package-consumer --python 3.12
 uv pip install --python build/package-consumer/bin/python \
-  build/distribution-check/cuda/cortex_runtime-0.1.0-cp312-cp312-linux_x86_64.whl
+  build/distribution-check/cuda/tensorcx-0.1.0-cp312-cp312-linux_x86_64.whl
 ```
 
 Use the filename actually produced by your selected Python version. Keep the

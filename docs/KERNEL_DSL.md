@@ -15,7 +15,7 @@ native Metal library lookup, and can launch float32 elementwise kernels and roww
 interpreter-based reference path under the same launch contract.
 
 ```python
-import cortex_runtime as cx
+import tensorcx as cx
 
 @cx.experimental.kernel(target="metal")
 def add_kernel(a, b, out, n):
@@ -70,7 +70,7 @@ prove the compiler path:
 ```text
 Python function
   -> restricted Python AST
-  -> Cortex Runtime kernel IR
+  -> tensor.cx kernel IR
   -> generated MSL
   -> Metal launch
   -> CPU-vs-Metal test

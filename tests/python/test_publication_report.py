@@ -20,7 +20,7 @@ def test_public_export_preserves_measurements_removes_identifiers_and_urls():
                      'cuda_visible_devices': 'GPU-00000000-0000-0000-0000-000000000000',
                      'gpu': 'Model, GPU-00000000-0000-0000-0000-000000000000, 5.2, 580.1',
                      'tool': 'clang version 21.1.8\nInstalledDir: /Users/example/work/llvm/bin'},
-        'dependencies': 'numpy==2.5.3\ncortex-runtime @ file:///home/example/project/wheel.whl\n-e https://user:private@example.invalid/source',
+        'dependencies': 'numpy==2.5.3\ntensorcx @ file:///home/example/project/wheel.whl\n-e https://user:private@example.invalid/source',
         'results': [{'samples_ms': [1.2, 1.4], 'cpu_parity': True, 'memory_mib': 400}],
     }
     result = publication.public_report(private)
@@ -37,7 +37,7 @@ def test_public_export_preserves_measurements_removes_identifiers_and_urls():
 
 
 @pytest.mark.parametrize('path', ['/home/example/source/file', '/Users/example/source/file',
-                                   '/tmp/cortex-build/private', '/private/var/folders/ab/private',
+                                   '/tmp/tensorcx-build/private', '/private/var/folders/ab/private',
                                    'file:///home/example/source.whl'])
 def test_historical_personal_and_temporary_paths(path):
     cleaned = publication.sanitize_text(f'error at {path}\nversion 21.1.8')

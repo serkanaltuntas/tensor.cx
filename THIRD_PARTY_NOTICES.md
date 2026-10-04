@@ -1,6 +1,6 @@
 # Third-party notices
 
-Cortex Runtime's own source is licensed under Apache-2.0 (see LICENSE).
+tensor.cx's own source is licensed under Apache-2.0 (see LICENSE).
 These notices cover components compiled into the native extension. They do
 not change those components' licenses. Include this file with source and
 binary distributions, including CPU-only wheels.
@@ -74,18 +74,18 @@ SOFTWARE.
 
 Copyright 2024 Apple Inc.
 
-Cortex fetches the unmodified headers from
+tensor.cx fetches the unmodified headers from
 https://github.com/bkaradzic/metal-cpp at
 c9727bc9468a90d7ea8fc89d5ee03b8d8992a570, an Apple metal-cpp mirror.
 The full Apache-2.0 terms are reproduced in LICENSE. This attribution applies
-to metal-cpp, separately from Cortex's copyright. The pinned distribution has
+to metal-cpp, separately from tensor.cx's copyright. The pinned distribution has
 no separate NOTICE file.
 
 ## External dependencies
 
 NumPy is installed separately under its own license. LLVM/MLIR tools, CUDA
 SDK/driver/runtime libraries and Apple frameworks remain external requirements;
-they are not relicensed by Cortex. Current CUDA wheels dynamically depend on
+they are not relicensed by tensor.cx. Current CUDA wheels dynamically depend on
 CUDA runtime and driver libraries and do not bundle them. Packaging a future
 binary with additional libraries requires checking their redistribution terms
 and adding the corresponding notices. No model weights or datasets ship here.

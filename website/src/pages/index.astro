@@ -16,17 +16,17 @@ const description = 'A compact Python-first tensor runtime. Explore CPU, Metal, 
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="canonical" href={new URL('/', Astro.site)} />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Cortex Runtime — Tensor compute, from Python to silicon" />
+    <meta property="og:title" content="tensor.cx — Tensor compute, from Python to silicon" />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={new URL('/', Astro.site)} />
-    <title>Cortex Runtime — Tensor compute, from Python to silicon</title>
+    <title>tensor.cx — Tensor compute, from Python to silicon</title>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="site-header wrap">
-      <a class="brand" href="/" aria-label="Cortex Runtime home">
+      <a class="brand" href="/" aria-label="tensor.cx home">
         <img src="/favicon.svg" width="34" height="34" alt="" />
-        <span>Cortex<span class="brand-suffix"> Runtime</span></span>
+        <span>tensor.cx</span>
       </a>
       <nav aria-label="Main navigation">
         <a href="/docs/">Docs</a>
@@ -98,7 +98,7 @@ const description = 'A compact Python-first tensor runtime. Explore CPU, Metal, 
       </section>
     </main>
 
-    <footer class="wrap site-footer"><div><a class="brand" href="/">Cortex Runtime<span class="footer-domain"> / tensor.cx</span></a><p>An independent project by Serkan Altuntas.</p></div><div class="footer-links"><a href="/docs/contributing/">Contribute</a><a href={`${repository}/blob/main/LICENSE`}>Apache 2.0</a><a href={repository}>Source <span aria-hidden="true">↗</span></a></div></footer>
+    <footer class="wrap site-footer"><div><a class="brand" href="/">tensor.cx</a><p>An independent project by Serkan Altuntas.</p></div><div class="footer-links"><a href="/docs/contributing/">Contribute</a><a href={`${repository}/blob/main/LICENSE`}>Apache 2.0</a><a href={repository}>Source <span aria-hidden="true">↗</span></a></div></footer>
   </body>
 </html>
 
@@ -115,7 +115,6 @@ const description = 'A compact Python-first tensor runtime. Explore CPU, Metal, 
   .skip-link:focus { top: 1rem; }
   .site-header { display: flex; justify-content: space-between; align-items: center; min-height: 104px; gap: 24px; }
   .brand { display: inline-flex; align-items: center; gap: 10px; font-size: 21px; font-weight: 700; letter-spacing: -0.7px; white-space: nowrap; }
-  .brand-suffix { font-weight: 400; }
   nav { display: flex; align-items: center; gap: 32px; font-size: 14px; font-weight: 550; }
   nav a:hover, .text-link:hover, .footer-links a:hover { color: #46652c; text-decoration: underline; text-underline-offset: 5px; }
   .repo-link { padding-left: 30px; border-left: 1px solid #d4d9cb; }
@@ -183,7 +182,6 @@ const description = 'A compact Python-first tensor runtime. Explore CPU, Metal, 
   .next-links small { color: #5b6755; font-size: 13px; line-height: 1.6; }
   .site-footer { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-block: 38px; }
   .site-footer .brand { font-size: 15px; letter-spacing: -0.3px; }
-  .footer-domain { color: #65715e; font-weight: 400; }
   .site-footer p { font-size: 11px; color: #65715e; margin: 10px 0 0; }
   .footer-links { display: flex; gap: 26px; font-size: 12px; }
   @media (max-width: 1020px) {

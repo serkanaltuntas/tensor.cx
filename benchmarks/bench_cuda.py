@@ -14,9 +14,9 @@ import sys
 import time
 
 import numpy as np
-import cortex_runtime as cx
-from cortex_runtime import _core
-from cortex_runtime._compiler.cpu import toolchain
+import tensorcx as cx
+from tensorcx import _core
+from tensorcx._compiler.cpu import toolchain
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -132,7 +132,7 @@ def run(args):
         "tracked_diff_sha256": hashlib.sha256(command(["git", "diff", "HEAD"]).encode()).hexdigest(),
         "benchmark_sha256": digest(__file__), "extension_sha256": digest(_core.__file__),
         "python": sys.version, "platform": platform.platform(), "numpy": np.__version__,
-        "cortex": cx.__version__, "nvcc": command(["nvcc", "--version"]),
+        "tensorcx": cx.__version__, "nvcc": command(["nvcc", "--version"]),
         "llvm": {name: command([str(path), "--version"]) for name, path in llvm.items()},
         "gpu_before": gpu_snapshot(), "seed": 17,
         "other_compute_processes_before": compute_processes(),

@@ -18,39 +18,39 @@
 #include <utility>
 #include <vector>
 
-#include "cortex/backends/cpu/cpu_backend.h"
-#include "cortex/backends/cpu/cpu_tensor.h"
-#include "cortex/backends/cpu/cpu_kernel.h"
-#include "cortex/backends/null/null_backend.h"
-#include "cortex/core/dtype.h"
-#include "cortex/core/shape.h"
-#include "cortex/core/status.h"
+#include "tensorcx/backends/cpu/cpu_backend.h"
+#include "tensorcx/backends/cpu/cpu_tensor.h"
+#include "tensorcx/backends/cpu/cpu_kernel.h"
+#include "tensorcx/backends/null/null_backend.h"
+#include "tensorcx/core/dtype.h"
+#include "tensorcx/core/shape.h"
+#include "tensorcx/core/status.h"
 
-#if CORTEX_ENABLE_METAL
-#include "cortex/backends/metal/metal_backend.h"
-#include "cortex/backends/metal/metal_library.h"
-#include "cortex/backends/metal/metal_tensor.h"
+#if TENSORCX_ENABLE_METAL
+#include "tensorcx/backends/metal/metal_backend.h"
+#include "tensorcx/backends/metal/metal_library.h"
+#include "tensorcx/backends/metal/metal_tensor.h"
 #endif
 
-#if CORTEX_ENABLE_CUDA
-#include "cortex/backends/cuda/cuda_backend.h"
-#include "cortex/backends/cuda/cuda_kernel.h"
+#if TENSORCX_ENABLE_CUDA
+#include "tensorcx/backends/cuda/cuda_backend.h"
+#include "tensorcx/backends/cuda/cuda_kernel.h"
 #endif
 
-#ifndef CORTEX_RUNTIME_VERSION
-#define CORTEX_RUNTIME_VERSION "0+unknown"
+#ifndef TENSORCX_RUNTIME_VERSION
+#define TENSORCX_RUNTIME_VERSION "0+unknown"
 #endif
 
 namespace nb = nanobind;
 
 namespace {
 
-using cortex::DType;
-using cortex::MatmulPreference;
-using cortex::OpDesc;
-using cortex::OpKind;
-using cortex::Shape;
-using cortex::cpu::CpuTensor;
+using tensorcx::DType;
+using tensorcx::MatmulPreference;
+using tensorcx::OpDesc;
+using tensorcx::OpKind;
+using tensorcx::Shape;
+using tensorcx::cpu::CpuTensor;
 
 bool is_bool_like(nb::handle item) {
   if (PyBool_Check(item.ptr())) {
@@ -90,7 +90,7 @@ bool is_index_like(nb::handle item) {
 // letting nanobind expose std::bad_cast as RuntimeError. Use Python's index
 // protocol so NumPy integer scalars behave like Python ints, while bools stay
 // rejected as shape dimensions.
-cortex::Dim cast_dim_or_throw(nb::handle item) {
+tensorcx::Dim cast_dim_or_throw(nb::handle item) {
   if (PyBool_Check(item.ptr())) {
     throw std::invalid_argument("shape dimensions must be integers");
   }
@@ -102,7 +102,7 @@ cortex::Dim cast_dim_or_throw(nb::handle item) {
   }
   nb::object index = nb::steal<nb::object>(index_value);
   try {
-    return nb::cast<cortex::Dim>(index);
+    return nb::cast<tensorcx::Dim>(index);
   } catch (const std::exception&) {
     throw std::invalid_argument("shape dimension is out of range");
   }
@@ -188,7 +188,7 @@ CpuTensor tensor_from_sequence(nb::handle data, nb::handle dtype, const std::str
     if (nb::isinstance<nb::list>(item) || nb::isinstance<nb::tuple>(item)) {
       throw std::invalid_argument(
           "tensor() native factory expects a flat numeric sequence; build "
-          "higher-rank tensors through cortex_runtime.tensor()");
+          "higher-rank tensors through tensorcx.tensor()");
     }
     items.emplace_back(nb::borrow<nb::object>(item));
     if (nb::isinstance<nb::float_>(item)) {
@@ -198,7 +198,7 @@ CpuTensor tensor_from_sequence(nb::handle data, nb::handle dtype, const std::str
 
   const DType inferred = saw_float ? DType::kFloat32 : DType::kInt32;
   const DType actual_dtype = parse_dtype(dtype, inferred);
-  Shape shape{static_cast<cortex::Dim>(items.size())};
+  Shape shape{static_cast<tensorcx::Dim>(items.size())};
 
   switch (actual_dtype) {
     case DType::kFloat32: {
@@ -229,7 +229,7 @@ CpuTensor tensor_from_flat_sequence(
   validate_cpu_device(device);
 
   const Shape parsed_shape = parse_shape(shape);
-  const std::int64_t expected_size = cortex::numel(parsed_shape);
+  const std::int64_t expected_size = tensorcx::numel(parsed_shape);
   const DType actual_dtype = parse_dtype(dtype, DType::kFloat32);
 
   // The shape fixes the element count up front, so stop consuming the iterable
@@ -341,31 +341,31 @@ auto without_gil(Fn&& fn) {
   return fn();
 }
 
-void throw_status(const cortex::Status& status) {
+void throw_status(const tensorcx::Status& status) {
   switch (status.code()) {
-    case cortex::StatusCode::kInvalidArgument:
+    case tensorcx::StatusCode::kInvalidArgument:
       throw std::invalid_argument(status.message());
-    case cortex::StatusCode::kUnavailable:
-    case cortex::StatusCode::kInternal:
+    case tensorcx::StatusCode::kUnavailable:
+    case tensorcx::StatusCode::kInternal:
       throw std::runtime_error(status.message());
-    case cortex::StatusCode::kOk:
+    case tensorcx::StatusCode::kOk:
       break;
   }
   throw std::runtime_error(status.message());
 }
 
 CpuTensor binary_op(const CpuTensor& lhs, const CpuTensor& rhs, OpKind kind) {
-  cortex::cpu::CpuBackend backend;
-  std::array<cortex::Tensor, 2> inputs{
-      cortex::cpu::to_core_tensor(lhs),
-      cortex::cpu::to_core_tensor(rhs),
+  tensorcx::cpu::CpuBackend backend;
+  std::array<tensorcx::Tensor, 2> inputs{
+      tensorcx::cpu::to_core_tensor(lhs),
+      tensorcx::cpu::to_core_tensor(rhs),
   };
-  std::array<cortex::Tensor, 1> outputs{};
-  const cortex::BackendExecution execution{
-      cortex::BackendOpClass::kPrimitive,
+  std::array<tensorcx::Tensor, 1> outputs{};
+  const tensorcx::BackendExecution execution{
+      tensorcx::BackendOpClass::kPrimitive,
       OpDesc{kind},
-      std::span<const cortex::Tensor>(inputs.data(), inputs.size()),
-      std::span<cortex::Tensor>(outputs.data(), outputs.size()),
+      std::span<const tensorcx::Tensor>(inputs.data(), inputs.size()),
+      std::span<tensorcx::Tensor>(outputs.data(), outputs.size()),
       std::nullopt,
       std::nullopt,
   };
@@ -373,20 +373,20 @@ CpuTensor binary_op(const CpuTensor& lhs, const CpuTensor& rhs, OpKind kind) {
   if (!status.ok()) {
     throw_status(status);
   }
-  return cortex::cpu::from_core_tensor(outputs[0]);
+  return tensorcx::cpu::from_core_tensor(outputs[0]);
 }
 
 CpuTensor cpu_single_input_backend_op(const CpuTensor& input, const OpDesc& op) {
-  cortex::cpu::CpuBackend backend;
-  std::array<cortex::Tensor, 1> inputs{
-      cortex::cpu::to_core_tensor(input),
+  tensorcx::cpu::CpuBackend backend;
+  std::array<tensorcx::Tensor, 1> inputs{
+      tensorcx::cpu::to_core_tensor(input),
   };
-  std::array<cortex::Tensor, 1> outputs{};
-  const cortex::BackendExecution execution{
-      cortex::BackendOpClass::kPrimitive,
+  std::array<tensorcx::Tensor, 1> outputs{};
+  const tensorcx::BackendExecution execution{
+      tensorcx::BackendOpClass::kPrimitive,
       op,
-      std::span<const cortex::Tensor>(inputs.data(), inputs.size()),
-      std::span<cortex::Tensor>(outputs.data(), outputs.size()),
+      std::span<const tensorcx::Tensor>(inputs.data(), inputs.size()),
+      std::span<tensorcx::Tensor>(outputs.data(), outputs.size()),
       std::nullopt,
       std::nullopt,
   };
@@ -394,7 +394,7 @@ CpuTensor cpu_single_input_backend_op(const CpuTensor& input, const OpDesc& op) 
   if (!status.ok()) {
     throw_status(status);
   }
-  return cortex::cpu::from_core_tensor(outputs[0]);
+  return tensorcx::cpu::from_core_tensor(outputs[0]);
 }
 
 CpuTensor unary_op(const CpuTensor& input, OpKind kind) {
@@ -414,24 +414,24 @@ CpuTensor reduction_op(const CpuTensor& input, OpKind kind, std::int64_t axis) {
 }
 
 CpuTensor fill_op(Shape shape, DType dtype, double value) {
-  cortex::cpu::CpuBackend backend;
-  static_cast<void>(cortex::numel(shape));
-  const Shape strides = cortex::contiguous_strides(shape);
-  std::array<cortex::Tensor, 1> outputs{cortex::Tensor{
+  tensorcx::cpu::CpuBackend backend;
+  static_cast<void>(tensorcx::numel(shape));
+  const Shape strides = tensorcx::contiguous_strides(shape);
+  std::array<tensorcx::Tensor, 1> outputs{tensorcx::Tensor{
       dtype,
       std::move(shape),
       strides,
-      cortex::Device{"cpu", 0},
+      tensorcx::Device{"cpu", 0},
       nullptr,
       0,
   }};
   OpDesc op{OpKind::kFill};
   op.scalar_value = value;
-  const cortex::BackendExecution execution{
-      cortex::BackendOpClass::kPrimitive,
+  const tensorcx::BackendExecution execution{
+      tensorcx::BackendOpClass::kPrimitive,
       op,
-      std::span<const cortex::Tensor>(),
-      std::span<cortex::Tensor>(outputs.data(), outputs.size()),
+      std::span<const tensorcx::Tensor>(),
+      std::span<tensorcx::Tensor>(outputs.data(), outputs.size()),
       std::nullopt,
       std::nullopt,
   };
@@ -439,7 +439,7 @@ CpuTensor fill_op(Shape shape, DType dtype, double value) {
   if (!status.ok()) {
     throw_status(status);
   }
-  return cortex::cpu::from_core_tensor(outputs[0]);
+  return tensorcx::cpu::from_core_tensor(outputs[0]);
 }
 
 CpuTensor matmul_cpu(const CpuTensor& lhs, const CpuTensor& rhs, const std::string& backend) {
@@ -450,7 +450,7 @@ CpuTensor matmul_cpu(const CpuTensor& lhs, const CpuTensor& rhs, const std::stri
 }
 
 template <typename T>
-T unwrap(cortex::Expected<T> result) {
+T unwrap(tensorcx::Expected<T> result) {
   if (!result) throw_status(result.status());
   return result.move_value();
 }
@@ -479,11 +479,11 @@ nb::list cpu_backend_matmul_backends() {
   return result;
 }
 
-#if CORTEX_ENABLE_METAL
-bool metal_backend_available() { return cortex::metal::available(); }
+#if TENSORCX_ENABLE_METAL
+bool metal_backend_available() { return tensorcx::metal::available(); }
 
 std::string metal_backend_device_name() {
-  const auto names = cortex::metal::devices();
+  const auto names = tensorcx::metal::devices();
   if (!names.empty()) {
     return names.front();
   }
@@ -491,83 +491,83 @@ std::string metal_backend_device_name() {
 }
 
 nb::object metal_backend_fill(Shape shape, DType dtype, double value) {
-  cortex::metal::MetalBackend backend;
-  static_cast<void>(cortex::numel(shape));
-  const Shape strides = cortex::contiguous_strides(shape);
-  std::array<cortex::Tensor, 1> outputs{cortex::Tensor{
+  tensorcx::metal::MetalBackend backend;
+  static_cast<void>(tensorcx::numel(shape));
+  const Shape strides = tensorcx::contiguous_strides(shape);
+  std::array<tensorcx::Tensor, 1> outputs{tensorcx::Tensor{
       dtype,
       shape,
       strides,
-      cortex::Device{"metal", 0},
+      tensorcx::Device{"metal", 0},
       nullptr,
       0,
   }};
   OpDesc op{OpKind::kFill};
   op.scalar_value = value;
-  const cortex::BackendExecution execution{
-      cortex::BackendOpClass::kPrimitive,
+  const tensorcx::BackendExecution execution{
+      tensorcx::BackendOpClass::kPrimitive,
       op,
-      std::span<const cortex::Tensor>(),
-      std::span<cortex::Tensor>(outputs.data(), outputs.size()),
+      std::span<const tensorcx::Tensor>(),
+      std::span<tensorcx::Tensor>(outputs.data(), outputs.size()),
       std::nullopt,
       std::nullopt,
   };
-  const cortex::Status status = without_gil([&] { return backend.execute(execution); });
+  const tensorcx::Status status = without_gil([&] { return backend.execute(execution); });
   if (!status.ok()) {
     throw_status(status);
   }
-  return nb::cast(cortex::metal::from_core_tensor(outputs[0]));
+  return nb::cast(tensorcx::metal::from_core_tensor(outputs[0]));
 }
 
-cortex::metal::MetalTensor binary_op(
-    const cortex::metal::MetalTensor& lhs,
-    const cortex::metal::MetalTensor& rhs,
+tensorcx::metal::MetalTensor binary_op(
+    const tensorcx::metal::MetalTensor& lhs,
+    const tensorcx::metal::MetalTensor& rhs,
     OpKind kind) {
-  cortex::metal::MetalBackend backend;
-  std::array<cortex::Tensor, 2> inputs{
-      cortex::metal::to_core_tensor(lhs),
-      cortex::metal::to_core_tensor(rhs),
+  tensorcx::metal::MetalBackend backend;
+  std::array<tensorcx::Tensor, 2> inputs{
+      tensorcx::metal::to_core_tensor(lhs),
+      tensorcx::metal::to_core_tensor(rhs),
   };
-  std::array<cortex::Tensor, 1> outputs{};
-  const cortex::BackendExecution execution{
-      cortex::BackendOpClass::kPrimitive,
+  std::array<tensorcx::Tensor, 1> outputs{};
+  const tensorcx::BackendExecution execution{
+      tensorcx::BackendOpClass::kPrimitive,
       OpDesc{kind},
-      std::span<const cortex::Tensor>(inputs.data(), inputs.size()),
-      std::span<cortex::Tensor>(outputs.data(), outputs.size()),
+      std::span<const tensorcx::Tensor>(inputs.data(), inputs.size()),
+      std::span<tensorcx::Tensor>(outputs.data(), outputs.size()),
       std::nullopt,
       std::nullopt,
   };
-  const cortex::Status status = without_gil([&] { return backend.execute(execution); });
+  const tensorcx::Status status = without_gil([&] { return backend.execute(execution); });
   if (!status.ok()) {
     throw_status(status);
   }
-  return cortex::metal::from_core_tensor(outputs[0]);
+  return tensorcx::metal::from_core_tensor(outputs[0]);
 }
 
-cortex::metal::MetalTensor metal_single_input_backend_op(
-    const cortex::metal::MetalTensor& input,
+tensorcx::metal::MetalTensor metal_single_input_backend_op(
+    const tensorcx::metal::MetalTensor& input,
     const OpDesc& op) {
-  cortex::metal::MetalBackend backend;
-  std::array<cortex::Tensor, 1> inputs{
-      cortex::metal::to_core_tensor(input),
+  tensorcx::metal::MetalBackend backend;
+  std::array<tensorcx::Tensor, 1> inputs{
+      tensorcx::metal::to_core_tensor(input),
   };
-  std::array<cortex::Tensor, 1> outputs{};
-  const cortex::BackendExecution execution{
-      cortex::BackendOpClass::kPrimitive,
+  std::array<tensorcx::Tensor, 1> outputs{};
+  const tensorcx::BackendExecution execution{
+      tensorcx::BackendOpClass::kPrimitive,
       op,
-      std::span<const cortex::Tensor>(inputs.data(), inputs.size()),
-      std::span<cortex::Tensor>(outputs.data(), outputs.size()),
+      std::span<const tensorcx::Tensor>(inputs.data(), inputs.size()),
+      std::span<tensorcx::Tensor>(outputs.data(), outputs.size()),
       std::nullopt,
       std::nullopt,
   };
-  const cortex::Status status = without_gil([&] { return backend.execute(execution); });
+  const tensorcx::Status status = without_gil([&] { return backend.execute(execution); });
   if (!status.ok()) {
     throw_status(status);
   }
-  return cortex::metal::from_core_tensor(outputs[0]);
+  return tensorcx::metal::from_core_tensor(outputs[0]);
 }
 
-cortex::metal::MetalTensor unary_op(const cortex::metal::MetalTensor& input, OpKind kind) {
+tensorcx::metal::MetalTensor unary_op(const tensorcx::metal::MetalTensor& input, OpKind kind) {
   return metal_single_input_backend_op(input, OpDesc{kind});
 }
 
@@ -584,87 +584,87 @@ MatmulPreference parse_metal_matmul_preference(const std::string& backend) {
   throw std::invalid_argument("unsupported Metal matmul backend: " + backend);
 }
 
-cortex::metal::MetalTensor metal_matmul_backend_op(
-    const cortex::metal::MetalTensor& lhs,
-    const cortex::metal::MetalTensor& rhs,
+tensorcx::metal::MetalTensor metal_matmul_backend_op(
+    const tensorcx::metal::MetalTensor& lhs,
+    const tensorcx::metal::MetalTensor& rhs,
     MatmulPreference preference) {
-  cortex::metal::MetalBackend backend;
-  std::array<cortex::Tensor, 2> inputs{
-      cortex::metal::to_core_tensor(lhs),
-      cortex::metal::to_core_tensor(rhs),
+  tensorcx::metal::MetalBackend backend;
+  std::array<tensorcx::Tensor, 2> inputs{
+      tensorcx::metal::to_core_tensor(lhs),
+      tensorcx::metal::to_core_tensor(rhs),
   };
-  std::array<cortex::Tensor, 1> outputs{};
+  std::array<tensorcx::Tensor, 1> outputs{};
   OpDesc op{OpKind::kMatmul};
   op.matmul_preference = preference;
-  const cortex::BackendExecution execution{
-      cortex::BackendOpClass::kPrimitive,
+  const tensorcx::BackendExecution execution{
+      tensorcx::BackendOpClass::kPrimitive,
       op,
-      std::span<const cortex::Tensor>(inputs.data(), inputs.size()),
-      std::span<cortex::Tensor>(outputs.data(), outputs.size()),
+      std::span<const tensorcx::Tensor>(inputs.data(), inputs.size()),
+      std::span<tensorcx::Tensor>(outputs.data(), outputs.size()),
       std::nullopt,
       std::nullopt,
   };
-  const cortex::Status status = without_gil([&] { return backend.execute(execution); });
+  const tensorcx::Status status = without_gil([&] { return backend.execute(execution); });
   if (!status.ok()) {
     throw_status(status);
   }
-  return cortex::metal::from_core_tensor(outputs[0]);
+  return tensorcx::metal::from_core_tensor(outputs[0]);
 }
 
 nb::list metal_backend_matmul_backends() {
   nb::list result;
   result.append("auto");
   result.append("custom");
-#if CORTEX_ENABLE_MPSGRAPH
+#if TENSORCX_ENABLE_MPSGRAPH
   result.append("optimized");
 #endif
   return result;
 }
 #endif
 
-#if CORTEX_ENABLE_CUDA
-bool cuda_backend_available() { return cortex::cuda::available(); }
-std::string cuda_backend_device_name() { return unwrap(cortex::cuda::device_name()); }
+#if TENSORCX_ENABLE_CUDA
+bool cuda_backend_available() { return tensorcx::cuda::available(); }
+std::string cuda_backend_device_name() { return unwrap(tensorcx::cuda::device_name()); }
 
 nb::object cuda_backend_fill(Shape shape, DType dtype, double value) {
-  cortex::cuda::CudaBackend backend;
-  const Shape strides = cortex::contiguous_strides(shape);
-  std::array<cortex::Tensor, 1> outputs{cortex::Tensor{
+  tensorcx::cuda::CudaBackend backend;
+  const Shape strides = tensorcx::contiguous_strides(shape);
+  std::array<tensorcx::Tensor, 1> outputs{tensorcx::Tensor{
       dtype, std::move(shape), strides, {"cuda", 0}, nullptr, 0}};
   OpDesc op{OpKind::kFill};
   op.scalar_value = value;
-  const cortex::BackendExecution execution{
-      cortex::BackendOpClass::kPrimitive, op, {}, outputs, std::nullopt, std::nullopt};
+  const tensorcx::BackendExecution execution{
+      tensorcx::BackendOpClass::kPrimitive, op, {}, outputs, std::nullopt, std::nullopt};
   const auto status = without_gil([&] { return backend.execute(execution); });
   if (!status.ok()) throw_status(status);
-  return nb::cast(unwrap(cortex::cuda::from_core_tensor(outputs[0])));
+  return nb::cast(unwrap(tensorcx::cuda::from_core_tensor(outputs[0])));
 }
 
-cortex::cuda::CudaTensor binary_op(const cortex::cuda::CudaTensor& lhs,
-                                  const cortex::cuda::CudaTensor& rhs, OpKind kind) {
-  cortex::cuda::CudaBackend backend;
-  std::array<cortex::Tensor, 2> inputs{
-      cortex::cuda::to_core_tensor(lhs), cortex::cuda::to_core_tensor(rhs)};
-  std::array<cortex::Tensor, 1> outputs{};
-  const cortex::BackendExecution execution{
-      cortex::BackendOpClass::kPrimitive, OpDesc{kind}, inputs, outputs,
+tensorcx::cuda::CudaTensor binary_op(const tensorcx::cuda::CudaTensor& lhs,
+                                  const tensorcx::cuda::CudaTensor& rhs, OpKind kind) {
+  tensorcx::cuda::CudaBackend backend;
+  std::array<tensorcx::Tensor, 2> inputs{
+      tensorcx::cuda::to_core_tensor(lhs), tensorcx::cuda::to_core_tensor(rhs)};
+  std::array<tensorcx::Tensor, 1> outputs{};
+  const tensorcx::BackendExecution execution{
+      tensorcx::BackendOpClass::kPrimitive, OpDesc{kind}, inputs, outputs,
       std::nullopt, std::nullopt};
   const auto status = without_gil([&] { return backend.execute(execution); });
   if (!status.ok()) throw_status(status);
-  return unwrap(cortex::cuda::from_core_tensor(outputs[0]));
+  return unwrap(tensorcx::cuda::from_core_tensor(outputs[0]));
 }
 
-cortex::cuda::CudaTensor cuda_primitive(const cortex::cuda::CudaTensor& input, OpDesc op,
-                                      const cortex::cuda::CudaTensor* right=nullptr) {
-  cortex::cuda::CudaBackend backend;
-  std::array<cortex::Tensor,2> inputs{cortex::cuda::to_core_tensor(input),{}};
-  if(right)inputs[1]=cortex::cuda::to_core_tensor(*right);
-  std::array<cortex::Tensor,1> outputs{};
-  const cortex::BackendExecution execution{cortex::BackendOpClass::kPrimitive,op,
-      std::span<const cortex::Tensor>(inputs.data(),right?2:1),outputs,std::nullopt,std::nullopt};
+tensorcx::cuda::CudaTensor cuda_primitive(const tensorcx::cuda::CudaTensor& input, OpDesc op,
+                                      const tensorcx::cuda::CudaTensor* right=nullptr) {
+  tensorcx::cuda::CudaBackend backend;
+  std::array<tensorcx::Tensor,2> inputs{tensorcx::cuda::to_core_tensor(input),{}};
+  if(right)inputs[1]=tensorcx::cuda::to_core_tensor(*right);
+  std::array<tensorcx::Tensor,1> outputs{};
+  const tensorcx::BackendExecution execution{tensorcx::BackendOpClass::kPrimitive,op,
+      std::span<const tensorcx::Tensor>(inputs.data(),right?2:1),outputs,std::nullopt,std::nullopt};
   const auto status=without_gil([&]{return backend.execute(execution);});
   if(!status.ok())throw_status(status);
-  return unwrap(cortex::cuda::from_core_tensor(outputs[0]));
+  return unwrap(tensorcx::cuda::from_core_tensor(outputs[0]));
 }
 nb::list cuda_backend_matmul_backends() {
   nb::list result;result.append("auto");result.append("custom");return result;
@@ -675,11 +675,11 @@ std::span<const BackendRoute> backend_routes() {
   static const BackendRoute routes[]{
       {"cpu", &cpu_backend_available, &cpu_backend_device_name,
        &cpu_backend_fill, &cpu_backend_matmul_backends},
-#if CORTEX_ENABLE_METAL
+#if TENSORCX_ENABLE_METAL
       {"metal", &metal_backend_available, &metal_backend_device_name,
        &metal_backend_fill, &metal_backend_matmul_backends},
 #endif
-#if CORTEX_ENABLE_CUDA
+#if TENSORCX_ENABLE_CUDA
       {"cuda", &cuda_backend_available, &cuda_backend_device_name,
        &cuda_backend_fill, &cuda_backend_matmul_backends},
 #endif
@@ -712,10 +712,10 @@ const BackendRoute& require_available_backend_route(const std::string& name) {
   return route;
 }
 
-#if CORTEX_ENABLE_METAL
+#if TENSORCX_ENABLE_METAL
 struct ParsedKernelArguments {
-  std::deque<cortex::Tensor> tensor_storage;
-  std::vector<cortex::KernelArgument> arguments;
+  std::deque<tensorcx::Tensor> tensor_storage;
+  std::vector<tensorcx::KernelArgument> arguments;
 };
 
 ParsedKernelArguments parse_backend_kernel_arguments(nb::sequence arguments) {
@@ -723,18 +723,18 @@ ParsedKernelArguments parse_backend_kernel_arguments(nb::sequence arguments) {
   // Python sequences may iterate more items than __len__ reports. Tensor
   // addresses must remain stable as arguments are appended.
   for (nb::handle item : arguments) {
-    if (nb::isinstance<cortex::metal::MetalTensor>(item)) {
-      const auto& tensor = nb::cast<const cortex::metal::MetalTensor&>(item);
-      parsed.tensor_storage.push_back(cortex::metal::to_core_tensor(tensor));
-      parsed.arguments.push_back(cortex::KernelArgument{
-          cortex::KernelArgumentKind::kTensor,
+    if (nb::isinstance<tensorcx::metal::MetalTensor>(item)) {
+      const auto& tensor = nb::cast<const tensorcx::metal::MetalTensor&>(item);
+      parsed.tensor_storage.push_back(tensorcx::metal::to_core_tensor(tensor));
+      parsed.arguments.push_back(tensorcx::KernelArgument{
+          tensorcx::KernelArgumentKind::kTensor,
           &parsed.tensor_storage.back(),
           0,
       });
       continue;
     }
-    parsed.arguments.push_back(cortex::KernelArgument{
-        cortex::KernelArgumentKind::kUInt32,
+    parsed.arguments.push_back(tensorcx::KernelArgument{
+        tensorcx::KernelArgumentKind::kUInt32,
         nullptr,
         cast_uint32_or_throw(item, "kernel scalar arguments must be uint32"),
     });
@@ -749,13 +749,13 @@ std::string launch_metal_library_function_via_backend(
     nb::handle output,
     nb::handle thread_count,
     nb::handle threads_per_threadgroup) {
-  const auto& output_tensor = nb::cast<const cortex::metal::MetalTensor&>(output);
+  const auto& output_tensor = nb::cast<const tensorcx::metal::MetalTensor&>(output);
   ParsedKernelArguments parsed_arguments = parse_backend_kernel_arguments(arguments);
-  std::array<cortex::Tensor, 1> outputs{
-      cortex::metal::to_core_tensor(output_tensor),
+  std::array<tensorcx::Tensor, 1> outputs{
+      tensorcx::metal::to_core_tensor(output_tensor),
   };
 
-  const cortex::LaunchConfig launch{
+  const tensorcx::LaunchConfig launch{
       cast_uint32_or_throw(thread_count, "thread count must be uint32"),
       1,
       1,
@@ -763,25 +763,25 @@ std::string launch_metal_library_function_via_backend(
       1,
       1,
   };
-  const cortex::CompilationTarget target{
-      cortex::KernelArtifactKind::kBinary,
+  const tensorcx::CompilationTarget target{
+      tensorcx::KernelArtifactKind::kBinary,
       bytes_to_string(metallib),
       function_name,
   };
-  const cortex::BackendExecution execution{
-      cortex::BackendOpClass::kKernel,
+  const tensorcx::BackendExecution execution{
+      tensorcx::BackendOpClass::kKernel,
       OpDesc{},
-      std::span<const cortex::Tensor>(),
-      std::span<cortex::Tensor>(outputs.data(), outputs.size()),
+      std::span<const tensorcx::Tensor>(),
+      std::span<tensorcx::Tensor>(outputs.data(), outputs.size()),
       launch,
       target,
-      std::span<const cortex::KernelArgument>(
+      std::span<const tensorcx::KernelArgument>(
           parsed_arguments.arguments.data(),
           parsed_arguments.arguments.size()),
   };
 
-  cortex::metal::MetalBackend backend;
-  const cortex::Status status = without_gil([&] { return backend.execute(execution); });
+  tensorcx::metal::MetalBackend backend;
+  const tensorcx::Status status = without_gil([&] { return backend.execute(execution); });
   if (!status.ok()) {
     throw_status(status);
   }
@@ -792,88 +792,88 @@ std::string launch_metal_library_function_via_backend(
 }  // namespace
 
 NB_MODULE(_core, module) {
-  module.doc() = "Native extension module for Cortex Runtime.";
-#if CORTEX_ENABLE_CUDA
-  nb::class_<cortex::cuda::CudaKernelModule>(module, "_CudaKernelModule");
+  module.doc() = "Native extension module for tensor.cx.";
+#if TENSORCX_ENABLE_CUDA
+  nb::class_<tensorcx::cuda::CudaKernelModule>(module, "_CudaKernelModule");
   module.def("_cuda_kernel_support", [] {
-    auto status = without_gil([] { return cortex::cuda::compiled_kernel_support(); });
+    auto status = without_gil([] { return tensorcx::cuda::compiled_kernel_support(); });
     if (!status.ok()) throw_status(status);
   });
   module.def("_load_cuda_kernel", [](const std::string& ptx, const std::string& entry,
       const std::string& kinds, std::uint32_t output, std::uint32_t guard) {
     return unwrap(without_gil([&] {
-      return cortex::cuda::CudaKernelModule::load(ptx, entry, {kinds, output, guard});
+      return tensorcx::cuda::CudaKernelModule::load(ptx, entry, {kinds, output, guard});
     }));
   });
   module.def("_launch_cuda_kernel",
-      [](std::shared_ptr<cortex::cuda::CudaKernelModule> compiled, nb::sequence values,
+      [](std::shared_ptr<tensorcx::cuda::CudaKernelModule> compiled, nb::sequence values,
          nb::handle threads, nb::handle block) {
-    std::deque<cortex::Tensor> tensors;
-    std::vector<cortex::KernelArgument> arguments;
+    std::deque<tensorcx::Tensor> tensors;
+    std::vector<tensorcx::KernelArgument> arguments;
     for (nb::handle value : values) {
-      if (nb::isinstance<cortex::cuda::CudaTensor>(value)) {
-        tensors.push_back(cortex::cuda::to_core_tensor(nb::cast<const cortex::cuda::CudaTensor&>(value)));
-        arguments.push_back({cortex::KernelArgumentKind::kTensor, &tensors.back(), 0});
+      if (nb::isinstance<tensorcx::cuda::CudaTensor>(value)) {
+        tensors.push_back(tensorcx::cuda::to_core_tensor(nb::cast<const tensorcx::cuda::CudaTensor&>(value)));
+        arguments.push_back({tensorcx::KernelArgumentKind::kTensor, &tensors.back(), 0});
       } else {
-        arguments.push_back({cortex::KernelArgumentKind::kUInt32, nullptr,
+        arguments.push_back({tensorcx::KernelArgumentKind::kUInt32, nullptr,
                              cast_uint32_or_throw(value, "kernel scalar arguments must be uint32")});
       }
     }
     const auto count = cast_uint32_or_throw(threads, "thread_count must be uint32");
     const auto group = cast_uint32_or_throw(block, "block_size must be uint32");
     return unwrap(without_gil([&] {
-      return cortex::cuda::launch_compiled_kernel(compiled, arguments, count, group);
+      return tensorcx::cuda::launch_compiled_kernel(compiled, arguments, count, group);
     }));
   });
 #endif
-  nb::class_<cortex::cpu::CpuKernelModule>(module, "_CpuKernelModule");
-  module.def("_cpu_kernel_supported", &cortex::cpu::compiled_kernel_supported);
+  nb::class_<tensorcx::cpu::CpuKernelModule>(module, "_CpuKernelModule");
+  module.def("_cpu_kernel_supported", &tensorcx::cpu::compiled_kernel_supported);
   module.def("_load_cpu_kernel", [](const std::string& path, const std::string& kinds,
                                     std::uint32_t output, std::uint32_t guard) {
     return unwrap(without_gil([&] {
-      return cortex::cpu::CpuKernelModule::load(path, {kinds, output, guard});
+      return tensorcx::cpu::CpuKernelModule::load(path, {kinds, output, guard});
     }));
   });
   module.def("_launch_cpu_kernel",
-      [](std::shared_ptr<cortex::cpu::CpuKernelModule> compiled, nb::sequence values,
+      [](std::shared_ptr<tensorcx::cpu::CpuKernelModule> compiled, nb::sequence values,
          nb::handle threads, nb::handle block) {
-    std::deque<cortex::Tensor> tensors;
-    std::vector<cortex::KernelArgument> arguments;
+    std::deque<tensorcx::Tensor> tensors;
+    std::vector<tensorcx::KernelArgument> arguments;
     for (nb::handle value : values) {
       if (nb::isinstance<CpuTensor>(value)) {
-        tensors.push_back(cortex::cpu::to_core_tensor(nb::cast<const CpuTensor&>(value)));
-        arguments.push_back({cortex::KernelArgumentKind::kTensor, &tensors.back(), 0});
+        tensors.push_back(tensorcx::cpu::to_core_tensor(nb::cast<const CpuTensor&>(value)));
+        arguments.push_back({tensorcx::KernelArgumentKind::kTensor, &tensors.back(), 0});
       } else {
-        arguments.push_back({cortex::KernelArgumentKind::kUInt32, nullptr,
+        arguments.push_back({tensorcx::KernelArgumentKind::kUInt32, nullptr,
                              cast_uint32_or_throw(value, "kernel scalar arguments must be uint32")});
       }
     }
     const auto count = cast_uint32_or_throw(threads, "thread_count must be uint32");
     const auto group = cast_uint32_or_throw(block, "block_size must be uint32");
     return unwrap(without_gil([&] {
-      return cortex::cpu::launch_compiled_kernel(compiled, arguments, count, group);
+      return tensorcx::cpu::launch_compiled_kernel(compiled, arguments, count, group);
     }));
   });
-  module.def("version", []() { return CORTEX_RUNTIME_VERSION; });
+  module.def("version", []() { return TENSORCX_RUNTIME_VERSION; });
   module.attr("float32") = "float32";
   module.attr("int32") = "int32";
   module.def("_backend_contract_smoke_test", []() {
-    const auto status = cortex::null_backend::contract_smoke_test();
+    const auto status = tensorcx::null_backend::contract_smoke_test();
     if (!status.ok()) {
       throw std::runtime_error(status.message());
     }
     return true;
   });
   module.def("_cpu_backend_contract_smoke_test", []() {
-    const auto status = cortex::cpu::contract_smoke_test();
+    const auto status = tensorcx::cpu::contract_smoke_test();
     if (!status.ok()) {
       throw std::runtime_error(status.message());
     }
     return true;
   });
-#if CORTEX_ENABLE_METAL
+#if TENSORCX_ENABLE_METAL
   module.def("_metal_backend_contract_smoke_test", []() {
-    const auto status = cortex::metal::contract_smoke_test();
+    const auto status = tensorcx::metal::contract_smoke_test();
     if (!status.ok()) {
       throw std::runtime_error(status.message());
     }
@@ -886,7 +886,7 @@ NB_MODULE(_core, module) {
       .def_prop_ro("strides", [](const CpuTensor& tensor) { return shape_tuple(tensor.strides()); })
       .def_prop_ro("dtype",
                    [](const CpuTensor& tensor) {
-                     return std::string(cortex::dtype_name(tensor.dtype()));
+                     return std::string(tensorcx::dtype_name(tensor.dtype()));
                    })
       .def_prop_ro("device", [](const CpuTensor&) { return "cpu"; })
       .def_prop_ro("nbytes", [](const CpuTensor& tensor) { return tensor.buffer()->nbytes(); })
@@ -913,7 +913,7 @@ NB_MODULE(_core, module) {
   module.def("empty",
              [](nb::handle shape, nb::handle dtype, const std::string& device) {
                validate_cpu_device(device);
-               return cortex::cpu::empty(parse_shape(shape), parse_dtype(dtype, DType::kFloat32));
+               return tensorcx::cpu::empty(parse_shape(shape), parse_dtype(dtype, DType::kFloat32));
              },
              nb::arg("shape"),
              nb::arg("dtype") = "float32",
@@ -1043,10 +1043,10 @@ NB_MODULE(_core, module) {
              nb::arg("device"));
   module.def("validate_metal_library_function",
              [](nb::bytes metallib, const std::string& function_name) {
-#if CORTEX_ENABLE_METAL
+#if TENSORCX_ENABLE_METAL
                const std::vector<std::uint8_t> library_bytes = bytes_to_vector(metallib);
                return unwrap(without_gil([&] {
-                 return cortex::metal::validate_library_function(library_bytes, function_name);
+                 return tensorcx::metal::validate_library_function(library_bytes, function_name);
                }));
 #else
                (void)metallib;
@@ -1063,7 +1063,7 @@ NB_MODULE(_core, module) {
                 nb::handle output,
                 nb::handle thread_count,
                 nb::handle threads_per_threadgroup) {
-#if CORTEX_ENABLE_METAL
+#if TENSORCX_ENABLE_METAL
                return launch_metal_library_function_via_backend(
                    metallib,
                    function_name,
@@ -1088,21 +1088,21 @@ NB_MODULE(_core, module) {
              nb::arg("thread_count"),
              nb::arg("threads_per_threadgroup"));
 
-#if CORTEX_ENABLE_CUDA
-  using cortex::cuda::CudaTensor;
+#if TENSORCX_ENABLE_CUDA
+  using tensorcx::cuda::CudaTensor;
   nb::class_<CudaTensor>(module, "CudaTensor")
       .def_prop_ro("shape", [](const CudaTensor& tensor) { return shape_tuple(tensor.shape()); })
       .def_prop_ro("strides", [](const CudaTensor& tensor) { return shape_tuple(tensor.strides()); })
       .def_prop_ro("dtype", [](const CudaTensor& tensor) {
-        return std::string(cortex::dtype_name(tensor.dtype()));
+        return std::string(tensorcx::dtype_name(tensor.dtype()));
       })
       .def_prop_ro("device", [](const CudaTensor&) { return "cuda"; })
       .def_prop_ro("nbytes", &CudaTensor::nbytes);
   module.def("cpu_to_cuda", [](const CpuTensor& tensor) {
-    return unwrap(without_gil([&] { return cortex::cuda::from_cpu(tensor); }));
+    return unwrap(without_gil([&] { return tensorcx::cuda::from_cpu(tensor); }));
   }, nb::arg("tensor"));
   module.def("cuda_to_cpu", [](const CudaTensor& tensor) {
-    return unwrap(without_gil([&] { return cortex::cuda::to_cpu(tensor); }));
+    return unwrap(without_gil([&] { return tensorcx::cuda::to_cpu(tensor); }));
   }, nb::arg("tensor"));
   module.def("add", [](const CudaTensor& lhs, const CudaTensor& rhs) {
     return binary_op(lhs, rhs, OpKind::kAdd);
@@ -1134,110 +1134,110 @@ NB_MODULE(_core, module) {
 
 #endif
 
-#if CORTEX_ENABLE_METAL
-  nb::class_<cortex::metal::MetalTensor>(module, "MetalTensor")
-      .def_prop_ro("shape", [](const cortex::metal::MetalTensor& tensor) {
+#if TENSORCX_ENABLE_METAL
+  nb::class_<tensorcx::metal::MetalTensor>(module, "MetalTensor")
+      .def_prop_ro("shape", [](const tensorcx::metal::MetalTensor& tensor) {
         return shape_tuple(tensor.shape());
       })
-      .def_prop_ro("strides", [](const cortex::metal::MetalTensor& tensor) {
+      .def_prop_ro("strides", [](const tensorcx::metal::MetalTensor& tensor) {
         return shape_tuple(tensor.strides());
       })
       .def_prop_ro("dtype",
-                   [](const cortex::metal::MetalTensor& tensor) {
-                     return std::string(cortex::dtype_name(tensor.dtype()));
+                   [](const tensorcx::metal::MetalTensor& tensor) {
+                     return std::string(tensorcx::dtype_name(tensor.dtype()));
                    })
-      .def_prop_ro("device", [](const cortex::metal::MetalTensor&) { return "metal"; })
+      .def_prop_ro("device", [](const tensorcx::metal::MetalTensor&) { return "metal"; })
       .def_prop_ro("nbytes",
-                   [](const cortex::metal::MetalTensor& tensor) {
+                   [](const tensorcx::metal::MetalTensor& tensor) {
                      return tensor.nbytes();
                    })
-      .def("__add__", [](const cortex::metal::MetalTensor& lhs,
-                         const cortex::metal::MetalTensor& rhs) {
+      .def("__add__", [](const tensorcx::metal::MetalTensor& lhs,
+                         const tensorcx::metal::MetalTensor& rhs) {
         return binary_op(lhs, rhs, OpKind::kAdd);
       })
-      .def("__mul__", [](const cortex::metal::MetalTensor& lhs,
-                         const cortex::metal::MetalTensor& rhs) {
+      .def("__mul__", [](const tensorcx::metal::MetalTensor& lhs,
+                         const tensorcx::metal::MetalTensor& rhs) {
         return binary_op(lhs, rhs, OpKind::kMultiply);
       });
 
   module.def("cpu_to_metal",
              [](const CpuTensor& tensor) {
-               return unwrap(without_gil([&] { return cortex::metal::from_cpu(tensor); }));
+               return unwrap(without_gil([&] { return tensorcx::metal::from_cpu(tensor); }));
              },
              nb::arg("tensor"));
   module.def("metal_to_cpu",
-             [](const cortex::metal::MetalTensor& tensor) {
-               return unwrap(without_gil([&] { return cortex::metal::to_cpu(tensor); }));
+             [](const tensorcx::metal::MetalTensor& tensor) {
+               return unwrap(without_gil([&] { return tensorcx::metal::to_cpu(tensor); }));
              },
              nb::arg("tensor"));
   module.def("add",
-             [](const cortex::metal::MetalTensor& lhs, const cortex::metal::MetalTensor& rhs) {
+             [](const tensorcx::metal::MetalTensor& lhs, const tensorcx::metal::MetalTensor& rhs) {
                return binary_op(lhs, rhs, OpKind::kAdd);
              },
              nb::arg("lhs"),
              nb::arg("rhs"));
   module.def("multiply",
-             [](const cortex::metal::MetalTensor& lhs, const cortex::metal::MetalTensor& rhs) {
+             [](const tensorcx::metal::MetalTensor& lhs, const tensorcx::metal::MetalTensor& rhs) {
                return binary_op(lhs, rhs, OpKind::kMultiply);
              },
              nb::arg("lhs"),
              nb::arg("rhs"));
   module.def("exp",
-             [](const cortex::metal::MetalTensor& input) {
+             [](const tensorcx::metal::MetalTensor& input) {
                return unary_op(input, OpKind::kExp);
              },
              nb::arg("input"));
   module.def("gelu",
-             [](const cortex::metal::MetalTensor& input) {
+             [](const tensorcx::metal::MetalTensor& input) {
                return unary_op(input, OpKind::kGelu);
              },
              nb::arg("input"));
   module.def("silu",
-             [](const cortex::metal::MetalTensor& input) {
+             [](const tensorcx::metal::MetalTensor& input) {
                return unary_op(input, OpKind::kSilu);
              },
              nb::arg("input"));
   module.def("softmax",
-             [](const cortex::metal::MetalTensor& input, std::int64_t axis) {
+             [](const tensorcx::metal::MetalTensor& input, std::int64_t axis) {
                return metal_single_input_backend_op(input, OpDesc{OpKind::kSoftmax, axis});
              },
              nb::arg("input"),
              nb::arg("axis"));
   module.def("rmsnorm",
-             [](const cortex::metal::MetalTensor& input, std::int64_t axis, double eps) {
+             [](const tensorcx::metal::MetalTensor& input, std::int64_t axis, double eps) {
                return metal_single_input_backend_op(input, OpDesc{OpKind::kRmsNorm, axis, eps});
              },
              nb::arg("input"),
              nb::arg("axis"),
              nb::arg("eps") = 1.0e-5);
   module.def("layernorm",
-             [](const cortex::metal::MetalTensor& input, std::int64_t axis, double eps) {
+             [](const tensorcx::metal::MetalTensor& input, std::int64_t axis, double eps) {
                return metal_single_input_backend_op(input, OpDesc{OpKind::kLayerNorm, axis, eps});
              },
              nb::arg("input"),
              nb::arg("axis"),
              nb::arg("eps") = 1.0e-5);
   module.def("sum",
-             [](const cortex::metal::MetalTensor& input, std::int64_t axis) {
+             [](const tensorcx::metal::MetalTensor& input, std::int64_t axis) {
                return metal_single_input_backend_op(input, OpDesc{OpKind::kSum, axis});
              },
              nb::arg("input"),
              nb::arg("axis"));
   module.def("max",
-             [](const cortex::metal::MetalTensor& input, std::int64_t axis) {
+             [](const tensorcx::metal::MetalTensor& input, std::int64_t axis) {
                return metal_single_input_backend_op(input, OpDesc{OpKind::kMax, axis});
              },
              nb::arg("input"),
              nb::arg("axis"));
   module.def("mean",
-             [](const cortex::metal::MetalTensor& input, std::int64_t axis) {
+             [](const tensorcx::metal::MetalTensor& input, std::int64_t axis) {
                return metal_single_input_backend_op(input, OpDesc{OpKind::kMean, axis});
              },
              nb::arg("input"),
              nb::arg("axis"));
   module.def("matmul",
-             [](const cortex::metal::MetalTensor& lhs,
-                const cortex::metal::MetalTensor& rhs,
+             [](const tensorcx::metal::MetalTensor& lhs,
+                const tensorcx::metal::MetalTensor& rhs,
                 const std::string& backend) {
                return metal_matmul_backend_op(
                    lhs,

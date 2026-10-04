@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-import cortex_runtime as cx
+import tensorcx as cx
 
 
 HUGE_SHAPE = (3_037_000_500, 3_037_000_500)
@@ -111,7 +111,7 @@ def test_metal_fill_rejects_shapes_larger_than_thread_limit_before_allocation():
 
 @pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
 def test_metal_fill_rejects_int32_value_out_of_range():
-    from cortex_runtime import _core
+    from tensorcx import _core
 
     with pytest.raises(ValueError, match="fill value is out of range for int32"):
         _core.fill((2,), dtype="int32", value=3e9, device="metal")
@@ -125,7 +125,7 @@ def test_metal_fill_rejects_int32_value_out_of_range():
 
 @pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
 def test_metal_fill_accepts_int32_boundary_values():
-    from cortex_runtime import _core
+    from tensorcx import _core
 
     lower = _core.fill((2,), dtype="int32", value=-(2**31), device="metal")
     upper = _core.fill((2,), dtype="int32", value=2**31 - 1, device="metal")

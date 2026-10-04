@@ -3,7 +3,7 @@ import AxeBuilder from '@axe-core/playwright';
 
 test('homepage leads to installation and has accessible semantics', async ({ page }) => {
   await page.goto('/');
-  await expect(page).toHaveTitle(/Cortex Runtime/);
+  await expect(page).toHaveTitle(/tensor.cx/);
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Tensor compute.');
   const accessibility = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   expect(accessibility.violations).toEqual([]);

@@ -4,7 +4,7 @@ import subprocess
 import numpy as np
 import pytest
 
-import cortex_runtime as cx
+import tensorcx as cx
 
 
 def _has_metal_compiler() -> bool:
@@ -156,7 +156,7 @@ def test_metal_comparison_expression_compiles_without_device():
 @pytest.mark.skipif(not cx.is_available("metal"), reason="Metal is not available")
 @pytest.mark.parametrize("reported_length", [0, 1, 2**60])
 def test_metal_comparison_and_sequence_argument_lifetime(reported_length):
-    from cortex_runtime import _core
+    from tensorcx import _core
 
     class MisreportedList(list):
         def __len__(self):

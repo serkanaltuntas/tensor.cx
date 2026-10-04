@@ -20,12 +20,12 @@ jobs:
     # A skipped job is not GPU acceptance. Fork code requires a separate,
     # reviewed isolation/approval policy before it can use this runner.
     if: >-
-      (vars.CORTEX_CUDA_CI_ENABLED == 'true' || github.event_name == 'workflow_dispatch') &&
+      (vars.TENSORCX_CUDA_CI_ENABLED == 'true' || github.event_name == 'workflow_dispatch') &&
       (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-    runs-on: [self-hosted, linux, x64, cortex-cuda-sm52]
+    runs-on: [self-hosted, linux, x64, tensorcx-cuda-sm52]
     timeout-minutes: 30
     env:
-      CORTEX_LLVM_BIN: ${{ vars.CORTEX_CUDA_LLVM_BIN }}
+      TENSORCX_LLVM_BIN: ${{ vars.TENSORCX_CUDA_LLVM_BIN }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -37,13 +37,13 @@ jobs:
       - name: Validate the event commit on the GPU
         shell: bash
         env:
-          CORTEX_CI_SHA: ${{ github.sha }}
+          TENSORCX_CI_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          : "${CORTEX_LLVM_BIN:?Set CORTEX_CUDA_LLVM_BIN to the runner's LLVM 21.1.8 bin directory}"
-          test "$(git rev-parse HEAD)" = "$CORTEX_CI_SHA"
+          : "${TENSORCX_LLVM_BIN:?Set TENSORCX_CUDA_LLVM_BIN to the runner's LLVM 21.1.8 bin directory}"
+          test "$(git rev-parse HEAD)" = "$TENSORCX_CI_SHA"
           uv run --no-project --python 3.12 python tools/cuda_push_gate.py \
-            --revision "$CORTEX_CI_SHA" --llvm-bin "$CORTEX_LLVM_BIN"
+            --revision "$TENSORCX_CI_SHA" --llvm-bin "$TENSORCX_LLVM_BIN"
       - name: Retain public CUDA acceptance summary
         if: always()
         uses: actions/upload-artifact@v4

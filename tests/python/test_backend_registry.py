@@ -1,7 +1,7 @@
 import pytest
 
-import cortex_runtime as cx
-from cortex_runtime import backend as _backend
+import tensorcx as cx
+from tensorcx import backend as _backend
 
 
 def test_python_backend_registry_lists_registered_and_available_backends():

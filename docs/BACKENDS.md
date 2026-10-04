@@ -1,7 +1,7 @@
 # Backend Notes
 
-Cortex Runtime keeps the backend-neutral runtime in `cpp/cortex/core/` and
-places backend-specific implementation under `cpp/cortex/backends/`.
+tensor.cx keeps the backend-neutral runtime in `cpp/tensorcx/core/` and
+places backend-specific implementation under `cpp/tensorcx/backends/`.
 
 ## Current Backends
 
@@ -43,7 +43,7 @@ CPU remains the correctness reference for every Metal operation.
 
 ## Backend ABI
 
-Phase 8 defines the backend ABI in `cpp/cortex/core/backend.h`. The ABI is the
+Phase 8 defines the backend ABI in `cpp/tensorcx/core/backend.h`. The ABI is the
 contract future backends should compile against before they are wired into live
 dispatch.
 
@@ -142,7 +142,7 @@ Metal, MPSGraph, CUDA, ROCm, Vulkan, or platform API handles.
 
 ### Null Backend Scaffold
 
-`cpp/cortex/backends/null/` validates the ABI shape without executing work. It
+`cpp/tensorcx/backends/null/` validates the ABI shape without executing work. It
 returns `kUnavailable` for valid execution requests and `kInvalidArgument` for
 contract violations such as primitive input/output count mismatches, invalid
 fill allocation descriptors, or kernel execution without launch metadata or a
@@ -161,7 +161,7 @@ and non-empty narrow experimental generated-kernel launches route through
 `MetalBackend::execute`. Phase 9 is complete: CUDA uses the same execution ABI
 and primitive validator, plus backend-local ownership, dtype, size, offset,
 and contiguous-metadata validation. CUDA Runtime API resources stay inside
-`cpp/cortex/backends/cuda/`; nvcc compiles static kernels at build time.
+`cpp/tensorcx/backends/cuda/`; nvcc compiles static kernels at build time.
 Device selection is scoped per calling thread and restored afterward. Each
 operation waits for completion before returning and publishes output metadata
 only after success. Copies support float32/int32; arithmetic is float32-only.

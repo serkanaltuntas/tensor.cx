@@ -1,26 +1,27 @@
 # AGENTS.md
 
-Single source of agent guidance for Cortex Runtime. Read natively by
+Single source of agent guidance for tensor.cx. Read natively by
 Codex and by Claude Code (via `CLAUDE.md`, which only points here). Keep all
 agent/process guidance in this file — do not fork it per tool.
 
 ## Project Identity
 
-Cortex Runtime is the current working name for a Python-first accelerator
-runtime and future kernel compiler for tensor computation. The Python package
-name is `cortex_runtime`. The name is provisional and may change later. The first
-target is Apple Silicon with Metal.
+tensor.cx is the product brand for this independent Python-first accelerator
+runtime and kernel compiler project. The Python distribution and import name
+are both `tensorcx`. The first target is Apple Silicon with Metal.
 
 Current naming:
 
 ```text
-Working product name: Cortex Runtime
-Python package/import: cortex_runtime
-Documentation alias: import cortex_runtime as cx
-Python extension module: cortex_runtime._core
-C++ source root: cpp/cortex/
-C++ namespace: cortex
+Product brand: tensor.cx
+Python package/import: tensorcx
+Documentation alias: import tensorcx as cx
+Python extension module: tensorcx._core
+C++ source root: cpp/tensorcx/
+C++ namespace: tensorcx
 ```
+The naming and migration contract is in `docs/NAMING.md`. Use the new names in
+code and live instructions; preserve historical reports and existing remote URLs.
 The architecture must remain backend-neutral so CUDA, ROCm, Vulkan/SPIR-V, and
 MLIR paths can be added later without rewriting the core runtime.
 
@@ -211,11 +212,11 @@ Acceptance QA: checks user workflow, phase Definition of Done, docs, release rea
 Target layout:
 
 ```text
-python/cortex_runtime/        Python user API
-cpp/cortex/core/               backend-neutral C++ runtime
-cpp/cortex/backends/cpu/       CPU reference backend
-cpp/cortex/backends/metal/     Metal backend using C++/Metal-cpp where possible
-cpp/cortex/backends/metal/kernels/
+python/tensorcx/        Python user API
+cpp/tensorcx/core/               backend-neutral C++ runtime
+cpp/tensorcx/backends/cpu/       CPU reference backend
+cpp/tensorcx/backends/metal/     Metal backend using C++/Metal-cpp where possible
+cpp/tensorcx/backends/metal/kernels/
                             static MSL kernels
 bindings/                   Python extension binding
 tests/python/               pytest correctness tests
@@ -282,7 +283,7 @@ adding ad hoc device branches.
 ## Architecture Rules
 
 The C++ core must be backend-neutral. Do not expose Metal, MPSGraph, CUDA, ROCm,
-Vulkan, or platform-specific handles from `cpp/cortex/core/`.
+Vulkan, or platform-specific handles from `cpp/tensorcx/core/`.
 
 The CPU backend is mandatory. Every GPU operation must have a CPU reference path
 and tests comparing CPU and GPU results with dtype-appropriate tolerances.
@@ -325,14 +326,14 @@ borrowed values, and `NS::SharedPtr` as the stored handle. Do not store raw
 `MTL::` or `NS::` pointers.
 
 NumPy and Python types live only in the Python package or nanobind layer. They
-must not appear in `cpp/cortex/core/` or any backend.
+must not appear in `cpp/tensorcx/core/` or any backend.
 
 ## Python API Expectations
 
 Keep the first API compact:
 
 ```python
-import cortex_runtime as cx
+import tensorcx as cx
 
 x = cx.tensor([1, 2, 3], dtype=cx.float32, device="cpu")
 y = cx.ones((3,), dtype=cx.float32, device="cpu")
@@ -394,7 +395,7 @@ Metal-specific error reporting
 ```
 
 Keep all Metal handles inside the Metal backend. No `MTL::` or `NS::` types
-should appear outside `cpp/cortex/backends/metal/`.
+should appear outside `cpp/tensorcx/backends/metal/`.
 
 Do not implement matmul in v0.1. In Phase 5, implement a naive custom MSL
 `matmul_f32` first and compare it against the CPU reference. Only after that add
@@ -407,8 +408,8 @@ Check these before finishing any non-trivial change:
 
 ```text
 1. Every GPU op has a CPU reference and a CPU-vs-device test.
-2. No Apple/Metal type appears outside cpp/cortex/backends/metal/.
-3. No NumPy/Python type appears in cpp/cortex/core/ or any backend.
+2. No Apple/Metal type appears outside cpp/tensorcx/backends/metal/.
+3. No NumPy/Python type appears in cpp/tensorcx/core/ or any backend.
 4. The core never names a concrete backend; live public selection must stay on
    registry/string-keyed routing, including future CUDA dispatch.
 5. Every Metal handle is RAII-wrapped; no manual retain/release calls.
@@ -463,7 +464,7 @@ When C++ tests are relevant, run them as part of changes touching `cpp/`:
 ```bash
 NANOBIND_DIR="$(uv run python -c 'import nanobind; print(nanobind.cmake_dir())')"
 PYTHON_EXECUTABLE="$(uv run python -c 'import sys; print(sys.executable)')"
-cmake -S . -B build/cpp-tests -DCORTEX_ENABLE_METAL=OFF -DCORTEX_BUILD_TESTS=ON -Dnanobind_DIR="${NANOBIND_DIR}" -DPython_EXECUTABLE="${PYTHON_EXECUTABLE}"
+cmake -S . -B build/cpp-tests -DTENSORCX_ENABLE_METAL=OFF -DTENSORCX_BUILD_TESTS=ON -Dnanobind_DIR="${NANOBIND_DIR}" -DPython_EXECUTABLE="${PYTHON_EXECUTABLE}"
 cmake --build build/cpp-tests
 ctest --test-dir build/cpp-tests --output-on-failure
 ```
@@ -591,7 +592,7 @@ Before finishing:
 The first public version should make this work:
 
 ```python
-import cortex_runtime as cx
+import tensorcx as cx
 
 device = cx.best_device()
 

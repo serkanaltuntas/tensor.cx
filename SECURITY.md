@@ -1,6 +1,6 @@
 # Security
 
-Cortex Runtime is experimental, pre-alpha software. No version is currently
+tensor.cx is experimental, pre-alpha software. No version is currently
 offered as a security-supported or hardened production release.
 
 Report suspected vulnerabilities privately to **serkan@altuntas.dev**. Include

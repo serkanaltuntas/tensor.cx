@@ -10,8 +10,8 @@ import subprocess
 import tempfile
 
 import numpy as np
-import cortex_runtime as cx
-from cortex_runtime._compiler.cpu import toolchain
+import tensorcx as cx
+from tensorcx._compiler.cpu import toolchain
 
 HERE = Path(__file__).resolve().parent
 
@@ -44,9 +44,9 @@ def extract_ptx(serialized: str) -> str:
         raise ValueError("expected sm_52")
     if not re.search(r"^\.address_size 64$", ptx, re.M):
         raise ValueError("expected 64-bit device pointers")
-    entry = re.search(r"\.visible \.entry cortex_add\((.*?)\)", ptx, re.S)
+    entry = re.search(r"\.visible \.entry tensorcx_add\((.*?)\)", ptx, re.S)
     if not entry:
-        raise ValueError("missing cortex_add entry")
+        raise ValueError("missing tensorcx_add entry")
     params = re.findall(r"\.param \.([a-z0-9]+)", entry[1])
     if params != ["u64", "u64", "u64", "u32"]:
         raise ValueError(f"unexpected device parameter ABI: {params}")
@@ -84,7 +84,7 @@ def main():
     parser.add_argument("--compile-only", action="store_true", help="Check device lowering without CUDA/GPU")
     parser.add_argument("--cxx", default="g++-13", help="Host compiler with CUDA headers/libraries on its search path")
     args = parser.parse_args()
-    with tempfile.TemporaryDirectory(prefix="cortex-cuda-probe-") as directory:
+    with tempfile.TemporaryDirectory(prefix="tensorcx-cuda-probe-") as directory:
         root = Path(directory)
         ptx = lower(root)
         if args.compile_only:

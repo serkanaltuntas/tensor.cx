@@ -1,11 +1,16 @@
 # MLIR CUDA integration: ABI and toolchain decision
 
+> Naming update (2026-10-04): commands, source paths, and symbols in this living
+> document use the current tensorcx spelling. Dated results describe runs
+> under the former names; they are not new validation runs. For historical
+> revisions, use the reverse mapping in [NAMING.md](NAMING.md).
+
 Date: 2026-09-28 · Baseline: `636e3e7` · Status: **bounded CUDA add/subtract/multiply runtime implemented** (extended 2026-09-29).
 
 This answers the next-work request after the [CPU runtime slice](MLIR_RUNTIME_INTEGRATION_DECISION.md).
 The original decision and device-only research probe are retained below as
 historical evidence. The subsequent implementation now connects validated
-Cortex IR, native modules and real Cortex buffers through CudaBackend. Phase
+tensor.cx IR, native modules and real tensor.cx buffers through CudaBackend. Phase
 9/10 status is unchanged; this bounded slice does not complete a broad compiler phase.
 
 ## Selected first implementation slice
@@ -60,7 +65,7 @@ gpu/scf/arith + llvm pointer operations
 
 This invokes the NVPTX backend inside the pinned `mlir-opt`; no external
 `llc` invocation or host shared library is needed. Do not use the full
-host-offloading pipeline or introduce MLIR's host launcher into Cortex.
+host-offloading pipeline or introduce MLIR's host launcher into tensor.cx.
 The [MLIR GPU compilation documentation](https://mlir.llvm.org/docs/Dialects/GPU/#gpu-compilation)
 distinguishes device serialization from host offloading, and requires explicit
 parallel IR. The [pinned GPU-to-NVVM tests](https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/mlir/test/Conversion/GPUToNVVM/gpu-to-nvvm.mlir)
@@ -68,7 +73,7 @@ provide version-specific lowering behavior.
 
 Use no fast math, reassociation, or contraction. The current add fixture needs
 no libdevice or device linker. Do not relabel the CPU emitter's serial loop.
-The private CUDA compiler now emits this GPU structure from validated Cortex IR.
+The private CUDA compiler now emits this GPU structure from validated tensor.cx IR.
 The checked-in probe remains historical evidence; runtime tests additionally
 compare the emitted PTX against the native fixture and execute parsed kernels.
 
@@ -118,7 +123,7 @@ single nanobind translation boundary.
 
 ## Context, buffers and module ownership
 
-Use device 0's retained **primary context** for all Cortex CUDA allocations,
+Use device 0's retained **primary context** for all tensor.cx CUDA allocations,
 copies, static and generated launches, and destructors. A shared backend-private
 RAII owner is retained by buffers and modules. A scoped Driver context push/pop
 restores the caller's thread-local context on success and error. Never call
@@ -163,10 +168,10 @@ harness mutates its explicitly chosen output; it does not yet implement the
 planned public output-copy contract.
 
 ```bash
-export CORTEX_LLVM_BIN="$PWD/build/mlir-toolchain/root/usr/lib/llvm-21/bin"
+export TENSORCX_LLVM_BIN="$PWD/build/mlir-toolchain/root/usr/lib/llvm-21/bin"
 uv run python experiments/mlir/probe_cuda.py --compile-only
 uv run python experiments/mlir/probe_cuda.py
-CORTEX_REQUIRE_MLIR=1 CORTEX_REQUIRE_MLIR_CUDA=1 uv run pytest tests/python/test_mlir_cuda_probe.py -q
+TENSORCX_REQUIRE_MLIR=1 TENSORCX_REQUIRE_MLIR_CUDA=1 uv run pytest tests/python/test_mlir_cuda_probe.py -q
 ```
 
 The focused suite passed **11 tests, no skips**. The full CUDA-enabled suite
@@ -196,9 +201,9 @@ semantics, other GPUs, Metal behavior or performance.
    copies/static operations as well as proposed modules. Verify caller context
    and device restoration, including foreign contexts, failure and threads.
 2. Add a private native PTX module/launch path through `CudaBackend::execute`.
-   **First run the checked fixture against actual Cortex CudaBuffer objects**
+   **First run the checked fixture against actual tensor.cx CudaBuffer objects**
    with native forged-request tests before exposing the public compile pair.
-3. Add the narrow Cortex IR GPU emitter and `CompiledCudaKernel`; enforce the
+3. Add the narrow tensor.cx IR GPU emitter and `CompiledCudaKernel`; enforce the
    structure/typing and launch contracts before tools/native execution.
 4. Compare generated add against `Kernel.reference`, CPU and static CUDA add:
    scalar/empty/multidimensional shapes; 1/255/256/257 sizes; partial and zero
@@ -223,7 +228,7 @@ remain separate work. The decision adds no user priority or deadline.
 
 ## Runtime usage and verification — 2026-09-28
 
-Build with `CORTEX_ENABLE_CUDA=ON`, Toolkit 12.4+ and a usable NVIDIA Driver
+Build with `TENSORCX_ENABLE_CUDA=ON`, Toolkit 12.4+ and a usable NVIDIA Driver
 library `libcuda.so.1`. The compiled MLIR slice is narrower than the static
 CUDA backend: Linux x86_64, sm_52, Runtime 12.4 and Driver API 13.0 are checked
 before lowering/loading. The native build itself never links LLVM/MLIR.
@@ -231,7 +236,7 @@ before lowering/loading. The native build itself never links LLVM/MLIR.
 Save inspectable DSL source in a Python file:
 
 ```python
-import cortex_runtime as cx
+import tensorcx as cx
 
 @cx.experimental.kernel
 def add(a, b, out, n):
@@ -265,9 +270,9 @@ active native calls hold strong owners while the GIL is released.
 
 The native fixture in `tests/cpp/fixtures/cuda_add_sm52.ptx` is generated from
 the checked research add using LLVM 21.1.8, with entry renamed to
-`cortex_add_v1` and the v1 manifest prepended. It is a small intentional test
+`tensorcx_add_v1` and the v1 manifest prepended. It is a small intentional test
 asset, not a runtime cache. The runtime emitter equality test prevents it from
-silently drifting. Native fixture execution against Cortex buffers passed
+silently drifting. Native fixture execution against tensor.cx buffers passed
 before the public compile API was connected.
 
 CUDA-enabled extensions now link the Driver library directly, following this
@@ -281,13 +286,13 @@ locally before final validation.
 Validation commands:
 
 ```bash
-export CORTEX_LLVM_BIN="$PWD/build/mlir-toolchain/root/usr/lib/llvm-21/bin"
-CORTEX_REQUIRE_MLIR=1 CORTEX_REQUIRE_MLIR_CUDA=1 uv run pytest tests/python/test_mlir_cuda_runtime.py -q
-CORTEX_REQUIRE_MLIR=1 CORTEX_REQUIRE_MLIR_CUDA=1 uv run pytest -q
+export TENSORCX_LLVM_BIN="$PWD/build/mlir-toolchain/root/usr/lib/llvm-21/bin"
+TENSORCX_REQUIRE_MLIR=1 TENSORCX_REQUIRE_MLIR_CUDA=1 uv run pytest tests/python/test_mlir_cuda_runtime.py -q
+TENSORCX_REQUIRE_MLIR=1 TENSORCX_REQUIRE_MLIR_CUDA=1 uv run pytest -q
 uv run cmake --build build/cpp-cuda
-CORTEX_REQUIRE_MLIR_CUDA=1 uv run ctest --test-dir build/cpp-cuda --output-on-failure
+TENSORCX_REQUIRE_MLIR_CUDA=1 uv run ctest --test-dir build/cpp-cuda --output-on-failure
 uv run cmake --build build/cpp-cuda-sanitizers
-ASAN_OPTIONS=halt_on_error=1:detect_leaks=1:protect_shadow_gap=0 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 CORTEX_REQUIRE_MLIR_CUDA=1 uv run ctest --test-dir build/cpp-cuda-sanitizers --output-on-failure
+ASAN_OPTIONS=halt_on_error=1:detect_leaks=1:protect_shadow_gap=0 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 TENSORCX_REQUIRE_MLIR_CUDA=1 uv run ctest --test-dir build/cpp-cuda-sanitizers --output-on-failure
 ```
 
 The sanitizer shadow-gap setting is the existing [Nightblade CUDA workaround](CUDA_PHASE9_VALIDATION.md).
@@ -321,7 +326,7 @@ multiplication; change the result assertion to `0.0` for subtraction or `1.0`
 for multiplication. This does not add a static CUDA subtraction primitive.
 
 The compiler emits `arith.addf`, `arith.subf`, or `arith.mulf` without fast-math
-flags. Entries are `cortex_add_v1`, `cortex_sub_v1`, and `cortex_mul_v1`;
+flags. Entries are `tensorcx_add_v1`, `tensorcx_sub_v1`, and `tensorcx_mul_v1`;
 manifest operation tags are respectively `add-f32-v1`, `sub-f32-v1`, and
 `mul-f32-v1`. The native loader accepts only these entry/tag pairings, and
 backend dispatch checks the requested entry against the resolved module.
@@ -334,7 +339,7 @@ static CUDA add/multiply where available. Distinct operands check subtraction
 order, including reordered parameters. Scalar/empty/multidimensional shapes,
 block boundaries, partial prefixes, all input/output alias combinations,
 repeated and concurrent launches, signed zero, subnormals, infinities and NaNs
-are covered. Native tests exercise each new entry with real Cortex buffers,
+are covered. Native tests exercise each new entry with real tensor.cx buffers,
 partial outputs, context restoration and mismatched operation rejection.
 
 The validation commands above passed on Nightblade for this extension:

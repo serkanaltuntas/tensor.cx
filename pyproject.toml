@@ -6,7 +6,7 @@ requires = [
 build-backend = "scikit_build_core.build"
 
 [project]
-name = "cortex-runtime"
+name = "tensorcx"
 version = "0.1.0"
 description = "Python-first accelerator runtime and kernel compiler, starting with Apple Metal."
 readme = "README.md"
@@ -29,6 +29,12 @@ dependencies = [
   "numpy>=2.0,<3",
 ]
 
+[project.urls]
+Homepage = "https://tensor.cx"
+Documentation = "https://tensor.cx/docs/"
+Repository = "https://github.com/serkanaltuntas/cortex-runtime"
+Issues = "https://github.com/serkanaltuntas/cortex-runtime/issues"
+
 [project.optional-dependencies]
 dev = [
   "nanobind>=2.4",
@@ -36,7 +42,7 @@ dev = [
 ]
 
 [tool.scikit-build]
-wheel.packages = ["python/cortex_runtime"]
+wheel.packages = ["python/tensorcx"]
 wheel.license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 
 # Explicitly include the native sources in the sdist so a source build works

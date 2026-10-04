@@ -1,5 +1,10 @@
 # MLIR runtime integration: first scope
 
+> Naming update (2026-10-04): commands, source paths, and symbols in this living
+> document use the current tensorcx spelling. Dated results describe runs
+> under the former names; they are not new validation runs. For historical
+> revisions, use the reverse mapping in [NAMING.md](NAMING.md).
+
 Date: 2026-09-28 · Baseline: `8151530` · Status: **CPU slice implemented and locally validated**.
 
 This is the engineering decision requested after Phase 9. It resolves the
@@ -17,10 +22,10 @@ ABI. Keep the CPU interpreter as the independent semantic reference.
 | Question | Selected approach | Reason / deferred alternative |
 | --- | --- | --- |
 | First execution target | CPU on Linux x86_64 (Nightblade) | Existing lowering now passes locally. CUDA-first would combine new GPU lowering, module loading, context ownership, and runtime integration. |
-| IR | Existing Cortex IR → `func/scf/arith/memref` → LLVM | No custom Cortex dialect until an operation needs semantics the standard dialects cannot express. |
+| IR | Existing tensor.cx IR → `func/scf/arith/memref` → LLVM | No custom tensor.cx dialect until an operation needs semantics the standard dialects cannot express. |
 | Compilation | External tools → native shared library before launch | Reuses the prototype and avoids linking MLIR or LLVM ExecutionEngine into the extension. In-process JIT is deferred. |
 | Runtime entry | `CpuBackend::execute`, `BackendOpClass::kKernel` | The same validation/ownership boundary used by generated Metal kernels; no ctypes/NumPy execution bypass. |
-| Second target | CUDA device-only lowering via `gpu`/NVVM → PTX | A later slice with its own hardware acceptance; no generated host scheduler replacing Cortex's backend. |
+| Second target | CUDA device-only lowering via `gpu`/NVVM → PTX | A later slice with its own hardware acceptance; no generated host scheduler replacing tensor.cx's backend. |
 | Existing Metal path | Retain direct MSL/metallib compilation | No automatic switch and no claim of MLIR-to-Metal support. |
 
 This selects a bounded next implementation task, not autograd, a graph compiler,
@@ -69,7 +74,7 @@ of generated code, and existing Metal rejection tests must still pass.
 The compiler produces a native library plus a versioned internal manifest:
 backend/host target, entry point, ordered tensor/uint32 signature, output index,
 launch contract, compiler version, and ABI version. A single generated wrapper
-with C ABI `void cortex_launch_v1(void **args)` avoids calling arbitrary typed
+with C ABI `void tensorcx_launch_v1(void **args)` avoids calling arbitrary typed
 functions through an incorrectly cast function pointer. Each argument slot
 points to its typed storage: a rank-1 float32 memref descriptor or a uint32
 scalar; the last two slots hold uint32 thread count and block size. The wrapper
@@ -101,7 +106,7 @@ returned object. Module lifetime, cleanup, and concurrent launches need tests.
 ## Toolchain and distribution
 
 MLIR stays optional at package import, ordinary CPU/Metal/CUDA use, and package
-build time. Compilation explicitly discovers `CORTEX_LLVM_BIN` and verifies
+build time. Compilation explicitly discovers `TENSORCX_LLVM_BIN` and verifies
 executable tools and actual version output (`mlir-opt`, `mlir-translate`, `clang`
 from LLVM **21.1.8**); sharing a directory alone does not prove version equality.
 An invalid explicit setting fails rather than falling back. Run subprocesses
@@ -120,7 +125,7 @@ preservation of the working Metal path.
 
 Before adding `compile(target="cuda", compiler="mlir")`, demonstrate a
 **device-only** guarded add lowering through `gpu`/NVVM and LLVM NVPTX codegen,
-then load and run it against Cortex CUDA buffers on Nightblade. The current
+then load and run it against tensor.cx CUDA buffers on Nightblade. The current
 serial CPU `scf.for` launch loop cannot simply be relabeled as a GPU kernel.
 GPU block/thread IDs must implement the existing logical grid, including a
 rounded-up block guard that prevents writes beyond logical `thread_count`.
@@ -172,11 +177,11 @@ local validation fixture, not a standalone distribution. No system packages or
 drivers were changed; binaries/debs are not committed.
 
 ```bash
-export CORTEX_LLVM_BIN="$PWD/build/mlir-toolchain/root/usr/lib/llvm-21/bin"
-CORTEX_REQUIRE_MLIR=1 uv run pytest tests/python/test_mlir_lowering.py -q
+export TENSORCX_LLVM_BIN="$PWD/build/mlir-toolchain/root/usr/lib/llvm-21/bin"
+TENSORCX_REQUIRE_MLIR=1 uv run pytest tests/python/test_mlir_lowering.py -q
 uv run python experiments/mlir/lower_add.py
 uv run python experiments/mlir/lower_rowsum.py
-"$CORTEX_LLVM_BIN/llc" -march=nvptx64 -mcpu=help
+"$TENSORCX_LLVM_BIN/llc" -march=nvptx64 -mcpu=help
 ```
 
 Results: **18 passed, no skips**; add (4096 elements), guard preservation, zero
@@ -190,7 +195,7 @@ CUDA execution. Those are the implementation acceptance gates above.
 
 Install the package normally; LLVM is not needed for package import, build, CPU
 primitives, or the independent interpreter. To opt into compiled CPU kernels,
-install **LLVM/MLIR 21.1.8** externally and point `CORTEX_LLVM_BIN` at a directory
+install **LLVM/MLIR 21.1.8** externally and point `TENSORCX_LLVM_BIN` at a directory
 containing executable `mlir-opt`, `mlir-translate`, and `clang`. Without that
 variable, the compiler looks for those names on PATH. All three versions are
 checked at each compilation. An invalid explicit directory fails without PATH
@@ -199,7 +204,7 @@ fallback. The runtime never installs or downloads a toolchain.
 Save this example in a Python file (the DSL needs inspectable function source):
 
 ```python
-import cortex_runtime as cx
+import tensorcx as cx
 
 @cx.experimental.kernel
 def add_kernel(a, b, out, n):
@@ -263,11 +268,11 @@ The fixture needs no LLVM installation and runs in ordinary CPU and sanitizer CI
 Commands (from the source repository, after installing the matching build):
 
 ```bash
-export CORTEX_LLVM_BIN="$PWD/build/mlir-toolchain/root/usr/lib/llvm-21/bin"
-CORTEX_REQUIRE_MLIR=1 uv run pytest tests/python/test_mlir_runtime.py tests/python/test_mlir_lowering.py -q
-CORTEX_REQUIRE_MLIR=1 uv run pytest -q
+export TENSORCX_LLVM_BIN="$PWD/build/mlir-toolchain/root/usr/lib/llvm-21/bin"
+TENSORCX_REQUIRE_MLIR=1 uv run pytest tests/python/test_mlir_runtime.py tests/python/test_mlir_lowering.py -q
+TENSORCX_REQUIRE_MLIR=1 uv run pytest -q
 # Run on the CPU-only build to verify no toolchain requirement:
-CORTEX_LLVM_BIN=/nonexistent CORTEX_REQUIRE_MLIR="" uv run pytest -q
+TENSORCX_LLVM_BIN=/nonexistent TENSORCX_REQUIRE_MLIR="" uv run pytest -q
 uv run cmake --build build/cpp-baseline
 uv run ctest --test-dir build/cpp-baseline --output-on-failure
 uv run cmake --build build/cpp-cuda-sanitizers
@@ -275,8 +280,8 @@ ASAN_OPTIONS=halt_on_error=1:detect_leaks=1:protect_shadow_gap=0 UBSAN_OPTIONS=h
 ```
 
 The Python builds used `CC=gcc-13 CXX=g++-13` and `uv pip install -e ".[dev]"`
-with `CMAKE_ARGS="-DCORTEX_ENABLE_METAL=OFF -DCORTEX_ENABLE_CUDA=OFF"` for CPU;
-CUDA used `-DCORTEX_ENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=52` plus
+with `CMAKE_ARGS="-DTENSORCX_ENABLE_METAL=OFF -DTENSORCX_ENABLE_CUDA=OFF"` for CPU;
+CUDA used `-DTENSORCX_ENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=52` plus
 `CUDACXX=nvcc CUDAHOSTCXX=g++-13`. Native build configuration follows the
 [existing C++/sanitizer setup](CUDA_PHASE9_VALIDATION.md); the CUDA shadow-gap
 workaround is specific to this host. CPU native tests also passed with the
@@ -298,5 +303,5 @@ readiness claim is made.
 
 The follow-up [CUDA ABI/toolchain decision](MLIR_CUDA_INTEGRATION_DECISION.md)
 is now recorded with sm_52 research and runtime evidence. Its bounded add
-compile/launch path has passed the Cortex-buffer/context/module gate above.
+compile/launch path has passed the tensor.cx-buffer/context/module gate above.
 Additional generated operations and targets remain separate work.

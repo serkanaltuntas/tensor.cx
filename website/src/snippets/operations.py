@@ -1,4 +1,4 @@
-import cortex_runtime as cx
+import tensorcx as cx
 
 a = cx.tensor([[1.0, 2.0], [3.0, 4.0]], device="cpu")
 b = cx.ones((2, 2), dtype=cx.float32, device="cpu")

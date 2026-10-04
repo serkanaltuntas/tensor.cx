@@ -28,7 +28,7 @@ one CPU/Metal-validated op) doesn't need CUDA. See
 acceptance criteria are unaffected.
 
 Phase 10 is complete: [`MLIR_DECISION.md`](MLIR_DECISION.md) records a "yes" —
-the Phase 7 elementwise add lowers Cortex IR → MLIR → native code and matches
+the Phase 7 elementwise add lowers tensor.cx IR → MLIR → native code and matches
 the CPU reference (`experiments/mlir/`,
 `tests/python/test_mlir_lowering.py`). The optional CPU runtime slice is implemented under the
 [follow-up decision](MLIR_RUNTIME_INTEGRATION_DECISION.md), with Linux x86_64
@@ -93,12 +93,12 @@ it does not add LLVM/MLIR to the C++ core or backend build. See PROJECT.md §16 
 - **MLIR CUDA integration.** The [CPU-first runtime slice](MLIR_RUNTIME_INTEGRATION_DECISION.md)
   is implemented. The [CUDA ABI/toolchain decision](MLIR_CUDA_INTEGRATION_DECISION.md)
   and guarded add/subtract/multiply runtime are implemented on sm_52 with primary-context and
-  native module ownership through Cortex buffers. The [guarded local-expression
+  native module ownership through tensor.cx buffers. The [guarded local-expression
   scope](MLIR_CUDA_EXPRESSIONS_DECISION.md) is implemented with bounded local/nested
   arithmetic. The [CUDA product completion goal](CUDA_PRODUCT_COMPLETION.md)
   tracks operator coverage, compatibility, measurements, GPU CI and distribution.
 
-- **PyTorch portability strategy.** The current roadmap keeps Cortex Runtime
+- **PyTorch portability strategy.** The current roadmap keeps tensor.cx
   independent from PyTorch, but a future integration can be staged through a
   custom-op bridge before considering a full PyTorch / ATen backend. See
   [`PYTORCH_PORTABILITY_ROADMAP.md`](PYTORCH_PORTABILITY_ROADMAP.md).

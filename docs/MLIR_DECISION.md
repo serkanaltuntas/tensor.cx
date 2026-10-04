@@ -1,7 +1,12 @@
 # MLIR Lowering Decision (Phase 10)
 
+> Naming update (2026-10-04): commands, source paths, and symbols in this living
+> document use the current tensorcx spelling. Dated results describe runs
+> under the former names; they are not new validation runs. For historical
+> revisions, use the reverse mapping in [NAMING.md](NAMING.md).
+
 ```text
-Question:  Does Cortex Runtime IR lower to MLIR?
+Question:  Does tensor.cx IR lower to MLIR?
 Decision:  YES — validated end-to-end; adopt MLIR as the intended long-term
            compiler lowering path for the kernel DSL, but do NOT integrate it
            into the runtime yet.
@@ -13,7 +18,7 @@ Evidence:  experiments/mlir/ + tests/python/test_mlir_lowering.py
 
 ## What was demonstrated
 
-One operation (the Phase 7 elementwise `add` kernel) was lowered from Cortex
+One operation (the Phase 7 elementwise `add` kernel) was lowered from tensor.cx
 Runtime IR through MLIR to native code and matched against the mandatory CPU
 reference (PROJECT.md §5.4), exactly as the Phase 10 Definition of Done asks:
 
@@ -30,7 +35,7 @@ reference (PROJECT.md §5.4), exactly as the Phase 10 Definition of Done asks:
 
 Validated behaviors (see `experiments/mlir/lower_add.py`):
 
-- 4096-element float32 add matches the Cortex CPU backend result.
+- 4096-element float32 add matches the tensor.cx CPU backend result.
 - Guard semantics are preserved: with `thread_count > n`, threads with
   `i >= n` do not write (`if i < n:` maps to `scf.if` + unsigned `cmpi ult`).
 - A zero-thread launch is a no-op.
@@ -41,7 +46,7 @@ Validated behaviors (see `experiments/mlir/lower_add.py`):
 - Emitter failure modes are loud, mirroring the DSL rule: unsupported
   constructs raise `MlirEmitError` naming the construct — never a silent
   miscompile. Rejected loudly: mixed int/float arithmetic, reserved
-  (`cortex_`-prefixed) parameter names, missing output store, non-`(0)`
+  (`tensorcx_`-prefixed) parameter names, missing output store, non-`(0)`
   `program_id` axes, comparison results used in arithmetic, and ordered
   comparisons involving negative integer constants (MSL types those as
   signed `int`; that general signed-local path remains unsupported).
@@ -53,11 +58,11 @@ Validated behaviors (see `experiments/mlir/lower_add.py`):
 
 ## The mapping
 
-Cortex IR proved to be a natural subset of MLIR's standard dialects. No custom
+tensor.cx IR proved to be a natural subset of MLIR's standard dialects. No custom
 dialect was needed for this scope:
 
 ```text
-Cortex IR                      MLIR
+tensor.cx IR                      MLIR
 ----------------------------   ------------------------------------------
 buffer parameter (float32)     memref<?xf32> function argument
 scalar parameter (uint)        i32 argument, unsigned ops (divui/cmpi ult)
@@ -118,11 +123,11 @@ Consequences, per the Phase 10 DoD:
 
 - The runtime core and backends contain **no** MLIR code, includes, build
   flags, or assumptions. The prototype lives in `experiments/mlir/` and reads
-  only the public `cortex_runtime.experimental` IR dataclasses.
+  only the public `tensorcx.experimental` IR dataclasses.
 - `tests/python/test_mlir_lowering.py` keeps the evidence executable: emitter
   tests run everywhere; the end-to-end case skips cleanly without the
   toolchain (same convention as Metal tests). The dedicated `mlir-lowering` CI
-  job installs LLVM/MLIR 21 and runs those tests with `CORTEX_REQUIRE_MLIR=1`,
+  job installs LLVM/MLIR 21 and runs those tests with `TENSORCX_REQUIRE_MLIR=1`,
   which upgrades a missing toolchain from a skip to a hard failure — so the
   lowering evidence is actually exercised in CI, not silently green-skipped.
 
@@ -146,7 +151,7 @@ decision record, and the recommendation is to write it once Phase 9's CUDA
 requirements are known so the dialect/ABI choices are made against two real
 accelerator targets instead of one.
 
-At that point the open design questions are: custom `cortex` dialect vs staying
+At that point the open design questions are: custom `tensorcx` dialect vs staying
 on standard dialects, `gpu`/`spirv` vs NVVM lowering for accelerators, JIT
 (`ExecutionEngine`) vs AOT shared-library compilation, and CMake integration
 against a pinned LLVM/MLIR release.

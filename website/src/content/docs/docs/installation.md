@@ -1,9 +1,9 @@
 ---
 title: Installation
-description: Build Cortex Runtime from source with uv, beginning with the CPU reference backend.
+description: Build tensor.cx from source with uv, beginning with the CPU reference backend.
 ---
 
-Cortex Runtime is installed from source. There is no published PyPI release or
+tensor.cx is installed from source. There is no published PyPI release or
 general-purpose binary wheel to install. Repository access is required; the
 repository is currently private pending the public launch.
 
@@ -26,8 +26,8 @@ git clone https://github.com/serkanaltuntas/cortex-runtime.git
 cd cortex-runtime
 uv venv --python 3.12
 source .venv/bin/activate
-CMAKE_ARGS="-DCORTEX_ENABLE_METAL=OFF -DCORTEX_ENABLE_CUDA=OFF" uv pip install -e ".[dev]"
-uv run --no-sync python -c "import cortex_runtime as cx; print(cx.devices())"
+CMAKE_ARGS="-DTENSORCX_ENABLE_METAL=OFF -DTENSORCX_ENABLE_CUDA=OFF" uv pip install -e ".[dev]"
+uv run --no-sync python -c "import tensorcx as cx; print(cx.devices())"
 ```
 
 The CPU build reports `['cpu']` and does not require GPU libraries. Continue to
@@ -48,11 +48,11 @@ Both discovery commands must succeed:
 ```bash
 xcrun -sdk macosx --find metal
 xcrun -sdk macosx --find metallib
-CMAKE_ARGS="-DCORTEX_ENABLE_METAL=ON -DCORTEX_ENABLE_CUDA=OFF" uv pip install --reinstall -e ".[dev]"
-uv run --no-sync python -c "import cortex_runtime as cx; print(cx.devices())"
+CMAKE_ARGS="-DTENSORCX_ENABLE_METAL=ON -DTENSORCX_ENABLE_CUDA=OFF" uv pip install --reinstall -e ".[dev]"
+uv run --no-sync python -c "import tensorcx as cx; print(cx.devices())"
 ```
 
-The default `CORTEX_ENABLE_METAL=AUTO` can fall back to CPU when the tools are
+The default `TENSORCX_ENABLE_METAL=AUTO` can fall back to CPU when the tools are
 missing. Explicit `ON` instead fails clearly if Metal cannot be built.
 
 ## Enable CUDA
@@ -65,9 +65,9 @@ The validated configuration is Linux x86_64, CUDA 12.4, GCC 13, and a GTX 980 Ti
 
 ```bash
 CC=gcc-13 CXX=g++-13 CUDAHOSTCXX=g++-13 \
-  CMAKE_ARGS="-DCORTEX_ENABLE_METAL=OFF -DCORTEX_ENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=52" \
+  CMAKE_ARGS="-DTENSORCX_ENABLE_METAL=OFF -DTENSORCX_ENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=52" \
   uv pip install --reinstall -e ".[dev]"
-uv run --no-sync python -c "import cortex_runtime as cx; assert cx.is_available('cuda'); print(cx.devices())"
+uv run --no-sync python -c "import tensorcx as cx; assert cx.is_available('cuda'); print(cx.devices())"
 ```
 
 Other GPUs need their matching architecture and a compatible toolkit. Changing

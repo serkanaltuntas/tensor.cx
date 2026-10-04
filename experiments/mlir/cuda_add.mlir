@@ -1,6 +1,6 @@
 module {
   gpu.module @device {
-    gpu.func @cortex_add(%a: !llvm.ptr, %b: !llvm.ptr, %out: !llvm.ptr, %n: i32) kernel {
+    gpu.func @tensorcx_add(%a: !llvm.ptr, %b: !llvm.ptr, %out: !llvm.ptr, %n: i32) kernel {
       %bid = gpu.block_id x
       %bdim = gpu.block_dim x
       %tid = gpu.thread_id x

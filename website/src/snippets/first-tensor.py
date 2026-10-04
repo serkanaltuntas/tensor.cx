@@ -1,4 +1,4 @@
-import cortex_runtime as cx
+import tensorcx as cx
 
 device = cx.best_device()
 x = cx.ones((1_000_000,), dtype=cx.float32, device=device)

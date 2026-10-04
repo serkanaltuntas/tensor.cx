@@ -1,7 +1,7 @@
-# Cortex Runtime website
+# tensor.cx website
 
 The product homepage and curated user documentation for `tensor.cx`, built with
-Astro and Starlight. Independent Cortex Runtime identity; English content.
+Astro and Starlight. Independent tensor.cx identity; English content.
 The website is part of the source repository, not a separate Git repository or
 a Python runtime dependency.
 

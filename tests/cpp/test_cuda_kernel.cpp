@@ -9,10 +9,10 @@
 #include <iterator>
 #include <limits>
 #include <vector>
-#include "cortex/backends/cuda/cuda_kernel.h"
+#include "tensorcx/backends/cuda/cuda_kernel.h"
 
-using namespace cortex;
-using namespace cortex::cuda;
+using namespace tensorcx;
+using namespace tensorcx::cuda;
 class ForeignBuffer final : public Buffer {
  public:
   std::size_t nbytes() const override { return 16; }
@@ -22,7 +22,7 @@ int main(int argc, char** argv) {
   auto support = compiled_kernel_support();
   if (!support.ok()) {
     std::cout << support.message() << '\n';
-    return std::getenv("CORTEX_REQUIRE_MLIR_CUDA") ? 1 : 77;
+    return std::getenv("TENSORCX_REQUIRE_MLIR_CUDA") ? 1 : 77;
   }
   int failures{};
   auto check = [&](bool good, const char* message) {
@@ -39,19 +39,19 @@ int main(int argc, char** argv) {
     int device{-1};
     check(cudaGetDevice(&device) == cudaSuccess && device == 0, "Runtime device not restored");
   };
-  auto loaded = CudaKernelModule::load(ptx, "cortex_add_v1", {"tttu", 2, 3});
+  auto loaded = CudaKernelModule::load(ptx, "tensorcx_add_v1", {"tttu", 2, 3});
   if (!loaded) { std::cerr << loaded.status().message() << '\n'; cuCtxDestroy(foreign); return 1; }
   auto module = loaded.move_value();
   restored();
-  check(!CudaKernelModule::load("bad", "cortex_add_v1", {"tttu", 2, 3}), "bad PTX accepted");
+  check(!CudaKernelModule::load("bad", "tensorcx_add_v1", {"tttu", 2, 3}), "bad PTX accepted");
   check(!CudaKernelModule::load(ptx, "missing", {"tttu", 2, 3}), "bad entry accepted");
-  check(!CudaKernelModule::load(ptx, "cortex_add_v1", {"tttu", 1, 3}), "bad manifest accepted");
+  check(!CudaKernelModule::load(ptx, "tensorcx_add_v1", {"tttu", 1, 3}), "bad manifest accepted");
   auto malformed = ptx;
-  malformed.replace(malformed.find(".entry cortex_add_v1"), 20, ".entry missing_entry");
-  check(!CudaKernelModule::load(malformed, "cortex_add_v1", {"tttu", 2, 3}), "missing function accepted");
+  malformed.replace(malformed.find(".entry tensorcx_add_v1"), 20, ".entry missing_entry");
+  check(!CudaKernelModule::load(malformed, "tensorcx_add_v1", {"tttu", 2, 3}), "missing function accepted");
   auto wrong_abi = ptx;
-  wrong_abi.replace(wrong_abi.find(".u32 cortex_add_v1_param_3"), 4, ".u64");
-  check(!CudaKernelModule::load(wrong_abi, "cortex_add_v1", {"tttu", 2, 3}), "wrong parameter ABI accepted");
+  wrong_abi.replace(wrong_abi.find(".u32 tensorcx_add_v1_param_3"), 4, ".u64");
+  check(!CudaKernelModule::load(wrong_abi, "tensorcx_add_v1", {"tttu", 2, 3}), "wrong parameter ABI accepted");
   restored();
 
   {
@@ -66,12 +66,12 @@ int main(int argc, char** argv) {
       {KernelArgumentKind::kTensor, &a, 0}, {KernelArgumentKind::kTensor, &b, 0},
       {KernelArgumentKind::kTensor, &out, 0}, {KernelArgumentKind::kUInt32, nullptr, 2}}};
     BackendExecution e{BackendOpClass::kKernel, {}, {}, outputs, LaunchConfig{2, 1, 1, 7, 1, 1},
-      CompilationTarget{KernelArtifactKind::kBinary, module->artifact_id(), "cortex_add_v1"}, args};
+      CompilationTarget{KernelArtifactKind::kBinary, module->artifact_id(), "tensorcx_add_v1"}, args};
     CudaBackend backend;
-    check(backend.execute(e).ok(), "Cortex buffer fixture launch failed");
+    check(backend.execute(e).ok(), "tensor.cx buffer fixture launch failed");
     auto result = from_core_tensor(outputs[0]);
     check(result && to_cpu(result.value()).value().float_data() == std::vector<float>({6, 8, -3, -4}),
-          "partial Cortex output mismatch");
+          "partial tensor.cx output mismatch");
     check(to_cpu(destination.value()).value().float_data() == std::vector<float>({-1, -2, -3, -4}),
           "caller output mutated");
     restored();
@@ -80,11 +80,11 @@ int main(int argc, char** argv) {
       const auto fixture = std::filesystem::path(argv[1]).parent_path() / ("cuda_" + operation + "_sm52.ptx");
       std::ifstream stream(fixture);
       const std::string code((std::istreambuf_iterator<char>(stream)), {});
-      const auto entry = "cortex_" + operation + "_v1";
+      const auto entry = "tensorcx_" + operation + "_v1";
       auto candidate = CudaKernelModule::load(code, entry, {"tttu", 2, 3});
       check(static_cast<bool>(candidate), "arithmetic module failed to load");
       if (!candidate) continue;
-      check(!CudaKernelModule::load(code, "cortex_add_v1", {"tttu", 2, 3}), "wrong operation manifest accepted");
+      check(!CudaKernelModule::load(code, "tensorcx_add_v1", {"tttu", 2, 3}), "wrong operation manifest accepted");
       outputs[0] = out;
       e.compilation_target = CompilationTarget{KernelArtifactKind::kBinary, candidate.value()->artifact_id(), entry};
       check(backend.execute(e).ok(), "arithmetic dispatch failed");
@@ -95,7 +95,7 @@ int main(int argc, char** argv) {
       check(arithmetic && to_cpu(arithmetic.value()).value().float_data() == expected,
             "arithmetic partial output mismatch");
       outputs[0] = out;
-      e.compilation_target->entry_point = "cortex_add_v1";
+      e.compilation_target->entry_point = "tensorcx_add_v1";
       check(!backend.execute(e).ok() && outputs[0].buffer == out.buffer,
             "artifact accepted another valid operation entry");
       restored();
@@ -112,7 +112,7 @@ int main(int argc, char** argv) {
       args = {{{KernelArgumentKind::kTensor, &a, 0}, {KernelArgumentKind::kTensor, &b, 0},
                {KernelArgumentKind::kTensor, &out, 0}, {KernelArgumentKind::kUInt32, nullptr, 2}}};
       e = {BackendOpClass::kKernel, {}, {}, outputs, LaunchConfig{2, 1, 1, 7, 1, 1},
-        CompilationTarget{KernelArtifactKind::kBinary, module->artifact_id(), "cortex_add_v1"}, args};
+        CompilationTarget{KernelArtifactKind::kBinary, module->artifact_id(), "tensorcx_add_v1"}, args};
       change();
       const auto before = outputs[0].buffer;
       check(!backend.execute(e).ok(), name);

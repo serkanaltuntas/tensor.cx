@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 
 import numpy as np
-import cortex_runtime as cx
+import tensorcx as cx
 
 
 @cx.experimental.kernel
@@ -31,7 +31,7 @@ def main():
     prefix = Path(sys.prefix).resolve()
     for module in (cx, cx._core):
         check(Path(module.__file__).resolve().is_relative_to(prefix), 'package imported outside fresh environment')
-    distribution = importlib.metadata.distribution('cortex-runtime')
+    distribution = importlib.metadata.distribution('tensorcx')
     direct = json.loads(distribution.read_text('direct_url.json'))
     check(not direct.get('dir_info', {}).get('editable', False), 'editable install is forbidden')
     check('archive_info' in direct, 'expected installation from a wheel archive')

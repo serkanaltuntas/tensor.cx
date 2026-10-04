@@ -7,7 +7,7 @@ export default defineConfig({
   trailingSlash: 'always',
   integrations: [
     starlight({
-      title: 'Cortex Runtime',
+      title: 'tensor.cx',
       description: 'A compact Python-first tensor runtime with a C++20 core, CPU references, and Metal and CUDA backends.',
       favicon: '/favicon.svg',
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/serkanaltuntas/cortex-runtime' }],

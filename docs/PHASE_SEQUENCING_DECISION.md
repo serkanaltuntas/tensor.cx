@@ -1,5 +1,10 @@
 # Phase Sequencing Decision: Phase 9 Paused, Phase 10 Started Without CUDA
 
+> Naming update (2026-10-04): commands, source paths, and symbols in this living
+> document use the current tensorcx spelling. Dated results describe runs
+> under the former names; they are not new validation runs. For historical
+> revisions, use the reverse mapping in [NAMING.md](NAMING.md).
+
 > Historical decision recorded 2026-07-05. Update 2026-09-28: Phase 9 has
 > completed on Nightblade after the original environment gate passed. The
 > rationale below is retained as history; current status is in `PROJECT.md`.
@@ -25,9 +30,9 @@ Phase 10's own Definition of Done (`PROJECT.md` §14, Phase 10) does not require
 CUDA:
 
 ```text
-- A written decision record answers: does Cortex Runtime IR lower to MLIR, or
+- A written decision record answers: does tensor.cx IR lower to MLIR, or
   not, and why. A documented "no" is a valid, successful outcome.
-- If yes: one op (e.g. elementwise add) lowers Cortex Runtime IR -> MLIR ->
+- If yes: one op (e.g. elementwise add) lowers tensor.cx IR -> MLIR ->
   backend and matches CPU.
 ```
 
@@ -42,7 +47,7 @@ The CPU/Metal-validated single-op case, if pursued, needs no CUDA hardware.
   1. a written decision record concluding MLIR lowering is not pursued now
      (a valid, complete outcome), or
   2. a decision record plus one op (elementwise add) prototyped through
-     Cortex IR -> MLIR -> backend, matched against the CPU reference.
+     tensor.cx IR -> MLIR -> backend, matched against the CPU reference.
   No broader compiler work, no additional ops, no core/backend code that
   assumes MLIR before the decision record exists (per the original Phase 10
   Definition of Done).
@@ -85,7 +90,7 @@ CMake packages:  lib/cmake/llvm/LLVMConfig.cmake and
 ```
 
 No further installation is required to attempt the Phase 10 "yes" path (one
-op prototyped through Cortex IR -> MLIR -> backend). Because the keg is
+op prototyped through tensor.cx IR -> MLIR -> backend). Because the keg is
 keg-only, a future CMake integration must point at it explicitly rather than
 relying on a default `find_package`, e.g.:
 

@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-import cortex_runtime as cx
+import tensorcx as cx
 
 
 MATMUL_CASES = [

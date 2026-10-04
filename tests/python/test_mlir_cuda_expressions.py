@@ -7,9 +7,9 @@ import re
 
 import numpy as np
 import pytest
-import cortex_runtime as cx
-from cortex_runtime._compiler import cpu, cuda
-from cortex_runtime.experimental import IRAssign, IRBinaryOp, IRConstant, IRLoad, IRName, KernelCompileError
+import tensorcx as cx
+from tensorcx._compiler import cpu, cuda
+from tensorcx.experimental import IRAssign, IRBinaryOp, IRConstant, IRLoad, IRName, KernelCompileError
 from test_mlir_cuda_runtime import require_device
 
 
@@ -173,7 +173,7 @@ def test_expression_bounds(kind,limit,monkeypatch):
         return body_ir(body+[replace(store,value=IRName(body[-1].target))])
     valid = make(limit)
     cuda.signature(valid)
-    if os.environ.get('CORTEX_REQUIRE_MLIR_CUDA'):
+    if os.environ.get('TENSORCX_REQUIRE_MLIR_CUDA'):
         require_device()
         native, reference = cuda.compile_kernel(valid), cpu.compile_kernel(valid)
         a, b, out = cx.ones((4,)), cx.zeros((4,)), cx.zeros((4,))
@@ -186,7 +186,7 @@ def test_expression_bounds(kind,limit,monkeypatch):
 def test_gpu_emitter_expression_fixture():
     try:cuda.toolchain()
     except RuntimeError as error:
-        if os.environ.get('CORTEX_REQUIRE_MLIR'):pytest.fail(str(error))
+        if os.environ.get('TENSORCX_REQUIRE_MLIR'):pytest.fail(str(error))
         pytest.skip(str(error))
     source,ptx=cuda.lower(rounding.parse_ir())
     assert 'arith.mulf' in source and 'arith.subf' in source

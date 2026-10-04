@@ -10,10 +10,10 @@ import sys
 import numpy as np
 import pytest
 
-import cortex_runtime as cx
-from cortex_runtime import _core
-from cortex_runtime._compiler import cuda
-from cortex_runtime.experimental import IRBinaryOp, IRLoad, KernelCompileError
+import tensorcx as cx
+from tensorcx import _core
+from tensorcx._compiler import cuda
+from tensorcx.experimental import IRBinaryOp, IRLoad, KernelCompileError
 
 
 @cx.experimental.kernel
@@ -65,7 +65,7 @@ def require_device():
         _core._cuda_kernel_support()
         cuda.toolchain()
     except RuntimeError as error:
-        if os.environ.get("CORTEX_REQUIRE_MLIR_CUDA"):
+        if os.environ.get("TENSORCX_REQUIRE_MLIR_CUDA"):
             pytest.fail(str(error))
         pytest.skip(str(error))
 
@@ -200,14 +200,14 @@ def test_native_ptx_errors(compiled):
     for invalid in ("", ptx.replace("sm_52", "sm_90"), ptx.replace("ptx78", "ptx80"),
                     ptx.replace(".version 7.8", ".version 9.9"), ptx + "\x00",
                     ptx.replace("add.rn.f32", "invalid.opcode"),
-                    ptx.replace(".entry cortex_add_v1", ".entry absent"),
-                    ptx.replace(".u32 cortex_add_v1_param_3", ".u64 cortex_add_v1_param_3")):
+                    ptx.replace(".entry tensorcx_add_v1", ".entry absent"),
+                    ptx.replace(".u32 tensorcx_add_v1_param_3", ".u64 tensorcx_add_v1_param_3")):
         with pytest.raises((ValueError, RuntimeError)):
             _core._load_cuda_kernel(invalid, cuda.ENTRY, "tttu", 2, 3)
 
 
 def test_missing_gpu_is_explicit(compiled):
-    command = "from cortex_runtime import _core; _core._cuda_kernel_support()"
+    command = "from tensorcx import _core; _core._cuda_kernel_support()"
     result = subprocess.run([sys.executable, "-c", command], capture_output=True, text=True,
                             env={**os.environ, "CUDA_VISIBLE_DEVICES": ""}, timeout=30)
     assert result.returncode != 0 and "RuntimeError" in result.stderr
@@ -247,7 +247,7 @@ def test_gpu_emitter_and_fixture_without_device(tmp_path, dsl, operation):
     try:
         cuda.toolchain()
     except RuntimeError as error:
-        if os.environ.get("CORTEX_REQUIRE_MLIR"):
+        if os.environ.get("TENSORCX_REQUIRE_MLIR"):
             pytest.fail(str(error))
         pytest.skip(str(error))
     source, ptx = cuda.lower(dsl.parse_ir())
@@ -257,13 +257,13 @@ def test_gpu_emitter_and_fixture_without_device(tmp_path, dsl, operation):
 
 
 def test_malformed_serialized_assembly():
-    valid = '#gpu.object<assembly = ".version 7.8\\0A.target sm_52\\0A.address_size 64\\0A.visible .entry cortex_add_v1(.param .u64 .ptr a,.param .u64 .ptr b,.param .u64 .ptr out,.param .u32 n)">'
+    valid = '#gpu.object<assembly = ".version 7.8\\0A.target sm_52\\0A.address_size 64\\0A.visible .entry tensorcx_add_v1(.param .u64 .ptr a,.param .u64 .ptr b,.param .u64 .ptr out,.param .u32 n)">'
     assert ".entry" in cuda.extract_ptx(valid, "tttu")
     for bad in ("", valid * 2, valid + 'assembly = "bad"',
                 valid.replace("\\0A", "\\ZZ"),
                 valid.replace("sm_52", "sm_90"), valid.replace(".address_size 64", ".address_size 32"),
                 valid.replace(".u32 n", ".u64 n"), valid.replace(".ptr", ""),
-                valid.replace("cortex_add_v1", "wrong"), valid.replace('n)">', 'n)\\00">')):
+                valid.replace("tensorcx_add_v1", "wrong"), valid.replace('n)">', 'n)\\00">')):
         with pytest.raises(ValueError):
             cuda.extract_ptx(bad, "tttu")
 
@@ -286,7 +286,7 @@ def test_compile_cleanup_on_success(compiled, monkeypatch, tmp_path):
 
 def test_cuda_disabled_build_error(monkeypatch):
     monkeypatch.delattr(_core, "_cuda_kernel_support", raising=False)
-    with pytest.raises(RuntimeError, match="CUDA-enabled Cortex build"):
+    with pytest.raises(RuntimeError, match="CUDA-enabled tensor.cx build"):
         add.compile(target="cuda", compiler="mlir")
 
 

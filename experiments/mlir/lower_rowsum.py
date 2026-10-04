@@ -2,7 +2,7 @@
 
 Same pipeline as lower_add.py, but the kernel uses the new bounded
 ``for k in range(m)`` + accumulator DSL construct, which lowers to
-``scf.for`` with loop-carried ``iter_args``. Compared against the Cortex CPU
+``scf.for`` with loop-carried ``iter_args``. Compared against the tensor.cx CPU
 backend reduction (cx.sum, §12.3 reduction tolerance).
 
 Run: `uv run python experiments/mlir/lower_rowsum.py`
@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from cortex_ir_to_mlir import emit_mlir  # noqa: E402
+from tensorcx_ir_to_mlir import emit_mlir  # noqa: E402
 from lower_add import (  # noqa: E402
     MemRef1D,
     _as_memref,
@@ -26,7 +26,7 @@ from lower_add import (  # noqa: E402
     find_llvm_bin,
 )
 
-import cortex_runtime as cx  # noqa: E402
+import tensorcx as cx  # noqa: E402
 
 
 def build_rowsum_kernel():
@@ -49,7 +49,7 @@ def main() -> int:
     llvm_bin = find_llvm_bin()
     if llvm_bin is None:
         print(
-            "SKIP: MLIR toolchain not found (set CORTEX_LLVM_BIN or install "
+            "SKIP: MLIR toolchain not found (set TENSORCX_LLVM_BIN or install "
             "Homebrew llvm@21)"
         )
         return 77
@@ -69,7 +69,7 @@ def main() -> int:
         cx.tensor(matrix, dtype=cx.float32, device="cpu"), axis=1
     ).numpy()
 
-    with tempfile.TemporaryDirectory(prefix="cortex_mlir_rowsum_") as temp_dir:
+    with tempfile.TemporaryDirectory(prefix="tensorcx_mlir_rowsum_") as temp_dir:
         library_path = compile_mlir_to_library(mlir_text, llvm_bin, Path(temp_dir))
         library = ctypes.CDLL(str(library_path))
         function = getattr(library, f"_mlir_ciface_{kernel_ir.name}")
@@ -88,7 +88,7 @@ def main() -> int:
             ctypes.c_int32(block_size),  # block_size
         )
         np.testing.assert_allclose(out, reference, rtol=1e-5, atol=1e-5)
-        print(f"PASS: MLIR-lowered rowsum matches Cortex CPU reference "
+        print(f"PASS: MLIR-lowered rowsum matches tensor.cx CPU reference "
               f"({rows}x{cols})")
 
     print("PHASE7-MLIR-ROWSUM-OK")

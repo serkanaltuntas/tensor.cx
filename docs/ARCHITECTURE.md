@@ -1,21 +1,21 @@
 # Architecture
 
-Cortex Runtime is organized around a Python API, a backend-neutral C++20 core,
+tensor.cx is organized around a Python API, a backend-neutral C++20 core,
 and backend-specific implementations.
 
 ## Layers
 
 ```text
-python/cortex_runtime/        Python API and user ergonomics
+python/tensorcx/        Python API and user ergonomics
 bindings/                     nanobind extension and Python exception boundary
-cpp/cortex/core/              backend-neutral runtime types and dispatch
-cpp/cortex/backends/cpu/      mandatory CPU reference backend
-cpp/cortex/backends/metal/    Apple Metal backend
-cpp/cortex/backends/cuda/     optional CUDA prototype
+cpp/tensorcx/core/              backend-neutral runtime types and dispatch
+cpp/tensorcx/backends/cpu/      mandatory CPU reference backend
+cpp/tensorcx/backends/metal/    Apple Metal backend
+cpp/tensorcx/backends/cuda/     optional CUDA prototype
 ```
 
 The C++ core must not expose platform-specific handles. Metal, MPSGraph, and
-other Apple API types stay inside `cpp/cortex/backends/metal/`.
+other Apple API types stay inside `cpp/tensorcx/backends/metal/`.
 
 ## Current Phase
 
@@ -37,7 +37,7 @@ Phase 9 is complete on the selected Nightblade CUDA host. Discovery and copies
 use the existing registry, and float32 fill/add/multiply use
 `CudaBackend::execute` and shared primitive validation. CUDA Runtime API handles
 remain private to the CUDA backend; static kernels are compiled by nvcc only
-when `CORTEX_ENABLE_CUDA=ON`. See [validation](CUDA_PHASE9_VALIDATION.md).
+when `TENSORCX_ENABLE_CUDA=ON`. See [validation](CUDA_PHASE9_VALIDATION.md).
 Phase 10 ran ahead of Phase 9 under the documented sequencing exception in
 [`PHASE_SEQUENCING_DECISION.md`](PHASE_SEQUENCING_DECISION.md) and is complete:
 [`MLIR_DECISION.md`](MLIR_DECISION.md) records a "yes" decision for MLIR as the
@@ -72,9 +72,9 @@ tensor types.
 `Backend::execute(BackendExecution)` per backend, switching on `OpDesc`, rather
 than one virtual method per operation. Phase 8 completed the backend ABI
 hardening work:
-`cpp/cortex/core/backend.h` now defines the execution contract, separates
+`cpp/tensorcx/core/backend.h` now defines the execution contract, separates
 primitive operations from kernel launches, and carries optional launch metadata,
-compilation-target metadata, and ordered kernel arguments. `cpp/cortex/backends/null/`
+compilation-target metadata, and ordered kernel arguments. `cpp/tensorcx/backends/null/`
 compiles against that interface alone and exists to prove the contract has no
 Metal dependency. The core also exposes the primitive op input/output schema
 plus shared primitive and kernel contract validators. CPU and Metal currently
@@ -120,7 +120,7 @@ require the target backend to be available.
 ### Backend Selection Status
 
 The backend-neutral core does not name concrete backend APIs or expose platform
-handles. Public Python device routing goes through `python/cortex_runtime/backend.py`,
+handles. Public Python device routing goes through `python/tensorcx/backend.py`,
 which registers backends by string key and owns availability checks, device
 names, tensor copies, fill creation, and matmul backend options. The nanobind
 module also uses a small route table for native device capability helpers.
@@ -144,7 +144,7 @@ continues to harden around `Backend::execute` and `OpDesc`.
   into that route instead of adding ad hoc public dispatch branches.
 - Metal backend errors return `Status` / `Expected<T>` and are translated to
   Python exceptions at the nanobind layer.
-- Python and NumPy types stay outside `cpp/cortex/core/` and all backends.
+- Python and NumPy types stay outside `cpp/tensorcx/core/` and all backends.
 - Metal-cpp handles must be RAII-wrapped and isolated inside the Metal backend.
 
 ## Error Taxonomy

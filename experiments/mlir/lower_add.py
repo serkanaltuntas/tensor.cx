@@ -1,22 +1,22 @@
-"""Phase 10 end-to-end prototype: Cortex IR -> MLIR -> native code -> CPU check.
+"""Phase 10 end-to-end prototype: tensor.cx IR -> MLIR -> native code -> CPU check.
 
 Pipeline:
 
     @cx.experimental.kernel add
       -> kernel.parse_ir()                     (existing Phase 7 frontend)
-      -> emit_mlir()                           (cortex_ir_to_mlir.py)
+      -> emit_mlir()                           (tensorcx_ir_to_mlir.py)
       -> mlir-opt   (scf/arith/memref -> LLVM dialect)
       -> mlir-translate --mlir-to-llvmir       (LLVM IR text)
       -> clang -shared                         (native dylib/so)
       -> ctypes call through _mlir_ciface_*    (memref descriptors)
-      -> compare against the Cortex CPU reference (cx.tensor add)
+      -> compare against the tensor.cx CPU reference (cx.tensor add)
 
 Run: `uv run python experiments/mlir/lower_add.py`
 Exits 0 and prints PASS lines on success; raises on any mismatch.
 
-Toolchain discovery order: $CORTEX_LLVM_BIN, the Homebrew llvm@21 keg, PATH.
-This stays a research script: nothing under python/cortex_runtime/ or
-cpp/cortex/ imports or links MLIR.
+Toolchain discovery order: $TENSORCX_LLVM_BIN, the Homebrew llvm@21 keg, PATH.
+This stays a research script: nothing under python/tensorcx/ or
+cpp/tensorcx/ imports or links MLIR.
 """
 
 from __future__ import annotations
@@ -32,9 +32,9 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from cortex_ir_to_mlir import emit_mlir  # noqa: E402
+from tensorcx_ir_to_mlir import emit_mlir  # noqa: E402
 
-import cortex_runtime as cx  # noqa: E402
+import tensorcx as cx  # noqa: E402
 
 HOMEBREW_LLVM_BIN = "/opt/homebrew/opt/llvm@21/bin"
 REQUIRED_TOOLS = ("mlir-opt", "mlir-translate", "clang")
@@ -52,12 +52,12 @@ def find_llvm_bin() -> Path | None:
     versions match.
     """
     candidates = []
-    env_bin = os.environ.get("CORTEX_LLVM_BIN")
+    env_bin = os.environ.get("TENSORCX_LLVM_BIN")
     if env_bin:
         env_candidate = Path(env_bin)
         if not all((env_candidate / tool).is_file() for tool in REQUIRED_TOOLS):
             print(
-                f"warning: CORTEX_LLVM_BIN={env_bin} does not contain "
+                f"warning: TENSORCX_LLVM_BIN={env_bin} does not contain "
                 f"{'/'.join(REQUIRED_TOOLS)}; falling back to auto-discovery",
                 file=sys.stderr,
             )
@@ -169,7 +169,7 @@ def main() -> int:
     llvm_bin = find_llvm_bin()
     if llvm_bin is None:
         print(
-            "SKIP: MLIR toolchain not found (set CORTEX_LLVM_BIN or install "
+            "SKIP: MLIR toolchain not found (set TENSORCX_LLVM_BIN or install "
             "Homebrew llvm@21)"
         )
         return 77
@@ -186,13 +186,13 @@ def main() -> int:
     a = rng.standard_normal(size).astype(np.float32)
     b = rng.standard_normal(size).astype(np.float32)
 
-    # Cortex CPU reference (the mandatory comparison baseline, PROJECT.md §5.4).
+    # tensor.cx CPU reference (the mandatory comparison baseline, PROJECT.md §5.4).
     reference = (
         cx.tensor(a, dtype=cx.float32, device="cpu")
         + cx.tensor(b, dtype=cx.float32, device="cpu")
     ).numpy()
 
-    with tempfile.TemporaryDirectory(prefix="cortex_mlir_phase10_") as temp_dir:
+    with tempfile.TemporaryDirectory(prefix="tensorcx_mlir_phase10_") as temp_dir:
         library_path = compile_mlir_to_library(mlir_text, llvm_bin, Path(temp_dir))
         print(f"compiled native library: {library_path.name}")
 
@@ -202,7 +202,7 @@ def main() -> int:
             n=size, thread_count=size, block_size=block_size,
         )
         np.testing.assert_allclose(out, reference, rtol=1e-6, atol=1e-6)
-        print(f"PASS: MLIR-lowered add matches Cortex CPU reference (n={size})")
+        print(f"PASS: MLIR-lowered add matches tensor.cx CPU reference (n={size})")
 
         # Guard semantics: threads with i >= n must not write.
         half = size // 2

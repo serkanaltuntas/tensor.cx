@@ -1,5 +1,10 @@
 # Phase 9 CUDA Environment
 
+> Naming update (2026-10-04): commands, source paths, and symbols in this living
+> document use the current tensorcx spelling. Dated results describe runs
+> under the former names; they are not new validation runs. For historical
+> revisions, use the reverse mapping in [NAMING.md](NAMING.md).
+
 Phase 9 must not start until the CUDA development environment is chosen and
 recorded. The goal is to avoid mixing runtime design work with infrastructure
 guesswork.
@@ -141,8 +146,8 @@ uv pip install -e ".[dev]"
 uv run pytest
 NANOBIND_DIR="$(uv run python -c 'import nanobind; print(nanobind.cmake_dir())')"
 PYTHON_EXECUTABLE="$(uv run python -c 'import sys; print(sys.executable)')"
-cmake -S . -B build/cpp-tests -DCORTEX_ENABLE_METAL=OFF -DCORTEX_BUILD_TESTS=ON -Dnanobind_DIR="${NANOBIND_DIR}" -DPython_EXECUTABLE="${PYTHON_EXECUTABLE}"
-cmake --build build/cpp-tests --target cortex_backend_contract_tests
+cmake -S . -B build/cpp-tests -DTENSORCX_ENABLE_METAL=OFF -DTENSORCX_BUILD_TESTS=ON -Dnanobind_DIR="${NANOBIND_DIR}" -DPython_EXECUTABLE="${PYTHON_EXECUTABLE}"
+cmake --build build/cpp-tests --target tensorcx_backend_contract_tests
 ctest --test-dir build/cpp-tests --output-on-failure
 ```
 
@@ -172,7 +177,7 @@ Phase 9 implementation may begin only after:
 Once the environment is ready, implement CUDA in this order:
 
 ```text
-1. Add CUDA backend scaffold under cpp/cortex/backends/cuda/.
+1. Add CUDA backend scaffold under cpp/tensorcx/backends/cuda/.
 2. Register cuda through the existing backend registry only when the CUDA runtime is available.
 3. Implement device discovery.
 4. Implement buffer allocation and host<->device copies.
@@ -184,7 +189,7 @@ Once the environment is ready, implement CUDA in this order:
 ```
 
 The CUDA backend must use the Phase 8 backend ABI and shared contract validators
-where applicable. Do not add CUDA-specific concepts to `cpp/cortex/core/`.
+where applicable. Do not add CUDA-specific concepts to `cpp/tensorcx/core/`.
 
 ## Backend-Parametric Test Harness
 
@@ -220,13 +225,13 @@ exist so a broken backend, missing registration, or missing capability
 declaration cannot be hidden by skip behavior:
 
 ```bash
-CORTEX_REQUIRE_BACKENDS=cuda \
-CORTEX_REQUIRE_BACKEND_CAPABILITIES=cuda:copy,cuda:tensor_factories_float32,cuda:binary_ops_float32 \
+TENSORCX_REQUIRE_BACKENDS=cuda \
+TENSORCX_REQUIRE_BACKEND_CAPABILITIES=cuda:copy,cuda:tensor_factories_float32,cuda:binary_ops_float32 \
 uv run pytest tests/python/test_backend_parity.py -q
 ```
 
-`CORTEX_REQUIRE_BACKENDS` accepts a comma-separated backend list, for example
-`cuda,metal`. `CORTEX_REQUIRE_BACKEND_CAPABILITIES` accepts comma-separated
+`TENSORCX_REQUIRE_BACKENDS` accepts a comma-separated backend list, for example
+`cuda,metal`. `TENSORCX_REQUIRE_BACKEND_CAPABILITIES` accepts comma-separated
 `backend:capability` entries. Required backends and required backend
 capabilities fail collection if they are unknown, unavailable, or not declared
 in the capability matrix.

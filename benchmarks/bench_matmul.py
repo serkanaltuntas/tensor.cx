@@ -1,4 +1,4 @@
-"""Matmul benchmark for Cortex Runtime."""
+"""Matmul benchmark for tensor.cx."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import argparse
 import time
 from collections.abc import Callable, Iterable
 
-import cortex_runtime as cx
+import tensorcx as cx
 
 
 DEFAULT_SIZES = ((16, 16, 16), (32, 64, 16), (64, 64, 64))
@@ -71,7 +71,7 @@ def main() -> None:
     parser.add_argument("--repeats", type=positive_int, default=5)
     args = parser.parse_args()
 
-    print(f"cortex_runtime {cx.__version__}")
+    print(f"tensorcx {cx.__version__}")
     print(f"repeats {args.repeats}")
     print(f"{'provider':<15} {'M':>6} {'K':>6} {'N':>6} {'best_ms':>10} {'GFLOP/s':>10}")
     for m, k, n in args.sizes:

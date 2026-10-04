@@ -9,7 +9,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "experiments/mlir/probe_cuda.py"
-spec = importlib.util.spec_from_file_location("cortex_cuda_probe", SCRIPT)
+spec = importlib.util.spec_from_file_location("tensorcx_cuda_probe", SCRIPT)
 probe = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(probe)
 
@@ -21,7 +21,7 @@ def serialized(ptx):
 PTX = """.version 7.8
 .target sm_52
 .address_size 64
-.visible .entry cortex_add(
+.visible .entry tensorcx_add(
 .param .u64 a, .param .u64 b, .param .u64 out, .param .u32 n
 )
 """
@@ -33,7 +33,7 @@ def test_extract_abi():
 
 @pytest.mark.parametrize("source", [
     "", serialized(PTX) * 2, serialized(PTX.replace("7.8", "8.0")),
-    serialized(PTX.replace("sm_52", "sm_90")), serialized(PTX.replace("cortex_add", "other")),
+    serialized(PTX.replace("sm_52", "sm_90")), serialized(PTX.replace("tensorcx_add", "other")),
     serialized(PTX.replace(".u32 n", ".u64 n")),
     serialized(PTX.replace(".address_size 64", ".address_size 32")),
     serialized(PTX).replace("\\0A", "\\ZZ"),
@@ -47,7 +47,7 @@ def require_tools():
     try:
         probe.toolchain()
     except RuntimeError as error:
-        if os.environ.get("CORTEX_REQUIRE_MLIR"):
+        if os.environ.get("TENSORCX_REQUIRE_MLIR"):
             pytest.fail(str(error))
         pytest.skip(str(error))
 
@@ -63,8 +63,8 @@ def test_device_lowering_without_cuda(tmp_path):
 
 
 def test_driver_runtime_probe():
-    if not os.environ.get("CORTEX_REQUIRE_MLIR_CUDA"):
-        pytest.skip("set CORTEX_REQUIRE_MLIR_CUDA=1 on the validated sm_52/CUDA 12.4 host")
+    if not os.environ.get("TENSORCX_REQUIRE_MLIR_CUDA"):
+        pytest.skip("set TENSORCX_REQUIRE_MLIR_CUDA=1 on the validated sm_52/CUDA 12.4 host")
     # Explicit hardware mode is fail-closed: missing tools, driver or GPU fails.
     result = subprocess.run([sys.executable, str(SCRIPT)], text=True, capture_output=True, timeout=120)
     assert result.returncode == 0, result.stdout + result.stderr

@@ -3,7 +3,7 @@ title: Performance
 description: Reproduce measurements and interpret results within their hardware, workload, and timing boundaries.
 ---
 
-Cortex Runtime prioritizes correctness and visible execution boundaries. There
+tensor.cx prioritizes correctness and visible execution boundaries. There
 is no universal speedup claim. Small GPU operations can be dominated by launch
 and transfer costs, and results depend on shape, backend, and hardware.
 

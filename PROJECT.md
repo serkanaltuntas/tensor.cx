@@ -1,19 +1,18 @@
-# Cortex Runtime — Project Definition and Roadmap
+# tensor.cx — Project Definition and Roadmap
 
 ## 1. Project Summary
 
-**Cortex Runtime** is the current working name for a Python-first accelerator
-runtime and kernel compiler for tensor computation. The Python package name is
-`cortex_runtime`. This name is provisional and may change later if the project
-moves under a broader product or brand.
+**tensor.cx** is an independent Python-first accelerator runtime and kernel
+compiler project. The product brand is `tensor.cx`; the Python distribution
+and import name are `tensorcx`. See [the naming contract](docs/NAMING.md).
 
 The first version will be developed on a MacBook Pro with Apple Silicon and will target Apple Metal. The long-term architecture must remain backend-neutral so that CUDA, ROCm, Vulkan/SPIR-V, and MLIR-based compiler paths can be added later.
 
-Cortex Runtime is not intended to start as a full deep learning framework, a PyTorch replacement, or a universal training stack. It should begin as a compact but serious runtime that can allocate tensors, move data, execute GPU operations, and eventually compile user-defined kernels.
+tensor.cx is not intended to start as a full deep learning framework, a PyTorch replacement, or a universal training stack. It should begin as a compact but serious runtime that can allocate tensors, move data, execute GPU operations, and eventually compile user-defined kernels.
 
 The initial product direction is:
 
-> Cortex Runtime is a Python-first accelerator runtime and kernel compiler, starting with Apple Metal and designed for future CUDA, ROCm, Vulkan, and MLIR backends.
+> tensor.cx is a Python-first accelerator runtime and kernel compiler, starting with Apple Metal and designed for future CUDA, ROCm, Vulkan, and MLIR backends.
 
 The first practical goal is simple:
 
@@ -22,12 +21,12 @@ The first practical goal is simple:
 Current naming:
 
 ```text
-Working product name: Cortex Runtime
-Python package/import: cortex_runtime
-Documentation alias: import cortex_runtime as cx
-Python extension module: cortex_runtime._core
-C++ source root: cpp/cortex/
-C++ namespace: cortex
+Product brand: tensor.cx
+Python package/import: tensorcx
+Documentation alias: import tensorcx as cx
+Python extension module: tensorcx._core
+C++ source root: cpp/tensorcx/
+C++ namespace: tensorcx
 ```
 
 ---
@@ -157,7 +156,7 @@ The 2013 Mac Pro / FirePro D700 is not the primary development target. It may be
 
 ## 4. Product Positioning
 
-Cortex Runtime should be positioned between a low-level GPU API and a high-level ML framework.
+tensor.cx should be positioned between a low-level GPU API and a high-level ML framework.
 
 It should not initially compete with PyTorch, JAX, TensorFlow, MLX, or Triton directly. Instead, it should begin as a small runtime/compiler project that learns from them.
 
@@ -173,11 +172,11 @@ Triton:
 MLX:
   Apple Silicon-focused machine learning array framework.
 
-Cortex Runtime:
+tensor.cx:
   Python-first accelerator runtime + backend abstraction + future custom kernel compiler.
 ```
 
-Long-term, Cortex Runtime may include Triton-like features, but the first versions should be narrower.
+Long-term, tensor.cx may include Triton-like features, but the first versions should be narrower.
 
 ---
 
@@ -238,7 +237,7 @@ MSL should handle:
 
 ### 5.2 Backend-neutral core
 
-The Cortex Runtime core must not be hardcoded to Metal.
+The tensor.cx core must not be hardcoded to Metal.
 
 Metal is only the first backend.
 
@@ -247,7 +246,7 @@ The core should speak in terms of abstract devices, buffers, tensors, operations
 Target shape:
 
 ```text
-Cortex Runtime Python API
+tensor.cx Python API
   ↓
 C++20 Core Runtime
   ↓
@@ -295,7 +294,7 @@ Used for project-owned kernels and future user-defined kernels.
 On Apple, this path uses:
 
 ```text
-Cortex Runtime operation or kernel IR
+tensor.cx operation or kernel IR
   ↓
 MSL code generation or static .metal kernels
   ↓
@@ -304,7 +303,7 @@ Metal compute pipeline
 Metal command buffer execution
 ```
 
-This separation is important. If the entire runtime becomes an MPSGraph wrapper, Cortex Runtime will not become portable. MPSGraph should be used as an Apple backend optimization, not as the central Cortex Runtime abstraction.
+This separation is important. If the entire runtime becomes an MPSGraph wrapper, tensor.cx will not become portable. MPSGraph should be used as an Apple backend optimization, not as the central tensor.cx abstraction.
 
 ---
 
@@ -408,7 +407,7 @@ RAII wrapping is mandatory from Phase 2, not deferred.
 
 **NumPy lives only on the Python/binding side.** The C++ core has zero NumPy or
 Python knowledge. `cx.tensor(list)` and `Tensor.numpy()` are bridged in the
-binding layer via `nb::ndarray`. NumPy must never appear in `cpp/cortex/core/` or
+binding layer via `nb::ndarray`. NumPy must never appear in `cpp/tensorcx/core/` or
 in any backend.
 
 **No broadcasting in v0.1.** Elementwise ops require exact shape AND dtype match.
@@ -417,7 +416,7 @@ Broadcasting is a deliberate later feature, not one that leaks in through `add`.
 
 **Shader compilation: build-time `.metallib`, embedded.** `.metal` kernels are
 compiled to a `.metallib` at build time via CMake and loaded from the bundle at
-runtime. Cortex Runtime MSL string compilation is reserved for Phase 7 (kernel DSL)
+runtime. tensor.cx MSL string compilation is reserved for Phase 7 (kernel DSL)
 only. Decide and wire this in Phase 3 — it affects packaging and distribution.
 
 ---
@@ -429,8 +428,8 @@ not a style nit.
 
 ```text
 1. Every GPU op has a CPU reference + a CPU-vs-device test before it is "done."
-2. No Apple/Metal type appears outside cpp/cortex/backends/metal/.
-3. No NumPy/Python type appears in cpp/cortex/core/ or any backend.
+2. No Apple/Metal type appears outside cpp/tensorcx/backends/metal/.
+3. No NumPy/Python type appears in cpp/tensorcx/core/ or any backend.
 4. The core never names a concrete backend; live public selection must stay on
    registry/string-keyed routing, including future CUDA dispatch.
 5. Every Metal handle is RAII-wrapped; no manual retain/release calls.
@@ -444,10 +443,10 @@ not a style nit.
 
 ### 6.1 In scope for v0.1
 
-Cortex Runtime v0.1 should include:
+tensor.cx v0.1 should include:
 
 ```text
-- Python package named cortex_runtime
+- Python package named tensorcx
 - C++20 runtime core
 - CPU backend
 - Metal backend
@@ -467,7 +466,7 @@ Cortex Runtime v0.1 should include:
 Minimum Python experience:
 
 ```python
-import cortex_runtime as cx
+import tensorcx as cx
 
 x = cx.tensor([1.0, 2.0, 3.0], device="metal")
 y = cx.tensor([4.0, 5.0, 6.0], device="metal")
@@ -515,14 +514,14 @@ CLAUDE.md
 pyproject.toml
 CMakeLists.txt
 
-python/cortex_runtime/
+python/tensorcx/
   __init__.py
   device.py
   tensor.py
   experimental.py
   testing.py
 
-cpp/cortex/core/
+cpp/tensorcx/core/
   backend.h/.cpp
   buffer.h
   device.h
@@ -533,7 +532,7 @@ cpp/cortex/core/
   status.h/.cpp
   tensor.h
 
-cpp/cortex/backends/
+cpp/tensorcx/backends/
   cpu/
   metal/
     kernels/elementwise.metal
@@ -551,9 +550,9 @@ cmake/
 The exact file structure can evolve, but the conceptual separation must remain:
 
 ```text
-python/cortex_runtime/       user-facing API
-cpp/cortex/core/             backend-neutral runtime
-cpp/cortex/backends/         backend-specific implementations
+python/tensorcx/       user-facing API
+cpp/tensorcx/core/             backend-neutral runtime
+cpp/tensorcx/backends/         backend-specific implementations
 bindings/                    Python/C++ bridge
 tests/                       correctness validation
 benchmarks/                  performance checks
@@ -760,7 +759,7 @@ the custom-kernel path can express matmul and pass the CPU comparison. MPSGraph
 then provides the *fast* matmul as a primitive-path optimization. Both ship in
 v0.3 and benchmark against each other, so the project never has matmul that
 *only* exists as an MPSGraph call. Do not skip the naive MSL version; skipping it
-is how Cortex Runtime quietly becomes an MPSGraph wrapper.
+is how tensor.cx quietly becomes an MPSGraph wrapper.
 
 ---
 
@@ -796,7 +795,7 @@ The Python API should be small and stable.
 Initial target:
 
 ```python
-import cortex_runtime as cx
+import tensorcx as cx
 
 x = cx.tensor([1, 2, 3], dtype=cx.float32, device="metal")
 y = cx.ones((3,), dtype=cx.float32, device="metal")
@@ -868,7 +867,7 @@ Python extension module
 
 The default build may fall back to CPU-only when the Metal command-line
 toolchain is unavailable. A build explicitly configured with
-`-DCORTEX_ENABLE_METAL=ON` must fail clearly if Metal is unavailable.
+`-DTENSORCX_ENABLE_METAL=ON` must fail clearly if Metal is unavailable.
 
 ---
 
@@ -1010,7 +1009,7 @@ Acceptance criteria:
 
 ```text
 uv pip install -e ".[dev]" works
-import cortex_runtime works
+import tensorcx works
 uv run pytest runs
 ```
 
@@ -1066,7 +1065,7 @@ Definition of Done:
 - Round-trip cx.tensor(list) -> .numpy() is exact for both dtypes.
 - Shape or dtype mismatch on add/multiply raises a clear error (no broadcast).
 - The Backend dispatch uses OpDesc/execute (§5.6), not per-op methods.
-- No Python or NumPy type appears in cpp/cortex/core/ (invariant 3).
+- No Python or NumPy type appears in cpp/tensorcx/core/ (invariant 3).
 - All Phase 1 tests run in CI on the CPU path and pass.
 ```
 
@@ -1108,7 +1107,7 @@ Definition of Done:
 - Host->device->host round-trip is exact for float32 and int32.
 - Every Metal handle is held via NS::SharedPtr; no manual retain/release exists
   in the codebase (invariant 5).
-- No MTL::/NS:: type appears outside cpp/cortex/backends/metal/ (invariant 2).
+- No MTL::/NS:: type appears outside cpp/tensorcx/backends/metal/ (invariant 2).
 - Metal tests skip cleanly (not fail) when Metal is unavailable.
 - A 16M-element round-trip runs with no leak across 1000 iterations
   (watch process memory; it must be flat).
@@ -1238,7 +1237,7 @@ Definition of Done:
 - A benchmark table reports naive-MSL vs MPSGraph vs reference for at least
   three sizes; the numbers are committed to the repo.
 - Removing the MPSGraph path still leaves a working (slow) matmul. This is the
-  proof Cortex Runtime is not an MPSGraph wrapper.
+  proof tensor.cx is not an MPSGraph wrapper.
 ```
 
 ---
@@ -1378,7 +1377,7 @@ A user-defined Python kernel can be compiled to MSL, launched on Metal, and test
 Definition of Done:
 
 ```text
-- A @cx.experimental.kernel elementwise add compiles Python AST -> Cortex
+- A @cx.experimental.kernel elementwise add compiles Python AST -> tensor.cx
   Runtime IR -> MSL, launches on Metal, and matches CPU.
 - Unsupported Python constructs raise a clear compile-time error naming the
   offending node — never silently miscompile.
@@ -1424,7 +1423,7 @@ Definition of Done:
 - A "null/stub backend" compiles against the interface alone (no Metal), proving
   the core has no Metal dependency.
 - Primitive ops and kernel ops are separated in the interface.
-- Adding a backend requires zero edits to cpp/cortex/core/ (invariant 4) —
+- Adding a backend requires zero edits to cpp/tensorcx/core/ (invariant 4) —
   demonstrated by the stub backend living entirely under backends/.
 ```
 
@@ -1443,7 +1442,7 @@ This should only start after the Metal backend and core abstractions are stable.
 Implemented CUDA path (2026-09-28):
 
 ```text
-Cortex Runtime C++ core
+tensor.cx C++ core
   ↓
 CUDA Runtime API (device 0, synchronous execution)
   ↓
@@ -1497,7 +1496,7 @@ Nightblade; this completion does not claim a new Metal hardware run.
 Goal:
 
 ```text
-Investigate whether Cortex Runtime IR should lower to MLIR for long-term compiler scalability.
+Investigate whether tensor.cx IR should lower to MLIR for long-term compiler scalability.
 ```
 
 This should not be part of the early MVP.
@@ -1505,9 +1504,9 @@ This should not be part of the early MVP.
 Possible future path:
 
 ```text
-Cortex Runtime Kernel DSL
+tensor.cx Kernel DSL
   ↓
-Cortex Runtime IR
+tensor.cx IR
   ↓
 MLIR dialects
   ↓
@@ -1517,15 +1516,15 @@ backend-specific lowering
 Acceptance criteria:
 
 ```text
-A research prototype demonstrates one simple Cortex Runtime operation lowered through MLIR.
+A research prototype demonstrates one simple tensor.cx operation lowered through MLIR.
 ```
 
 Definition of Done:
 
 ```text
-- A written decision record (docs/) answers: does Cortex Runtime IR lower to MLIR, or not,
+- A written decision record (docs/) answers: does tensor.cx IR lower to MLIR, or not,
   and why. A documented "no" is a valid, successful outcome of this phase.
-- If yes: one op (e.g. elementwise add) lowers Cortex Runtime IR -> MLIR -> backend and
+- If yes: one op (e.g. elementwise add) lowers tensor.cx IR -> MLIR -> backend and
   matches CPU.
 - No core or backend code is committed that assumes MLIR before this decision is
   recorded.
@@ -1533,7 +1532,7 @@ Definition of Done:
 
 Status: **done** (2026-07-05). The decision record is
 [`docs/MLIR_DECISION.md`](docs/MLIR_DECISION.md): the answer is yes — the
-Phase 7 elementwise add lowers Cortex IR → MLIR (func/scf/arith/memref) →
+Phase 7 elementwise add lowers tensor.cx IR → MLIR (func/scf/arith/memref) →
 LLVM → native code and matches the CPU reference, with guard and zero-thread
 semantics preserved (`experiments/mlir/`, `tests/python/test_mlir_lowering.py`).
 Verification venues: the emitter tests run in CPU CI on every push; the
@@ -1547,7 +1546,7 @@ the C++ core and backends have no LLVM/MLIR build dependency.
 
 ## 15. Long-Term Vision
 
-Long-term, Cortex Runtime could become:
+Long-term, tensor.cx could become:
 
 ```text
 - a portable accelerator runtime
@@ -1579,7 +1578,7 @@ Possible future capabilities:
 
 ## 16. Explicit Non-Goals
 
-Cortex Runtime should not try to become all of these at once:
+tensor.cx should not try to become all of these at once:
 
 ```text
 - PyTorch replacement
@@ -1610,14 +1609,14 @@ Create:
 ```text
 pyproject.toml
 CMakeLists.txt
-python/cortex_runtime/__init__.py
-cpp/cortex/core/
+python/tensorcx/__init__.py
+cpp/tensorcx/core/
 bindings/python_module.cpp
 tests/python/
 docs/ARCHITECTURE.md
 ```
 
-Make `import cortex_runtime` work.
+Make `import tensorcx` work.
 
 ---
 
@@ -1626,13 +1625,13 @@ Make `import cortex_runtime` work.
 Use nanobind to expose:
 
 ```python
-cortex_runtime._core.version()
+tensorcx._core.version()
 ```
 
 Expected:
 
 ```python
-import cortex_runtime as cx
+import tensorcx as cx
 print(cx.__version__)
 ```
 
@@ -1752,7 +1751,7 @@ Document what works, what does not work, and what is intentionally out of scope.
 The first public version should be considered successful if it can do this:
 
 ```python
-import cortex_runtime as cx
+import tensorcx as cx
 
 device = cx.best_device()
 
@@ -1808,7 +1807,7 @@ The correct first milestone is much smaller:
 Python → C++20 → Metal → custom MSL add kernel → correct result
 ```
 
-Once that works, Cortex Runtime becomes a real project instead of only an idea.
+Once that works, tensor.cx becomes a real project instead of only an idea.
 
 ---
 
@@ -1817,7 +1816,7 @@ Once that works, Cortex Runtime becomes a real project instead of only an idea.
 Start with:
 
 ```text
-Cortex Runtime v0.1
+tensor.cx v0.1
 Target: Apple Silicon MacBook Pro
 Backend: Metal
 Apple bridge: Metal-cpp/C++ preferred

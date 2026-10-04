@@ -1,5 +1,10 @@
 # MLIR CUDA guarded local expressions: scope decision
 
+> Naming update (2026-10-04): commands, source paths, and symbols in this living
+> document use the current tensorcx spelling. Dated results describe runs
+> under the former names; they are not new validation runs. For historical
+> revisions, use the reverse mapping in [NAMING.md](NAMING.md).
+
 Date: 2026-09-29 · Baseline: `480425f` · Status: **implemented on Nightblade, 2026-10-03; verification recorded below**.
 
 This is the next bounded extension after [CUDA add/subtract/multiply](MLIR_CUDA_INTEGRATION_DECISION.md).
@@ -37,7 +42,7 @@ Save this example as inspectable Python source. Both explicit CPU and CUDA
 compilation are available in their documented environments:
 
 ```python
-import cortex_runtime as cx
+import tensorcx as cx
 
 @cx.experimental.kernel
 def blend(a, b, out, n):
@@ -64,7 +69,7 @@ separate Tensor operations, graph tracing and a general optimizer are deferred.
 Preserve the IR expression tree and statement dependencies. Each arithmetic
 operation computes float32 with its own rounding; local reuse must not change
 evaluation semantics. Reuse the finite float32 literal normalization in
-[`format_f32_constant`](../python/cortex_runtime/_compiler/emitter.py).
+[`format_f32_constant`](../python/tensorcx/_compiler/emitter.py).
 Reject NaN/infinite/out-of-range literals before invoking tools; tensor data
 may contain NaNs, infinities, signed zeros and subnormals.
 
@@ -88,10 +93,10 @@ Keep the current Linux x86_64 / LLVM 21.1.8 / sm_52 / Runtime 12.4 / Driver API
 13.0 gate. Keep the four existing pointer/u32 argument slots, parameter-order
 metadata, private registry IDs and backend-neutral execution request.
 
-Retain `cortex_add_v1`, `cortex_sub_v1`, `cortex_mul_v1` and their manifests for
-the currently supported single-operation forms. Use a new `cortex_expr_v1`
+Retain `tensorcx_add_v1`, `tensorcx_sub_v1`, `tensorcx_mul_v1` and their manifests for
+the currently supported single-operation forms. Use a new `tensorcx_expr_v1`
 entry and `expr-f32-v1` operation tag for extended bodies under the existing
-`cortex.cuda.v1` envelope. Native loading must match entry, manifest and Driver
+`tensorcx.cuda.v1` envelope. Native loading must match entry, manifest and Driver
 parameter metadata; dispatch must match the entry to the resolved module.
 Different expressions may share an entry name because each module has a unique
 opaque registry ID. The manifest identifies a supported ABI/subset; it does
@@ -117,7 +122,7 @@ CUDA handles or new primitive operation is added to the C++ core.
    entry/manifest and parameter widths. Inspect the contraction discriminator's
    PTX for separate rounding and absence of fused multiply-add instructions.
 3. Add only the new native entry/tag pairing. Execute the fixture using real
-   Cortex buffers before exposing extended public compile acceptance. Reject
+   tensor.cx buffers before exposing extended public compile acceptance. Reject
    mismatched old/new entries and manifests, forged requests and stale IDs.
 4. Enable the public path after CPU/reference/device parity and ownership tests
    pass. Preserve current single-op fixture lowering and the previous add/sub/mul
@@ -146,10 +151,10 @@ other GPUs/hosts, Metal parity and broader compiler features need separate gates
 ## Evidence for this decision
 
 Code inspection at `480425f` found CPU local/nested expression support in
-[`_signature`](../python/cortex_runtime/_compiler/cpu.py), the shared
-[emitter](../python/cortex_runtime/_compiler/emitter.py), and the float32
-[reference interpreter](../python/cortex_runtime/experimental.py). The current
-[CUDA signature validator](../python/cortex_runtime/_compiler/cuda.py) required
+[`_signature`](../python/tensorcx/_compiler/cpu.py), the shared
+[emitter](../python/tensorcx/_compiler/emitter.py), and the float32
+[reference interpreter](../python/tensorcx/experimental.py). The current
+[CUDA signature validator](../python/tensorcx/_compiler/cuda.py) required
 one binary store over two loads and deliberately rejected this extension.
 
 On 2026-09-29, a temporary inspectable Python probe compiled local and nested
@@ -165,7 +170,7 @@ CUDA expression execution or contraction control is already implemented.
 The relevant existing regression selection was also run:
 
 ```bash
-CORTEX_LLVM_BIN="$PWD/build/mlir-toolchain/root/usr/lib/llvm-21/bin" CORTEX_REQUIRE_MLIR=1 uv run pytest tests/python/test_mlir_runtime.py tests/python/test_mlir_cuda_runtime.py -k 'native_parity or unsupported_before_tools or gpu_emitter' -q
+TENSORCX_LLVM_BIN="$PWD/build/mlir-toolchain/root/usr/lib/llvm-21/bin" TENSORCX_REQUIRE_MLIR=1 uv run pytest tests/python/test_mlir_runtime.py tests/python/test_mlir_cuda_runtime.py -k 'native_parity or unsupported_before_tools or gpu_emitter' -q
 ```
 
 **30 passed, 265 deselected**. The probe was temporary; no new runtime, test
@@ -177,11 +182,11 @@ fixture or public capability is shipped in this documentation-only decision.
 The private CUDA compiler now validates bounded direct IR before recursive
 shared validation, emits local SSA bindings/nested arithmetic and retains the
 old three single-operation entry/fixture paths unchanged. Native loading adds
-only the `cortex_expr_v1`/`expr-f32-v1` pairing. The checked expression fixture
+only the `tensorcx_expr_v1`/`expr-f32-v1` pairing. The checked expression fixture
 computes `a*b-1` with separate `mul.rn.f32` and `add.rn.f32` instructions;
 no `fma`/`mad` instruction appears. Real CUDA execution gives zero for the
 rounding discriminator above. Signed zero and subnormal checks also passed.
-The fixture ran through native Cortex buffers before public expression tests.
+The fixture ran through native tensor.cx buffers before public expression tests.
 
 Final local evidence (CUDA-enabled build restored after CUDA-off checks):
 

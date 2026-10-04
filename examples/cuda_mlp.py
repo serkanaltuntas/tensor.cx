@@ -6,7 +6,7 @@ import json
 import time
 
 import numpy as np
-import cortex_runtime as cx
+import tensorcx as cx
 
 
 def forward(x, first, second):

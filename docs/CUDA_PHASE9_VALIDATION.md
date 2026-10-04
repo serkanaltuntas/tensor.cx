@@ -22,6 +22,10 @@ on Nightblade.
 
 ## Reproduce on the selected host
 
+These reproduction commands use the current tensorcx spelling. The entry and
+acceptance records below retain the original names from the dated run; see
+[the naming migration](NAMING.md).
+
 The following commands assume the project `.venv` created above. For another
 host, choose a matching compiler/toolkit and `CMAKE_CUDA_ARCHITECTURES` value.
 CUDA Runtime API and build-time static kernels were selected for this small
@@ -29,18 +33,18 @@ prototype; Driver API/PTX generation is not required by Phase 9.
 
 ```bash
 export CC=gcc-13 CXX=g++-13 CUDACXX=nvcc CUDAHOSTCXX=g++-13
-CMAKE_ARGS="-DCORTEX_ENABLE_METAL=OFF -DCORTEX_ENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=52" uv pip install -e ".[dev]"
-CORTEX_REQUIRE_BACKENDS=cuda \
-CORTEX_REQUIRE_BACKEND_CAPABILITIES=cuda:copy,cuda:tensor_factories_float32,cuda:binary_ops_float32 \
+CMAKE_ARGS="-DTENSORCX_ENABLE_METAL=OFF -DTENSORCX_ENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=52" uv pip install -e ".[dev]"
+TENSORCX_REQUIRE_BACKENDS=cuda \
+TENSORCX_REQUIRE_BACKEND_CAPABILITIES=cuda:copy,cuda:tensor_factories_float32,cuda:binary_ops_float32 \
 uv run pytest -q
 
 uv run cmake -S . -B build/cpp-cuda -G Ninja \
-  -DCORTEX_ENABLE_METAL=OFF -DCORTEX_ENABLE_CUDA=ON \
-  -DCMAKE_CUDA_ARCHITECTURES=52 -DCORTEX_BUILD_TESTS=ON \
+  -DTENSORCX_ENABLE_METAL=OFF -DTENSORCX_ENABLE_CUDA=ON \
+  -DCMAKE_CUDA_ARCHITECTURES=52 -DTENSORCX_BUILD_TESTS=ON \
   -Dnanobind_DIR="$(uv run python -c 'import nanobind; print(nanobind.cmake_dir())')" \
   -DPython_EXECUTABLE="$(uv run python -c 'import sys; print(sys.executable)')"
-uv run cmake --build build/cpp-cuda --target cortex_backend_contract_tests cortex_cuda_backend_contract_tests
-CORTEX_REQUIRE_CUDA=1 uv run ctest --test-dir build/cpp-cuda --output-on-failure
+uv run cmake --build build/cpp-cuda --target tensorcx_backend_contract_tests tensorcx_cuda_backend_contract_tests
+TENSORCX_REQUIRE_CUDA=1 uv run ctest --test-dir build/cpp-cuda --output-on-failure
 ```
 
 ## Acceptance results

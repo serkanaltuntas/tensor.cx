@@ -8,8 +8,8 @@ instead of skipping or selecting CPU. CPU providers are explicit comparisons.
 Run from the source checkout after installing the CUDA-enabled package:
 
 ```bash
-export CORTEX_LLVM_BIN="$PWD/build/mlir-toolchain/root/usr/lib/llvm-21/bin"
-uv run --no-sync python benchmarks/bench_cuda.py --output /tmp/cortex-cuda-performance.json
+export TENSORCX_LLVM_BIN="$PWD/build/mlir-toolchain/root/usr/lib/llvm-21/bin"
+uv run --no-sync python benchmarks/bench_cuda.py --output /tmp/tensorcx-cuda-performance.json
 ```
 
 Defaults are 31 measured iterations after 5 warmups for each execution case,
@@ -18,7 +18,7 @@ sweep is 1K, 16K, 256K, 1M and 16M float32 elements. A short functional check is
 
 ```bash
 uv run --no-sync python benchmarks/bench_cuda.py --sizes 17 --repeats 3 --warmup 1 \
-  --compile-repeats 1 --output /tmp/cortex-cuda-smoke.json
+  --compile-repeats 1 --output /tmp/tensorcx-cuda-smoke.json
 ```
 
 Every timed result is compared with its CPU result outside the timed region.
@@ -84,6 +84,9 @@ tensor expressions automatically. The fused API still allocates and copies
 an output template, so it is not guaranteed faster at every size.
 
 ## Acceptance status
+
+Historical commands below retain their original spelling and target the recorded
+revisions. For a current checkout, apply the [naming migration](NAMING.md).
 
 Measurement infrastructure, CPU parity checks and a measured long-row
 optimization are implemented. The comparison below establishes a local

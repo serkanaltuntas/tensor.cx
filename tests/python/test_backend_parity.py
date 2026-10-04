@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-import cortex_runtime as cx
+import tensorcx as cx
 
 
 @pytest.mark.backend_capability("copy", include_cpu=False)

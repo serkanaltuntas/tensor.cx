@@ -1,4 +1,4 @@
-"""Elementwise benchmark for Cortex Runtime."""
+"""Elementwise benchmark for tensor.cx."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import argparse
 import time
 from collections.abc import Callable, Iterable
 
-import cortex_runtime as cx
+import tensorcx as cx
 
 
 DEFAULT_SIZES = (1_024, 16_384, 262_144, 1_048_576, 16_777_216)
@@ -79,7 +79,7 @@ def main() -> None:
     parser.add_argument("--repeats", type=positive_int, default=5)
     args = parser.parse_args()
 
-    print(f"cortex_runtime {cx.__version__}")
+    print(f"tensorcx {cx.__version__}")
     print(f"repeats {args.repeats}")
     print(f"{'device':<8} {'operation':<10} {'elements':>10} {'best_ms':>10} {'GiB/s':>10}")
     for elements in args.sizes:

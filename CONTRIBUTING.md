@@ -1,6 +1,6 @@
 # Contributing
 
-Cortex is an experimental runtime. Read [README.md](README.md) for setup and
+tensor.cx is an experimental runtime. Read [README.md](README.md) for setup and
 [PROJECT.md](PROJECT.md) for supported scope. Discuss broad API/backend changes
 in an issue before implementation; focused bug reports and fixes are welcome.
 

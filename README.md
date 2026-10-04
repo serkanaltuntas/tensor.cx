@@ -1,10 +1,9 @@
-# Cortex Runtime
+# tensor.cx
 
-Cortex Runtime is the current working name for a Python-first accelerator
-runtime and future kernel compiler for tensor computation, starting with Apple
-Metal.
+tensor.cx is an independent Python-first accelerator runtime and kernel compiler
+project, starting with Apple Metal. Install and import it as `tensorcx`.
 
-Cortex Runtime is currently a research/runtime engineering project, not a
+tensor.cx is currently a research/runtime engineering project, not a
 general-purpose machine-learning framework. Its purpose is to build a compact
 tensor runtime with a backend-neutral C++ core, a Python API, a mandatory CPU
 reference path, and accelerator backends that can be validated operation by
@@ -43,6 +42,7 @@ x86_64 with external LLVM 21.1.8 tools. See the
 
 ## Documentation Map
 
+- [`docs/NAMING.md`](docs/NAMING.md): tensor.cx branding and migration from the pre-release Cortex Runtime names.
 - [`website/`](website/README.md): Astro + Starlight product site and curated user guides for tensor.cx.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md): contributions, validation and publication hygiene.
 - [`SECURITY.md`](SECURITY.md): private vulnerability reporting and trust boundaries.
@@ -84,8 +84,8 @@ x86_64 with external LLVM 21.1.8 tools. See the
 
 ## Development Setup
 
-Cortex Runtime is developed first on Apple Silicon macOS. The default build uses
-`CORTEX_ENABLE_METAL=AUTO`: it enables Metal when the Apple Metal command-line
+tensor.cx is developed first on Apple Silicon macOS. The default build uses
+`TENSORCX_ENABLE_METAL=AUTO`: it enables Metal when the Apple Metal command-line
 tools are available and otherwise falls back to a CPU-only build.
 
 ```bash
@@ -104,14 +104,14 @@ uv run pytest
 On a machine without Metal, or when validating the CPU-only path:
 
 ```bash
-CMAKE_ARGS="-DCORTEX_ENABLE_METAL=OFF" uv pip install -e ".[dev]"
+CMAKE_ARGS="-DTENSORCX_ENABLE_METAL=OFF" uv pip install -e ".[dev]"
 uv run pytest
 ```
 
 To require Metal and fail clearly if the command-line tools are missing:
 
 ```bash
-CMAKE_ARGS="-DCORTEX_ENABLE_METAL=ON" uv pip install -e ".[dev]"
+CMAKE_ARGS="-DTENSORCX_ENABLE_METAL=ON" uv pip install -e ".[dev]"
 ```
 
 Run the basic local benchmark with:
@@ -132,13 +132,13 @@ A local Apple Silicon sample run is committed at
 
 ## CUDA prototype setup
 
-CUDA is opt-in (`CORTEX_ENABLE_CUDA=OFF` by default); CPU-only and Apple builds
+CUDA is opt-in (`TENSORCX_ENABLE_CUDA=OFF` by default); CPU-only and Apple builds
 need no CUDA toolkit. CUDA-enabled extensions require `libcuda.so.1` at import;
 the GPU-free CI container supplies a Toolkit stub for validation only. On a CUDA host with a supported C++20 compiler and nvcc:
 
 ```bash
-CMAKE_ARGS="-DCORTEX_ENABLE_METAL=OFF -DCORTEX_ENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=52" uv pip install -e ".[dev]"
-CORTEX_REQUIRE_BACKENDS=cuda CORTEX_REQUIRE_BACKEND_CAPABILITIES=cuda:copy,cuda:tensor_factories_float32,cuda:binary_ops_float32 uv run pytest
+CMAKE_ARGS="-DTENSORCX_ENABLE_METAL=OFF -DTENSORCX_ENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=52" uv pip install -e ".[dev]"
+TENSORCX_REQUIRE_BACKENDS=cuda TENSORCX_REQUIRE_BACKEND_CAPABILITIES=cuda:copy,cuda:tensor_factories_float32,cuda:binary_ops_float32 uv run pytest
 ```
 
 `52` is Nightblade's GTX 980 Ti target, validated with CUDA 12.4 and GCC 13.
@@ -173,11 +173,11 @@ claim GPU execution. Run strict CUDA tests on a real host as described above.
 CPU-only CI runs on GitHub Actions with Metal disabled:
 
 ```bash
-CMAKE_ARGS="-DCORTEX_ENABLE_METAL=OFF" uv pip install -e ".[dev]"
+CMAKE_ARGS="-DTENSORCX_ENABLE_METAL=OFF" uv pip install -e ".[dev]"
 uv run pytest
 NANOBIND_DIR="$(uv run python -c 'import nanobind; print(nanobind.cmake_dir())')"
 PYTHON_EXECUTABLE="$(uv run python -c 'import sys; print(sys.executable)')"
-cmake -S . -B build/cpp-tests -DCORTEX_ENABLE_METAL=OFF -DCORTEX_BUILD_TESTS=ON -Dnanobind_DIR="${NANOBIND_DIR}" -DPython_EXECUTABLE="${PYTHON_EXECUTABLE}"
+cmake -S . -B build/cpp-tests -DTENSORCX_ENABLE_METAL=OFF -DTENSORCX_BUILD_TESTS=ON -Dnanobind_DIR="${NANOBIND_DIR}" -DPython_EXECUTABLE="${PYTHON_EXECUTABLE}"
 cmake --build build/cpp-tests
 ctest --test-dir build/cpp-tests --output-on-failure
 ```
@@ -192,7 +192,7 @@ Local Metal verification should be run on Apple Silicon macOS:
 xcode-select -p
 xcrun -sdk macosx --find metal
 xcrun -sdk macosx --find metallib
-CMAKE_ARGS="-DCORTEX_ENABLE_METAL=ON" uv pip install -e ".[dev]"
+CMAKE_ARGS="-DTENSORCX_ENABLE_METAL=ON" uv pip install -e ".[dev]"
 uv run pytest
 uv run python benchmarks/bench_elementwise.py
 uv run python benchmarks/bench_copy.py
@@ -202,7 +202,7 @@ uv run python benchmarks/bench_matmul.py
 To verify that custom Metal matmul works without the optimized primitive path:
 
 ```bash
-CMAKE_ARGS="-DCORTEX_ENABLE_METAL=ON -DCORTEX_ENABLE_MPSGRAPH=OFF" uv pip install -e ".[dev]"
+CMAKE_ARGS="-DTENSORCX_ENABLE_METAL=ON -DTENSORCX_ENABLE_MPSGRAPH=OFF" uv pip install -e ".[dev]"
 uv run pytest tests/python/test_matmul.py
 ```
 
@@ -234,7 +234,7 @@ and execution contract. Setup and validation are in
 Phase 10 (MLIR exploration) is complete and
 ran ahead of Phase 9 under a documented sequencing exception: the decision
 record `docs/MLIR_DECISION.md` answers "yes" — the experimental add kernel
-lowers Cortex IR → MLIR → native code and matches the CPU reference
+lowers tensor.cx IR → MLIR → native code and matches the CPU reference
 (`experiments/mlir/`) — the follow-up integration decision defines the now-implemented
 optional compiled CPU path. LLVM/MLIR remains an external toolchain used only
 by explicit compilation; the bounded experimental CUDA path also requires the
@@ -247,7 +247,7 @@ custom matmul kernel remains available through
 optimized primitive path when it is enabled.
 
 ```python
-import cortex_runtime as cx
+import tensorcx as cx
 
 print(cx.devices())
 
@@ -337,10 +337,10 @@ print(ln.cpu().numpy().shape)
 ## Naming
 
 ```text
-Working product name: Cortex Runtime
-Python package/import: cortex_runtime
-Documentation alias: import cortex_runtime as cx
-Python extension module: cortex_runtime._core
-C++ source root: cpp/cortex/
-C++ namespace: cortex
+Product brand: tensor.cx
+Python package/import: tensorcx
+Documentation alias: import tensorcx as cx
+Python extension module: tensorcx._core
+C++ source root: cpp/tensorcx/
+C++ namespace: tensorcx
 ```
