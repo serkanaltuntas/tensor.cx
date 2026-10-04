@@ -26,6 +26,8 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: npm test
+      - run: npm run test:cloudflare
+      - run: npx --no-install wrangler deploy --dry-run
 
   publication:
     name: Publication hygiene and secret scan

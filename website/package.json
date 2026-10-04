@@ -12,7 +12,10 @@
     "check": "astro check",
     "build": "astro build",
     "preview": "astro preview",
-    "test": "playwright test"
+    "test": "playwright test",
+    "preview:cloudflare": "wrangler dev --local --ip 127.0.0.1 --port 8787",
+    "test:cloudflare": "playwright test --config playwright.cloudflare.config.ts",
+    "deploy:check": "npm run build && wrangler deploy --dry-run"
   },
   "dependencies": {
     "@astrojs/starlight": "0.42.5",
@@ -22,6 +25,7 @@
     "@astrojs/check": "0.9.10",
     "@axe-core/playwright": "4.13.0",
     "@playwright/test": "1.63.0",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "wrangler": "4.147.0"
   }
 }

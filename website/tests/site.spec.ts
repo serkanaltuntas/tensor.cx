@@ -10,6 +10,9 @@ test('homepage leads to installation and has accessible semantics', async ({ pag
   await page.getByRole('link', { name: 'Start building' }).click();
   await expect(page).toHaveURL('/docs/installation/');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Installation');
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+    'href', 'https://tensor.cx/docs/installation/',
+  );
 });
 
 test('built search returns a useful result and theme changes persist', async ({ page }) => {
@@ -28,7 +31,8 @@ test('built search returns a useful result and theme changes persist', async ({ 
   expect(accessibility.violations).toEqual([]);
 });
 
-test('all local navigation targets and fragments resolve', async ({ page, request }) => {
+test('all local navigation targets and fragments resolve', async ({ page, request, baseURL }) => {
+  const origin = new URL(baseURL!).origin;
   const pending = ['/'];
   const visited = new Set<string>();
   const fragments = new Map<string, Set<string>>();
@@ -42,7 +46,7 @@ test('all local navigation targets and fragments resolve', async ({ page, reques
       anchors.map((anchor) => (anchor as HTMLAnchorElement).href));
     for (const href of links) {
       const url = new URL(href);
-      if (url.origin !== 'http://127.0.0.1:4321') continue;
+      if (url.origin !== origin) continue;
       if (!visited.has(url.pathname)) pending.push(url.pathname);
       if (url.hash) {
         const ids = fragments.get(url.pathname) ?? new Set<string>();
@@ -60,7 +64,8 @@ test('all local navigation targets and fragments resolve', async ({ page, reques
   }
   expect((await request.get('/sitemap-index.xml')).ok()).toBe(true);
   expect((await request.get('/favicon.svg')).ok()).toBe(true);
-  await page.goto('/a-page-that-does-not-exist/');
+  const missing = await page.goto('/a-page-that-does-not-exist/');
+  expect(missing?.status()).toBe(404);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Page not found');
 });
 
