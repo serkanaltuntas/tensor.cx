@@ -177,6 +177,30 @@ class Tensor:
     def mean(self, axis=None, keepdims: bool = False) -> "Tensor":
         return mean(self, axis=axis, keepdims=keepdims)
 
+    def log(self) -> "Tensor":
+        return log(self)
+
+    def sqrt(self) -> "Tensor":
+        return sqrt(self)
+
+    def abs(self) -> "Tensor":
+        return abs(self)
+
+    def __abs__(self) -> "Tensor":
+        return abs(self)
+
+    def min(self, axis=None, keepdims=False) -> "Tensor":
+        return min(self, axis=axis, keepdims=keepdims)
+
+    def argmax(self, axis=None, keepdims=False) -> "Tensor":
+        return argmax(self, axis=axis, keepdims=keepdims)
+
+    def clip(self, lower=None, upper=None) -> "Tensor":
+        return clip(self, lower, upper)
+
+    def topk(self, k, axis=-1, largest=True, sorted=True):
+        return topk(self, k, axis=axis, largest=largest, sorted=sorted)
+
     def exp(self) -> "Tensor":
         return exp(self)
 
@@ -475,7 +499,7 @@ def _reduce(input: Tensor, axis, keepdims: bool, name: str) -> Tensor:
         scalar_reduction = rank == 0 and single and values[0] in (0, -1)
         axes = () if scalar_reduction else _axes_in_rank(values, rank, label="reduction axis")
     # Preserve the original one-axis path, including scalar 0/-1 semantics.
-    if name not in ("any", "all") and (scalar_reduction or len(axes) == 1):
+    if name not in ("any", "all", "min") and (scalar_reduction or len(axes) == 1):
         result = Tensor(getattr(_core, name)(input._impl, axis=axes[0] if axes else 0))
     else:
         result = Tensor(getattr(_core, f"_{name}_axes")(input._impl, axes))
@@ -760,3 +784,88 @@ def masked_select(input: Tensor, mask: Tensor) -> Tensor:
     if input.device != mask.device:
         raise ValueError("mask and input must be on the same device")
     return Tensor(_core.masked_select(input._impl, mask._impl))
+
+
+def _math_unary(input: Tensor, name: str) -> Tensor:
+    if not isinstance(input, Tensor):
+        raise TypeError(f"{name} expects a Tensor argument")
+    return Tensor(getattr(_core, name)(input._impl))
+
+
+def log(input: Tensor) -> Tensor:
+    """Natural logarithm of float32 values, with IEEE NaN/inf domain results."""
+    return _math_unary(input, "log")
+
+
+def sqrt(input: Tensor) -> Tensor:
+    """Float32 square root; negative nonzero values produce NaN."""
+    return _math_unary(input, "sqrt")
+
+
+def abs(input: Tensor) -> Tensor:
+    """Elementwise magnitude; int32 minimum wraps to itself."""
+    return _math_unary(input, "abs")
+
+
+def min(input: Tensor, axis=None, keepdims=False) -> Tensor:
+    """Minimum over selected axes, propagating NaN; empty reductions fail."""
+    return _reduce(input, axis, keepdims, "min")
+
+
+def argmax(input: Tensor, axis=None, keepdims=False) -> Tensor:
+    """First maximum/NaN index as int32; None searches the flattened tensor."""
+    if not isinstance(input, Tensor):
+        raise TypeError("argmax expects a Tensor argument")
+    if not isinstance(keepdims, (bool, np.bool_)):
+        raise TypeError("keepdims must be a boolean")
+    rank = len(input.shape)
+    if axis is None:
+        axes = tuple(range(rank))
+    else:
+        value = _normalize_axis(axis)
+        axes = () if rank == 0 and value in (0, -1) else _axes_in_rank((value,), rank)
+    result = Tensor(_core._argmax_axes(input._impl, axes))
+    if keepdims and rank:
+        selected = set(axes)
+        result = result.reshape(tuple(1 if i in selected else n for i, n in enumerate(input.shape)))
+    return result
+
+
+def clip(input: Tensor, lower=None, upper=None) -> Tensor:
+    """Clip to broadcasted same-dtype bounds; None leaves that side unbounded."""
+    if not isinstance(input, Tensor):
+        raise TypeError("clip expects a Tensor argument")
+    if lower is None and upper is None:
+        raise ValueError("clip requires at least one bound")
+    if input.dtype not in ("float32", "int32"):
+        raise ValueError("clip requires float32 or int32 tensors")
+    bounds = []
+    for index, value in enumerate((lower, upper)):
+        if value is None:
+            value = (-math.inf if index == 0 else math.inf) if input.dtype == "float32" else (-(2**31) if index == 0 else 2**31 - 1)
+        bound = value if isinstance(value, Tensor) else _predicate_scalar(value, input)
+        if bound.device != input.device:
+            raise ValueError("device mismatch for clip")
+        if bound.dtype != input.dtype:
+            raise ValueError("clip input dtypes must match")
+        bounds.append(bound)
+    return Tensor(_core._clip(input._impl, bounds[0]._impl, bounds[1]._impl))
+
+
+def topk(input: Tensor, k, axis=-1, largest=True, sorted=True) -> tuple[Tensor, Tensor]:
+    """Return (values, int32 indices), with first-index ties and NaNs greatest.
+
+    sorted=False returns the selected entries in original axis order.
+    """
+    if not isinstance(input, Tensor):
+        raise TypeError("topk expects a Tensor argument")
+    if isinstance(k, (bool, np.bool_)):
+        raise TypeError("topk k must be an integer")
+    try:
+        k = operator.index(k)
+    except TypeError:
+        raise TypeError("topk k must be an integer") from None
+    if not isinstance(largest, (bool, np.bool_)) or not isinstance(sorted, (bool, np.bool_)):
+        raise TypeError("largest and sorted must be booleans")
+    values, indices = _core._topk(input._impl, k, _normalize_axis(axis), builtins.bool(largest), builtins.bool(sorted))
+    return Tensor(values), Tensor(indices)

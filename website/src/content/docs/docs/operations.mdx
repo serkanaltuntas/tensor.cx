@@ -31,6 +31,9 @@ Start with `import tensorcx as cx`. The following example works on CPU:
 | Mask selection | `x[mask]`, `cx.masked_select(x, mask)` | Bool mask matches leading dimensions; stable contiguous copy |
 | Matrix multiply | `cx.matmul(a, b)`, `a @ b` | Float32 vectors/matrices/batches; matching contracting dimensions; batch broadcasting |
 | Reduce | `cx.sum(x, axis=None, keepdims=False)`, `max`, `mean` | All axes by default; integer or axis sequence; `keepdims=True` retains selected axes with size 1 |
+| Math | `log`, `sqrt`, `abs` | Float32 log/sqrt; float32/int32 abs |
+| Select extrema | `min`, `argmax`, `topk` | Min supports multiple axes; argmax/topk return int32 indices |
+| Clip | `cx.clip(x, lower=None, upper=None)` | Float32/int32; broadcast scalar/Tensor bounds |
 | Activate | `cx.exp(x)`, `gelu`, `silu` | Float32 |
 | Normalize | `softmax`, `rmsnorm`, `layernorm` | Float32, explicit axis; preserves shape |
 
@@ -118,3 +121,28 @@ available path. MPSGraph drops common singleton batch axes, then requires at
 most 16 graph dimensions including the two matrix axes. Metal `auto` selects
 the custom kernel for input ranks above 16; the custom path has no rank cap.
 Empty products and zero contracting dimensions also work with `optimized`.
+
+
+## Math and selection
+
+`log` and `sqrt` accept float32, with IEEE NaN/infinity domain results. `abs`
+also accepts int32; its minimum value wraps to itself. `min`, `argmax`, `clip`
+and `topk` accept float32/int32 on CPU, Metal and CUDA. Bool inputs require an
+explicit conversion. All seven functions also have Tensor methods.
+
+`min` accepts the same axes/keepdims options as sum/max. `argmax` accepts one
+axis, or None to search the flattened input; its int32 result identifies the
+first maximum or first NaN. Both reject empty reduced dimensions. NaNs propagate
+through min and clip; extrema ties treat signed zeros as equal.
+
+Clip requires at least one bound. Bounds may be real scalars or matching
+dtype/device tensors, and all inputs broadcast. None leaves that side unbounded;
+a reversed pair of bounds selects the upper bound.
+
+`values, indices = cx.topk(x, k, axis=-1, largest=True, sorted=True)` replaces
+one axis with k. Values retain dtype; indices are int32. k may be zero. NaNs
+rank above all numbers, and equal values use the smaller input index first.
+`sorted=False` returns selected entries in original index order. Index spaces
+are limited to INT32_MAX. GPU topk is a synchronous correctness-first selection
+algorithm; large axes/k can be expensive. See the
+[full contract](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/TENSOR_API.md#math-and-selection).

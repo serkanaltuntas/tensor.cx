@@ -142,7 +142,8 @@ documentation. This order does not claim that later packages are implemented.
    [contract and verification](TENSOR_API.md#comparisons-and-boolean-masks).
 3. **Batched matmul:** implemented: broadcasted batches and rank-one vector
    inputs; [contract and verification](TENSOR_API.md#batched-matrix-multiplication).
-4. **Math gaps:** `log`, `sqrt`, `abs`, `min`, `argmax`, `clip`, `topk`.
+4. **Math gaps:** implemented: `log`, `sqrt`, `abs`, `min`, `argmax`, `clip`,
+   `topk`; [contract and verification](TENSOR_API.md#math-and-selection).
 5. **Inference:** linear, affine normalization, embedding, then attention.
 6. **DLPack and narrow PyTorch integration:** supported-device data sharing;
    see the [staged portability plan](PYTORCH_PORTABILITY_ROADMAP.md).

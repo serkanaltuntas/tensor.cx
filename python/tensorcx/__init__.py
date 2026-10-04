@@ -6,6 +6,7 @@ from . import _core, experimental, testing
 from .device import Device, best_device, device, device_name, devices, is_available
 from .tensor import (
     Tensor,
+    log, sqrt, abs, min, argmax, clip, topk,
     masked_select,
     all,
     any,
@@ -59,6 +60,7 @@ def version() -> str:
 
 __all__ = [
     "Tensor",
+    "log", "sqrt", "abs", "min", "argmax", "clip", "topk",
     "masked_select",
     "all",
     "any",

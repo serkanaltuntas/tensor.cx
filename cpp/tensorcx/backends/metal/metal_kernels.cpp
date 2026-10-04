@@ -18,6 +18,7 @@
 #include "tensorcx/backends/metal/metal_kernels_data.h"
 #include "tensorcx/core/dtype.h"
 #include "tensorcx/core/predicate.h"
+#include "tensorcx/core/math.h"
 #include "tensorcx/backends/metal/metal_backend.h"
 
 namespace tensorcx::metal {
@@ -415,6 +416,9 @@ class KernelRuntime {
     if (std::strcmp(name, "predicate_values") == 0) {
       return pipeline_slot(predicate_values_, name);
     }
+    if (std::strcmp(name, "math_values") == 0) {
+      return pipeline_slot(math_values_, name);
+    }
     if (std::strcmp(name, "reduce_bool") == 0) {
       return pipeline_slot(reduce_bool_, name);
     }
@@ -590,6 +594,7 @@ class KernelRuntime {
   NS::SharedPtr<MTL::ComputePipelineState> broadcast_i32_;
   NS::SharedPtr<MTL::ComputePipelineState> copy_bits_;
   NS::SharedPtr<MTL::ComputePipelineState> predicate_values_;
+  NS::SharedPtr<MTL::ComputePipelineState> math_values_;
   NS::SharedPtr<MTL::ComputePipelineState> reduce_bool_;
   NS::SharedPtr<MTL::ComputePipelineState> cast_bool_;
   NS::SharedPtr<MTL::ComputePipelineState> fill_bool_;
@@ -1063,6 +1068,28 @@ Expected<std::shared_ptr<MetalBuffer>> index_metadata_buffer(Shape metadata) {
   if (!status.ok()) return status;
   return buffer;
 }
+}
+
+Expected<std::vector<MetalTensor>> execute_math(const OpDesc& op,const std::vector<MetalTensor>& inputs) {
+  std::vector<Tensor> descriptors;for(const auto& t:inputs)descriptors.push_back(to_core_tensor(t));
+  const auto p=make_math_plan(op,descriptors);
+  auto checked=checked_thread_count(numel(p.shape));if(!checked)return checked.status();
+  auto output=MetalBuffer::create(p.dtype,checked.value());if(!output)return output.status();
+  std::vector<MetalTensor> results;results.emplace_back(p.dtype,p.shape,output.value());
+  std::shared_ptr<MetalBuffer> indices=output.value();
+  if(p.code==6){auto buffer=MetalBuffer::create(DType::kInt32,checked.value());if(!buffer)return buffer.status();indices=buffer.move_value();results.emplace_back(DType::kInt32,p.shape,indices);}
+  if(!p.groups)return results;
+  Shape metadata{p.groups,p.reduce,p.inner,p.k,static_cast<Dim>(p.rank),p.code,
+                 inputs[0].dtype()==DType::kFloat32,op.largest,op.sorted};
+  metadata.insert(metadata.end(),p.metadata.begin(),p.metadata.end());
+  auto gpu=index_metadata_buffer(std::move(metadata));if(!gpu)return gpu.status();
+  auto pipeline=runtime().pipeline("math_values");if(!pipeline)return pipeline.status();
+  auto status=run_threads(*pipeline.value(),static_cast<std::uint32_t>(p.groups),[&](MTL::ComputeCommandEncoder& encoder){
+    for(std::size_t i=0;i<3;++i)encoder.setBuffer(inputs[i<inputs.size()?i:0].buffer()->native(),0,i);
+    encoder.setBuffer(output.value()->native(),0,3);encoder.setBuffer(indices->native(),0,4);encoder.setBuffer(gpu.value()->native(),0,5);
+  });
+  if(!status.ok())return status;
+  return results;
 }
 
 Expected<MetalTensor> execute_predicate(const OpDesc& op, const std::vector<MetalTensor>& inputs) {

@@ -1,5 +1,6 @@
 #include "predicate_contract.h"
 #include "batched_matmul_contract.h"
+#include "math_contract.h"
 
 #include <array>
 #include <bit>
@@ -385,6 +386,13 @@ int main() {
         return tensorcx::metal::to_cpu(tensorcx::metal::from_core_tensor(value)).value();
       });
     batched_matmul_contract(backend,
+      [](const tensorcx::cpu::CpuTensor& value) {
+        return tensorcx::metal::to_core_tensor(tensorcx::metal::from_cpu(value).value());
+      },
+      [](const tensorcx::Tensor& value) {
+        return tensorcx::metal::to_cpu(tensorcx::metal::from_core_tensor(value)).value();
+      });
+    math_contract(backend,
       [](const tensorcx::cpu::CpuTensor& value) {
         return tensorcx::metal::to_core_tensor(tensorcx::metal::from_cpu(value).value());
       },

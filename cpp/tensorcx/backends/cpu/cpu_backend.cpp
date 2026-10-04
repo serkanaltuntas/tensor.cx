@@ -16,6 +16,7 @@
 
 #include "tensorcx/core/dtype.h"
 #include "tensorcx/core/predicate.h"
+#include "tensorcx/core/math.h"
 
 namespace tensorcx::cpu {
 
@@ -248,6 +249,7 @@ Status CpuBackend::execute(const BackendExecution& execution) {
       return contract;
     }
 
+    if (is_math_operation(execution.op.kind)) return execute_math(execution);
     if (is_predicate_elementwise(execution.op.kind)) {
       std::vector<CpuTensor> inputs;
       for (const auto& input : execution.inputs) inputs.push_back(from_core_tensor(input));

@@ -10,6 +10,8 @@
 #include "tensorcx/backends/cuda/cuda_kernels.h"
 #include "tensorcx/backends/cuda/cuda_predicate.h"
 #include "tensorcx/core/predicate.h"
+#include "tensorcx/core/math.h"
+#include "tensorcx/backends/cuda/cuda_math.h"
 #include "tensorcx/backends/cuda/cuda_buffer.h"
 #include "tensorcx/backends/cuda/cuda_kernel.h"
 
@@ -168,6 +170,7 @@ Status CudaBackend::execute(const BackendExecution& execution) {
       auto tensor=from_core_tensor(input);
       if (!tensor) return tensor.status();
     }
+    if (is_math_operation(kind)) return execute_math(execution);
     if (is_predicate_elementwise(kind) || kind == OpKind::kAny || kind == OpKind::kAll || kind == OpKind::kMaskedSelect)
       return execute_predicate(execution);
     if (kind == OpKind::kFill && execution.outputs[0].dtype == DType::kBool) {

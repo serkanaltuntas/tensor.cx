@@ -337,6 +337,10 @@ print(ln.cpu().numpy().shape)
 - `cx.matmul(a, b)` / `a @ b` support float32 vectors, matrices and broadcasted
   batch axes on CPU/Metal/CUDA. Contracting dimensions must match; no dtype
   promotion or device transfer occurs. See [matmul semantics](docs/TENSOR_API.md#batched-matrix-multiplication).
+- `log`/`sqrt` support float32; `abs`, `min`, `argmax`, `clip`, and `topk`
+  support float32/int32 on CPU/Metal/CUDA. Indices are int32 with deterministic
+  first-index ties; `topk` returns `(values, indices)`.
+  See [math and selection](docs/TENSOR_API.md#math-and-selection).
 - `x.reshape(shape)` / `cx.reshape(x, shape)` create a contiguous view sharing
   the native buffer; one dimension may be `-1`. NumPy export still copies.
 - `softmax` requires an explicit `axis`, preserves the input shape, supports

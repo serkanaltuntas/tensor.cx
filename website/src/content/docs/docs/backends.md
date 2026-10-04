@@ -26,8 +26,10 @@ only device index 0 is exposed.
 | Float32 batched/vector matmul | Yes | Custom + optional optimized path | Custom path |
 | Float32 sum, max, mean | Yes | Yes | Yes |
 | Int32 sum, max | Yes | Yes | No |
-| Numeric reduction `keepdims` | Yes | Yes | Yes, float32 |
+| Sum/max/mean `keepdims` | Yes | Yes | Yes, float32 |
 | All-axis / multi-axis sum, max, mean | Yes | Yes | Yes, float32 |
+| Float32 log, sqrt | Yes | Yes | Yes |
+| Float32/int32 abs, min, argmax, clip, topk | Yes | Yes | Yes |
 | Float32 exp, GELU, SiLU | Yes | Yes | Yes |
 | Float32 softmax, RMSNorm, LayerNorm | Yes | Yes | Yes |
 | Generated kernels | Optional MLIR subset | Experimental MSL subset | Optional MLIR subset |
@@ -61,7 +63,8 @@ behavior; it does not run on an NVIDIA GPU. A local push gate exercises the
 validated GPU. Repository-wide GPU acceptance still needs an isolated runner.
 
 The CUDA backend copies and explicitly casts `int32` tensors but rejects int32 factories and
-arithmetic. Float32 matmul supports `auto` and `custom`, not `optimized`.
+add/subtract/multiply/negate and sum/max. The math extension supports int32
+abs, min, argmax, clip and topk. Float32 matmul supports `auto` and `custom`, not `optimized`.
 
 ## Compiler boundary
 

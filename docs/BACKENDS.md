@@ -187,3 +187,9 @@ See [`CUDA_PHASE9_VALIDATION.md`](CUDA_PHASE9_VALIDATION.md).
 Phase 10's MLIR
 exploration is complete as a decision/prototype only; it did not add MLIR to
 the backend ABI, runtime core, or backend build.
+
+
+The [math and selection extension](TENSOR_API.md#math-and-selection) adds native
+float32 log/sqrt and float32/int32 abs/min/argmax/clip/topk on CPU, Metal and CUDA.
+It uses shared core validation and the existing execution ABI; topk has two
+outputs. It does not expand MLIR/generated-kernel or general CUDA int32 arithmetic.

@@ -739,6 +739,25 @@ NativeTensor reshape_tensor(const NativeTensor& input, nb::handle requested_shap
 
 template <typename NativeTensor, typename Backend, typename Convert>
 void bind_multi_input_tensor_ops(nb::module_& module, Convert convert) {
+  module.def("_clip", [convert](const NativeTensor& x, const NativeTensor& lo, const NativeTensor& hi) {
+    std::array<tensorcx::Tensor, 3> inputs{to_core_tensor(x),to_core_tensor(lo),to_core_tensor(hi)};
+    std::array<tensorcx::Tensor, 1> outputs;
+    Backend backend; tensorcx::BackendExecution e;
+    e.op=OpDesc{OpKind::kClip}; e.inputs=inputs; e.outputs=outputs;
+    const auto status=without_gil([&] {return backend.execute(e);});
+    if(!status.ok()) throw_status(status);
+    return convert(outputs[0]);
+  },nb::arg("input"),nb::arg("lower"),nb::arg("upper"));
+  module.def("_topk", [convert](const NativeTensor& x, nb::handle k, nb::handle axis, bool largest, bool sorted) {
+    std::array<tensorcx::Tensor, 1> inputs{to_core_tensor(x)};
+    std::array<tensorcx::Tensor, 2> outputs;
+    Backend backend; tensorcx::BackendExecution e;
+    e.op=OpDesc{OpKind::kTopK}; e.op.k=cast_dim_or_throw(k); e.op.axis=cast_dim_or_throw(axis);
+    e.op.largest=largest; e.op.sorted=sorted; e.inputs=inputs; e.outputs=outputs;
+    const auto status=without_gil([&] {return backend.execute(e);});
+    if(!status.ok()) throw_status(status);
+    return nb::make_tuple(convert(outputs[0]),convert(outputs[1]));
+  },nb::arg("input"),nb::arg("k"),nb::arg("axis"),nb::arg("largest"),nb::arg("sorted"));
   module.def("where", [convert](const NativeTensor& condition, const NativeTensor& a, const NativeTensor& b) {
     std::array<tensorcx::Tensor, 3> inputs{to_core_tensor(condition), to_core_tensor(a), to_core_tensor(b)};
     std::array<tensorcx::Tensor, 1> outputs;
@@ -770,12 +789,16 @@ void bind_multi_input_tensor_ops(nb::module_& module, Convert convert) {
 template <typename NativeTensor, typename ExecuteSingle>
 void bind_tensor_extensions(nb::module_& module, ExecuteSingle execute_single) {
   for (auto [name, kind] : {std::pair{"_sum_axes", OpKind::kSum},
+                            {"_min_axes", OpKind::kMin}, {"_argmax_axes", OpKind::kArgmax},
                             {"_max_axes", OpKind::kMax}, {"_mean_axes", OpKind::kMean},
                             {"_any_axes", OpKind::kAny}, {"_all_axes", OpKind::kAll}}) {
     module.def(name, [kind, execute_single](const NativeTensor& input, nb::handle axes) {
       OpDesc op{kind}; op.reduction_axes = parse_shape(axes);
       return execute_single(input, op);
     }, nb::arg("input"), nb::arg("axes"));
+  }
+  for (auto [name,kind] : {std::pair{"log",OpKind::kLog},{"sqrt",OpKind::kSqrt},{"abs",OpKind::kAbs}}) {
+    module.def(name,[kind,execute_single](const NativeTensor& x) {return execute_single(x,OpDesc{kind});},nb::arg("input"));
   }
   module.def("_slice", [execute_single](const NativeTensor& input, nb::handle starts,
                                         nb::handle steps, nb::handle lengths) {

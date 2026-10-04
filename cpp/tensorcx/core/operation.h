@@ -48,6 +48,7 @@ enum class OpKind {
   kAny,
   kAll,
   kMaskedSelect,
+  kLog, kSqrt, kAbs, kMin, kArgmax, kClip, kTopK,
 };
 
 enum class MatmulPreference {
@@ -82,6 +83,9 @@ struct OpDesc {
   Shape slice_starts{};
   Shape slice_steps{};
   Shape slice_shape{};
+  Dim k{0};
+  bool largest{true};
+  bool sorted{true};
 };
 
 struct PrimitiveOpSchema {

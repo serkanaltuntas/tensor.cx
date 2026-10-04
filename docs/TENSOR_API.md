@@ -189,7 +189,7 @@ use the existing scalar reduction; `()` copies, and non-empty sequences fail.
 `keepdims=True` replaces every selected axis with size 1, using a metadata view
 of the independent result. Otherwise those axes are removed. The flag must be
 a Python or NumPy boolean. Results retain the input dtype and device. Sum/max
-support float32/int32 on CPU/Metal; CUDA reductions and all means require
+support float32/int32 on CPU/Metal; CUDA sum/max and all means require
 float32. Int32 sums wrap in two's-complement, with no implicit promotion.
 
 Selected axes are traversed in their original input order, independent of the
@@ -434,3 +434,80 @@ four preview tests, five Workers tests, deploy dry run and the operations
 snippet passed. Two code reviews and separate test/acceptance QA closed their
 findings. Real Metal execution remains the separate macOS CI gate; these local
 results do not cover additional NVIDIA architectures or make performance claims.
+
+
+## Math and selection
+
+The top-level APIs below also have Tensor methods; Python `abs(x)` calls
+`x.abs()`. All results own contiguous storage on the input device. Operations
+use native CPU/Metal/CUDA execution without exporting input tensors to the host.
+There is no implicit dtype promotion or device transfer. Generated kernels and
+MLIR operation subsets are unchanged.
+
+| API | Input/output dtype | Semantics |
+| --- | --- | --- |
+| `log(x)` | float32 → float32 | Natural logarithm; ±0 → -inf, negatives → NaN |
+| `sqrt(x)` | float32 → float32 | Negative nonzero → NaN; preserves -0 |
+| `abs(x)` | float32/int32 → same | Clears float sign bits; int32 minimum wraps to itself |
+| `min(x, axis=None, keepdims=False)` | float32/int32 → same | All/single/multiple axes, like sum/max; NaNs propagate |
+| `argmax(x, axis=None, keepdims=False)` | float32/int32 → int32 | Flattened index for None, or one integer axis; first maximum/first NaN wins |
+| `clip(x, lower=None, upper=None)` | float32/int32 → same | Broadcast scalar/Tensor bounds; at least one bound required |
+| `topk(x, k, axis=-1, largest=True, sorted=True)` | float32/int32 → (same, int32) | Values and axis indices, with the selected axis replaced by k |
+
+Bool inputs are rejected. `log`/`sqrt` reject int32, even for empty inputs.
+Use explicit `astype` when a conversion is intended. Int32 scalar clip bounds
+must be integral and in range; float32 bounds are narrowed from real scalars.
+Tensor bounds must share dtype/device. Clip broadcasts all three inputs; a
+reversed lower/upper pair yields the upper bound. Any participating NaN
+propagates. Clipping equal numeric values selects the boundary's stored bits.
+Absent bounds are implemented with the dtype's minimum/maximum (infinities for
+float32). Input values and exported NumPy copies remain independent.
+
+Min supports negative/sequence axes, keepdims and `axis=()` as a copy. Min and
+argmax reject an empty reduced dimension, even if another dimension makes the
+output empty. Scalar argmax accepts None/0/-1 and returns index zero. Argmax
+rejects axis sequences. Equal extrema retain the first input value/index in
+canonical input-axis order; +0 and -0 compare equal. NaNs are not ignored.
+The [NumPy argmax contract](https://numpy.org/doc/stable/reference/generated/numpy.argmax.html)
+is the reference for axis and first-index behavior.
+
+Topk requires rank >= 1, an integer `k` in `[0, axis_size]` and one valid axis.
+Zero k returns two empty tensors. Negative axes and non-last axes are supported.
+With `largest=True`, NaNs rank above +inf; with `False`, NaNs follow all numeric
+values. Equal values (including signed zeros and multiple NaNs) use smaller
+original indices first. `sorted=True` orders by value in the requested direction;
+`sorted=False` returns the same selected entries in original axis-index order.
+Both flags require booleans. Argmax's reduced index space and topk's axis size
+must be at most INT32_MAX, including empty-output requests. Broader index/dtype
+support belongs to the separate dtype workstream.
+
+Core MathPlan validates operation arity, dtype, broadcasting, axes, shapes and
+index ranges. Backend converters validate storage and device metadata. Topk is
+a two-output BackendExecution primitive; failure preserves both supplied output
+slots. The CPU uses partial sort, O(n log k) selection with O(n) temporary indices
+per group (O(n log n) when k=n). GPU topk uses one thread per group and O(n*k)
+selection, plus O(k²) index ordering for `sorted=False`; it allocates only output
+and O(rank) metadata. This is a correctness-first synchronous implementation,
+not a tuned topk or throughput claim. Float comparison/selection on Metal uses
+IEEE word ordering to preserve subnormals and signed-zero ties. Log/sqrt
+normalize subnormal magnitudes before arithmetic to avoid device input flushing.
+Metal retains its 2^32-1 output-element limit.
+
+`tests/python/test_math_ops.py` covers NumPy/CPU parity, all seven APIs, dtype and
+argument validation, broadcasting, empty/scalar/high-rank tensors, ties,
+NaN/infinity/subnormal values, ownership and no-host-fallback behavior.
+`tests/cpp/math_contract.h` exercises native CPU/Metal/CUDA parity and malformed
+metadata/arity, including preservation of both topk outputs on failure. Both
+are part of the strict CUDA push gate. Additional hardware and portable package
+publication still require their separate acceptance work.
+
+Math local acceptance on 2026-10-04: 446 new CPU/CUDA cases passed; the full
+required-CUDA/LLVM suite passed 3617 with 160 expected platform/capability skips.
+Native and ASan/UBSan contracts passed 4/4. The new cases passed GPU memcheck and
+racecheck with zero errors/hazards. CPU/CUDA sdist-to-wheel installations passed
+with LLVM present/absent and GPU hidden; fresh installed wheels passed 223 CPU /
+446 CPU+CUDA math tests. Website checking/build, four preview tests, five Workers
+tests, deploy dry run and the operations snippet passed. Two code reviews and
+separate test/acceptance QA closed their findings. Metal device execution is
+verified separately through macOS CI; local results do not cover other NVIDIA
+architectures, portable wheel publication or a throughput claim.

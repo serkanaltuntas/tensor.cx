@@ -8,6 +8,7 @@
 
 namespace tensorcx::metal {
 
+Expected<std::vector<MetalTensor>> execute_math(const OpDesc& op, const std::vector<MetalTensor>& inputs);
 Expected<MetalTensor> execute_predicate(const OpDesc& op, const std::vector<MetalTensor>& inputs);
 Expected<MetalTensor> execute_concat(const OpDesc& op, const std::vector<MetalTensor>& inputs);
 Expected<MetalTensor> execute_unary(const OpDesc& op, const MetalTensor& input);

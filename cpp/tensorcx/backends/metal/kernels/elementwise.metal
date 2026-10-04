@@ -2,6 +2,7 @@
 
 using namespace metal;
 #include "predicate.metal"
+#include "math.metal"
 
 // Three ulong entries per axis: output extent, left stride, right stride.
 // Dynamic metadata avoids imposing an artificial tensor-rank limit. Broadcast

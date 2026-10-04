@@ -60,3 +60,14 @@ batch = cx.ones((2, 1, 3, 4))
 weights = cx.ones((1, 5, 4, 6))
 print((batch @ weights).shape)  # (2, 5, 3, 6)
 print((cx.tensor([1., 2., 3.]) @ cx.tensor([4., 5., 6.])).numpy())  # 32.0
+
+
+scores = cx.tensor([[1., 4., 9.], [16., 25., 36.]])
+print(scores.sqrt().numpy())  # [[1. 2. 3.], [4. 5. 6.]]
+print(scores.log().shape)  # (2, 3)
+print(cx.abs(-scores).min().numpy())  # 1.0
+print(scores.argmax(axis=1).numpy())  # [2 2]
+print(scores.clip(4, 25).numpy())  # [[4. 4. 9.], [16. 25. 25.]]
+top_values, top_indices = scores.topk(2)
+print(top_values.numpy())  # [[9. 4.], [36. 25.]]
+print(top_indices.numpy())  # [[2 1], [2 1]]

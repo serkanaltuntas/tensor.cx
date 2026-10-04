@@ -21,6 +21,7 @@
 #endif
 #include "tensorcx/core/shape.h"
 #include "tensorcx/core/predicate.h"
+#include "tensorcx/core/math.h"
 
 namespace tensorcx::metal {
 namespace {
@@ -186,6 +187,15 @@ Status MetalBackend::execute(const BackendExecution& execution) {
       return contract;
     }
 
+    if (is_math_operation(execution.op.kind)) {
+      std::vector<MetalTensor> inputs;
+      for(const auto& input:execution.inputs)inputs.push_back(from_core_tensor(input));
+      auto result=execute_math(execution.op,inputs);if(!result)return result.status();
+      std::vector<Tensor> outputs;
+      for(const auto& t:result.value())outputs.push_back(to_core_tensor(t));
+      for(std::size_t i=0;i<outputs.size();++i)execution.outputs[i]=std::move(outputs[i]);
+      return Status::Ok();
+    }
     if (is_predicate_elementwise(execution.op.kind) || execution.op.kind == OpKind::kAny ||
         execution.op.kind == OpKind::kAll || execution.op.kind == OpKind::kMaskedSelect) {
       std::vector<MetalTensor> inputs;
