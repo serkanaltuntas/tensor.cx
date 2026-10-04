@@ -185,9 +185,10 @@ Status CudaBackend::execute(const BackendExecution& execution) {
         } else {
           if(axis<0)axis+=rank;
           if(axis<0 || axis>=rank)return invalid("reduction axis is out of range");
-          Shape before(shape.begin(),shape.begin()+axis),after(shape.begin()+axis+1,shape.end());
+          Shape before(shape.begin(),shape.begin()+axis);
           outer=static_cast<std::size_t>(numel(before));
-          inner=static_cast<std::size_t>(numel(after));
+          // Metadata validation already checked the contiguous suffix product.
+          inner=static_cast<std::size_t>(execution.inputs[0].strides[axis]);
           reduce=static_cast<std::size_t>(shape[axis]);
           if(kind==OpKind::kSum || kind==OpKind::kMax || kind==OpKind::kMean)shape.erase(shape.begin()+axis);
         }

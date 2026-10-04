@@ -109,12 +109,9 @@ ReductionDims reduction_dims(const CpuTensor& input, std::int64_t axis) {
   for (std::size_t index = 0; index < static_cast<std::size_t>(normalized_axis); ++index) {
     outer *= input.shape()[index];
   }
-  std::int64_t inner = 1;
-  for (std::size_t index = static_cast<std::size_t>(normalized_axis) + 1;
-       index < input.shape().size();
-       ++index) {
-    inner *= input.shape()[index];
-  }
+  // The contiguous stride is the already-validated suffix product. Computing
+  // it left-to-right can overflow before reaching a trailing zero dimension.
+  const auto inner = input.strides()[static_cast<std::size_t>(normalized_axis)];
 
   return ReductionDims{
       std::move(output_shape),
@@ -752,7 +749,7 @@ CpuTensor execute_unary(const OpDesc& op, const CpuTensor& input) {
     if (input.dtype() != DType::kFloat32) {
       throw std::invalid_argument("rmsnorm only supports float32 tensors");
     }
-    if (dims.reduce == 0) {
+    if (input.size() == 0) {
       return CpuTensor(input.dtype(), input.shape());
     }
     CpuTensor result(input.dtype(), input.shape());
@@ -765,7 +762,7 @@ CpuTensor execute_unary(const OpDesc& op, const CpuTensor& input) {
     if (input.dtype() != DType::kFloat32) {
       throw std::invalid_argument("layernorm only supports float32 tensors");
     }
-    if (dims.reduce == 0) {
+    if (input.size() == 0) {
       return CpuTensor(input.dtype(), input.shape());
     }
     CpuTensor result(input.dtype(), input.shape());

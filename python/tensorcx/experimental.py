@@ -1559,17 +1559,33 @@ def _emit_msl(kernel_ir: IRKernel) -> str:
     buffer_names = set(_iter_buffer_references(kernel_ir.body))
     _validate_msl_parameter_usage(kernel_ir, buffer_names)
     output_names = set(store_buffers)
+    # Builtin arguments share the function scope with user names; choose them
+    # against every nested local/loop variable too, where shadowing would change
+    # the meaning of an intrinsic call inside that scope.
+    used_names = set(kernel_ir.parameters) | set(_iter_assignment_targets(kernel_ir.body))
+    builtin_names = {}
+    for intrinsic, base in (("program_id", "block_position"),
+                            ("thread_id", "local_position"),
+                            ("block_size", "group_size")):
+        name, suffix = base, 0
+        while name in used_names:
+            suffix += 1
+            name = f"{base}_{suffix}"
+        builtin_names[intrinsic] = name
+        used_names.add(name)
     lines = [
         "#include <metal_stdlib>",
         "using namespace metal;",
         "",
         f"kernel void {kernel_ir.name}(",
     ]
-    lines.extend(_emit_msl_parameters(kernel_ir, buffer_names, output_names))
+    lines.extend(_emit_msl_parameters(kernel_ir, buffer_names, output_names, builtin_names))
     lines.extend(
         [
             ") {",
-            *_emit_msl_statement_block(kernel_ir.body, indent=1, context={}),
+            *_emit_msl_statement_block(
+                kernel_ir.body, indent=1, context={}, builtin_names=builtin_names
+            ),
             "}",
         ]
     )
@@ -1638,6 +1654,7 @@ def _emit_msl_parameters(
     kernel_ir: IRKernel,
     buffer_names: set[str],
     output_names: set[str],
+    builtin_names: dict[str, str],
 ) -> list[str]:
     parameters: list[str] = []
     buffer_index = 0
@@ -1655,9 +1672,9 @@ def _emit_msl_parameters(
 
     parameters.extend(
         [
-            "    uint3 block_position [[threadgroup_position_in_grid]],",
-            "    uint3 local_position [[thread_position_in_threadgroup]],",
-            "    uint3 group_size [[threads_per_threadgroup]]",
+            f"    uint3 {builtin_names['program_id']} [[threadgroup_position_in_grid]],",
+            f"    uint3 {builtin_names['thread_id']} [[thread_position_in_threadgroup]],",
+            f"    uint3 {builtin_names['block_size']} [[threads_per_threadgroup]]",
         ]
     )
     return parameters
@@ -1690,10 +1707,13 @@ def _emit_msl_statement_block(
     *,
     indent: int,
     context: dict[str, str],
+    builtin_names: dict[str, str],
 ) -> list[str]:
     lines: list[str] = []
     for statement in statements:
-        lines.extend(_emit_msl_statement(statement, indent=indent, context=context))
+        lines.extend(_emit_msl_statement(
+            statement, indent=indent, context=context, builtin_names=builtin_names
+        ))
     return lines
 
 
@@ -1702,6 +1722,7 @@ def _emit_msl_statement(
     *,
     indent: int,
     context: dict[str, str],
+    builtin_names: dict[str, str],
 ) -> list[str]:
     prefix = "    " * indent
     if isinstance(statement, IRAssign):
@@ -1717,26 +1738,27 @@ def _emit_msl_statement(
                 )
             return [
                 f"{prefix}{statement.target} = "
-                f"{_emit_msl_expression(statement.value)};"
+                f"{_emit_msl_expression(statement.value, builtin_names)};"
             ]
         context[statement.target] = value_type
         return [
             f"{prefix}{value_type} {statement.target} = "
-            f"{_emit_msl_expression(statement.value)};"
+            f"{_emit_msl_expression(statement.value, builtin_names)};"
         ]
     if isinstance(statement, IRStore):
         return [
-            f"{prefix}{statement.buffer}[{_emit_msl_expression(statement.index)}] = "
-            f"{_emit_msl_expression(statement.value)};"
+            f"{prefix}{statement.buffer}[{_emit_msl_expression(statement.index, builtin_names)}] = "
+            f"{_emit_msl_expression(statement.value, builtin_names)};"
         ]
     if isinstance(statement, IRIf):
         nested_context = dict(context)
-        lines = [f"{prefix}if ({_emit_msl_expression(statement.condition)}) {{"]
+        lines = [f"{prefix}if ({_emit_msl_expression(statement.condition, builtin_names)}) {{"]
         lines.extend(
             _emit_msl_statement_block(
                 statement.body,
                 indent=indent + 1,
                 context=nested_context,
+                builtin_names=builtin_names,
             )
         )
         lines.append(f"{prefix}}}")
@@ -1753,6 +1775,7 @@ def _emit_msl_statement(
                 statement.body,
                 indent=indent + 1,
                 context=nested_context,
+                builtin_names=builtin_names,
             )
         )
         lines.append(f"{prefix}}}")
@@ -1760,27 +1783,27 @@ def _emit_msl_statement(
     raise TypeError(f"unhandled IR statement: {type(statement).__name__}")
 
 
-def _emit_msl_expression(expression: IRExpression) -> str:
+def _emit_msl_expression(expression: IRExpression, builtin_names: dict[str, str]) -> str:
     if isinstance(expression, IRName):
         return expression.name
     if isinstance(expression, IRConstant):
         return _emit_msl_constant(expression.value)
     if isinstance(expression, IRCall):
-        return _emit_msl_call(expression)
+        return _emit_msl_call(expression, builtin_names)
     if isinstance(expression, IRBinaryOp):
         op = _MSL_BINARY_OPS[expression.op]
         return (
-            f"({_emit_msl_expression(expression.lhs)} {op} "
-            f"{_emit_msl_expression(expression.rhs)})"
+            f"({_emit_msl_expression(expression.lhs, builtin_names)} {op} "
+            f"{_emit_msl_expression(expression.rhs, builtin_names)})"
         )
     if isinstance(expression, IRCompare):
         op = _MSL_COMPARE_OPS[expression.op]
         return (
-            f"({_emit_msl_expression(expression.lhs)} {op} "
-            f"{_emit_msl_expression(expression.rhs)})"
+            f"({_emit_msl_expression(expression.lhs, builtin_names)} {op} "
+            f"{_emit_msl_expression(expression.rhs, builtin_names)})"
         )
     if isinstance(expression, IRLoad):
-        return f"{expression.buffer}[{_emit_msl_expression(expression.index)}]"
+        return f"{expression.buffer}[{_emit_msl_expression(expression.index, builtin_names)}]"
     raise TypeError(f"unhandled IR expression: {type(expression).__name__}")
 
 
@@ -1790,14 +1813,10 @@ def _emit_msl_constant(value: int | float) -> str:
     return f"{value!r}f"
 
 
-def _emit_msl_call(call: IRCall) -> str:
-    if call.name == "program_id":
-        return "block_position.x"
-    if call.name == "thread_id":
-        return "local_position.x"
-    if call.name == "block_size":
-        return "group_size.x"
-    raise TypeError(f"unhandled IR call: {call.name}")
+def _emit_msl_call(call: IRCall, builtin_names: dict[str, str]) -> str:
+    if call.name not in builtin_names:
+        raise TypeError(f"unhandled IR call: {call.name}")
+    return f"{builtin_names[call.name]}.x"
 
 
 def _infer_msl_type(expression: IRExpression, context: dict[str, str]) -> str:

@@ -158,6 +158,7 @@ if(TENSORCX_BUILD_TESTS)
   target_compile_options(tensorcx_backend_contract_tests PRIVATE ${TENSORCX_WARNING_FLAGS})
   target_link_libraries(tensorcx_backend_contract_tests PRIVATE tensorcx_core)
   add_test(NAME tensorcx_backend_contract_tests COMMAND tensorcx_backend_contract_tests)
+  set_tests_properties(tensorcx_backend_contract_tests PROPERTIES TIMEOUT 30)
 endif()
 
 if(TENSORCX_ENABLE_METAL)

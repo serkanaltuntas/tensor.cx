@@ -296,6 +296,11 @@ print(ln.cpu().numpy().shape)
 
 ### Behavior notes
 
+- Constructors, including `randn`, validate the requested device before
+  materializing input data or allocating random arrays.
+- `cx.testing.assert_allclose` requires equal shapes (including scalar rank).
+  If either input has an integer or boolean dtype, it compares values exactly;
+  floating-point tolerances apply only when both inputs are floating point.
 - Supported dtypes are `float32` and `int32`. Float inputs are narrowed to
   `float32`, so values may lose precision or overflow to `inf`.
 - `int32` `add`/`multiply` overflow wraps (defined two's-complement), matching

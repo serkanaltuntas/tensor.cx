@@ -4,6 +4,7 @@
 
 #include "tensorcx/backends/metal/metal_backend.h"
 #include "tensorcx/backends/metal/metal_buffer.h"
+#include "tensorcx/backends/metal/metal_kernels.h"
 #include "tensorcx/backends/metal/metal_tensor.h"
 #include "tensorcx/core/status.h"
 
@@ -67,6 +68,27 @@ int main() {
     if (!empty) return 1;
     tensorcx::metal::MetalTensor valid_empty(dtype, {2, 0}, empty.move_value());
     if (valid_empty.size() != 0 || valid_empty.nbytes() != 0) return 1;
+  }
+  const tensorcx::Shape empty_shape{0, 1, tensorcx::Dim{1} << 62, 4, 0};
+  auto buffer = tensorcx::metal::MetalBuffer::create(tensorcx::DType::kFloat32, 0);
+  if (!buffer) return 1;
+  const tensorcx::metal::MetalTensor input(
+      tensorcx::DType::kFloat32, empty_shape, buffer.move_value());
+  for (const auto kind : {tensorcx::OpKind::kSum, tensorcx::OpKind::kMax,
+                         tensorcx::OpKind::kMean, tensorcx::OpKind::kSoftmax,
+                         tensorcx::OpKind::kRmsNorm, tensorcx::OpKind::kLayerNorm}) {
+    const bool reduction = kind == tensorcx::OpKind::kSum ||
+                           kind == tensorcx::OpKind::kMax || kind == tensorcx::OpKind::kMean;
+    tensorcx::OpDesc op{kind};
+    op.axis = 1;
+    auto result = reduction ? tensorcx::metal::reduce(op, input)
+                            : tensorcx::metal::execute_unary(op, input);
+    auto expected_shape = empty_shape;
+    if (reduction) expected_shape.erase(expected_shape.begin() + 1);
+    if (!result || result.value().size() != 0 || result.value().shape() != expected_shape) {
+      std::cerr << "Metal empty axis operation failed\n";
+      return 1;
+    }
   }
   return 0;
 }

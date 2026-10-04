@@ -22,6 +22,18 @@ def test_softmax_huge_empty_axis_returns_without_iterating_rows():
     assert result.returncode == 0, result.stderr
 
 
+@pytest.mark.parametrize("op_name", ["rmsnorm", "layernorm"])
+def test_normalization_huge_empty_inner_dimension_returns_promptly(op_name):
+    result = subprocess.run(
+        [sys.executable, "-c", "import tensorcx as cx; "
+         "x = cx.empty((10**12, 1, 0)); "
+         f"y = cx.{op_name}(x, axis=1); "
+         "assert y.shape == x.shape and y.nbytes == 0"],
+        capture_output=True, text=True, timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
+
+
 def _gelu_reference(values):
     values = np.asarray(values, dtype=np.float32)
     inner = np.float32(0.7978845608028654) * (
@@ -692,6 +704,16 @@ def test_int32_add_multiply_wrap_two_complement():
 def test_randn_rejects_negative_shape():
     with pytest.raises(ValueError, match="shape dimensions must be non-negative"):
         cx.randn((-1,))
+
+
+@pytest.mark.parametrize("device", ["missing", "cpu:1"])
+def test_randn_rejects_invalid_device_before_generating_data(monkeypatch, device):
+    def unexpected_rng(seed):
+        pytest.fail("randn generated data before validating the device")
+
+    monkeypatch.setattr(np.random, "default_rng", unexpected_rng)
+    with pytest.raises(ValueError):
+        cx.randn((2**62,), device=device)
 
 
 def test_randn_shape_uses_project_error_taxonomy():

@@ -82,6 +82,40 @@ int main() {
   expect_ok("null backend contract smoke", tensorcx::null_backend::contract_smoke_test());
   expect_ok("cpu backend contract smoke", tensorcx::cpu::contract_smoke_test());
 
+  // A left-to-right suffix product overflows before the trailing zero. The
+  // tensor and its contiguous strides are nevertheless valid and allocate zero
+  // bytes. Run this path in the native sanitizer job as well as Python tests.
+  const tensorcx::Shape empty_shape{0, 1, tensorcx::Dim{1} << 62, 4, 0};
+  const auto empty_input = tensorcx::cpu::empty(empty_shape, tensorcx::DType::kFloat32);
+  for (const auto kind : {tensorcx::OpKind::kSum, tensorcx::OpKind::kMax,
+                         tensorcx::OpKind::kMean, tensorcx::OpKind::kSoftmax,
+                         tensorcx::OpKind::kRmsNorm, tensorcx::OpKind::kLayerNorm}) {
+    const bool reduction = kind == tensorcx::OpKind::kSum ||
+                           kind == tensorcx::OpKind::kMax || kind == tensorcx::OpKind::kMean;
+    tensorcx::OpDesc op{kind};
+    op.axis = 1;
+    const auto result = reduction ? tensorcx::cpu::reduce(op, empty_input)
+                                  : tensorcx::cpu::execute_unary(op, empty_input);
+    auto expected_shape = empty_shape;
+    if (reduction) expected_shape.erase(expected_shape.begin() + 1);
+    if (result.size() != 0 || result.shape() != expected_shape) {
+      std::cerr << "CPU empty axis operation returned incorrect metadata\n";
+      ++failures;
+    }
+  }
+  // Empty inner dimensions must also bypass the outer loop in debug builds.
+  const tensorcx::Shape empty_inner_shape{1'000'000'000'000, 1, 0};
+  const auto empty_inner = tensorcx::cpu::empty(empty_inner_shape, tensorcx::DType::kFloat32);
+  for (const auto kind : {tensorcx::OpKind::kRmsNorm, tensorcx::OpKind::kLayerNorm}) {
+    tensorcx::OpDesc op{kind};
+    op.axis = 1;
+    const auto result = tensorcx::cpu::execute_unary(op, empty_inner);
+    if (result.size() != 0 || result.shape() != empty_inner_shape) {
+      std::cerr << "CPU empty normalization returned incorrect metadata\n";
+      ++failures;
+    }
+  }
+
   std::array<tensorcx::Tensor, 1> fill_outputs{fill_descriptor()};
   const tensorcx::BackendExecution valid_fill{
       tensorcx::BackendOpClass::kPrimitive,

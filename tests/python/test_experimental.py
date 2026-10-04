@@ -1575,3 +1575,77 @@ def test_experimental_reference_aliased_buffers_match_metal_binding():
     np.testing.assert_array_equal(
         result.numpy(), np.full(values.shape, 3.0, dtype=np.float32)
     )
+
+
+def _builtin_name_collision_case(case):
+    @cx.experimental.kernel
+    def parameters(block_position, local_position, group_size):
+        i = cx.experimental.program_id(0) * cx.experimental.block_size() + cx.experimental.thread_id()
+        if i < group_size:
+            local_position[i] = block_position[i] + 1.0
+
+    @cx.experimental.kernel
+    def locals(a, out, n):
+        block_position = cx.experimental.program_id(0)
+        local_position = cx.experimental.thread_id()
+        group_size = cx.experimental.block_size()
+        i = block_position * group_size + local_position
+        if i < n:
+            out[i] = a[i] + 1.0
+
+    @cx.experimental.kernel
+    def suffixes_and_loop(a, out, n, k):
+        i = cx.experimental.program_id(0) * cx.experimental.block_size() + cx.experimental.thread_id()
+        if i < n:
+            block_position = cx.experimental.program_id(0)
+            block_position_1 = 1
+            local_position = cx.experimental.thread_id()
+            local_position_1 = 1
+            group_size = cx.experimental.block_size()
+            group_size_1 = 1
+            total = a[i]
+            for group_size_2 in range(k):
+                total = total + cx.experimental.block_size() * 1.0
+            out[i] = total
+
+    return (parameters, locals, suffixes_and_loop)[case]
+
+
+@pytest.mark.parametrize('case', range(3))
+def test_msl_builtin_names_avoid_parameters_locals_and_loop_suffixes(case):
+    kernel = _builtin_name_collision_case(case)
+    msl = kernel.emit_msl()
+    suffixes = ('1', '1', '1') if case < 2 else ('2', '2', '3')
+    for name, suffix, attribute in zip(
+        ('block_position', 'local_position', 'group_size'), suffixes,
+        ('threadgroup_position_in_grid', 'thread_position_in_threadgroup', 'threads_per_threadgroup'),
+        strict=True,
+    ):
+        assert f'uint3 {name}_{suffix} [[{attribute}]]' in msl
+        assert f'{name}_{suffix}.x' in msl
+        assert f'{name}.x' not in msl
+    a = cx.tensor(np.arange(5, dtype=np.float32), device='cpu')
+    out = cx.zeros((5,), device='cpu')
+    extra = (2,) if case == 2 else ()
+    result = kernel.reference(a, out, 5, *extra, block_size=2)
+    np.testing.assert_array_equal(result.numpy(), a.numpy() + (4.0 if case == 2 else 1.0))
+    np.testing.assert_array_equal(out.numpy(), np.zeros(5, dtype=np.float32))
+
+
+@pytest.mark.skipif(not _has_metal_compiler(), reason='Apple Metal compiler unavailable')
+@pytest.mark.parametrize('case', range(3))
+def test_metal_builtin_name_collisions_compile_without_device(case):
+    assert _builtin_name_collision_case(case).compile(target='metal').metallib.startswith(b'MTLB')
+
+
+@pytest.mark.skipif(not _has_metal_compiler(), reason='Apple Metal compiler unavailable')
+@pytest.mark.skipif(not cx.is_available('metal'), reason='Metal is not available')
+@pytest.mark.parametrize('case', range(3))
+def test_metal_builtin_name_collision_runtime_parity(case):
+    kernel = _builtin_name_collision_case(case)
+    a = cx.tensor(np.arange(5, dtype=np.float32), device='cpu')
+    out = cx.zeros((5,), device='cpu')
+    extra = (2,) if case == 2 else ()
+    reference = kernel.reference(a, out, 5, *extra, block_size=2)
+    result = kernel.compile(target='metal').launch(a.to('metal'), out.to('metal'), 5, *extra, block_size=2)
+    np.testing.assert_array_equal(result.numpy(), reference.numpy())

@@ -300,10 +300,8 @@ Expected<ReductionDims> checked_reduction_dims(const MetalTensor& input, const O
     return output_thread_count_result.status();
   }
 
-  std::int64_t inner = 1;
-  for (std::size_t index = axis + 1; index < input.shape().size(); ++index) {
-    inner *= input.shape()[index];
-  }
+  // Reuse the validated contiguous suffix product, including empty shapes.
+  const auto inner = input.strides()[axis];
   auto inner_result = checked_thread_count(inner);
   if (!inner_result) {
     return inner_result.status();
@@ -346,10 +344,7 @@ Expected<AxisTransformDims> checked_axis_transform_dims(const MetalTensor& input
     return AxisTransformDims{1, 1, 1};
   }
 
-  std::int64_t inner = 1;
-  for (std::size_t index = axis + 1; index < input.shape().size(); ++index) {
-    inner *= input.shape()[index];
-  }
+  const auto inner = input.strides()[axis];
   auto inner_result = checked_thread_count(inner);
   if (!inner_result) {
     return inner_result.status();

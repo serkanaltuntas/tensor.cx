@@ -156,6 +156,23 @@ def test_backend_axis_float32_ops_match_cpu(backend_name, op_name):
     cx.testing.assert_allclose(op(x, axis=1).cpu(), op(x_cpu, axis=1), kind="reduction")
 
 
+@pytest.mark.backend_capability("normalization_float32")
+@pytest.mark.parametrize("op_name", ["softmax", "rmsnorm", "layernorm", "sum", "max", "mean"])
+@pytest.mark.parametrize("axis", [1, -4])
+def test_backend_empty_axis_suffix_does_not_overflow(backend_name, op_name, axis):
+    shape = (0, 1, 2**62, 4, 0)
+    x_cpu = cx.empty(shape)
+    op = getattr(cx, op_name)
+    expected = op(x_cpu, axis=axis)
+    actual = op(x_cpu.to(backend_name), axis=axis)
+    expected_shape = (0, 2**62, 4, 0) if op_name in ("sum", "max", "mean") else shape
+    # NumPy cannot represent these enormous zero-size shapes on every version;
+    # compare native metadata and the empty allocation without converting it.
+    assert expected.shape == actual.shape == expected_shape
+    assert expected.strides == actual.strides
+    assert expected.nbytes == actual.nbytes == 0
+
+
 @pytest.mark.backend_capability("binary_ops_float32")
 @pytest.mark.parametrize("shape", [(), (0,), (2, 0, 3), (1,), (255,), (256,), (257,), (17, 19), (2, 3, 5), (262145,)])
 def test_backend_binary_edges_match_cpu(backend_name, shape):

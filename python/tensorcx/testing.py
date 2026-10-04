@@ -39,8 +39,9 @@ def assert_allclose(
     """Assert two results match within the §12.3 tolerance for ``kind``.
 
     ``actual`` and ``expected`` may be tensor.cx ``Tensor`` objects or array-likes.
-    Integer/boolean dtypes are always compared exactly; ``rtol``/``atol`` only
-    apply to floating-point comparisons and override the ``kind`` default.
+    Shapes must match, including scalar rank. If either input has an integer
+    or boolean dtype, values are compared exactly; ``rtol``/``atol`` only apply
+    when both inputs have floating-point dtypes and override the ``kind`` default.
     """
     if kind not in _FLOAT_TOLERANCES:
         raise ValueError(
@@ -50,9 +51,19 @@ def assert_allclose(
 
     actual_array = _as_array(actual)
     expected_array = _as_array(expected)
+    if actual_array.shape != expected_array.shape:
+        raise AssertionError(
+            f"shape mismatch: {actual_array.shape} != {expected_array.shape}"
+        )
 
     integer_like = {"i", "u", "b"}
-    if actual_array.dtype.kind in integer_like and expected_array.dtype.kind in integer_like:
+    if actual_array.dtype.kind in integer_like or expected_array.dtype.kind in integer_like:
+        if actual_array.dtype != expected_array.dtype:
+            # NumPy can promote mixed int64/uint64/float64 arrays to float64,
+            # rounding distinct large integers to the same value. Python's
+            # scalar comparison preserves those distinctions.
+            actual_array = actual_array.astype(object)
+            expected_array = expected_array.astype(object)
         np.testing.assert_array_equal(actual_array, expected_array)
         return
 

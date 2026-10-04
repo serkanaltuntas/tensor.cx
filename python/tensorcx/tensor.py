@@ -220,9 +220,11 @@ def randn(
 ) -> Tensor:
     if dtype != "float32":
         raise ValueError("randn only supports float32")
+    target = _normalize_device(device)
+    _validate_creation_device(target)
     dims = _normalize_shape(shape)
     values = np.random.default_rng(seed).standard_normal(dims).astype(np.float32)
-    return tensor(values, dtype=dtype, device=device)
+    return tensor(values, dtype=dtype, device=target)
 
 
 def matmul(lhs: Tensor, rhs: Tensor, backend: str = "auto") -> Tensor:

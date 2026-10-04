@@ -164,6 +164,11 @@ to produce an in-memory metallib artifact. `CompiledKernel.validate_metal_functi
 then loads that artifact through the native Metal backend and verifies that the
 generated function can be found.
 
+Generated Metal builtin arguments use fresh names that cannot collide with
+kernel parameters, local variables, or loop variables. For example, a user
+parameter named `group_size` keeps its meaning; `block_size()` still refers to
+the actual Metal threadgroup size.
+
 It currently assumes:
 
 ```text
