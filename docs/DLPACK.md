@@ -139,8 +139,10 @@ and correctness, not a speedup. The increment's benefit is explicit shared
 storage and the ability to call the runtime through PyTorch's dispatcher.
 
 Local verification: 4203 core tests passed with 161 expected optional/platform
-skips; the optional bridge passed 72 real CPU/CUDA tests. Native and ASan/UBSan
-contracts passed 4/4. The 182 DLPack tests passed CUDA memcheck and racecheck with
+skips; the optional bridge passed 72 real CPU/CUDA tests.
+PyTorch 2.4.1 CPU also passed all 36 bridge cases, including graph capture and
+unsupported-layout errors; CI exercises 2.4.1 and 2.13.0 independently.
+Native and ASan/UBSan contracts passed 4/4. The 182 DLPack tests passed CUDA memcheck and racecheck with
 zero reported errors/hazards; 70 bridge tests passed memcheck (the two compiler
 capture cases were checked separately without instrumentation). CPU/CUDA
 sdist-to-wheel fresh installations passed LLVM-present, LLVM-absent and GPU-hidden

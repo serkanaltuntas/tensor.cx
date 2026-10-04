@@ -1,6 +1,4 @@
 """Inference-only PyTorch bridge. Importing tensorcx itself never imports torch."""
-from __future__ import annotations
-
 from typing import Optional
 
 import torch
@@ -72,6 +70,13 @@ def linear(input: torch.Tensor, weight: torch.Tensor, bias: Optional[torch.Tenso
     """
     # Validation belongs inside the opaque op and its fake implementation;
     # tracing storage/view queries here would break torch.compile capture.
+    # PyTorch 2.4 queries storage before calling a custom op, so reject sparse
+    # layouts here to retain the public error contract on that version too.
+    for tensor in (input, weight) + (() if bias is None else (bias,)):
+        if not isinstance(tensor, torch.Tensor):
+            raise TypeError('expected a torch.Tensor')
+        if tensor.layout != torch.strided:
+            raise ValueError('torch-tensorcx requires contiguous strided tensors')
     return _linear(input, weight, bias)
 
 
