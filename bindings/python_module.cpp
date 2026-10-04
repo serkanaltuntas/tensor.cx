@@ -705,6 +705,11 @@ NativeTensor reshape_tensor(const NativeTensor& input, nb::handle requested_shap
 template <typename NativeTensor, typename ExecuteSingle>
 void bind_tensor_extensions(nb::module_& module, ExecuteSingle execute_single) {
   module.def("reshape", &reshape_tensor<NativeTensor>, nb::arg("input"), nb::arg("shape"));
+  module.def("transpose", [execute_single](const NativeTensor& input, nb::handle axes) {
+    OpDesc op{OpKind::kTranspose};
+    op.axes = parse_shape(axes);
+    return execute_single(input, op);
+  }, nb::arg("input"), nb::arg("axes"));
   module.def("astype", [execute_single](const NativeTensor& input, const std::string& dtype) {
     OpDesc op{OpKind::kCast};
     op.target_dtype = parse_dtype(nb::str(dtype.c_str()), DType::kFloat32);

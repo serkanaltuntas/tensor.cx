@@ -25,6 +25,7 @@ std::optional<PrimitiveOpSchema> primitive_op_schema(OpKind kind) {
     case OpKind::kMultiplyScalar:
     case OpKind::kDivideScalar:
     case OpKind::kCast:
+    case OpKind::kTranspose:
       return PrimitiveOpSchema{1, 1};
     case OpKind::kFill:
       return PrimitiveOpSchema{0, 1};

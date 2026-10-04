@@ -43,7 +43,7 @@ x86_64 with external LLVM 21.1.8 tools. See the
 ## Documentation Map
 
 - [`docs/NAMING.md`](docs/NAMING.md): tensor.cx branding and migration from the pre-release Cortex Runtime names.
-- [`docs/TENSOR_API.md`](docs/TENSOR_API.md): arithmetic/scalars, broadcasting, explicit casts, shared-storage reshape, and reduction `keepdims` contracts.
+- [`docs/TENSOR_API.md`](docs/TENSOR_API.md): arithmetic/scalars, broadcasting, casts, transpose, shared-storage shape views, and reduction `keepdims` contracts.
 - [`website/`](website/README.md): Astro + Starlight product site and curated user guides for tensor.cx.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md): contributions, validation and publication hygiene.
 - [`SECURITY.md`](SECURITY.md): private vulnerability reporting and trust boundaries.
@@ -160,6 +160,8 @@ rank-0 and empty contiguous tensors work. Copies preserve
 float32/int32, and `astype` converts explicitly between them on the device.
 Float32 matmul (`auto`/`custom`), sum/max/mean, exp/GELU/SiLU,
 softmax, RMSNorm and LayerNorm are implemented; see [semantics and validation](docs/CUDA_PRIMITIVES_VALIDATION.md).
+Transpose supports both dtypes and returns a contiguous device copy; squeeze
+and expand_dims share storage without copying, like reshape.
 Int32 fill/arithmetic/reductions and broad generated CUDA kernels remain unsupported. A separate
 explicit MLIR compiler supports guarded float32 add/subtract/multiply on the validated sm_52
 host; see [usage and requirements](docs/MLIR_CUDA_INTEGRATION_DECISION.md#runtime-usage-and-verification--2026-09-28). Operations are
@@ -316,6 +318,10 @@ print(ln.cpu().numpy().shape)
 - `sum`, `max`, and `mean` require an explicit `axis`. Negative axes are
   supported; `keepdims=True` retains that axis with size 1. `sum` over an empty axis returns zeros, `mean` over an empty axis
   returns NaNs, and `max` over an empty axis raises `ValueError`.
+- `x.transpose(axes=None)` / `cx.transpose(x, axes=None)` and `x.T` permute axes
+  into a new contiguous buffer on the same device, including identity/scalar
+  copies. `x.squeeze(axis=None)` and `x.expand_dims(axis)` (also top-level
+  functions) share storage; float32/int32 work on CPU, Metal and CUDA.
 - `x.reshape(shape)` / `cx.reshape(x, shape)` create a contiguous view sharing
   the native buffer; one dimension may be `-1`. NumPy export still copies.
 - `softmax` requires an explicit `axis`, preserves the input shape, supports

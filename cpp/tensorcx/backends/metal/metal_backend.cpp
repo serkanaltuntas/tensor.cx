@@ -208,6 +208,7 @@ Status MetalBackend::execute(const BackendExecution& execution) {
         return Status::Ok();
       }
       case OpKind::kCast:
+      case OpKind::kTranspose:
       case OpKind::kNegate:
       case OpKind::kAddScalar:
       case OpKind::kSubtractScalar:

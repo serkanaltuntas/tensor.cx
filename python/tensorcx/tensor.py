@@ -86,6 +86,19 @@ class Tensor:
     def reshape(self, shape) -> "Tensor":
         return reshape(self, shape)
 
+    def transpose(self, axes=None) -> "Tensor":
+        return transpose(self, axes)
+
+    @property
+    def T(self) -> "Tensor":
+        return transpose(self)
+
+    def squeeze(self, axis=None) -> "Tensor":
+        return squeeze(self, axis)
+
+    def expand_dims(self, axis) -> "Tensor":
+        return expand_dims(self, axis)
+
     def astype(self, dtype: str, *, copy: bool = True) -> "Tensor":
         return astype(self, dtype, copy=copy)
 
@@ -157,6 +170,80 @@ def reshape(input: Tensor, shape) -> Tensor:
     if shape is None:
         raise ValueError("shape must be an int or an iterable of ints")
     return Tensor(_core.reshape(input._impl, shape))
+
+
+def _axis_sequence(axes) -> tuple[tuple[int, ...], bool]:
+    """Return integer axes and whether the argument was one integer."""
+    if isinstance(axes, (bool, np.bool_, str, bytes)):
+        raise ValueError("axes must be integers")
+    try:
+        value = operator.index(axes)
+    except TypeError:
+        try:
+            values = tuple(axes)
+        except TypeError:
+            raise ValueError("axes must be an integer or iterable of integers") from None
+        return tuple(_normalize_axis(value) for value in values), False
+    return (_normalize_axis(value),), True
+
+
+def _axes_in_rank(axes: tuple[int, ...], rank: int) -> tuple[int, ...]:
+    normalized = tuple(axis + rank if axis < 0 else axis for axis in axes)
+    if any(axis < 0 or axis >= rank for axis in normalized):
+        raise ValueError("axis is out of range")
+    if len(set(normalized)) != len(normalized):
+        raise ValueError("axes must not repeat")
+    return normalized
+
+
+def transpose(input: Tensor, axes=None) -> Tensor:
+    """Permute axes into a new contiguous buffer on the same device.
+
+    None reverses all axes; otherwise axes must be a full permutation. This
+    operation copies even for an identity permutation or a scalar.
+    """
+    if not isinstance(input, Tensor):
+        raise TypeError("transpose expects a Tensor argument")
+    rank = len(input.shape)
+    if axes is None:
+        permutation = tuple(reversed(range(rank)))
+    else:
+        values, _ = _axis_sequence(axes)
+        if len(values) != rank:
+            raise ValueError("transpose axes must be a full permutation")
+        permutation = _axes_in_rank(values, rank)
+    return Tensor(_core.transpose(input._impl, permutation))
+
+
+def squeeze(input: Tensor, axis=None) -> Tensor:
+    """Remove singleton axes and return a view sharing the input buffer."""
+    if not isinstance(input, Tensor):
+        raise TypeError("squeeze expects a Tensor argument")
+    shape = input.shape
+    if axis is None:
+        selected = {i for i, size in enumerate(shape) if size == 1}
+    else:
+        values, single = _axis_sequence(axis)
+        # Match NumPy's scalar squeeze(axis=0/-1) convention; an explicit
+        # axis sequence must name real axes (the empty tuple is valid).
+        if not shape and single and values[0] in (0, -1):
+            return reshape(input, ())
+        selected = set(_axes_in_rank(values, len(shape)))
+        if any(shape[i] != 1 for i in selected):
+            raise ValueError("cannot squeeze an axis whose size is not one")
+    return reshape(input, tuple(size for i, size in enumerate(shape) if i not in selected))
+
+
+def expand_dims(input: Tensor, axis) -> Tensor:
+    """Insert singleton axes at positions in the final shape, sharing storage."""
+    if not isinstance(input, Tensor):
+        raise TypeError("expand_dims expects a Tensor argument")
+    values, _ = _axis_sequence(axis)
+    rank = len(input.shape) + len(values)
+    selected = set(_axes_in_rank(values, rank))
+    source = iter(input.shape)
+    shape = tuple(1 if i in selected else next(source) for i in range(rank))
+    return reshape(input, shape)
 
 
 def astype(input: Tensor, dtype: str, *, copy: bool = True) -> Tensor:

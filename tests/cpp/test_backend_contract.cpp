@@ -1,4 +1,5 @@
 #include <array>
+#include <bit>
 #include <cmath>
 #include <iostream>
 #include <limits>
@@ -263,9 +264,69 @@ void cast_broadcast_contract_tests() {
         "integer cast must round to float32 nearest");
 }
 
+void transpose_contract_tests() {
+  using namespace tensorcx;
+  cpu::CpuBackend backend;
+  const auto check = [](bool passed, const char* scenario) {
+    if (!passed) { std::cerr << scenario << '\n'; ++failures; }
+  };
+  const auto plan = make_transpose_plan({2, 3, 4}, {-1, 0, 1});
+  check(plan.output_shape == Shape{4, 2, 3} && plan.input_strides == Shape{1, 12, 4},
+        "transpose stride mapping incorrect");
+  check(make_transpose_plan({}, {}).output_shape.empty(), "scalar transpose changed rank");
+  const std::array<std::uint32_t, 6> bits{0, 0x80000000, 0x7fc12345, 1, 0xff800000, 0x7f812345};
+  cpu::CpuTensor special(DType::kFloat32, {2, 3});
+  for (std::size_t i = 0; i < bits.size(); ++i)
+    special.mutable_float_data()[i] = std::bit_cast<float>(bits[i]);
+  OpDesc permute{OpKind::kTranspose}; permute.axes = {1, 0};
+  const auto copied = cpu::execute_unary(permute, special);
+  for (std::size_t i = 0; i < bits.size(); ++i)
+    check(std::bit_cast<std::uint32_t>(copied.float_data()[i]) == bits[(i % 2) * 3 + i / 2],
+          "CPU transpose changed stored bits");
+  for (const Shape axes : {Shape{}, Shape{0}, Shape{0, 0}, Shape{0, 2}, Shape{-3, 1}}) {
+    try { (void)make_transpose_plan({2, 3}, axes); check(false, "invalid permutation accepted"); }
+    catch (const std::invalid_argument&) {}
+  }
+  // Valid zero-sized input may have an invalid output stride/product order.
+  try {
+    (void)make_transpose_plan({INT64_MAX, 0, 2}, {1, 0, 2});
+    check(false, "transpose accepted overflowing output strides");
+  } catch (const std::invalid_argument&) {}
+  const cpu::CpuTensor input({2, 3}, std::vector<std::int32_t>{1, 2, 3, 4, 5, 6});
+  std::array<Tensor, 1> inputs{cpu::to_core_tensor(input)}, outputs{};
+  OpDesc op{OpKind::kTranspose}; op.axes = {1, 0};
+  BackendExecution execution{BackendOpClass::kPrimitive, op, inputs, outputs,
+                             std::nullopt, std::nullopt, {}};
+  expect_ok("native transpose", backend.execute(execution));
+  if (outputs[0].buffer) {
+    check(outputs[0].shape == Shape{3, 2} && outputs[0].strides == Shape{2, 1} &&
+              outputs[0].buffer != inputs[0].buffer &&
+              cpu::from_core_tensor(outputs[0]).int32_data() ==
+                  std::vector<std::int32_t>{1, 4, 2, 5, 3, 6},
+          "native transpose data/ownership mismatch");
+  }
+  const auto original = outputs[0].buffer;
+  for (const Shape axes : {Shape{}, Shape{0, 0}, Shape{2, 0}}) {
+    execution.op.axes = axes;
+    expect_status("invalid native transpose", backend.execute(execution), StatusCode::kInvalidArgument);
+    check(outputs[0].buffer == original, "failed transpose replaced output slot");
+  }
+  execution.inputs = {};
+  expect_status("missing transpose input", backend.execute(execution), StatusCode::kInvalidArgument);
+  execution.inputs = inputs; execution.outputs = {};
+  expect_status("missing transpose output", backend.execute(execution), StatusCode::kInvalidArgument);
+  for (const auto dtype : {DType::kFloat32, DType::kInt32}) {
+    const auto empty = cpu::empty({0, 3}, dtype);
+    const auto result = cpu::execute_unary(op, empty);
+    check(result.shape() == Shape{3, 0} && result.dtype() == dtype && result.size() == 0,
+          "empty transpose metadata mismatch");
+  }
+}
+
 }  // namespace
 
 int main() {
+  transpose_contract_tests();
   cast_broadcast_contract_tests();
   arithmetic_contract_tests();
   // Malformed native metadata must not wrap its byte count to a small buffer.

@@ -82,7 +82,8 @@ for discovery and copies. See [validation evidence](CUDA_PHASE9_VALIDATION.md).
 
 The user-requested [tensor API extension](TENSOR_API.md) adds ordinary
 subtraction/division/negation, real scalars, shared-storage contiguous reshape,
-reduction `keepdims`, explicit float32/int32 casts, and binary broadcasting.
+reduction `keepdims`, explicit float32/int32 casts, binary broadcasting,
+contiguous-copy transpose and shared-storage squeeze/expand_dims.
 These additions preserve the dtype/backend boundaries
 and do not complete the broader CUDA product goal.
 

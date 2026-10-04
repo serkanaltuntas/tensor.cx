@@ -2,7 +2,8 @@
 
 User-requested increment, 2026-10-04: basic arithmetic and Python/NumPy real
 scalars, contiguous reshape, and reduction `keepdims`, followed by explicit
-`astype` conversion and tensor broadcasting. These extend the original API;
+`astype` conversion, tensor broadcasting, and shape operations (`transpose`,
+`squeeze`, `expand_dims`). These extend the original API;
 they do not change the historical Phase 9/10 acceptance records.
 
 ## Arithmetic
@@ -85,8 +86,48 @@ One dimension may be `-1` and is inferred from the element count. Other negative
 dimensions, booleans, non-integral dimensions, mismatched sizes and metadata
 overflow are rejected. For empty tensors, `(-1, 3)` resolves to `(0, 3)`;
 `(0, -1)` is ambiguous and rejected. Existing contiguous shape/stride overflow
-checks also apply to empty tensors. Transpose, arbitrary strides and slicing
-are separate future work.
+checks also apply to empty tensors. Arbitrary strides and slicing remain
+separate future work.
+
+## Transpose and singleton dimensions
+
+`cx.transpose(x, axes=None)`, `x.transpose(axes=None)`, and `x.T` permute axes
+into a **new contiguous buffer on the same device**. With `None` (or `.T`),
+all axes are reversed, including tensors of rank greater than two. Otherwise,
+`axes` is a full permutation; negative indices are normalized against input
+rank. Repeated, missing and out-of-range axes are rejected. An integer is
+accepted for rank-one tensors. Even identity and scalar transposes copy; they
+do not return strided views. The result works with existing matmul, reshape,
+reductions and generated kernels that require contiguous inputs.
+
+`cx.squeeze(x, axis=None)` / `x.squeeze(axis=None)` remove every size-one axis
+by default. An integer or iterable selects only those axes to remove; selecting
+a non-singleton axis is an error. Negative axes refer to input rank. On a
+scalar, integer axis `0` or `-1` is a no-op; a non-empty axis sequence is invalid.
+
+`cx.expand_dims(x, axis)` / `x.expand_dims(axis)` insert size-one axes at an
+integer position or several positions. Axes, including negative indices, refer
+to the **final output rank**. For example, expanding `(2, 3)` at `(0, -1)` gives
+`(1, 2, 3, 1)`. Repeated and out-of-range axes are rejected. Both singleton
+operations return metadata views sharing the original storage and its lifetime,
+using the same ownership rules as reshape. An empty axis tuple returns an
+unchanged-shape view. Axis values follow the integer protocol; booleans,
+strings, non-integral values and values outside signed 64-bit bounds are rejected.
+
+All three operations support float32/int32 on CPU, Metal and CUDA, including
+scalars and empty tensors. Transpose preserves stored bits (including NaN
+payloads and signed zero), with native CPU/MSL/CUDA execution and only O(rank)
+metadata transferred to a GPU. It adds no arbitrary rank cap. The existing
+Metal element-count limit and all shape/product/stride overflow checks still
+apply, including checks on the permuted shape of an empty tensor. Singleton
+views require no data copy or GPU launch.
+
+```python
+x = cx.tensor([[1, 2, 3], [4, 5, 6]])
+print(x.T.numpy())  # [[1, 4], [2, 5], [3, 6]]
+print(x.expand_dims((0, -1)).shape)  # (1, 2, 3, 1)
+print(x.expand_dims((0, -1)).squeeze().shape)  # (2, 3)
+```
 
 ## Reduction dimensions
 
@@ -108,10 +149,11 @@ print(x.sum(axis=-1, keepdims=True).numpy())  # [[3.], [7.]]
 
 ## Verification and remaining work
 
-`tests/python/test_tensor_api.py` and `tests/python/test_cast_broadcast.py` check
-the public contract on every available backend. CUDA acceptance requires a GPU
-before collection and includes both files without skips; native contracts cover
-arithmetic, cast and broadcast validation and numerical edge cases. Metal must
+`tests/python/test_tensor_api.py`, `tests/python/test_cast_broadcast.py` and
+`tests/python/test_shape_ops.py` check the public contract on every available
+backend. CUDA acceptance requires a GPU before collection and includes these
+files without skips; native contracts cover arithmetic, cast, broadcast and
+transpose validation and numerical edge cases. Metal must
 also pass compilation and device parity on a Metal host.
 
 First increment acceptance on 2026-10-04 (before casts/broadcasting): full suite
@@ -133,10 +175,19 @@ four browser tests and the documented operations example passed. These results
 establish local CPU/CUDA acceptance; Metal compilation/device execution remains
 a separate macOS CI gate.
 
+Shape-operation local acceptance on 2026-10-04: required CUDA/MLIR full suite
+passed 1737 tests with 160 expected platform/Metal skips. The new shape API file
+passed 164 CPU/CUDA tests without skips. Native and ASan/UBSan contracts passed
+4/4 each. Fresh CPU/CUDA sdist-to-wheel installations passed with LLVM present,
+absent and the GPU hidden; installed wheels passed 82 CPU and 164 CPU/CUDA
+shape-operation tests. Website checking, production build, four browser tests
+and the operations example passed. These results establish local CPU/CUDA
+acceptance; Metal compilation and device execution require a separate macOS gate.
+
 This increment does not complete the broader product backlog. The existing
 [CUDA completion ledger](CUDA_PRODUCT_COMPLETION.md) still tracks additional
 GPU/toolchain evidence and an isolated remote GPU runner. Further proposed API
-work includes shape/indexing operations beyond reshape and multi-axis reductions.
+work includes slicing, concatenation and multi-axis reductions.
 Product proposals also include portable
 releases, diagnostics, interoperability, inference primitives, compiler caching,
 profiling, more dtypes, and asynchronous execution. These need their own scopes

@@ -367,7 +367,8 @@ Avoid broad compatibility features until the runtime foundation is solid. In
 v0.1, elementwise operations require exact shape and dtype matches. Do not add
 broadcasting, implicit casts, or silent reinterpretation in that original scope.
 The user-authorized post-v0.1 API extension now includes explicit float32/int32
-`astype` and ordinary binary tensor broadcasting; see `docs/TENSOR_API.md`.
+`astype`, ordinary binary tensor broadcasting, contiguous-copy transpose, and
+shared-storage squeeze/expand_dims; see `docs/TENSOR_API.md`.
 Implicit dtype promotion, device transfer, general strides and generated-kernel
 broadcasting remain outside that extension.
 

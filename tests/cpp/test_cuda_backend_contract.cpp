@@ -1,4 +1,5 @@
 #include <array>
+#include <bit>
 #include <cstdlib>
 #include <iostream>
 #include <limits>
@@ -217,6 +218,43 @@ void broadcast_contract(cuda::CudaBackend& backend) {
   }
 }
 
+void transpose_contract(cuda::CudaBackend& backend) {
+  for (const auto dtype : {DType::kFloat32, DType::kInt32}) {
+    for (const Shape shape : {Shape{}, Shape{2, 0}, Shape{3, 257}, Shape{2, 1, 3}}) {
+      cpu::CpuTensor source(dtype, shape);
+      for (std::size_t i = 0; i < static_cast<std::size_t>(source.size()); ++i) {
+        if (dtype == DType::kFloat32) {
+          const std::array<std::uint32_t, 6> bits{0, 0x80000000, 0x7fc12345, 1, 0xff800000, 0x7f812345};
+          source.mutable_float_data()[i] = std::bit_cast<float>(bits[i % bits.size()]);
+        } else source.mutable_int32_data()[i] = static_cast<std::int32_t>(i) - 17;
+      }
+      auto uploaded = cuda::from_cpu(source);
+      require(bool(uploaded), "transpose input upload failed");
+      std::array<Tensor, 1> inputs{cuda::to_core_tensor(uploaded.value())}, outputs{};
+      OpDesc op{OpKind::kTranspose};
+      for (std::size_t axis = shape.size(); axis > 0; --axis)
+        op.axes.push_back(static_cast<Dim>(axis - 1));
+      BackendExecution execution{BackendOpClass::kPrimitive, op, inputs, outputs};
+      require(backend.execute(execution).ok(), "CUDA transpose failed");
+      const auto expected = cpu::execute_unary(op, source);
+      const auto actual = cuda::to_cpu(cuda::from_core_tensor(outputs[0]).value()).value();
+      require(actual.shape() == expected.shape() && actual.dtype() == dtype &&
+              outputs[0].buffer != inputs[0].buffer, "CUDA transpose metadata/ownership mismatch");
+      for (std::size_t i = 0; i < static_cast<std::size_t>(source.size()); ++i) {
+        require(dtype == DType::kInt32 ? actual.int32_data()[i] == expected.int32_data()[i] :
+          std::bit_cast<std::uint32_t>(actual.float_data()[i]) ==
+            std::bit_cast<std::uint32_t>(expected.float_data()[i]), "CUDA transpose bit mismatch");
+      }
+      const auto previous = outputs[0].buffer;
+      execution.op.axes.push_back(0);
+      invalid(backend.execute(execution));
+      require(outputs[0].buffer == previous, "invalid transpose replaced output slot");
+      execution.inputs = {};
+      invalid(backend.execute(execution));
+    }
+  }
+}
+
 Tensor descriptor(Shape shape = {3}) {
   const auto strides = contiguous_strides(shape);
   return {DType::kFloat32, std::move(shape), strides, {"cuda", 0}, nullptr, 0};
@@ -311,6 +349,7 @@ int main() {
     arithmetic_contract(backend);
     cast_contract(backend);
     broadcast_contract(backend);
+    transpose_contract(backend);
     // Long contiguous rows exercise the cooperative path under device
     // memcheck/racecheck as well as ordinary native acceptance.
     for (const std::int64_t width : {256, 257, 4097}) {

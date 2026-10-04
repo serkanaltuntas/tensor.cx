@@ -26,3 +26,12 @@ result = values.astype(cx.float32) + bias
 print((result - result.mean(axis=-1, keepdims=True)).numpy())
 # [[-1.25  0.    1.25]
 #  [-1.25  0.    1.25]]
+
+print(values.T.numpy())
+# [[1 4]
+#  [2 5]
+#  [3 6]]
+
+expanded = values.expand_dims((0, -1))
+print(expanded.shape)  # (1, 2, 3, 1)
+print(expanded.squeeze().shape)  # (2, 3)

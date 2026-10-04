@@ -480,6 +480,9 @@ class KernelRuntime {
     if (std::strcmp(name, "copy_bits") == 0) {
       return pipeline_slot(copy_bits_, name);
     }
+    if (std::strcmp(name, "transpose_bits") == 0) {
+      return pipeline_slot(transpose_bits_, name);
+    }
     if (std::strcmp(name, "cast_i32_f32") == 0) {
       return pipeline_slot(cast_i32_f32_, name);
     }
@@ -621,6 +624,7 @@ class KernelRuntime {
   NS::SharedPtr<MTL::ComputePipelineState> broadcast_f32_;
   NS::SharedPtr<MTL::ComputePipelineState> broadcast_i32_;
   NS::SharedPtr<MTL::ComputePipelineState> copy_bits_;
+  NS::SharedPtr<MTL::ComputePipelineState> transpose_bits_;
   NS::SharedPtr<MTL::ComputePipelineState> cast_i32_f32_;
   NS::SharedPtr<MTL::ComputePipelineState> cast_f32_i32_;
   NS::SharedPtr<MTL::ComputePipelineState> fill_f32_;
@@ -751,6 +755,56 @@ Expected<MetalTensor> execute_cast(const OpDesc& op, const MetalTensor& input) {
   }
   // The caller publishes this independent buffer only on success. No input or
   // supplied output is mutated when the GPU reports an invalid conversion.
+  return result;
+}
+
+Expected<MetalTensor> execute_transpose(const OpDesc& op, const MetalTensor& input) {
+  TransposePlan plan;
+  try {
+    plan = make_transpose_plan(input.shape(), op.axes);
+  } catch (const std::invalid_argument& error) {
+    return Status(StatusCode::kInvalidArgument, error.what());
+  }
+  // A scalar still returns independent storage, with no permutation metadata.
+  if (plan.output_shape.empty()) {
+    OpDesc copy{OpKind::kCast}; copy.target_dtype = input.dtype();
+    return execute_cast(copy, input);
+  }
+  auto count_result = checked_thread_count(input.size());
+  if (!count_result) return count_result.status();
+  const auto count = count_result.move_value();
+  auto allocated = MetalBuffer::create(input.dtype(), static_cast<std::size_t>(input.size()));
+  if (!allocated) return allocated.status();
+  auto buffer = allocated.move_value();
+  MetalTensor result(input.dtype(), plan.output_shape, buffer);
+  if (count == 0) return result;
+
+  const std::uint64_t rank = plan.output_shape.size();
+  if (rank > std::numeric_limits<std::size_t>::max() / (2 * sizeof(std::uint64_t))) {
+    return Status(StatusCode::kInvalidArgument, "transpose metadata byte size overflow");
+  }
+  // Device metadata avoids imposing a rank cap from Metal's inline-data limit.
+  std::vector<std::uint64_t> metadata;
+  metadata.reserve(static_cast<std::size_t>(rank) * 2);
+  for (std::size_t axis = 0; axis < rank; ++axis) {
+    metadata.push_back(static_cast<std::uint64_t>(plan.output_shape[axis]));
+    metadata.push_back(static_cast<std::uint64_t>(plan.input_strides[axis]));
+  }
+  auto metadata_result = MetalBuffer::create(DType::kInt32, metadata.size() * 2);
+  if (!metadata_result) return metadata_result.status();
+  auto metadata_buffer = metadata_result.move_value();
+  auto status = metadata_buffer->copy_from_host(metadata.data(), metadata_buffer->nbytes());
+  if (!status.ok()) return status;
+  auto pipeline = runtime().pipeline("transpose_bits");
+  if (!pipeline) return pipeline.status();
+  status = run_threads(*pipeline.move_value(), count, [&](MTL::ComputeCommandEncoder& encoder) {
+    encoder.setBuffer(input.buffer()->native(), 0, 0);
+    encoder.setBuffer(buffer->native(), 0, 1);
+    encoder.setBytes(&count, sizeof(count), 2);
+    encoder.setBuffer(metadata_buffer->native(), 0, 3);
+    encoder.setBytes(&rank, sizeof(rank), 4);
+  });
+  if (!status.ok()) return status;
   return result;
 }
 
@@ -953,6 +1007,9 @@ Expected<MetalTensor> execute_layernorm(const OpDesc& op, const MetalTensor& inp
 }  // namespace
 
 Expected<MetalTensor> execute_unary(const OpDesc& op, const MetalTensor& input) {
+  if (op.kind == OpKind::kTranspose) {
+    return execute_transpose(op, input);
+  }
   if (op.kind == OpKind::kCast) {
     return execute_cast(op, input);
   }

@@ -5,6 +5,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -264,7 +265,8 @@ Status CpuBackend::execute(const BackendExecution& execution) {
       case OpKind::kSubtractScalar:
       case OpKind::kMultiplyScalar:
       case OpKind::kDivideScalar:
-      case OpKind::kCast: {
+      case OpKind::kCast:
+      case OpKind::kTranspose: {
         const CpuTensor input = from_core_tensor(execution.inputs[0]);
         execution.outputs[0] = to_core_tensor(execute_unary(execution.op, input));
         return Status::Ok();
@@ -731,6 +733,29 @@ CpuTensor fill(Shape shape, DType dtype, double value) {
 CpuTensor execute_unary(const OpDesc& op, const CpuTensor& input) {
   if (input.device().type != "cpu") {
     throw std::invalid_argument("CPU operations require CPU tensors");
+  }
+  if (op.kind == OpKind::kTranspose) {
+    const auto plan = make_transpose_plan(input.shape(), op.axes);
+    CpuTensor result(input.dtype(), plan.output_shape);
+    const auto permute = [&](const auto& values, auto& output) {
+      for (std::size_t i = 0; i < output.size(); ++i) {
+        auto remaining = i;
+        std::size_t source = 0;
+        for (std::size_t axis = plan.output_shape.size(); axis-- > 0;) {
+          const auto extent = static_cast<std::size_t>(plan.output_shape[axis]);
+          source += (remaining % extent) * static_cast<std::size_t>(plan.input_strides[axis]);
+          remaining /= extent;
+        }
+        // Reordering is bit-preserving, including NaN payloads and signed zero.
+        std::memcpy(&output[i], &values[source], sizeof(output[i]));
+      }
+    };
+    if (input.dtype() == DType::kFloat32) {
+      permute(input.float_data(), result.mutable_float_data());
+    } else {
+      permute(input.int32_data(), result.mutable_int32_data());
+    }
+    return result;
   }
   if (op.kind == OpKind::kCast) {
     if (op.target_dtype != DType::kFloat32 && op.target_dtype != DType::kInt32) {

@@ -57,6 +57,24 @@ kernel void broadcast_i32(device const int* lhs [[buffer(0)]],
   }
 }
 
+// Two ulong entries per output axis: extent and mapped input element stride.
+kernel void transpose_bits(device const uint* input [[buffer(0)]],
+                           device uint* out [[buffer(1)]],
+                           constant uint& n [[buffer(2)]],
+                           device const ulong* metadata [[buffer(3)]],
+                           constant ulong& rank [[buffer(4)]],
+                           uint id [[thread_position_in_grid]]) {
+  if (id < n) {
+    ulong remaining = id, source = 0;
+    for (ulong axis = rank; axis > 0; --axis) {
+      const ulong entry = (axis - 1) * 2;
+      source += (remaining % metadata[entry]) * metadata[entry + 1];
+      remaining /= metadata[entry];
+    }
+    out[id] = input[source];
+  }
+}
+
 kernel void copy_bits(device const uint* input [[buffer(0)]],
                       device uint* out [[buffer(1)]],
                       constant uint& n [[buffer(2)]],

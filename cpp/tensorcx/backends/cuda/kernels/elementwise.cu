@@ -46,6 +46,20 @@ __global__ void broadcast_binary_f32(const float* lhs, const float* rhs, float* 
   }
 }
 
+__global__ void transpose_bits(const std::uint32_t* input, std::uint32_t* output,
+                               std::size_t count, const Dim* metadata, std::size_t rank) {
+  for (std::size_t i = std::size_t(blockIdx.x) * blockDim.x + threadIdx.x;
+       i < count; i += std::size_t(blockDim.x) * gridDim.x) {
+    std::size_t remaining = i, source = 0;
+    for (std::size_t axis = rank; axis-- > 0;) {
+      const auto extent = static_cast<std::size_t>(metadata[axis]);
+      source += (remaining % extent) * static_cast<std::size_t>(metadata[rank + axis]);
+      remaining /= extent;
+    }
+    output[i] = input[source];
+  }
+}
+
 __global__ void validate_int32_cast(const float* input, std::size_t count, int* invalid) {
   for (std::size_t i = std::size_t(blockIdx.x) * blockDim.x + threadIdx.x;
        i < count; i += std::size_t(blockDim.x) * gridDim.x) {
@@ -106,6 +120,14 @@ cudaError_t launch_broadcast_binary(const float* lhs, const float* rhs, float* o
                                     const Dim* metadata, std::size_t rank) {
   if (count == 0) return cudaSuccess;
   broadcast_binary_f32<<<blocks(count), kThreads>>>(lhs, rhs, output, count, op, metadata, rank);
+  return finish_launch();
+}
+
+cudaError_t launch_transpose(const void* input, void* output, std::size_t count,
+                             const Dim* metadata, std::size_t rank) {
+  if (count == 0) return cudaSuccess;
+  transpose_bits<<<blocks(count), kThreads>>>(static_cast<const std::uint32_t*>(input),
+      static_cast<std::uint32_t*>(output), count, metadata, rank);
   return finish_launch();
 }
 

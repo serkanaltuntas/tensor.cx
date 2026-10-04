@@ -20,6 +20,8 @@ Start with `import tensorcx as cx`. The following example works on CPU:
 | Elementwise | `a + b`, `a - b`, `a * b`, `a / b`, `-a` | Broadcast-compatible shapes, same dtype/device; real scalars work on either side; division requires float32 |
 | Convert dtype | `x.astype(dtype)`, `cx.astype(x, dtype)` | Explicit float32/int32 conversion on the same device; copies by default |
 | Reshape | `x.reshape(shape)`, `cx.reshape(x, shape)` | Shares storage; same element count; one inferred `-1` allowed |
+| Transpose | `x.transpose(axes=None)`, `cx.transpose(x, axes=None)`, `x.T` | Reverses axes by default; always copies into a contiguous buffer on the same device |
+| Singleton axes | `x.squeeze(axis=None)`, `x.expand_dims(axis)`; also `cx.squeeze`, `cx.expand_dims` | Remove/insert size-one axes as views sharing storage |
 | Matrix multiply | `cx.matmul(a, b)` | Float32, 2D inputs, matching inner dimensions |
 | Reduce | `cx.sum(x, axis=..., keepdims=False)`, `max`, `mean` | Explicit axis; `keepdims=True` retains it with size 1 |
 | Activate | `cx.exp(x)`, `gelu`, `silu` | Float32 |
@@ -48,6 +50,12 @@ Support varies by backend, particularly for `int32`. See the
   Empty shape inference such as `(0, -1)` is ambiguous and rejected.
 - Reductions support negative axes. An empty-axis sum produces zeros; mean
   produces NaNs; max raises `ValueError`.
+- Transpose accepts a full axis permutation, with negative indices; even an
+  identity or scalar transpose owns a new buffer. Squeeze removes all size-one
+  axes by default, or selected axes. Expand dims accepts one or more positions
+  in the final output shape: `(2, 3)` at `(0, -1)` becomes `(1, 2, 3, 1)`.
+  Repeated/out-of-range axes and squeezing a non-singleton axis are errors.
+  Both singleton operations share storage using the reshape ownership rules.
 - Softmax subtracts the maximum before exponentiation. NaNs propagate; slices
   containing positive infinity or only negative infinities produce NaNs.
 - RMSNorm and LayerNorm have no affine weights. Their `eps` must be finite,

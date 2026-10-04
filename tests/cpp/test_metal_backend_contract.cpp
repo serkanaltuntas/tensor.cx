@@ -257,6 +257,48 @@ bool cast_contract() {
   return true;
 }
 
+bool transpose_contract() {
+  using namespace tensorcx;
+  metal::MetalBackend backend;
+  for (const auto dtype : {DType::kFloat32, DType::kInt32}) {
+    for (const Shape shape : {Shape{}, Shape{2, 0}, Shape{3, 257}, Shape{2, 1, 3}}) {
+      cpu::CpuTensor source(dtype, shape);
+      for (std::size_t i = 0; i < static_cast<std::size_t>(source.size()); ++i) {
+        if (dtype == DType::kFloat32) {
+          const std::array<std::uint32_t, 6> bits{0, 0x80000000, 0x7fc12345, 1, 0xff800000, 0x7f812345};
+          source.mutable_float_data()[i] = std::bit_cast<float>(bits[i % bits.size()]);
+        } else source.mutable_int32_data()[i] = static_cast<std::int32_t>(i) - 17;
+      }
+      auto uploaded = metal::from_cpu(source);
+      if (!uploaded) return false;
+      std::array<Tensor, 1> inputs{metal::to_core_tensor(uploaded.value())}, outputs{};
+      OpDesc op{OpKind::kTranspose};
+      for (std::size_t axis = shape.size(); axis > 0; --axis)
+        op.axes.push_back(static_cast<Dim>(axis - 1));
+      BackendExecution execution{BackendOpClass::kPrimitive, op, inputs, outputs};
+      if (!backend.execute(execution).ok() || outputs[0].buffer == inputs[0].buffer) return false;
+      const auto expected = cpu::execute_unary(op, source);
+      const auto downloaded = metal::to_cpu(metal::from_core_tensor(outputs[0]));
+      if (!downloaded) return false;
+      const auto& actual = downloaded.value();
+      if (actual.shape() != expected.shape() || actual.dtype() != dtype) return false;
+      for (std::size_t i = 0; i < static_cast<std::size_t>(source.size()); ++i) {
+        if (dtype == DType::kInt32) {
+          if (actual.int32_data()[i] != expected.int32_data()[i]) return false;
+        } else if (std::bit_cast<std::uint32_t>(actual.float_data()[i]) !=
+                   std::bit_cast<std::uint32_t>(expected.float_data()[i])) return false;
+      }
+      const auto previous = outputs[0].buffer;
+      execution.op.axes.push_back(0);
+      if (backend.execute(execution).code() != StatusCode::kInvalidArgument ||
+          outputs[0].buffer != previous) return false;
+      execution.inputs = {};
+      if (backend.execute(execution).code() != StatusCode::kInvalidArgument) return false;
+    }
+  }
+  return true;
+}
+
 }  // namespace
 
 int main() {
@@ -284,8 +326,8 @@ int main() {
     std::cerr << "Metal arithmetic CPU parity or validation contract failed\n";
     return 1;
   }
-  if (!broadcast_contract() || !cast_contract()) {
-    std::cerr << "Metal broadcast/cast CPU parity or validation contract failed\n";
+  if (!broadcast_contract() || !cast_contract() || !transpose_contract()) {
+    std::cerr << "Metal broadcast/cast/transpose CPU parity or validation contract failed\n";
     return 1;
   }
 

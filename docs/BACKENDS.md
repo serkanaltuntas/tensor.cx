@@ -104,7 +104,10 @@ Arithmetic extensions add subtract/divide/negate and one-input scalar variants.
 Scalar variants reuse `scalar_value` and `scalar_left` (for operand order), with
 the same shared schema validation. Reshape constructs typed metadata sharing
 the existing buffer; reduction `keepdims` reshapes the result without a new
-execution request. Dtype and ownership contracts are in [TENSOR_API.md](TENSOR_API.md).
+execution request. Squeeze/expand_dims use the same shared-buffer path.
+Transpose is a one-input `kTranspose` request with `OpDesc.axes`, implemented
+on CPU/Metal/CUDA as a bit-preserving copy into an independent contiguous
+buffer. Dtype and ownership contracts are in [TENSOR_API.md](TENSOR_API.md).
 
 Kernel requests must pass the shared core kernel contract validator before a
 backend executes them: they require output metadata, launch metadata, a

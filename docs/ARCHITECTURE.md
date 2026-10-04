@@ -117,7 +117,11 @@ new native buffer; Python handles the explicit same-dtype `copy=False` alias.
 The shared `make_broadcast_plan` validates shapes and produces aligned input
 strides (zero for expanded axes). CPU/Metal/CUDA binary arithmetic uses this
 metadata to index original buffers and allocates only the contiguous result.
-See [conversion and broadcast semantics](TENSOR_API.md).
+`kTranspose` carries a full axis permutation in `OpDesc.axes`. The shared
+`make_transpose_plan` validates the permutation and output metadata, and maps
+output axes to input strides. CPU/MSL/CUDA implementations copy stored bits to
+an independent contiguous output. Squeeze/expand_dims reuse reshape metadata
+views. See [tensor API semantics](TENSOR_API.md).
 Constructor-style `empty` allocation remains outside `Backend::execute` for now.
 
 This is a deliberate, documented transition kept small per the "avoid unrelated

@@ -46,6 +46,33 @@ Shape contiguous_strides(const Shape& shape) {
   return strides;
 }
 
+TransposePlan make_transpose_plan(const Shape& input, const Shape& axes) {
+  (void)numel(input);
+  const auto strides = contiguous_strides(input);
+  if (axes.size() != input.size()) {
+    throw std::invalid_argument("transpose axes must be a full permutation");
+  }
+  const auto rank = static_cast<Dim>(input.size());
+  std::vector<bool> seen(input.size(), false);
+  TransposePlan plan{Shape(input.size()), Shape(input.size())};
+  for (std::size_t i = 0; i < axes.size(); ++i) {
+    auto axis = axes[i];
+    if (axis < 0) axis += rank;
+    if (axis < 0 || axis >= rank) {
+      throw std::invalid_argument("transpose axis is out of range");
+    }
+    if (seen[axis]) {
+      throw std::invalid_argument("transpose axes must not repeat");
+    }
+    seen[axis] = true;
+    plan.output_shape[i] = input[axis];
+    plan.input_strides[i] = strides[axis];
+  }
+  (void)numel(plan.output_shape);
+  (void)contiguous_strides(plan.output_shape);
+  return plan;
+}
+
 BroadcastPlan make_broadcast_plan(const Shape& lhs, const Shape& rhs) {
   (void)numel(lhs);
   (void)numel(rhs);

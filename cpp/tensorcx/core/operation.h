@@ -5,6 +5,7 @@
 #include <optional>
 
 #include "tensorcx/core/dtype.h"
+#include "tensorcx/core/shape.h"
 
 namespace tensorcx {
 
@@ -30,6 +31,7 @@ enum class OpKind {
   kMultiplyScalar,
   kDivideScalar,
   kCast,
+  kTranspose,
 };
 
 enum class MatmulPreference {
@@ -57,6 +59,7 @@ struct OpDesc {
   // Scalar arithmetic reuses scalar_value; true places it left of the tensor.
   bool scalar_left{false};
   DType target_dtype{DType::kFloat32};
+  Shape axes{};
 };
 
 struct PrimitiveOpSchema {

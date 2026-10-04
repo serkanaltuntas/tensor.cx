@@ -170,6 +170,40 @@ Status CudaBackend::execute(const BackendExecution& execution) {
       auto tensor=from_core_tensor(input);
       if (!tensor) return tensor.status();
     }
+    if (kind == OpKind::kTranspose) {
+      const auto& input = execution.inputs[0];
+      const auto plan = make_transpose_plan(input.shape, execution.op.axes);
+      const auto rank = plan.output_shape.size();
+      if (rank > std::numeric_limits<std::size_t>::max() / (2 * sizeof(Dim)))
+        return invalid("CUDA transpose metadata size overflow");
+      ContextScope device;
+      if (!device.ready()) return device.status();
+      const auto source = std::static_pointer_cast<CudaBuffer>(input.buffer);
+      auto result = CudaBuffer::create(input.dtype, plan.output_shape);
+      if (!result) return result.status();
+      const auto count = static_cast<std::size_t>(numel(plan.output_shape));
+      if (count) {
+        std::unique_ptr<void, DeviceDeleter> device_metadata(nullptr, DeviceDeleter{device.owner()});
+        if (rank) {
+          Shape metadata = plan.output_shape;
+          metadata.insert(metadata.end(), plan.input_strides.begin(), plan.input_strides.end());
+          void* allocation = nullptr;
+          auto status = runtime_status(cudaMalloc(&allocation, metadata.size() * sizeof(Dim)),
+                                       "CUDA transpose metadata allocation");
+          if (!status.ok()) return status;
+          device_metadata.reset(allocation);
+          status = runtime_status(cudaMemcpy(allocation, metadata.data(), metadata.size() * sizeof(Dim),
+                                             cudaMemcpyHostToDevice), "CUDA transpose metadata copy");
+          if (!status.ok()) return status;
+        }
+        // Rank-zero kernels copy one word without reading the null metadata.
+        const auto status = runtime_status(launch_transpose(source->data(), result.value()->data(), count,
+            static_cast<const Dim*>(device_metadata.get()), rank), "CUDA transpose");
+        if (!status.ok()) return status;
+      }
+      execution.outputs[0] = to_core_tensor(CudaTensor(input.dtype, plan.output_shape, result.move_value()));
+      return Status::Ok();
+    }
     if (kind == OpKind::kCast) {
       const auto& input = execution.inputs[0];
       const auto target = execution.op.target_dtype;

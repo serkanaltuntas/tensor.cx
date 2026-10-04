@@ -15,6 +15,8 @@ only device index 0 is exposed.
 | Float32 subtract, divide, negate and scalar arithmetic | Yes | Yes | Yes |
 | Int32 subtract, negate and scalar add/subtract/multiply | Yes | Yes | No |
 | Contiguous reshape (float32/int32) | Yes | Yes | Yes |
+| Transpose to contiguous copy (float32/int32) | Yes | Yes | Yes |
+| Squeeze / expand dims views (float32/int32) | Yes | Yes | Yes |
 | Explicit float32/int32 conversion | Yes | Yes | Yes |
 | Binary arithmetic broadcasting | Yes | Yes | Yes, float32 |
 | Float32 2D matmul | Yes | Custom + optional optimized path | Custom path |
