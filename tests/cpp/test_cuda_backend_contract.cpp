@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "predicate_contract.h"
 #include "batched_matmul_contract.h"
 #include "math_contract.h"
@@ -14,6 +15,7 @@
 #include <vector>
 
 #include "tensorcx/backends/cuda/cuda_backend.h"
+#include "tensorcx/backends/cuda/cuda_buffer.h"
 #include "tensorcx/backends/cpu/cpu_backend.h"
 
 using namespace tensorcx;
@@ -61,8 +63,8 @@ void indexing_contract(cuda::CudaBackend& backend) {
         require(actual.shape() == expected.shape() && actual.dtype() == dtype,
                 "indexing metadata mismatch");
         require(gpu_outputs[0].buffer != gpu_inputs[0].buffer, "indexing must copy");
-        if (dtype == DType::kFloat32) require(actual.float_data() == expected.float_data(), "slice/concat mismatch");
-        else require(actual.int32_data() == expected.int32_data(), "int32 slice/concat mismatch");
+        if (dtype == DType::kFloat32) require(std::ranges::equal(actual.float_data(), expected.float_data()), "slice/concat mismatch");
+        else require(std::ranges::equal(actual.int32_data(), expected.int32_data()), "int32 slice/concat mismatch");
         const auto previous = gpu_outputs[0].buffer;
         gpu.inputs = {};
         invalid(backend.execute(gpu));
@@ -255,8 +257,8 @@ void broadcast_contract(cuda::CudaBackend& backend) {
       for (std::size_t i = 0; i < actual.size(); ++i)
         same_float(actual.float_data()[i], expected.float_data()[i]);
     }
-    require(cuda::to_cpu(ga).value().float_data() == lhs, "broadcast changed lhs input");
-    require(cuda::to_cpu(gb).value().float_data() == rhs, "broadcast changed rhs input");
+    require(std::ranges::equal(cuda::to_cpu(ga).value().float_data(), lhs), "broadcast changed lhs input");
+    require(std::ranges::equal(cuda::to_cpu(gb).value().float_data(), rhs), "broadcast changed rhs input");
   }
   auto left = cuda::from_cpu(cpu::CpuTensor({2, 0}, std::vector<float>{})).value();
   auto right = cuda::from_cpu(cpu::CpuTensor({3, 0}, std::vector<float>{})).value();
@@ -339,7 +341,7 @@ void multi_axis_contract(cuda::CudaBackend& backend) {
       invalid(backend.execute(execution));
       require(outputs[0].buffer == output, "invalid multi-axis request changed output");
     }
-    require(cuda::to_cpu(uploaded.value()).value().float_data() == source.float_data(),
+    require(std::ranges::equal(cuda::to_cpu(uploaded.value()).value().float_data(), source.float_data()),
             "multi-axis reduction changed input");
   }
 }
@@ -385,11 +387,30 @@ int main() {
       std::cout << "CUDA device unavailable; metadata validation passed\n";
       return 77;
     }
+    {
+      auto owned = cuda::CudaBuffer::create(DType::kFloat32, {4}).value();
+      std::weak_ptr<cuda::CudaBuffer> lifetime = owned;
+      auto a = cuda::CudaBuffer::borrow(DType::kFloat32, {3}, owned->data(), owned).value();
+      auto b = cuda::CudaBuffer::borrow(DType::kFloat32, {3}, owned->data(), owned).value();
+      auto partial = cuda::CudaBuffer::borrow(DType::kFloat32, {3}, static_cast<float*>(owned->data()) + 1, owned).value();
+      require(a->storage_relation(*b) == StorageRelation::kSameRange, "borrowed CUDA exact alias");
+      require(a->storage_relation(*partial) == StorageRelation::kPartialOverlap, "borrowed CUDA partial alias");
+      auto empty = cuda::CudaBuffer::borrow(DType::kFloat32, {0}, nullptr, owned).value();
+      auto other_empty = cuda::CudaBuffer::borrow(DType::kFloat32, {0}, nullptr, owned).value();
+      require(empty->storage_relation(*other_empty) == StorageRelation::kDisjoint, "empty CUDA ranges must not alias");
+      float host_data[3]{};
+      invalid(cuda::CudaBuffer::borrow(DType::kFloat32, {3}, host_data, owned).status());
+      invalid(cuda::CudaBuffer::borrow(DType::kFloat32, {3}, owned->data(), {}).status());
+      owned.reset(); a.reset(); partial.reset(); empty.reset(); other_empty.reset();
+      require(!lifetime.expired(), "borrowed CUDA owner lifetime");
+      b.reset();
+      require(lifetime.expired(), "borrowed CUDA owner released");
+    }
     require(backend.execute(fill).ok(), "fill failed");
     auto filled = cuda::from_core_tensor(outputs[0]);
     require(bool(filled), "fill metadata invalid");
     auto host = cuda::to_cpu(filled.value());
-    require(bool(host) && host.value().float_data() == std::vector<float>({2.5, 2.5, 2.5}),
+    require(bool(host) && std::ranges::equal(host.value().float_data(), std::vector<float>({2.5, 2.5, 2.5})),
             "fill value mismatch");
     const Tensor original = outputs[0];
     std::array<Tensor, 2> inputs{original, original};
@@ -399,7 +420,7 @@ int main() {
       require(backend.execute(binary).ok(), "binary failed");
       auto result = cuda::to_cpu(cuda::from_core_tensor(outputs[0]).value());
       const float expected = kind == OpKind::kAdd ? 5.0f : 6.25f;
-      require(bool(result) && result.value().float_data() == std::vector<float>(3, expected),
+      require(bool(result) && std::ranges::equal(result.value().float_data(), std::vector<float>(3, expected)),
               "binary value mismatch");
     }
     {

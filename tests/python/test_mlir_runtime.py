@@ -46,6 +46,26 @@ def alias(a, out, n):
         out[i] = a[i] + out[i]
 
 
+@pytest.mark.parametrize('threads', [0, 3, 6])
+def test_dlpack_alias_remapping(compiled, threads):
+    values = np.arange(2, 8, dtype=np.float32)
+    a, out = cx.from_dlpack(values), cx.from_dlpack(values)
+    expected = values.copy()
+    expected[:threads] = 2 * (values[:threads] + 1)
+    np.testing.assert_array_equal(alias.reference(a, out, threads, thread_count=threads).numpy(), expected)
+    np.testing.assert_array_equal(compiled['alias'].launch(a, out, threads, thread_count=threads).numpy(), expected)
+    np.testing.assert_array_equal(values, np.arange(2, 8, dtype=np.float32))
+
+
+def test_dlpack_partial_output_overlap_rejected(compiled):
+    values = np.arange(7, dtype=np.float32)
+    a, out = cx.from_dlpack(values[:-1]), cx.from_dlpack(values[1:])
+    for call in (alias.reference, compiled['alias'].launch):
+        with pytest.raises(ValueError, match='overlap'):
+            call(a, out, 6, thread_count=6)
+    np.testing.assert_array_equal(values, np.arange(7, dtype=np.float32))
+
+
 def require_tools():
     try:
         if not _core._cpu_kernel_supported():

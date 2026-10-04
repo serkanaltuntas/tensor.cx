@@ -308,7 +308,7 @@ nb::tuple shape_tuple(const Shape& shape) {
 // the nb::ndarray NumPy bridge §5.6 chose nanobind for, and keeps Tensor.numpy()
 // O(n) memory copies rather than O(n) PyObject allocations on 1M/16M tensors.
 template <typename T>
-nb::object make_numpy_array(const std::vector<T>& data, const Shape& shape) {
+nb::object make_numpy_array(std::span<const T> data, const Shape& shape) {
   const std::size_t ndim = shape.size();
   std::vector<std::size_t> dims(ndim);
   for (std::size_t i = 0; i < ndim; ++i) {
@@ -851,9 +851,12 @@ void bind_tensor_extensions(nb::module_& module, ExecuteSingle execute_single) {
     op.target_dtype = parse_dtype(nb::str(dtype.c_str()), DType::kFloat32);
     return execute_single(input, op);
   }, nb::arg("input"), nb::arg("dtype"));
-  // Internal interpreter support: compare ownership, never expose device pointers.
+  // Internal interpreter support: compare storage, never expose device pointers.
   module.def("_shares_storage", [](const NativeTensor& lhs, const NativeTensor& rhs) {
-    return lhs.buffer() == rhs.buffer();
+    const auto relation = to_core_tensor(lhs).buffer->storage_relation(*to_core_tensor(rhs).buffer);
+    if (relation == tensorcx::StorageRelation::kPartialOverlap)
+      throw std::invalid_argument("kernel arguments have unsupported partial storage overlap");
+    return relation == tensorcx::StorageRelation::kSameRange;
   }, nb::arg("lhs"), nb::arg("rhs"));
   for (auto [name, kind] : {std::pair{"subtract", OpKind::kSubtract},
                             {"divide", OpKind::kDivide}}) {
@@ -1019,6 +1022,8 @@ std::string launch_metal_library_function_via_backend(
 #endif
 
 }  // namespace
+
+void bind_dlpack(nb::module_& module);
 
 NB_MODULE(_core, module) {
   module.doc() = "Native extension module for tensor.cx.";
@@ -1489,4 +1494,5 @@ NB_MODULE(_core, module) {
              nb::arg("rhs"),
              nb::arg("backend") = "auto");
 #endif
+  bind_dlpack(module);
 }

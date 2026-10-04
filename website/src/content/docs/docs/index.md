@@ -25,10 +25,11 @@ backend contracts, and testing small tensor workloads. APIs may change.
   and normalization operations.
 - CPU references for accelerator correctness checks.
 - A separate [experimental kernel API](/docs/experimental/).
+- [DLPack storage sharing and an optional PyTorch inference custom op](/docs/interoperability/).
 
 Autograd, model training, asynchronous streams, distributed
 execution, and broad dtype coverage are outside the current runtime. There is
-no PyTorch compatibility promise.
+no general PyTorch model or training compatibility promise.
 
 ## Read the implementation
 

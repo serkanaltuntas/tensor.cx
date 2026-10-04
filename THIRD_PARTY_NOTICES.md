@@ -81,6 +81,14 @@ The full Apache-2.0 terms are reproduced in LICENSE. This attribution applies
 to metal-cpp, separately from tensor.cx's copyright. The pinned distribution has
 no separate NOTICE file.
 
+## DLPack — Apache-2.0
+
+The unmodified DLPack v1.0 header is vendored from
+https://github.com/dmlc/dlpack/tree/v1.0 in `third_party/dlpack/` with its license.
+Copyright DLPack contributors. The full Apache-2.0 terms are reproduced in
+LICENSE. The header defines the exchange ABI used by the binding; DLPack is not
+a runtime dependency and its types do not enter the backend-neutral core.
+
 ## External dependencies
 
 NumPy is installed separately under its own license. LLVM/MLIR tools, CUDA

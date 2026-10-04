@@ -68,6 +68,52 @@ Expected<std::shared_ptr<CudaBuffer>> CudaBuffer::create(DType dtype, const Shap
   return buffer;
 }
 
+StorageRelation CudaBuffer::storage_relation(const Buffer& other) const {
+  const auto* rhs = dynamic_cast<const CudaBuffer*>(&other);
+  if (!rhs || context() != rhs->context()) return StorageRelation::kDisjoint;
+  if (this == rhs) return StorageRelation::kSameRange;
+  if (!nbytes() || !rhs->nbytes()) return StorageRelation::kDisjoint;
+  const auto a = reinterpret_cast<std::uintptr_t>(data());
+  const auto b = reinterpret_cast<std::uintptr_t>(rhs->data());
+  if (a == b && nbytes() == rhs->nbytes()) return StorageRelation::kSameRange;
+  const bool overlap = a <= b ? b - a < nbytes() : a - b < rhs->nbytes();
+  return overlap ? StorageRelation::kPartialOverlap : StorageRelation::kDisjoint;
+}
+
+Expected<std::shared_ptr<CudaBuffer>> CudaBuffer::borrow(
+    DType dtype, const Shape& shape, void* pointer, std::shared_ptr<void> owner) {
+  auto bytes = byte_size(dtype, shape);
+  if (!bytes) return bytes.status();
+  if (!owner || (bytes.value() && !pointer)) return invalid("borrowed CUDA storage requires an owner and data");
+  ContextScope context;
+  if (!context.ready()) return context.status();
+  if (bytes.value()) {
+    cudaPointerAttributes attributes{};
+    auto status = runtime_status(cudaPointerGetAttributes(&attributes, pointer), "borrowed CUDA pointer");
+    if (!status.ok()) return invalid("invalid borrowed CUDA pointer");
+    if (attributes.type != cudaMemoryTypeDevice || attributes.device != 0)
+      return invalid("borrowed CUDA pointer must belong to device 0");
+    CUcontext pointer_context{};
+    status = driver_status(cuPointerGetAttribute(&pointer_context, CU_POINTER_ATTRIBUTE_CONTEXT,
+                                                reinterpret_cast<CUdeviceptr>(pointer)), "borrowed CUDA context");
+    if (!status.ok()) return status;
+    if (pointer_context != context.owner()->get()) return invalid("borrowed CUDA pointer requires the primary context");
+    if (reinterpret_cast<std::uintptr_t>(pointer) % dtype_size(dtype))
+      return invalid("borrowed CUDA pointer is misaligned");
+  }
+  // The runtime is synchronous. Complete producer work before accessing shared
+  // memory, including callers supplying a legacy capsule without stream exchange.
+  auto status = runtime_status(cudaDeviceSynchronize(), "borrowed CUDA readiness");
+  if (!status.ok()) return status;
+  auto buffer = std::make_shared<CudaBuffer>();
+  buffer->dtype_ = dtype;
+  buffer->bytes_ = bytes.value();
+  buffer->data_.get_deleter().owner = context.owner();
+  buffer->external_data_ = pointer;
+  buffer->external_owner_ = std::move(owner);
+  return buffer;
+}
+
 CudaTensor::CudaTensor(DType dtype, Shape shape, std::shared_ptr<CudaBuffer> buffer)
     : dtype_(dtype), shape_(std::move(shape)), strides_(contiguous_strides(shape_)),
       buffer_(std::move(buffer)) {

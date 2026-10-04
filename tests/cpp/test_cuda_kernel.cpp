@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cuda.h>
 #include <cuda_runtime_api.h>
 #include <array>
@@ -10,6 +11,7 @@
 #include <limits>
 #include <vector>
 #include "tensorcx/backends/cuda/cuda_kernel.h"
+#include "tensorcx/backends/cuda/cuda_buffer.h"
 
 using namespace tensorcx;
 using namespace tensorcx::cuda;
@@ -70,12 +72,51 @@ int main(int argc, char** argv) {
     CudaBackend backend;
     check(backend.execute(e).ok(), "tensor.cx buffer fixture launch failed");
     auto result = from_core_tensor(outputs[0]);
-    check(result && to_cpu(result.value()).value().float_data() == std::vector<float>({6, 8, -3, -4}),
+    check(result && std::ranges::equal(to_cpu(result.value()).value().float_data(), std::vector<float>({6, 8, -3, -4})),
           "partial tensor.cx output mismatch");
-    check(to_cpu(destination.value()).value().float_data() == std::vector<float>({-1, -2, -3, -4}),
+    check(std::ranges::equal(to_cpu(destination.value()).value().float_data(), std::vector<float>({-1, -2, -3, -4})),
           "caller output mutated");
     restored();
     // Each operation keeps its own entry/manifest and dispatches via the registry.
+    {
+      // ABI-level multi-store probe: private-output remapping must recognize
+      // independent wrappers over one range. This does not expand DSL syntax.
+      auto alias_ptx = ptx;
+      const std::string store = "st.global.b32 \t[%rd1], %r6;";
+      const auto position = alias_ptx.find(store);
+      check(position != std::string::npos, "alias probe fixture store missing");
+      if (position != std::string::npos) {
+        alias_ptx.replace(position, store.size(),
+          "st.volatile.global.b32 [%rd1], %r6;\n"
+          "ld.volatile.global.b32 %r4, [%rd3];\n"
+          "add.rn.f32 %r6, %r4, %r6;\n"
+          "st.volatile.global.b32 [%rd1], %r6;");
+        auto alias_module = CudaKernelModule::load(alias_ptx, "tensorcx_add_v1", {"tttu", 2, 3});
+        check(bool(alias_module), "alias probe module failed");
+        auto owner = left.value().buffer();
+        auto borrowed = CudaBuffer::borrow(DType::kFloat32, {4}, owner->data(), owner);
+        check(bool(borrowed), "alias probe borrow failed");
+        if (alias_module && borrowed) {
+          Tensor alias_out = to_core_tensor(CudaTensor(DType::kFloat32, {4}, borrowed.value()));
+          auto alias_args = args;
+          alias_args[2].tensor = &alias_out;
+          auto result = alias_module.value()->launch(alias_args, alias_out, 2, 7);
+          check(result && std::ranges::equal(to_cpu(result.value()).value().float_data(),
+                std::vector<float>{12, 16, 3, 4}), "borrowed CUDA exact alias remap failed");
+          check(std::ranges::equal(to_cpu(left.value()).value().float_data(), std::vector<float>{1, 2, 3, 4}),
+                "borrowed CUDA alias mutated source");
+          auto partial = CudaBuffer::borrow(DType::kFloat32, {3}, static_cast<float*>(owner->data()) + 1, owner).value();
+          auto prefix = CudaBuffer::borrow(DType::kFloat32, {3}, owner->data(), owner).value();
+          auto pa = to_core_tensor(CudaTensor(DType::kFloat32, {3}, prefix));
+          auto po = to_core_tensor(CudaTensor(DType::kFloat32, {3}, partial));
+          alias_args[0].tensor = &pa; alias_args[1].tensor = &pa; alias_args[2].tensor = &po;
+          auto rejected = alias_module.value()->launch(alias_args, po, 2, 7);
+          check(!rejected && rejected.status().message().find("overlap") != std::string::npos,
+                "borrowed CUDA partial output overlap accepted");
+        }
+      }
+      restored();
+    }
     for (const std::string operation : {"sub", "mul", "expr"}) {
       const auto fixture = std::filesystem::path(argv[1]).parent_path() / ("cuda_" + operation + "_sm52.ptx");
       std::ifstream stream(fixture);
@@ -92,7 +133,7 @@ int main(int argc, char** argv) {
       const auto expected = operation == "sub" ? std::vector<float>{-4, -4, -3, -4}
                                                : operation == "mul" ? std::vector<float>{5, 12, -3, -4}
                                                                     : std::vector<float>{4, 11, -3, -4};
-      check(arithmetic && to_cpu(arithmetic.value()).value().float_data() == expected,
+      check(arithmetic && std::ranges::equal(to_cpu(arithmetic.value()).value().float_data(), expected),
             "arithmetic partial output mismatch");
       outputs[0] = out;
       e.compilation_target->entry_point = "tensorcx_add_v1";
@@ -152,7 +193,7 @@ int main(int argc, char** argv) {
           {KernelArgumentKind::kTensor, &t, 0}, {KernelArgumentKind::kTensor, &t, 0},
           {KernelArgumentKind::kTensor, &t, 0}, {KernelArgumentKind::kUInt32, nullptr, 4}}};
         auto value = launch_compiled_kernel(owner, arguments, 4, 7);
-        return value && to_cpu(value.value()).value().float_data() == std::vector<float>({2, 4, 6, 8});
+        return value && std::ranges::equal(to_cpu(value.value()).value().float_data(), std::vector<float>({2, 4, 6, 8}));
       }));
     }
     for (auto& future : pending) check(future.get(), "concurrent alias launch failed");

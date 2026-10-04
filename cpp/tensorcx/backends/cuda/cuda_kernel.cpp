@@ -180,6 +180,8 @@ Expected<CudaTensor> CudaKernelModule::launch(std::span<const KernelArgument> ar
         if (!tensor) return tensor.status();
         if (tensor.value().dtype() != DType::kFloat32 || tensor.value().shape() != output.shape ||
             tensor.value().buffer()->context() != impl_->context) return invalid("CUDA tensor dtype/shape/context mismatch");
+        if (tensor.value().buffer()->storage_relation(*out.value().buffer()) == StorageRelation::kPartialOverlap)
+          return invalid("CUDA kernel arguments have unsupported partial storage overlap");
         if (i == signature_.output_index && tensor.value().buffer() != out.value().buffer()) {
           return invalid("CUDA output argument mismatch");
         }
@@ -203,7 +205,7 @@ Expected<CudaTensor> CudaKernelModule::launch(std::span<const KernelArgument> ar
         slots[i] = &scalars[i];
       } else {
         auto buffer = std::static_pointer_cast<CudaBuffer>(arguments[i].tensor->buffer);
-        if (buffer == out.value().buffer()) buffer = copied.value();
+        if (buffer->storage_relation(*out.value().buffer()) == StorageRelation::kSameRange) buffer = copied.value();
         pointers[i] = reinterpret_cast<CUdeviceptr>(buffer->data());
         slots[i] = &pointers[i];
       }

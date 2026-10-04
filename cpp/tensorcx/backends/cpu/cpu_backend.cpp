@@ -123,7 +123,7 @@ ReductionDims reduction_dims(const CpuTensor& input, std::int64_t axis) {
 
 void compute_softmax(const CpuTensor& input, CpuTensor& result, const ReductionDims& dims) {
   const auto& input_data = input.float_data();
-  auto& out = result.mutable_float_data();
+  auto out = result.mutable_float_data();
 
   for (std::int64_t outer = 0; outer < dims.outer; ++outer) {
     for (std::int64_t inner = 0; inner < dims.inner; ++inner) {
@@ -159,7 +159,7 @@ void compute_rmsnorm(
     const ReductionDims& dims,
     float epsilon) {
   const auto& input_data = input.float_data();
-  auto& out = result.mutable_float_data();
+  auto out = result.mutable_float_data();
 
   for (std::int64_t outer = 0; outer < dims.outer; ++outer) {
     for (std::int64_t inner = 0; inner < dims.inner; ++inner) {
@@ -187,7 +187,7 @@ void compute_layernorm(
     const ReductionDims& dims,
     float epsilon) {
   const auto& input_data = input.float_data();
-  auto& out = result.mutable_float_data();
+  auto out = result.mutable_float_data();
 
   for (std::int64_t outer = 0; outer < dims.outer; ++outer) {
     for (std::int64_t inner = 0; inner < dims.inner; ++inner) {
@@ -328,7 +328,7 @@ Status CpuBackend::execute(const BackendExecution& execution) {
           Dim offset = 0;
           for (const auto& input : inputs) {
             const auto block = input.shape()[plan.axis] * plan.inner;
-            const auto copy = [&](const auto& source, auto& target) {
+            const auto copy = [&](const auto& source, auto target) {
               if (!block) return;
               for (Dim pos = 0; pos < input.size(); pos += block)
                 std::memcpy(target.data() + (pos / block) * output_block + offset,
@@ -415,7 +415,7 @@ Status contract_smoke_test() {
     return status;
   }
   const CpuTensor add_result = from_core_tensor(outputs[0]);
-  if (add_result.float_data() != std::vector<float>{4.0F, 6.0F}) {
+  if (!std::ranges::equal(add_result.float_data(), std::vector<float>{4.0F, 6.0F})) {
     return Status(StatusCode::kInternal, "CPU backend contract smoke test failed: add result");
   }
 
@@ -429,7 +429,7 @@ Status contract_smoke_test() {
     return status;
   }
   const CpuTensor multiply_result = from_core_tensor(outputs[0]);
-  if (multiply_result.float_data() != std::vector<float>{3.0F, 8.0F}) {
+  if (!std::ranges::equal(multiply_result.float_data(), std::vector<float>{3.0F, 8.0F})) {
     return Status(
         StatusCode::kInternal,
         "CPU backend contract smoke test failed: multiply result");
@@ -459,7 +459,7 @@ Status contract_smoke_test() {
     return status;
   }
   const CpuTensor fill_result = from_core_tensor(fill_outputs[0]);
-  if (fill_result.int32_data() != std::vector<std::int32_t>{7, 7, 7}) {
+  if (!std::ranges::equal(fill_result.int32_data(), std::vector<std::int32_t>{7, 7, 7})) {
     return Status(StatusCode::kInternal, "CPU backend contract smoke test failed: fill result");
   }
 
@@ -578,7 +578,7 @@ Status contract_smoke_test() {
   }
   const CpuTensor sum_result = from_core_tensor(reduction_outputs[0]);
   if (sum_result.shape() != Shape{2} ||
-      sum_result.float_data() != std::vector<float>{6.0F, 15.0F}) {
+      !std::ranges::equal(sum_result.float_data(), std::vector<float>{6.0F, 15.0F})) {
     return Status(
         StatusCode::kInternal,
         "CPU backend contract smoke test failed: sum result");
@@ -608,7 +608,7 @@ Status contract_smoke_test() {
   }
   const CpuTensor matmul_result = from_core_tensor(matmul_outputs[0]);
   if (matmul_result.shape() != Shape{2, 2} ||
-      matmul_result.float_data() != std::vector<float>{19.0F, 22.0F, 43.0F, 50.0F}) {
+      !std::ranges::equal(matmul_result.float_data(), std::vector<float>{19.0F, 22.0F, 43.0F, 50.0F})) {
     return Status(
         StatusCode::kInternal,
         "CPU backend contract smoke test failed: matmul result");
@@ -773,17 +773,17 @@ CpuTensor fill(Shape shape, DType dtype, double value) {
   CpuTensor result(dtype, std::move(shape));
   switch (dtype) {
     case DType::kBool: {
-      auto& data = result.mutable_bool_data();
+      auto data = result.mutable_bool_data();
       std::fill(data.begin(), data.end(), static_cast<std::uint8_t>(value != 0));
       break;
     }
     case DType::kFloat32: {
-      auto& data = result.mutable_float_data();
+      auto data = result.mutable_float_data();
       std::fill(data.begin(), data.end(), static_cast<float>(value));
       break;
     }
     case DType::kInt32: {
-      auto& data = result.mutable_int32_data();
+      auto data = result.mutable_int32_data();
       std::fill(data.begin(), data.end(), static_cast<std::int32_t>(value));
       break;
     }
@@ -800,7 +800,7 @@ CpuTensor execute_unary(const OpDesc& op, const CpuTensor& input) {
         ? make_transpose_plan(input.shape(), op.axes)
         : make_slice_plan(input.shape(), op.slice_starts, op.slice_steps, op.slice_shape);
     CpuTensor result(input.dtype(), plan.output_shape);
-    const auto permute = [&](const auto& values, auto& output) {
+    const auto permute = [&](const auto& values, auto output) {
       for (std::size_t i = 0; i < output.size(); ++i) {
         auto remaining = i;
         Dim source = plan.offset;
@@ -824,7 +824,7 @@ CpuTensor execute_unary(const OpDesc& op, const CpuTensor& input) {
   }
   if (op.kind == OpKind::kCast) {
     if (input.dtype() == DType::kBool && op.target_dtype == DType::kBool)
-      return CpuTensor(input.shape(), input.bool_data());
+      return CpuTensor(input.shape(), std::vector<std::uint8_t>(input.bool_data().begin(), input.bool_data().end()));
     if (input.dtype() == DType::kBool || op.target_dtype == DType::kBool) {
       CpuTensor result(op.target_dtype, input.shape());
       const auto convert = [&](const auto& source) {
@@ -844,8 +844,8 @@ CpuTensor execute_unary(const OpDesc& op, const CpuTensor& input) {
       throw std::invalid_argument("unsupported cast target dtype");
     }
     if (input.dtype() == op.target_dtype) {
-      if (input.dtype() == DType::kFloat32) return CpuTensor(input.shape(), input.float_data());
-      return CpuTensor(input.shape(), input.int32_data());
+      if (input.dtype() == DType::kFloat32) return CpuTensor(input.shape(), std::vector<float>(input.float_data().begin(), input.float_data().end()));
+      return CpuTensor(input.shape(), std::vector<std::int32_t>(input.int32_data().begin(), input.int32_data().end()));
     }
     if (op.target_dtype == DType::kInt32) {
       const auto& values = input.float_data();
@@ -857,13 +857,13 @@ CpuTensor execute_unary(const OpDesc& op, const CpuTensor& input) {
         }
       }
       CpuTensor result(op.target_dtype, input.shape());
-      auto& out = result.mutable_int32_data();
+      auto out = result.mutable_int32_data();
       for (std::size_t i = 0; i < out.size(); ++i) out[i] = static_cast<std::int32_t>(values[i]);
       return result;
     }
     CpuTensor result(op.target_dtype, input.shape());
     const auto& values = input.int32_data();
-    auto& out = result.mutable_float_data();
+    auto out = result.mutable_float_data();
     for (std::size_t i = 0; i < out.size(); ++i) out[i] = static_cast<float>(values[i]);
     return result;
   }
@@ -883,7 +883,7 @@ CpuTensor execute_unary(const OpDesc& op, const CpuTensor& input) {
     if (input.dtype() == DType::kFloat32) {
       const float scalar = static_cast<float>(op.scalar_value);
       const auto& values = input.float_data();
-      auto& out = result.mutable_float_data();
+      auto out = result.mutable_float_data();
       for (std::size_t i = 0; i < out.size(); ++i) {
         const float lhs = op.scalar_left ? scalar : values[i];
         const float rhs = op.scalar_left ? values[i] : scalar;
@@ -899,7 +899,7 @@ CpuTensor execute_unary(const OpDesc& op, const CpuTensor& input) {
     } else {
       const auto scalar = scalar_op ? static_cast<std::uint32_t>(static_cast<std::int32_t>(op.scalar_value)) : 0U;
       const auto& values = input.int32_data();
-      auto& out = result.mutable_int32_data();
+      auto out = result.mutable_int32_data();
       for (std::size_t i = 0; i < out.size(); ++i) {
         const auto value = static_cast<std::uint32_t>(values[i]);
         const auto lhs = op.scalar_left ? scalar : value;
@@ -978,7 +978,7 @@ CpuTensor execute_unary(const OpDesc& op, const CpuTensor& input) {
 
   CpuTensor result(input.dtype(), input.shape());
   const auto& input_data = input.float_data();
-  auto& out = result.mutable_float_data();
+  auto out = result.mutable_float_data();
   for (std::size_t i = 0; i < out.size(); ++i) {
     const float value = input_data[i];
     switch (op.kind) {
@@ -1031,7 +1031,7 @@ CpuTensor execute_binary(const OpDesc& op, const CpuTensor& lhs, const CpuTensor
     case DType::kFloat32: {
       const auto& lhs_data = lhs.float_data();
       const auto& rhs_data = rhs.float_data();
-      auto& out = result.mutable_float_data();
+      auto out = result.mutable_float_data();
       for (std::size_t i = 0; i < out.size(); ++i) {
         const auto [left, right] = input_offsets(i);
         switch (op.kind) {
@@ -1056,7 +1056,7 @@ CpuTensor execute_binary(const OpDesc& op, const CpuTensor& lhs, const CpuTensor
     case DType::kInt32: {
       const auto& lhs_data = lhs.int32_data();
       const auto& rhs_data = rhs.int32_data();
-      auto& out = result.mutable_int32_data();
+      auto out = result.mutable_int32_data();
       for (std::size_t i = 0; i < out.size(); ++i) {
         const auto [left, right] = input_offsets(i);
         // Compute in uint32 and cast back so int32 overflow is defined
@@ -1151,7 +1151,7 @@ CpuTensor reduce(const OpDesc& op, const CpuTensor& input) {
   switch (input.dtype()) {
     case DType::kFloat32: {
       const auto& input_data = input.float_data();
-      auto& out = result.mutable_float_data();
+      auto out = result.mutable_float_data();
       for (std::int64_t id = 0; id < result.size(); ++id) {
         const auto outer_index = id / dims.inner;
         const auto inner_index = id % dims.inner;
@@ -1201,7 +1201,7 @@ CpuTensor reduce(const OpDesc& op, const CpuTensor& input) {
     }
     case DType::kInt32: {
       const auto& input_data = input.int32_data();
-      auto& out = result.mutable_int32_data();
+      auto out = result.mutable_int32_data();
       for (std::int64_t id = 0; id < result.size(); ++id) {
         const auto outer_index = id / dims.inner;
         const auto inner_index = id % dims.inner;
@@ -1247,7 +1247,7 @@ CpuTensor matmul(const CpuTensor& lhs, const CpuTensor& rhs) {
   CpuTensor result(DType::kFloat32, plan.output_shape);
   const auto& a = lhs.float_data();
   const auto& b = rhs.float_data();
-  auto& out = result.mutable_float_data();
+  auto out = result.mutable_float_data();
   for (Dim i = 0; i < result.size(); ++i) {
     const Dim col = i % plan.n, row = (i / plan.n) % plan.m;
     const Dim batch = (i / plan.n) / plan.m;

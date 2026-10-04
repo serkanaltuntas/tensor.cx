@@ -24,6 +24,14 @@ class Tensor:
     def __init__(self, impl: Any):
         self._impl = impl
 
+    def __dlpack_device__(self):
+        from .dlpack import device_of
+        return device_of(self)
+
+    def __dlpack__(self, *, stream=None, max_version=None, dl_device=None, copy=None):
+        from .dlpack import export
+        return export(self, stream=stream, max_version=max_version, dl_device=dl_device, copy=copy)
+
     @property
     def shape(self) -> tuple[int, ...]:
         return self._impl.shape

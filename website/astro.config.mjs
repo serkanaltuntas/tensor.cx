@@ -20,6 +20,7 @@ export default defineConfig({
         ] },
         { label: 'Use the runtime', items: [
           { label: 'Tensor operations', slug: 'docs/operations' },
+          { label: 'DLPack & PyTorch', slug: 'docs/interoperability' },
           { label: 'Backends & support', slug: 'docs/backends' },
           { label: 'Examples', slug: 'docs/examples' },
           { label: 'Experimental kernels', slug: 'docs/experimental' },

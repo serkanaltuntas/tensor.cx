@@ -1,0 +1,71 @@
+{
+  "schema": 1,
+  "device": "cuda",
+  "torch": "2.13.0+cu126",
+  "cuda_runtime": "12.6",
+  "repeats": 20,
+  "warmup": 3,
+  "timing": "synchronized wall clock; bridge includes exchange and allocation; one CPU thread",
+  "results": [
+    {
+      "shape_mkn": [
+        1,
+        32,
+        16
+      ],
+      "correct": true,
+      "torch_linear": {
+        "median_ms": 0.024127000000000003,
+        "min_ms": 0.023271
+      },
+      "tensorcx_linear_bridge": {
+        "median_ms": 0.3815615,
+        "min_ms": 0.335567
+      },
+      "dlpack_roundtrip": {
+        "median_ms": 0.074437,
+        "min_ms": 0.073271
+      }
+    },
+    {
+      "shape_mkn": [
+        32,
+        64,
+        32
+      ],
+      "correct": true,
+      "torch_linear": {
+        "median_ms": 0.0266445,
+        "min_ms": 0.025954
+      },
+      "tensorcx_linear_bridge": {
+        "median_ms": 0.4727285,
+        "min_ms": 0.334502
+      },
+      "dlpack_roundtrip": {
+        "median_ms": 0.115479,
+        "min_ms": 0.076989
+      }
+    },
+    {
+      "shape_mkn": [
+        128,
+        256,
+        128
+      ],
+      "correct": true,
+      "torch_linear": {
+        "median_ms": 0.0521975,
+        "min_ms": 0.043888
+      },
+      "tensorcx_linear_bridge": {
+        "median_ms": 0.6412260000000001,
+        "min_ms": 0.470736
+      },
+      "dlpack_roundtrip": {
+        "median_ms": 0.1148175,
+        "min_ms": 0.074793
+      }
+    }
+  ]
+}

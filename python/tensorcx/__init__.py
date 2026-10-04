@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from . import _core, experimental, testing
+from .dlpack import from_dlpack
 from .device import Device, best_device, device, device_name, devices, is_available
 from .tensor import (
     Tensor,
@@ -60,7 +61,7 @@ def version() -> str:
 
 
 __all__ = [
-    "Tensor",
+    "Tensor", "from_dlpack",
     "log", "sqrt", "abs", "min", "argmax", "clip", "topk",
     "linear", "embedding", "scaled_dot_product_attention", "attention",
     "masked_select",

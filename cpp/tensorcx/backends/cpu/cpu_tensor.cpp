@@ -64,24 +64,24 @@ CpuTensor::CpuTensor(Shape shape, std::vector<std::int32_t> values)
 CpuTensor::CpuTensor(Shape shape, std::vector<std::uint8_t> values)
     : CpuTensor(DType::kBool, std::move(shape), std::make_shared<CpuBuffer>(std::move(values))) {}
 
-const std::vector<std::uint8_t>& CpuTensor::bool_data() const { return buffer_->bool_data(); }
-std::vector<std::uint8_t>& CpuTensor::mutable_bool_data() { return buffer_->mutable_bool_data(); }
+std::span<const std::uint8_t> CpuTensor::bool_data() const { return buffer_->bool_data(); }
+std::span<std::uint8_t> CpuTensor::mutable_bool_data() { return buffer_->mutable_bool_data(); }
 const void* CpuTensor::data() const { return buffer_->data(); }
 void* CpuTensor::mutable_data() { return buffer_->mutable_data(); }
 
-const std::vector<float>& CpuTensor::float_data() const {
+std::span<const float> CpuTensor::float_data() const {
   return buffer_->float_data();
 }
 
-const std::vector<std::int32_t>& CpuTensor::int32_data() const {
+std::span<const std::int32_t> CpuTensor::int32_data() const {
   return buffer_->int32_data();
 }
 
-std::vector<float>& CpuTensor::mutable_float_data() {
+std::span<float> CpuTensor::mutable_float_data() {
   return buffer_->mutable_float_data();
 }
 
-std::vector<std::int32_t>& CpuTensor::mutable_int32_data() {
+std::span<std::int32_t> CpuTensor::mutable_int32_data() {
   return buffer_->mutable_int32_data();
 }
 

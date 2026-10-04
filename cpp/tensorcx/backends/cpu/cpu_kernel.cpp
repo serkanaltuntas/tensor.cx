@@ -96,6 +96,8 @@ Status validate_arguments(const CpuKernelModule& module,
       }
       const CpuTensor input = checked_tensor(*argument.tensor);
       if (input.shape() != out.shape()) return invalid("CPU kernel tensor shape mismatch");
+      if (input.buffer()->storage_relation(*out.buffer()) == StorageRelation::kPartialOverlap)
+        return invalid("CPU kernel arguments have unsupported partial storage overlap");
       if (i == signature.output_index && input.buffer() != out.buffer()) {
         return invalid("CPU kernel output argument does not match output metadata");
       }
@@ -110,7 +112,7 @@ Status validate_arguments(const CpuKernelModule& module,
 CpuTensor run(const CpuKernelModule& module, std::span<const KernelArgument> arguments,
               const Tensor& output, std::uint32_t threads, std::uint32_t block_size) {
   const CpuTensor source = checked_tensor(output);
-  CpuTensor result(source.shape(), source.float_data());  // private output copy
+  CpuTensor result(source.shape(), std::vector<float>(source.float_data().begin(), source.float_data().end()));  // private output copy
   if (threads == 0) return result;
   // Allocate all storage before storing any pointers; no vector may reallocate
   // while generated code holds an argument slot.
@@ -123,7 +125,8 @@ CpuTensor run(const CpuKernelModule& module, std::span<const KernelArgument> arg
       slots[i] = &scalars[i];
     } else {
       const auto tensor = checked_tensor(*arguments[i].tensor);
-      const auto& buffer = tensor.buffer() == source.buffer() ? result.buffer() : tensor.buffer();
+      const auto& buffer = tensor.buffer()->storage_relation(*source.buffer()) == StorageRelation::kSameRange
+                               ? result.buffer() : tensor.buffer();
       auto* data = buffer->mutable_float_data().data();
       descriptors[i] = {data, data, 0, tensor.size(), 1};
       slots[i] = &descriptors[i];

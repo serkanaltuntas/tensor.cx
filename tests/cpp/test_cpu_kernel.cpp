@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <array>
 #include <functional>
 #include <iostream>
@@ -44,9 +45,9 @@ int main(int argc, char** argv) {
       CompilationTarget{KernelArtifactKind::kBinary, artifact, "tensorcx_launch_v1"}, arguments};
   CpuBackend backend;
   check(backend.execute(execution).ok(), "valid execution rejected");
-  check(from_core_tensor(outputs[0]).float_data() == std::vector<float>({3, 4, -3, -4}),
+  check(std::ranges::equal(from_core_tensor(outputs[0]).float_data(), std::vector<float>({3, 4, -3, -4})),
         "partial output mismatch");
-  check(output.float_data() == std::vector<float>({-1, -2, -3, -4}), "source output mutated");
+  check(std::ranges::equal(output.float_data(), std::vector<float>({-1, -2, -3, -4})), "source output mutated");
   auto reject = [&](const char* name, const std::function<void()>& mutate) {
     a = to_core_tensor(input);
     out = to_core_tensor(output);

@@ -1,4 +1,6 @@
 #pragma once
+#include <algorithm>
+#include <initializer_list>
 #include <array>
 #include <cmath>
 #include <stdexcept>
@@ -14,8 +16,8 @@ void math_contract(tensorcx::Backend& backend,Upload upload,Download download) {
       if(dtype==DType::kFloat32)x.mutable_float_data()[i]=static_cast<float>(i+1);
       else x.mutable_int32_data()[i]=static_cast<std::int32_t>(i-3);
     }
-    if(dtype==DType::kFloat32){lo.mutable_float_data()[0]=2;hi.mutable_float_data()={3,4,5};}
-    else {lo.mutable_int32_data()[0]=-2;hi.mutable_int32_data()={0,1,2};}
+    if(dtype==DType::kFloat32){lo.mutable_float_data()[0]=2;std::ranges::copy(std::initializer_list<float>{3,4,5}, hi.mutable_float_data().begin());}
+    else {lo.mutable_int32_data()[0]=-2;std::ranges::copy(std::initializer_list<std::int32_t>{0,1,2}, hi.mutable_int32_data().begin());}
     for(auto kind:{OpKind::kLog,OpKind::kSqrt,OpKind::kAbs,OpKind::kMin,OpKind::kArgmax,OpKind::kClip,OpKind::kTopK}) {
       std::array<Tensor,3> inputs{upload(x),upload(lo),upload(hi)};
       std::array<Tensor,3> cpu_inputs{cpu::to_core_tensor(x),cpu::to_core_tensor(lo),cpu::to_core_tensor(hi)};

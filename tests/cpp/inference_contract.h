@@ -1,4 +1,6 @@
 #pragma once
+#include <algorithm>
+#include <initializer_list>
 #include <array>
 #include <cmath>
 #include <limits>
@@ -16,9 +18,9 @@ void inference_contract(tensorcx::Backend& backend, Upload upload, Download down
   cpu::CpuTensor weights({2, 2}, std::vector<float>{0.5F, 1.0F, -0.5F, 2.0F});
   cpu::CpuTensor vector({2}, std::vector<float>{1.5F, -0.5F});
   cpu::CpuTensor indices(DType::kInt32, {2});
-  indices.mutable_int32_data() = {1, 0};
+  std::ranges::copy(std::initializer_list<std::int32_t>{1, 0}, indices.mutable_int32_data().begin());
   cpu::CpuTensor mask(DType::kBool, {2, 2});
-  mask.mutable_bool_data() = {1, 0, 0, 0};
+  std::ranges::copy(std::initializer_list<std::uint8_t>{1, 0, 0, 0}, mask.mutable_bool_data().begin());
   for (auto kind : {OpKind::kLinear, OpKind::kAffineRmsNorm, OpKind::kAffineLayerNorm,
                    OpKind::kEmbedding, OpKind::kAttention, OpKind::kAttentionSoftmax}) {
     OpDesc op{kind};
@@ -74,7 +76,7 @@ void inference_contract(tensorcx::Backend& backend, Upload upload, Download down
     check(backend.execute(e).code() == StatusCode::kInvalidArgument, "inference output arity");
     e.outputs = outputs;
     if (kind == OpKind::kEmbedding) {
-      cpu::CpuTensor bad(DType::kInt32, {2}); bad.mutable_int32_data() = {0, -1};
+      cpu::CpuTensor bad(DType::kInt32, {2}); std::ranges::copy(std::initializer_list<std::int32_t>{0, -1}, bad.mutable_int32_data().begin());
       inputs[0] = upload(bad); invalid();
     }
     if (kind == OpKind::kAffineRmsNorm || kind == OpKind::kAffineLayerNorm) {

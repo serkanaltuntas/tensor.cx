@@ -55,6 +55,14 @@ def main():
         checks.append(name)
 
     compare('copy', da, a)
+    compare('dlpack_shared', cx.from_dlpack(da, copy=False), a)
+    compare('dlpack_copy', cx.from_dlpack(da, copy=True), a)
+    array = np.arange(6, dtype=np.float32)
+    shared = cx.from_dlpack(array, copy=False)
+    check(np.from_dlpack(shared).ctypes.data == array.ctypes.data, 'NumPy DLPack copied storage')
+    array[0] = 17
+    np.testing.assert_array_equal(shared.numpy(), array)
+    checks.append('dlpack_numpy_shared')
     compare('fill', cx.ones((17, 31), device=device), cx.ones((17, 31), device='cpu'))
     compare('add', da + da, a + a)
     compare('multiply', da * da, a * a)

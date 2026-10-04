@@ -42,7 +42,7 @@ def audit_wheel_notices(archive):
     if len(notices) != 1:
         raise RuntimeError('wheel missing third-party notices')
     text = archive.read(notices[0]).decode()
-    if not all(name in text for name in ('Wenzel Jakob', 'Thibaut Goetghebuer-Planchon', 'Apple Inc.')):
+    if not all(name in text for name in ('Wenzel Jakob', 'Thibaut Goetghebuer-Planchon', 'Apple Inc.', 'DLPack')):
         raise RuntimeError('wheel has incomplete third-party notices')
 
 
@@ -111,7 +111,8 @@ def main():
         for required in ('CMakeLists.txt', 'pyproject.toml', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'bindings/python_module.cpp',
                          'cpp/tensorcx/backends/cuda/kernels/primitives.cu',
                          'python/tensorcx/_compiler/cuda.py', 'tools/distribution_probe.py',
-                         'examples/cuda_mlp.py'):
+                         'examples/cuda_mlp.py', 'bindings/dlpack.cpp',
+                         'third_party/dlpack/dlpack.h', 'third_party/dlpack/LICENSE'):
             if not any(member.endswith('/' + required) for member in members):
                 raise RuntimeError(f'sdist missing {required}')
         # Read the validation workload from the delivered sdist, not checkout.

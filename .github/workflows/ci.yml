@@ -8,6 +8,34 @@ permissions:
   contents: read
 
 jobs:
+  torch-bridge:
+    name: Optional PyTorch CPU bridge (${{ matrix.torch }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        torch: ['2.4.1', '2.13.0']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv venv --python 3.12
+      - name: Install core and CPU PyTorch independently
+        env:
+          TORCH_VERSION: ${{ matrix.torch }}
+        run: |
+          CMAKE_ARGS="-DTENSORCX_ENABLE_METAL=OFF" uv pip install -e ".[dev]"
+          uv pip install "torch==$TORCH_VERSION" --index-url https://download.pytorch.org/whl/cpu
+      - name: Build and install optional bridge distribution
+        run: |
+          uv build integrations/torch-tensorcx --out-dir build/torch-bridge-dist
+          uv pip install --no-deps build/torch-bridge-dist/*.whl
+          uv run --no-sync python -c 'import torch_tensorcx'
+      - name: Check sharing, custom op registration and graph capture
+        run: |
+          uv run --no-sync pytest tests/python/test_torch_bridge.py -q
+          uv run --no-sync python examples/torch_bridge.py
+          uv run --no-sync python benchmarks/bench_torch_bridge.py --device cpu --repeats 2 --warmup 1
+
   website:
     name: Website build and browser checks
     runs-on: ubuntu-latest

@@ -6,6 +6,10 @@ scalars, contiguous reshape, and reduction `keepdims`, followed by explicit
 `squeeze`, `expand_dims`), followed by all-axis/multi-axis reductions and basic indexing/concat/stack/split, then boolean comparisons and masks. These extend the original API;
 they do not change the historical Phase 9/10 acceptance records.
 
+Shared-storage exchange and the optional PyTorch custom op are documented in
+[DLPACK.md](DLPACK.md). `.numpy()` continues to return a copy; `np.from_dlpack`
+uses the separate sharing protocol.
+
 ## Arithmetic
 
 `x + y`, `x - y`, `x * y`, `x / y`, and `-x` return new tensors. Two tensor

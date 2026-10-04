@@ -86,6 +86,12 @@ tests, and honest benchmarks.
 
 ## Track 2: PyTorch Custom Op Bridge
 
+The first narrow implementation is documented in [DLPACK.md](DLPACK.md):
+CPU/CUDA shared storage and one inference-only `linear` custom op in the separate
+`torch-tensorcx` package. It uses the DLPack C interchange ABI and existing Python
+runtime binding, not a new public C++ ABI. This increment does not establish
+performance superiority, a general portability layer or completion of Track 3.
+
 This is the recommended first PyTorch integration path.
 
 The idea is to let PyTorch call tensor.cx for selected operations without

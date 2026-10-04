@@ -54,6 +54,7 @@ sdist.include = [
   "cmake/*.py",
   "cpp/**/*.cpp", "cpp/**/*.h", "cpp/**/*.cu", "cpp/**/*.metal", "cpp/**/*.mm",
   "bindings/*.cpp",
+  "third_party/dlpack/*",
   "python/**/*.py",
   "tests/cpp/**/*.cpp", "tests/cpp/**/*.ptx",
   "examples/*.py",
@@ -66,6 +67,7 @@ sdist.exclude = [
   "**/*.key", "**/*.pem", "**/*.p12", "**/*.pfx",
   "build/**", "dist/**", ".venv/**", ".git/**",
   "website/**",
+  "integrations/**",
 ]
 
 [tool.pytest.ini_options]

@@ -146,8 +146,9 @@ documentation. This order does not claim that later packages are implemented.
    `topk`; [contract and verification](TENSOR_API.md#math-and-selection).
 5. **Inference:** implemented: linear, affine RMSNorm/LayerNorm, embedding and
    scaled dot-product attention; [contract and verification](TENSOR_API.md#inference-operations).
-6. **DLPack and narrow PyTorch integration:** supported-device data sharing;
-   see the [staged portability plan](PYTORCH_PORTABILITY_ROADMAP.md).
+6. **DLPack and narrow PyTorch integration:** CPU/CUDA contiguous storage sharing
+   and an optional inference-only `linear` custom op; see the
+   [exchange contract](DLPACK.md) and [staged portability plan](PYTORCH_PORTABILITY_ROADMAP.md).
 7. **Diagnostics:** operation/dtype capabilities, installation and memory reports.
 8. **Compiler/performance:** persistent compilation cache, profiling, broader
    MLIR operations and measured kernel fusion.

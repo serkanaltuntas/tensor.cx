@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "torch-tensorcx"
+version = "0.1.0"
+description = "Optional inference-only PyTorch custom operations backed by tensor.cx"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+dependencies = ["tensorcx==0.1.0", "torch>=2.4,<3"]
+
+[project.urls]
+Repository = "https://github.com/serkanaltuntas/tensor.cx"
+Documentation = "https://tensor.cx/docs/"
+
+[tool.setuptools.packages.find]
+where = ["src"]

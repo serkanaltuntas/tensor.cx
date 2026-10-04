@@ -327,6 +327,7 @@ if(TENSORCX_ENABLE_CUDA)
 endif()
 
 nanobind_add_module(_core
+  bindings/dlpack.cpp
   bindings/python_module.cpp
 )
 target_compile_features(_core PRIVATE cxx_std_20)

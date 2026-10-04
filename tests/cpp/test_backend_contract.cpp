@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "predicate_contract.h"
 #include "batched_matmul_contract.h"
 #include "math_contract.h"
@@ -71,10 +72,10 @@ void arithmetic_contract_tests() {
   const CpuTensor integers({3}, std::vector<std::int32_t>{INT32_MIN, 7, INT32_MAX});
   const CpuTensor ones({3}, std::vector<std::int32_t>{1, 1, 1});
   const auto subtract = cpu::execute_binary(OpDesc{OpKind::kSubtract}, integers, ones);
-  check(subtract.int32_data() == std::vector<std::int32_t>{INT32_MAX, 6, INT32_MAX - 1},
+  check(std::ranges::equal(subtract.int32_data(), std::vector<std::int32_t>{INT32_MAX, 6, INT32_MAX - 1}),
         "int32 subtraction must wrap");
   const auto negate = cpu::execute_unary(OpDesc{OpKind::kNegate}, integers);
-  check(negate.int32_data() == std::vector<std::int32_t>{INT32_MIN, -7, -INT32_MAX},
+  check(std::ranges::equal(negate.int32_data(), std::vector<std::int32_t>{INT32_MIN, -7, -INT32_MAX}),
         "int32 negation must wrap INT_MIN");
   const CpuTensor zeros({2}, std::vector<float>{0.0F, -0.0F});
   const auto negated_zero = cpu::execute_unary(OpDesc{OpKind::kNegate}, zeros);
@@ -220,8 +221,7 @@ void cast_broadcast_contract_tests() {
   }
   const CpuTensor scalar({}, std::vector<std::int32_t>{INT32_MAX});
   const CpuTensor integer_rhs({2}, std::vector<std::int32_t>{1, 2});
-  check(cpu::execute_binary(OpDesc{OpKind::kAdd}, scalar, integer_rhs).int32_data() ==
-            std::vector<std::int32_t>{INT32_MIN, INT32_MIN + 1}, "broadcast int32 wrap mismatch");
+  check(std::ranges::equal(cpu::execute_binary(OpDesc{OpKind::kAdd}, scalar, integer_rhs).int32_data(), std::vector<std::int32_t>{INT32_MIN, INT32_MIN + 1}), "broadcast int32 wrap mismatch");
   const auto empty = cpu::empty({0, 3}, DType::kFloat32);
   check(cpu::execute_binary(OpDesc{OpKind::kAdd}, empty, rhs).shape() == Shape{0, 3},
         "empty broadcast output incorrect");
@@ -233,8 +233,7 @@ void cast_broadcast_contract_tests() {
   BackendExecution e{BackendOpClass::kPrimitive, cast, inputs, outputs, std::nullopt, std::nullopt, {}};
   expect_ok("checked float-to-int cast", backend.execute(e));
   if (outputs[0].buffer)
-    check(cpu::from_core_tensor(outputs[0]).int32_data() ==
-              std::vector<std::int32_t>{INT32_MIN, 2147483520, -1, 1, 0, 0},
+    check(std::ranges::equal(cpu::from_core_tensor(outputs[0]).int32_data(), std::vector<std::int32_t>{INT32_MIN, 2147483520, -1, 1, 0, 0}),
           "cast truncation/boundaries incorrect");
   const auto original_output = outputs[0].buffer;
   for (const float invalid : {2147483648.0F, -2147483904.0F,
@@ -306,8 +305,7 @@ void transpose_contract_tests() {
   if (outputs[0].buffer) {
     check(outputs[0].shape == Shape{3, 2} && outputs[0].strides == Shape{2, 1} &&
               outputs[0].buffer != inputs[0].buffer &&
-              cpu::from_core_tensor(outputs[0]).int32_data() ==
-                  std::vector<std::int32_t>{1, 4, 2, 5, 3, 6},
+              std::ranges::equal(cpu::from_core_tensor(outputs[0]).int32_data(), std::vector<std::int32_t>{1, 4, 2, 5, 3, 6}),
           "native transpose data/ownership mismatch");
   }
   const auto original = outputs[0].buffer;
@@ -359,7 +357,7 @@ void multi_axis_contract_tests() {
       const auto& actual = cpu::from_core_tensor(outputs[0]).float_data();
       const std::vector<float> expected = kind == OpKind::kSum ? std::vector<float>{60, 92, 124} :
           kind == OpKind::kMax ? std::vector<float>{15, 19, 23} : std::vector<float>{7.5F, 11.5F, 15.5F};
-      check(actual == expected && outputs[0].shape == Shape{3} && outputs[0].buffer != inputs[0].buffer,
+      check(std::ranges::equal(actual, expected) && outputs[0].shape == Shape{3} && outputs[0].buffer != inputs[0].buffer,
             "native multi-axis values/ownership mismatch");
     }
     const auto previous = outputs[0].buffer;
@@ -385,6 +383,28 @@ void multi_axis_contract_tests() {
 }  // namespace
 
 int main() {
+  {
+    using namespace tensorcx;
+    auto check = [](bool ok, const char* message) {
+      if (!ok) { std::cerr << message << '\n'; ++failures; }
+    };
+    auto storage = std::make_shared<std::array<float, 4>>(std::array<float, 4>{1, 2, 3, 4});
+    std::weak_ptr<std::array<float, 4>> lifetime = storage;
+    auto a = std::make_shared<cpu::CpuBuffer>(DType::kFloat32, 3, storage->data(), storage);
+    auto b = std::make_shared<cpu::CpuBuffer>(DType::kFloat32, 3, storage->data(), storage);
+    auto partial = std::make_shared<cpu::CpuBuffer>(DType::kFloat32, 3, storage->data() + 1, storage);
+    check(a->storage_relation(*b) == StorageRelation::kSameRange, "borrowed CPU exact alias");
+    check(a->storage_relation(*partial) == StorageRelation::kPartialOverlap, "borrowed CPU partial alias");
+    auto empty = std::make_shared<cpu::CpuBuffer>(DType::kFloat32, 0, nullptr, storage);
+    auto other_empty = std::make_shared<cpu::CpuBuffer>(DType::kFloat32, 0, nullptr, storage);
+    check(empty->storage_relation(*other_empty) == StorageRelation::kDisjoint, "empty CPU ranges must not alias");
+    a->mutable_float_data()[0] = 7;
+    check((*storage)[0] == 7 && b->float_data()[0] == 7, "borrowed CPU mutation sharing");
+    storage.reset(); a.reset(); partial.reset(); empty.reset(); other_empty.reset();
+    check(!lifetime.expired() && b->float_data()[0] == 7, "borrowed CPU owner lifetime");
+    b.reset();
+    check(lifetime.expired(), "borrowed CPU owner released");
+  }
   try {
     tensorcx::cpu::CpuBackend backend;
     predicate_contract(backend, tensorcx::cpu::to_core_tensor, tensorcx::cpu::from_core_tensor);
@@ -405,8 +425,7 @@ int main() {
     execution.op = OpDesc{OpKind::kConcat}; execution.op.axis = 1;
     execution.inputs = inputs; execution.outputs = outputs;
     expect_ok("native concat", backend.execute(execution));
-    if (cpu::from_core_tensor(outputs[0]).int32_data() !=
-        std::vector<std::int32_t>{1, 2, 3, 1, 2, 3, 4, 5, 6, 4, 5, 6}) ++failures;
+    if (!std::ranges::equal(cpu::from_core_tensor(outputs[0]).int32_data(), std::vector<std::int32_t>{1, 2, 3, 1, 2, 3, 4, 5, 6, 4, 5, 6})) ++failures;
     execution.inputs = {};
     expect_status("concat no inputs", backend.execute(execution), StatusCode::kInvalidArgument);
     execution.inputs = inputs;
@@ -419,8 +438,7 @@ int main() {
     execution.op.slice_starts = {1, 2}; execution.op.slice_steps = {-1, -2};
     execution.op.slice_shape = {2, 2};
     expect_ok("native reversed slice", backend.execute(execution));
-    if (cpu::from_core_tensor(outputs[0]).int32_data() !=
-        std::vector<std::int32_t>{6, 4, 3, 1}) ++failures;
+    if (!std::ranges::equal(cpu::from_core_tensor(outputs[0]).int32_data(), std::vector<std::int32_t>{6, 4, 3, 1})) ++failures;
     execution.op.slice_steps[1] = INT64_MIN;
     expect_status("slice signed overflow", backend.execute(execution), StatusCode::kInvalidArgument);
     execution.op.slice_shape = {2, 1};

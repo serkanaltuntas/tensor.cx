@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "predicate_contract.h"
 #include "batched_matmul_contract.h"
 #include "math_contract.h"
@@ -53,7 +54,7 @@ bool arithmetic_matches_cpu(
   if (actual.value().shape() != expected.shape() ||
       actual.value().dtype() != expected.dtype()) return false;
   if (expected.dtype() == DType::kInt32) {
-    return actual.value().int32_data() == expected.int32_data();
+    return std::ranges::equal(actual.value().int32_data(), expected.int32_data());
   }
   const auto& values = actual.value().float_data();
   const auto& reference = expected.float_data();
@@ -206,7 +207,7 @@ bool cast_contract() {
       auto actual = metal::to_cpu(metal::from_core_tensor(outputs[0]));
       if (!actual) return false;
       const auto expected = cpu::execute_unary(op, input);
-      if (dtype == DType::kFloat32 && actual.value().float_data() != expected.float_data()) return false;
+      if (dtype == DType::kFloat32 && !std::ranges::equal(actual.value().float_data(), expected.float_data())) return false;
     }
   }
   // Same-dtype float casts must preserve exact bits, including NaN payloads
@@ -337,7 +338,7 @@ bool multi_axis_contract() {
         const auto expected = cpu::reduce(op, source);
         if (actual.shape() != expected.shape() || actual.dtype() != dtype) return false;
         if (dtype == DType::kInt32) {
-          if (actual.int32_data() != expected.int32_data()) return false;
+          if (!std::ranges::equal(actual.int32_data(), expected.int32_data())) return false;
         } else {
           for (std::size_t i = 0; i < actual.float_data().size(); ++i) {
             const auto a = actual.float_data()[i], b = expected.float_data()[i];

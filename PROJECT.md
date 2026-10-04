@@ -68,6 +68,8 @@ API increment:          arithmetic/scalars, contiguous reshape and keepdims;
                         log/sqrt/abs, min/argmax, clip and deterministic topk;
                         linear, affine norms, embedding and attention;
                         docs/TENSOR_API.md (acceptance tracked separately)
+DLPack increment:       CPU/CUDA storage exchange and optional inference-only
+                        PyTorch linear custom op; docs/DLPACK.md
 ```
 
 Phase checklist:

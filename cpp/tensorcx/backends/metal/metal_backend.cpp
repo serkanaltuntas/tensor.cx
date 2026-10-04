@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "tensorcx/backends/metal/metal_backend.h"
 
 #include <array>
@@ -431,7 +432,7 @@ Status contract_smoke_test() {
   if (!add_cpu_result) {
     return add_cpu_result.status();
   }
-  if (add_cpu_result.value().float_data() != std::vector<float>{4.0F, 6.0F}) {
+  if (!std::ranges::equal(add_cpu_result.value().float_data(), std::vector<float>{4.0F, 6.0F})) {
     return Status(StatusCode::kInternal, "Metal backend contract smoke test failed: add result");
   }
 
@@ -485,7 +486,7 @@ Status contract_smoke_test() {
   if (!kernel_cpu_result) {
     return kernel_cpu_result.status();
   }
-  if (kernel_cpu_result.value().float_data() != std::vector<float>{4.0F, 6.0F}) {
+  if (!std::ranges::equal(kernel_cpu_result.value().float_data(), std::vector<float>{4.0F, 6.0F})) {
     return Status(
         StatusCode::kInternal,
         "Metal backend contract smoke test failed: kernel result");
@@ -538,7 +539,7 @@ Status contract_smoke_test() {
   if (!multiply_cpu_result) {
     return multiply_cpu_result.status();
   }
-  if (multiply_cpu_result.value().float_data() != std::vector<float>{3.0F, 8.0F}) {
+  if (!std::ranges::equal(multiply_cpu_result.value().float_data(), std::vector<float>{3.0F, 8.0F})) {
     return Status(
         StatusCode::kInternal,
         "Metal backend contract smoke test failed: multiply result");
@@ -780,7 +781,7 @@ Status contract_smoke_test() {
     return fill_cpu_result.status();
   }
   const auto fill_cpu = fill_cpu_result.value();
-  if (fill_cpu.float_data() != std::vector<float>{2.5F, 2.5F, 2.5F}) {
+  if (!std::ranges::equal(fill_cpu.float_data(), std::vector<float>{2.5F, 2.5F, 2.5F})) {
     return Status(StatusCode::kInternal, "Metal backend contract smoke test failed: fill result");
   }
 

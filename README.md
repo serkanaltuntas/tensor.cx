@@ -345,8 +345,11 @@ print(ln.cpu().numpy().shape)
   `embedding`, and `attention` / `scaled_dot_product_attention` on CPU/Metal/CUDA.
   Attention supports broadcasted batches and boolean/additive/causal masks;
   see [the contracts and limits](docs/TENSOR_API.md#inference-operations).
+- DLPack storage exchange on CPU/CUDA device 0 for contiguous float32/int32/bool,
+  plus an optional inference-only PyTorch `linear` custom op;
+  see [ownership, installation and limits](docs/DLPACK.md).
 - `x.reshape(shape)` / `cx.reshape(x, shape)` create a contiguous view sharing
-  the native buffer; one dimension may be `-1`. NumPy export still copies.
+  the native buffer; one dimension may be `-1`. `.numpy()` still copies.
 - `softmax` requires an explicit `axis`, preserves the input shape, supports
   negative axes, and uses max-subtraction for numerical stability.
 - `rmsnorm` requires an explicit `axis`, preserves the input shape, supports
