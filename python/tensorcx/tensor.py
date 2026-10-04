@@ -213,11 +213,20 @@ class Tensor:
     def softmax(self, axis: int) -> "Tensor":
         return softmax(self, axis=axis)
 
-    def rmsnorm(self, axis: int, eps: float = 1.0e-5) -> "Tensor":
-        return rmsnorm(self, axis=axis, eps=eps)
+    def rmsnorm(self, axis: int, eps: float = 1.0e-5, *, weight=None) -> "Tensor":
+        return rmsnorm(self, axis=axis, eps=eps, weight=weight)
 
-    def layernorm(self, axis: int, eps: float = 1.0e-5) -> "Tensor":
-        return layernorm(self, axis=axis, eps=eps)
+    def layernorm(self, axis: int, eps: float = 1.0e-5, *, weight=None, bias=None) -> "Tensor":
+        return layernorm(self, axis=axis, eps=eps, weight=weight, bias=bias)
+
+    def linear(self, weight, bias=None) -> "Tensor":
+        return linear(self, weight, bias)
+
+    def embedding(self, weight) -> "Tensor":
+        return embedding(self, weight)
+
+    def attention(self, key, value, attn_mask=None, *, is_causal=False, scale=None) -> "Tensor":
+        return scaled_dot_product_attention(self, key, value, attn_mask, is_causal=is_causal, scale=scale)
 
 
 def _arithmetic(input: Tensor, other, name: str, *, scalar_left: bool = False):
@@ -548,15 +557,19 @@ def softmax(input: Tensor, axis: int) -> Tensor:
     return Tensor(_core.softmax(input._impl, axis=_normalize_axis(axis)))
 
 
-def rmsnorm(input: Tensor, axis: int, eps: float = 1.0e-5) -> Tensor:
+def rmsnorm(input: Tensor, axis: int, eps: float = 1.0e-5, *, weight=None) -> Tensor:
     if not isinstance(input, Tensor):
         raise TypeError("rmsnorm expects a Tensor argument")
+    if weight is not None:
+        return _affine_norm(input, axis, eps, weight, None, rms=True)
     return Tensor(_core.rmsnorm(input._impl, axis=_normalize_axis(axis), eps=eps))
 
 
-def layernorm(input: Tensor, axis: int, eps: float = 1.0e-5) -> Tensor:
+def layernorm(input: Tensor, axis: int, eps: float = 1.0e-5, *, weight=None, bias=None) -> Tensor:
     if not isinstance(input, Tensor):
         raise TypeError("layernorm expects a Tensor argument")
+    if weight is not None or bias is not None:
+        return _affine_norm(input, axis, eps, weight, bias, rms=False)
     return Tensor(_core.layernorm(input._impl, axis=_normalize_axis(axis), eps=eps))
 
 
@@ -869,3 +882,54 @@ def topk(input: Tensor, k, axis=-1, largest=True, sorted=True) -> tuple[Tensor, 
         raise TypeError("largest and sorted must be booleans")
     values, indices = _core._topk(input._impl, k, _normalize_axis(axis), builtins.bool(largest), builtins.bool(sorted))
     return Tensor(values), Tensor(indices)
+
+
+def _inference_tensors(name, *inputs):
+    if not builtins.all(isinstance(t, Tensor) for t in inputs):
+        raise TypeError(f"{name} expects Tensor arguments")
+    if builtins.any(t.device != inputs[0].device for t in inputs[1:]):
+        raise ValueError(f"device mismatch for {name}")
+
+
+def linear(input: Tensor, weight: Tensor, bias: Tensor | None = None) -> Tensor:
+    """Float32 input @ weight.T + bias; weight is (out_features, in_features)."""
+    _inference_tensors("linear", input, weight, *(() if bias is None else (bias,)))
+    return Tensor(_core.linear(input._impl, weight._impl, None if bias is None else bias._impl))
+
+
+def _affine_norm(input, axis, eps, weight, bias, *, rms):
+    _inference_tensors("normalization", input, *(t for t in (weight, bias) if t is not None))
+    return Tensor(_core._affine_norm(input._impl, None if weight is None else weight._impl,
+                                    None if bias is None else bias._impl,
+                                    _normalize_axis(axis), eps, rms))
+
+
+def embedding(indices: Tensor, weight: Tensor) -> Tensor:
+    """Gather rows from a float32 table using checked nonnegative int32 indices."""
+    _inference_tensors("embedding", indices, weight)
+    return Tensor(_core.embedding(indices._impl, weight._impl))
+
+
+def scaled_dot_product_attention(query: Tensor, key: Tensor, value: Tensor,
+                                 attn_mask: Tensor | None = None, *,
+                                 is_causal: bool = False, scale: float | None = None) -> Tensor:
+    """Float32 batched attention; True mask entries are allowed, causal is upper-left.
+
+    Uses native matmul and stable masked softmax, with no dropout or training.
+    """
+    _inference_tensors("attention", query, key, value, *(() if attn_mask is None else (attn_mask,)))
+    if not isinstance(is_causal, (bool, np.bool_)):
+        raise TypeError("is_causal must be a boolean")
+    if scale is not None:
+        if isinstance(scale, (bool, np.bool_)) or not isinstance(scale, (int, float, np.integer, np.floating)):
+            raise TypeError("attention scale must be a real scalar")
+        try:
+            scale = float(scale)
+        except OverflowError:
+            raise ValueError("attention scale is out of range") from None
+    return Tensor(_core._attention(query._impl, key._impl, value._impl,
+                                   None if attn_mask is None else attn_mask._impl,
+                                   builtins.bool(is_causal), scale))
+
+
+attention = scaled_dot_product_attention

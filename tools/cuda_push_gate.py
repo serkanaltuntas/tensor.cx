@@ -23,7 +23,7 @@ finally:
     sys.path.pop(0)
 TEST_FILES = ('test_cuda.py', 'test_cuda_primitives.py', 'test_mlir_cuda_runtime.py',
               'test_mlir_cuda_expressions.py', 'test_tensor_api.py', 'test_cast_broadcast.py',
-              'test_shape_ops.py', 'test_multi_axis_reductions.py', 'test_indexing_joining.py', 'test_boolean_masks.py', 'test_batched_matmul.py', 'test_math_ops.py')
+              'test_shape_ops.py', 'test_multi_axis_reductions.py', 'test_indexing_joining.py', 'test_boolean_masks.py', 'test_batched_matmul.py', 'test_math_ops.py', 'test_inference_ops.py')
 
 
 def push_revisions(lines):
@@ -146,7 +146,10 @@ def validate(revision, llvm_bin):
                  'test_batched_matmul_high_rank_and_overflow',
                  'test_unary_math_parity', 'test_min_parity', 'test_argmax_parity',
                  'test_clip_broadcast_bounds', 'test_topk_parity',
-                 'test_math_no_host_fallback_and_high_rank'))
+                 'test_math_no_host_fallback_and_high_rank',
+                 'test_linear_parity', 'test_affine_norm_parity', 'test_embedding_parity',
+                 'test_attention_parity', 'test_attention_subnormal_scale',
+                 'test_inference_pipeline_without_python_host_fallback'))
             nanobind = run([*runner, 'python', '-I', '-c', 'import nanobind; print(nanobind.cmake_dir())'],
                            snapshot, env, output / 'nanobind.log')
             native = work / 'native'

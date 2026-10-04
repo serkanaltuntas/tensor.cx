@@ -17,6 +17,7 @@
 #include "tensorcx/core/dtype.h"
 #include "tensorcx/core/predicate.h"
 #include "tensorcx/core/math.h"
+#include "tensorcx/core/inference.h"
 
 namespace tensorcx::cpu {
 
@@ -249,6 +250,11 @@ Status CpuBackend::execute(const BackendExecution& execution) {
       return contract;
     }
 
+    if (is_inference_composite(execution.op.kind) || execution.op.kind == OpKind::kEmbedding || execution.op.kind == OpKind::kAttentionSoftmax) {
+      for (const auto& input : execution.inputs) (void)from_core_tensor(input);
+      if (is_inference_composite(execution.op.kind)) return execute_inference_composite(*this, execution);
+      return execute_inference_primitive(execution);
+    }
     if (is_math_operation(execution.op.kind)) return execute_math(execution);
     if (is_predicate_elementwise(execution.op.kind)) {
       std::vector<CpuTensor> inputs;

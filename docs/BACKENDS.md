@@ -193,3 +193,10 @@ The [math and selection extension](TENSOR_API.md#math-and-selection) adds native
 float32 log/sqrt and float32/int32 abs/min/argmax/clip/topk on CPU, Metal and CUDA.
 It uses shared core validation and the existing execution ABI; topk has two
 outputs. It does not expand MLIR/generated-kernel or general CUDA int32 arithmetic.
+
+The [inference extension](TENSOR_API.md#inference-operations) adds native
+linear, affine RMSNorm/LayerNorm, embedding and scaled dot-product attention
+on CPU, Metal and CUDA. Linear, affine normalization and attention compose
+backend primitives; embedding and masked attention softmax have native kernels.
+Embedding reads back one GPU validation flag. Execution remains synchronous;
+attention materializes scores and is not a fused/FlashAttention path.

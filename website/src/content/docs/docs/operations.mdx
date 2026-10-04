@@ -72,7 +72,9 @@ Support varies by backend, particularly for `int32`. See the
   Both singleton operations share storage using the reshape ownership rules.
 - Softmax subtracts the maximum before exponentiation. NaNs propagate; slices
   containing positive infinity or only negative infinities produce NaNs.
-- RMSNorm and LayerNorm have no affine weights. Their `eps` must be finite,
+- RMSNorm accepts keyword `weight`; LayerNorm accepts `weight` and `bias`.
+  Parameters are vectors matching the selected axis (scalars for scalar input).
+  Their `eps` must be finite,
   non-negative, and representable as float32.
 - Floating-point accumulation order can differ across backends. Compare with
   numerical tolerances, not bitwise equality.
@@ -146,3 +148,37 @@ rank above all numbers, and equal values use the smaller input index first.
 are limited to INT32_MAX. GPU topk is a synchronous correctness-first selection
 algorithm; large axes/k can be expensive. See the
 [full contract](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/TENSOR_API.md#math-and-selection).
+
+
+## Inference
+
+`cx.linear(x, weight, bias=None)` computes `x @ weight.T + bias`: input ends
+in `in_features`, weight has shape `(out_features, in_features)`, and optional
+bias has shape `(out_features,)`. Values and parameters are float32 on the same
+device. Affine RMSNorm/LayerNorm keep their existing explicit-axis API.
+
+`cx.embedding(indices, weight)` gathers a float32 table using int32 indices.
+The result has shape `indices.shape + (weight.shape[1],)`. Negative and
+out-of-range indices are errors, including for zero-width tables.
+
+`cx.attention(q, k, v, attn_mask=None, is_causal=False, scale=None)` is an alias
+for `cx.scaled_dot_product_attention`. Shapes are `(..., L, E)`, `(..., S, E)`
+and `(..., S, Ev)`; leading dimensions broadcast and the output is `(..., L, Ev)`.
+`E` must be positive. Boolean masks permit True entries; float32 masks add score
+bias, with negative infinity excluding entries. Masks broadcast to the score
+shape. Causal masking permits key positions up to the query position, with
+upper-left alignment when lengths differ; it can combine with an explicit mask.
+`is_causal` and `scale` are keyword-only. Scale defaults to `1/sqrt(E)` and accepts
+finite float32-representable real values.
+
+Fully masked rows have zero probabilities and zero output for finite values.
+Unmasked NaNs and positive-infinity scores can produce NaNs; nonfinite values
+can propagate through the final matmul even when their probability is zero.
+Empty key sequences produce zero output. All arguments are checked for empty
+inputs as well.
+
+These APIs execute natively on CPU, Metal and CUDA. Attention materializes score
+and probability buffers and runs synchronously; it is not FlashAttention.
+There is no dropout, autograd, grouped-query head replication or KV cache.
+The [API contract](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/TENSOR_API.md#inference-operations)
+contains the full shape, numerical and ownership rules.

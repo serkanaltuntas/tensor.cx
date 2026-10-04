@@ -38,6 +38,7 @@ From the repository root, with the runtime already installed:
 ```bash
 uv run --no-sync python website/src/snippets/first-tensor.py
 uv run --no-sync python website/src/snippets/operations.py
+uv run --no-sync python website/src/snippets/inference.py
 ```
 
 CI runs website checks separately from native builds and executes the shared

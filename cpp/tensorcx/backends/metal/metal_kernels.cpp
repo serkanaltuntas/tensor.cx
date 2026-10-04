@@ -19,6 +19,7 @@
 #include "tensorcx/core/dtype.h"
 #include "tensorcx/core/predicate.h"
 #include "tensorcx/core/math.h"
+#include "tensorcx/core/inference.h"
 #include "tensorcx/backends/metal/metal_backend.h"
 
 namespace tensorcx::metal {
@@ -416,6 +417,9 @@ class KernelRuntime {
     if (std::strcmp(name, "predicate_values") == 0) {
       return pipeline_slot(predicate_values_, name);
     }
+    if (std::strcmp(name, "embedding_validate") == 0) return pipeline_slot(embedding_validate_, name);
+    if (std::strcmp(name, "embedding_gather") == 0) return pipeline_slot(embedding_gather_, name);
+    if (std::strcmp(name, "attention_softmax") == 0) return pipeline_slot(attention_softmax_, name);
     if (std::strcmp(name, "math_values") == 0) {
       return pipeline_slot(math_values_, name);
     }
@@ -594,6 +598,9 @@ class KernelRuntime {
   NS::SharedPtr<MTL::ComputePipelineState> broadcast_i32_;
   NS::SharedPtr<MTL::ComputePipelineState> copy_bits_;
   NS::SharedPtr<MTL::ComputePipelineState> predicate_values_;
+  NS::SharedPtr<MTL::ComputePipelineState> embedding_validate_;
+  NS::SharedPtr<MTL::ComputePipelineState> embedding_gather_;
+  NS::SharedPtr<MTL::ComputePipelineState> attention_softmax_;
   NS::SharedPtr<MTL::ComputePipelineState> math_values_;
   NS::SharedPtr<MTL::ComputePipelineState> reduce_bool_;
   NS::SharedPtr<MTL::ComputePipelineState> cast_bool_;
@@ -1068,6 +1075,51 @@ Expected<std::shared_ptr<MetalBuffer>> index_metadata_buffer(Shape metadata) {
   if (!status.ok()) return status;
   return buffer;
 }
+}
+
+Expected<MetalTensor> execute_inference_primitive(const OpDesc& op,const std::vector<MetalTensor>& inputs) {
+  std::vector<Tensor> descriptors;for(const auto& t:inputs)descriptors.push_back(to_core_tensor(t));
+  if(op.kind==OpKind::kEmbedding) {
+    const auto p=make_embedding_plan(descriptors);
+    auto count_result=checked_thread_count(numel(p.shape));if(!count_result)return count_result.status();
+    auto indices_result=checked_thread_count(p.indices);if(!indices_result)return indices_result.status();
+    if(p.indices) {
+      auto flag=MetalBuffer::create(DType::kInt32,1);if(!flag)return flag.status();
+      std::uint32_t invalid=0;auto status=flag.value()->copy_from_host(&invalid,sizeof(invalid));if(!status.ok())return status;
+      auto pipeline=runtime().pipeline("embedding_validate");if(!pipeline)return pipeline.status();
+      const std::uint64_t count=p.indices;
+      status=run_threads(*pipeline.value(),indices_result.value(),[&](MTL::ComputeCommandEncoder& encoder){
+        encoder.setBuffer(inputs[0].buffer()->native(),0,0);encoder.setBuffer(flag.value()->native(),0,1);
+        encoder.setBytes(&count,sizeof(count),2);encoder.setBytes(&p.vocabulary,sizeof(p.vocabulary),3);
+      });if(!status.ok())return status;
+      status=flag.value()->copy_to_host(&invalid,sizeof(invalid));if(!status.ok())return status;
+      if(invalid)return Status(StatusCode::kInvalidArgument,"embedding index out of range");
+    }
+    const auto count=count_result.value();auto buffer=MetalBuffer::create(DType::kFloat32,count);if(!buffer)return buffer.status();
+    if(count) {
+      auto pipeline=runtime().pipeline("embedding_gather");if(!pipeline)return pipeline.status();const std::uint64_t width=p.width;
+      auto status=run_threads(*pipeline.value(),count,[&](MTL::ComputeCommandEncoder& encoder){
+        encoder.setBuffer(inputs[0].buffer()->native(),0,0);encoder.setBuffer(inputs[1].buffer()->native(),0,1);encoder.setBuffer(buffer.value()->native(),0,2);
+        encoder.setBytes(&count,sizeof(count),3);encoder.setBytes(&width,sizeof(width),4);
+      });if(!status.ok())return status;
+    }
+    return MetalTensor(DType::kFloat32,p.shape,buffer.move_value());
+  }
+  const auto p=make_attention_softmax_plan(op,descriptors);
+  auto checked=checked_thread_count(numel(p.shape));if(!checked)return checked.status();
+  auto buffer=MetalBuffer::create(DType::kFloat32,checked.value());if(!buffer)return buffer.status();
+  if(p.rows) {
+    auto metadata=index_metadata_buffer(p.metadata);if(!metadata)return metadata.status();
+    auto pipeline=runtime().pipeline("attention_softmax");if(!pipeline)return pipeline.status();
+    const std::uint32_t rows=p.rows,causal=op.causal;const std::uint64_t columns=p.columns,rank=p.shape.size();
+    auto status=run_threads(*pipeline.value(),rows,[&](MTL::ComputeCommandEncoder& encoder){
+      encoder.setBuffer(inputs[0].buffer()->native(),0,0);encoder.setBuffer(inputs[inputs.size()==2?1:0].buffer()->native(),0,1);
+      encoder.setBuffer(buffer.value()->native(),0,2);encoder.setBuffer(metadata.value()->native(),0,3);
+      encoder.setBytes(&rows,sizeof(rows),4);encoder.setBytes(&columns,sizeof(columns),5);encoder.setBytes(&rank,sizeof(rank),6);
+      encoder.setBytes(&p.scale,sizeof(p.scale),7);encoder.setBytes(&p.mask_kind,sizeof(p.mask_kind),8);encoder.setBytes(&causal,sizeof(causal),9);
+    });if(!status.ok())return status;
+  }
+  return MetalTensor(DType::kFloat32,p.shape,buffer.move_value());
 }
 
 Expected<std::vector<MetalTensor>> execute_math(const OpDesc& op,const std::vector<MetalTensor>& inputs) {

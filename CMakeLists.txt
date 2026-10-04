@@ -121,6 +121,8 @@ add_library(tensorcx_core STATIC
   cpp/tensorcx/core/operation.cpp
   cpp/tensorcx/core/predicate.cpp
   cpp/tensorcx/core/math.cpp
+  cpp/tensorcx/core/inference.cpp
+  cpp/tensorcx/backends/cpu/cpu_inference.cpp
   cpp/tensorcx/core/shape.cpp
   cpp/tensorcx/core/status.cpp
   cpp/tensorcx/backends/cpu/cpu_kernel.cpp
@@ -198,6 +200,7 @@ if(TENSORCX_ENABLE_METAL)
     DEPENDS ${TENSORCX_METAL_KERNEL_SOURCE}
             ${CMAKE_CURRENT_SOURCE_DIR}/cpp/tensorcx/backends/metal/kernels/predicate.metal
             ${CMAKE_CURRENT_SOURCE_DIR}/cpp/tensorcx/backends/metal/kernels/math.metal
+            ${CMAKE_CURRENT_SOURCE_DIR}/cpp/tensorcx/backends/metal/kernels/inference.metal
     VERBATIM
   )
   add_custom_command(
@@ -292,6 +295,8 @@ if(TENSORCX_ENABLE_CUDA)
     cpp/tensorcx/backends/cuda/cuda_backend.cpp
     cpp/tensorcx/backends/cuda/cuda_predicate.cpp
     cpp/tensorcx/backends/cuda/cuda_math.cpp
+    cpp/tensorcx/backends/cuda/cuda_inference.cpp
+    cpp/tensorcx/backends/cuda/kernels/inference.cu
     cpp/tensorcx/backends/cuda/kernels/math.cu
     cpp/tensorcx/backends/cuda/kernels/predicate.cu
     cpp/tensorcx/backends/cuda/cuda_context.cpp

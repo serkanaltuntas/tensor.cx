@@ -43,6 +43,11 @@ std::optional<PrimitiveOpSchema> primitive_op_schema(OpKind kind) {
     case OpKind::kAny:
     case OpKind::kAll:
       return PrimitiveOpSchema{1, 1};
+    case OpKind::kLinear: return PrimitiveOpSchema{2, 1, true};
+    case OpKind::kAffineRmsNorm: case OpKind::kAffineLayerNorm:
+    case OpKind::kAttentionSoftmax: return PrimitiveOpSchema{1, 1, true};
+    case OpKind::kEmbedding: return PrimitiveOpSchema{2, 1};
+    case OpKind::kAttention: return PrimitiveOpSchema{3, 1, true};
     case OpKind::kTopK: return PrimitiveOpSchema{1, 2};
     case OpKind::kClip:
     case OpKind::kWhere:

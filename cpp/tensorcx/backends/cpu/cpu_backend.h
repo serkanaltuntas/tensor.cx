@@ -12,6 +12,7 @@ class CpuBackend final : public Backend {
   Status execute(const BackendExecution& execution) override;
 };
 
+Status execute_inference_primitive(const BackendExecution& execution);
 Status execute_math(const BackendExecution& execution);
 CpuTensor empty(Shape shape, DType dtype);
 CpuTensor fill(Shape shape, DType dtype, double value);

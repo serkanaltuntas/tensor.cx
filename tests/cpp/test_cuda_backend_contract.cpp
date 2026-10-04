@@ -1,6 +1,7 @@
 #include "predicate_contract.h"
 #include "batched_matmul_contract.h"
 #include "math_contract.h"
+#include "inference_contract.h"
 
 #include <array>
 #include <bit>
@@ -442,6 +443,9 @@ int main() {
       [](const cpu::CpuTensor& value) { return cuda::to_core_tensor(cuda::from_cpu(value).value()); },
       [](const Tensor& value) { return cuda::to_cpu(cuda::from_core_tensor(value).value()).value(); });
     math_contract(backend,
+      [](const cpu::CpuTensor& value) { return cuda::to_core_tensor(cuda::from_cpu(value).value()); },
+      [](const Tensor& value) { return cuda::to_cpu(cuda::from_core_tensor(value).value()).value(); });
+    inference_contract(backend,
       [](const cpu::CpuTensor& value) { return cuda::to_core_tensor(cuda::from_cpu(value).value()); },
       [](const Tensor& value) { return cuda::to_cpu(cuda::from_core_tensor(value).value()).value(); });
     arithmetic_contract(backend);

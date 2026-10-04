@@ -144,7 +144,8 @@ documentation. This order does not claim that later packages are implemented.
    inputs; [contract and verification](TENSOR_API.md#batched-matrix-multiplication).
 4. **Math gaps:** implemented: `log`, `sqrt`, `abs`, `min`, `argmax`, `clip`,
    `topk`; [contract and verification](TENSOR_API.md#math-and-selection).
-5. **Inference:** linear, affine normalization, embedding, then attention.
+5. **Inference:** implemented: linear, affine RMSNorm/LayerNorm, embedding and
+   scaled dot-product attention; [contract and verification](TENSOR_API.md#inference-operations).
 6. **DLPack and narrow PyTorch integration:** supported-device data sharing;
    see the [staged portability plan](PYTORCH_PORTABILITY_ROADMAP.md).
 7. **Diagnostics:** operation/dtype capabilities, installation and memory reports.

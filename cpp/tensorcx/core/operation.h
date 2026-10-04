@@ -49,6 +49,7 @@ enum class OpKind {
   kAll,
   kMaskedSelect,
   kLog, kSqrt, kAbs, kMin, kArgmax, kClip, kTopK,
+  kLinear, kAffineRmsNorm, kAffineLayerNorm, kEmbedding, kAttention, kAttentionSoftmax,
 };
 
 enum class MatmulPreference {
@@ -86,6 +87,9 @@ struct OpDesc {
   Dim k{0};
   bool largest{true};
   bool sorted{true};
+  bool has_weight{false}, has_bias{false}, causal{false};
+  std::optional<double> attention_scale{};
+  Shape attention_shape{};  // Internal score target, including broadcasted batches.
 };
 
 struct PrimitiveOpSchema {

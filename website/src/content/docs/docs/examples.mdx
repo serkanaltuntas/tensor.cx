@@ -5,6 +5,7 @@ description: Runnable tensor operations and a deterministic inference pipeline w
 
 import { Code } from '@astrojs/starlight/components';
 import operations from '../../../snippets/operations.py?raw';
+import inference from '../../../snippets/inference.py?raw';
 
 ## Matmul and reduction
 
@@ -43,3 +44,17 @@ measurement. A missing CUDA device is an error, not a silent CPU fallback.
 This is an inference mechanics example with untrained weights. It does not
 train a model or demonstrate prediction quality. Its short timing is a smoke
 check, not a general performance claim; see [measurement guidance](/docs/performance/).
+
+
+## Embedding and causal attention
+
+This example combines the inference primitives without downloading weights.
+Save it as `inference.py`, then run `uv run --no-sync python inference.py`.
+Use `--device metal` or `--device cuda` with an appropriate native build. It
+compares the selected backend with CPU and reports shape `[2, 3, 8]`.
+
+<Code code={inference.trim()} lang="python" title="inference.py" />
+
+Weights are deterministic random values; this demonstrates execution and
+ownership, not model quality or performance. Attention uses a synchronous
+score-buffer implementation. See [inference semantics](/docs/operations/#inference).

@@ -7,6 +7,7 @@ from .device import Device, best_device, device, device_name, devices, is_availa
 from .tensor import (
     Tensor,
     log, sqrt, abs, min, argmax, clip, topk,
+    linear, embedding, scaled_dot_product_attention, attention,
     masked_select,
     all,
     any,
@@ -61,6 +62,7 @@ def version() -> str:
 __all__ = [
     "Tensor",
     "log", "sqrt", "abs", "min", "argmax", "clip", "topk",
+    "linear", "embedding", "scaled_dot_product_attention", "attention",
     "masked_select",
     "all",
     "any",

@@ -22,6 +22,7 @@
 #include "tensorcx/core/shape.h"
 #include "tensorcx/core/predicate.h"
 #include "tensorcx/core/math.h"
+#include "tensorcx/core/inference.h"
 
 namespace tensorcx::metal {
 namespace {
@@ -187,6 +188,14 @@ Status MetalBackend::execute(const BackendExecution& execution) {
       return contract;
     }
 
+    if (is_inference_composite(execution.op.kind) || execution.op.kind == OpKind::kEmbedding || execution.op.kind == OpKind::kAttentionSoftmax) {
+      std::vector<MetalTensor> inputs;
+      for (const auto& input : execution.inputs) inputs.push_back(from_core_tensor(input));
+      if (is_inference_composite(execution.op.kind)) return execute_inference_composite(*this, execution);
+      auto result = execute_inference_primitive(execution.op, inputs);
+      if (!result) return result.status();
+      execution.outputs[0] = to_core_tensor(result.move_value()); return Status::Ok();
+    }
     if (is_math_operation(execution.op.kind)) {
       std::vector<MetalTensor> inputs;
       for(const auto& input:execution.inputs)inputs.push_back(from_core_tensor(input));

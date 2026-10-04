@@ -372,7 +372,8 @@ shared-storage squeeze/expand_dims, all-axis/multi-axis sum/max/mean, and
 basic indexing plus concat/stack/split as contiguous copies, followed by bool
 tensors, comparisons, logical masks, where, any/all and masked selection, and float32 batched matmul
 with batch broadcasting and rank-one vector promotion, plus log/sqrt/abs,
-min/argmax, broadcasted clip and deterministic topk;
+min/argmax, broadcasted clip and deterministic topk, plus native linear,
+affine normalization, embedding and scaled dot-product attention;
 see `docs/TENSOR_API.md`. Normalizations still require one explicit axis.
 Implicit dtype promotion, device transfer, general strides and generated-kernel
 broadcasting remain outside that extension.

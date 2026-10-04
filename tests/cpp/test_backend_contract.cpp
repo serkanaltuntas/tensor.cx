@@ -1,6 +1,7 @@
 #include "predicate_contract.h"
 #include "batched_matmul_contract.h"
 #include "math_contract.h"
+#include "inference_contract.h"
 
 #include <array>
 #include <bit>
@@ -389,6 +390,7 @@ int main() {
     predicate_contract(backend, tensorcx::cpu::to_core_tensor, tensorcx::cpu::from_core_tensor);
     batched_matmul_contract(backend, tensorcx::cpu::to_core_tensor, tensorcx::cpu::from_core_tensor);
     math_contract(backend, tensorcx::cpu::to_core_tensor, tensorcx::cpu::from_core_tensor);
+    inference_contract(backend, tensorcx::cpu::to_core_tensor, tensorcx::cpu::from_core_tensor);
   } catch (const std::exception& error) {
     std::cerr << "CPU predicate/matmul contract failed: " << error.what() << '\n';
     ++failures;

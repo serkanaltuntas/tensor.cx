@@ -30,6 +30,7 @@ only device index 0 is exposed.
 | All-axis / multi-axis sum, max, mean | Yes | Yes | Yes, float32 |
 | Float32 log, sqrt | Yes | Yes | Yes |
 | Float32/int32 abs, min, argmax, clip, topk | Yes | Yes | Yes |
+| Float32 linear, affine norms, embedding, attention | Yes | Yes | Yes |
 | Float32 exp, GELU, SiLU | Yes | Yes | Yes |
 | Float32 softmax, RMSNorm, LayerNorm | Yes | Yes | Yes |
 | Generated kernels | Optional MLIR subset | Experimental MSL subset | Optional MLIR subset |

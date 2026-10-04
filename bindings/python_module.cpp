@@ -739,6 +739,39 @@ NativeTensor reshape_tensor(const NativeTensor& input, nb::handle requested_shap
 
 template <typename NativeTensor, typename Backend, typename Convert>
 void bind_multi_input_tensor_ops(nb::module_& module, Convert convert) {
+  auto inference = [convert](OpDesc op, std::vector<tensorcx::Tensor> inputs) {
+    std::array<tensorcx::Tensor, 1> outputs;
+    Backend backend; tensorcx::BackendExecution e;
+    e.op=std::move(op);e.inputs=inputs;e.outputs=outputs;
+    const auto status=without_gil([&] {return backend.execute(e);});
+    if(!status.ok())throw_status(status);
+    return convert(outputs[0]);
+  };
+  module.def("linear", [inference](const NativeTensor& x,const NativeTensor& weight,nb::handle bias) {
+    std::vector<tensorcx::Tensor> inputs{to_core_tensor(x),to_core_tensor(weight)};
+    if(!bias.is_none())inputs.push_back(to_core_tensor(nb::cast<const NativeTensor&>(bias)));
+    return inference(OpDesc{OpKind::kLinear},std::move(inputs));
+  },nb::arg("input"),nb::arg("weight"),nb::arg("bias")=nb::none());
+  module.def("embedding", [inference](const NativeTensor& indices,const NativeTensor& weight) {
+    return inference(OpDesc{OpKind::kEmbedding},{to_core_tensor(indices),to_core_tensor(weight)});
+  },nb::arg("indices"),nb::arg("weight"));
+  module.def("_affine_norm", [inference](const NativeTensor& x,nb::handle weight,nb::handle bias,
+                                       nb::handle axis,double eps,bool rms) {
+    OpDesc op{rms?OpKind::kAffineRmsNorm:OpKind::kAffineLayerNorm};op.axis=cast_dim_or_throw(axis);op.epsilon=eps;
+    op.has_weight=!weight.is_none();op.has_bias=!bias.is_none();
+    std::vector<tensorcx::Tensor> inputs{to_core_tensor(x)};
+    if(op.has_weight)inputs.push_back(to_core_tensor(nb::cast<const NativeTensor&>(weight)));
+    if(op.has_bias)inputs.push_back(to_core_tensor(nb::cast<const NativeTensor&>(bias)));
+    return inference(op,std::move(inputs));
+  },nb::arg("input"),nb::arg("weight").none(),nb::arg("bias").none(),nb::arg("axis"),nb::arg("eps"),nb::arg("rms"));
+  module.def("_attention", [inference](const NativeTensor& query,const NativeTensor& key,const NativeTensor& value,
+                                     nb::handle mask,bool causal,nb::handle scale) {
+    OpDesc op{OpKind::kAttention};op.causal=causal;
+    if(!scale.is_none())op.attention_scale=nb::cast<double>(scale);
+    std::vector<tensorcx::Tensor> inputs{to_core_tensor(query),to_core_tensor(key),to_core_tensor(value)};
+    if(!mask.is_none())inputs.push_back(to_core_tensor(nb::cast<const NativeTensor&>(mask)));
+    return inference(op,std::move(inputs));
+  },nb::arg("query"),nb::arg("key"),nb::arg("value"),nb::arg("mask").none(),nb::arg("causal"),nb::arg("scale").none());
   module.def("_clip", [convert](const NativeTensor& x, const NativeTensor& lo, const NativeTensor& hi) {
     std::array<tensorcx::Tensor, 3> inputs{to_core_tensor(x),to_core_tensor(lo),to_core_tensor(hi)};
     std::array<tensorcx::Tensor, 1> outputs;

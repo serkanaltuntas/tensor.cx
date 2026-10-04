@@ -8,6 +8,7 @@
 
 namespace tensorcx::metal {
 
+Expected<MetalTensor> execute_inference_primitive(const OpDesc& op, const std::vector<MetalTensor>& inputs);
 Expected<std::vector<MetalTensor>> execute_math(const OpDesc& op, const std::vector<MetalTensor>& inputs);
 Expected<MetalTensor> execute_predicate(const OpDesc& op, const std::vector<MetalTensor>& inputs);
 Expected<MetalTensor> execute_concat(const OpDesc& op, const std::vector<MetalTensor>& inputs);

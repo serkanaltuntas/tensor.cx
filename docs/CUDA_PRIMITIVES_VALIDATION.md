@@ -27,7 +27,7 @@ CPU fallback or dtype conversion is introduced.
 | `abs`, `min`, `argmax`, `clip`, `topk` | Float32/int32; native math and deterministic selection, int32 indices; [math contract](TENSOR_API.md#math-and-selection) |
 | `exp`, `gelu`, `silu` | Shape-preserving; GELU uses the same tanh approximation as CPU |
 | `softmax` | Stable max-subtracted normalization along any valid axis; shape preserved |
-| `rmsnorm`, `layernorm` | Any valid axis, shape preserved, no affine weights; finite non-negative float32-representable epsilon required, even for empty input |
+| `rmsnorm`, `layernorm` | Any valid axis, shape preserved, optional affine parameters; [inference contract](TENSOR_API.md#inference-operations); finite non-negative float32-representable epsilon required, even for empty input |
 
 Zero-size matmul outputs do not launch; `k=0` produces zeros. Empty normalization
 outputs do not launch. Int32 supports copies, shape operations, explicit casts,

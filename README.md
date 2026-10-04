@@ -341,17 +341,21 @@ print(ln.cpu().numpy().shape)
   support float32/int32 on CPU/Metal/CUDA. Indices are int32 with deterministic
   first-index ties; `topk` returns `(values, indices)`.
   See [math and selection](docs/TENSOR_API.md#math-and-selection).
+- Inference adds float32 `linear`, affine normalization, int32-indexed
+  `embedding`, and `attention` / `scaled_dot_product_attention` on CPU/Metal/CUDA.
+  Attention supports broadcasted batches and boolean/additive/causal masks;
+  see [the contracts and limits](docs/TENSOR_API.md#inference-operations).
 - `x.reshape(shape)` / `cx.reshape(x, shape)` create a contiguous view sharing
   the native buffer; one dimension may be `-1`. NumPy export still copies.
 - `softmax` requires an explicit `axis`, preserves the input shape, supports
   negative axes, and uses max-subtraction for numerical stability.
 - `rmsnorm` requires an explicit `axis`, preserves the input shape, supports
   negative axes, and accepts `eps` with default `1e-5`. It computes
-  `x / sqrt(mean(x*x, axis, keepdims=True) + eps)` without affine weights.
+  `x / sqrt(mean(x*x, axis, keepdims=True) + eps)` with optional keyword `weight`.
 - `layernorm` requires an explicit `axis`, preserves the input shape, supports
   negative axes, and accepts `eps` with default `1e-5`. It computes
   `(x - mean) / sqrt(variance + eps)`, with mean and variance taken along
-  `axis` as `keepdims=True`, without affine weights.
+  `axis` as `keepdims=True`, with optional keyword `weight` and `bias`.
 - `mean`, `exp`, `gelu`, `silu`, `softmax`, `rmsnorm`, and `layernorm`
   currently support `float32` tensors only; `int32` inputs are rejected instead
   of being implicitly cast. `gelu` uses the common tanh approximation.

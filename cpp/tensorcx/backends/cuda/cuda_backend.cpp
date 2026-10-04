@@ -11,6 +11,8 @@
 #include "tensorcx/backends/cuda/cuda_predicate.h"
 #include "tensorcx/core/predicate.h"
 #include "tensorcx/core/math.h"
+#include "tensorcx/core/inference.h"
+#include "tensorcx/backends/cuda/cuda_inference.h"
 #include "tensorcx/backends/cuda/cuda_math.h"
 #include "tensorcx/backends/cuda/cuda_buffer.h"
 #include "tensorcx/backends/cuda/cuda_kernel.h"
@@ -170,6 +172,8 @@ Status CudaBackend::execute(const BackendExecution& execution) {
       auto tensor=from_core_tensor(input);
       if (!tensor) return tensor.status();
     }
+    if (is_inference_composite(kind)) return execute_inference_composite(*this, execution);
+    if (kind == OpKind::kEmbedding || kind == OpKind::kAttentionSoftmax) return execute_inference_primitive(execution);
     if (is_math_operation(kind)) return execute_math(execution);
     if (is_predicate_elementwise(kind) || kind == OpKind::kAny || kind == OpKind::kAll || kind == OpKind::kMaskedSelect)
       return execute_predicate(execution);

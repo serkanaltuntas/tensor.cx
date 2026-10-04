@@ -299,7 +299,7 @@ This increment does not complete the broader product backlog. The existing
 GPU/toolchain evidence and an isolated remote GPU runner. Further proposed API
 work follows the ordered [product feature backlog](ROADMAP.md#product-feature-backlog).
 Product proposals also include portable
-releases, diagnostics, interoperability, inference primitives, compiler caching,
+releases, diagnostics, interoperability, compiler caching,
 profiling, more dtypes, and asynchronous execution. These need their own scopes
 and acceptance evidence; [PyTorch integration](PYTORCH_PORTABILITY_ROADMAP.md)
 remains a separate staged track.
@@ -511,3 +511,83 @@ tests, deploy dry run and the operations snippet passed. Two code reviews and
 separate test/acceptance QA closed their findings. Metal device execution is
 verified separately through macOS CI; local results do not cover other NVIDIA
 architectures, portable wheel publication or a throughput claim.
+
+## Inference operations
+
+All inference values and parameters are float32 on the same device. CPU, Metal
+and CUDA use native execution through the shared backend ABI; no operation
+implicitly casts, transfers devices, or exports tensor data to Python/NumPy.
+Results own independent contiguous buffers. Tensor methods mirror the functions;
+the attention method is `Tensor.attention` (the long-form name is a module function).
+
+| Function | Contract |
+| --- | --- |
+| `linear(input, weight, bias=None)` | `input (..., I) @ weight (O, I).T`, plus optional bias `(O,)`; output `(..., O)` |
+| `rmsnorm(input, axis, eps=1e-5, *, weight=None)` | Existing RMSNorm followed by optional per-axis multiplication |
+| `layernorm(input, axis, eps=1e-5, *, weight=None, bias=None)` | Existing LayerNorm followed by optional per-axis multiplication and addition |
+| `embedding(indices, weight)` | Gather from float32 `(vocabulary, width)` using int32 indices of any rank; output `indices.shape + (width,)` |
+| `scaled_dot_product_attention(query, key, value, attn_mask=None, *, is_causal=False, scale=None)` | Stable masked attention; `attention` is an alias |
+
+Normalization still requires one explicit axis, including negative axes. Each
+provided affine parameter must have exactly the vector shape `(axis_size,)`;
+scalar input instead requires scalar parameters and axis 0 or -1. LayerNorm
+allows bias without weight. The existing unweighted calls are unchanged.
+`eps` must be finite, nonnegative and representable as float32. Zero epsilon
+retains the existing NaN behavior for zero denominators. Empty tensors do not
+bypass argument validation.
+
+Embedding accepts only nonnegative indices below the vocabulary size. Repeated
+indices and scalar/empty index tensors are supported. Invalid indices are
+rejected even when width is zero. The gather preserves float32 bit patterns,
+including NaN payloads and signed zero. GPU index validation reads back a single
+error flag before gathering; it does not transfer the index or weight tensors
+for host computation. There is no padding index, max-norm update or gradient.
+
+Attention uses query `(..., L, E)`, key `(..., S, E)` and value `(..., S, Ev)`;
+all have rank at least two, `E` is positive, and leading dimensions broadcast
+from the right across all three inputs. The result is `(..., L, Ev)`.
+An ordinary leading axis can represent heads; grouped-query head replication
+is not implemented. Query/key sequence lengths may differ. Empty batches,
+query/key sequences and value widths are supported; a zero key sequence
+produces zeros in a nonempty output.
+
+The score is `(query @ key.T) * scale`. The default scale is `1/sqrt(E)`;
+explicit scale must be a real, finite, float32-representable scalar. Zero,
+negative and subnormal scales are accepted; nonzero values that underflow to
+zero are rejected. A bool mask permits entries marked True. A float32 mask
+adds a score bias; negative infinity excludes an entry. Masks must broadcast
+to the score shape without adding output dimensions. A causal mask permits
+`key_position <= query_position` (upper-left alignment for unequal lengths)
+and may be combined with an explicit mask.
+
+Excluded entries ignore their score, including a NaN score. Unmasked NaNs
+propagate. A row containing positive-infinity scores produces NaNs under the
+usual max-subtraction formula. Fully excluded or all-negative-infinity rows
+have zero probabilities. Their output is zero for finite values; nonfinite
+values can still propagate NaNs through the final matrix multiplication.
+This exception applies to attention's masked softmax, not standalone softmax.
+
+Linear and affine normalization compose existing native primitives. Attention
+composes two native matmuls with a stable masked-softmax primitive and allocates
+score/probability buffers proportional to the full broadcasted `L*S` shape.
+It is synchronous and prioritizes correctness; it is not FlashAttention and
+makes no throughput claim. Dropout, autograd, KV caching and training are outside
+this API. The generated-kernel/MLIR subset is unchanged.
+
+`tests/python/test_inference_ops.py` contains NumPy references, CPU/backend
+comparisons, empty and exceptional-value cases, parameter validation and a
+complete embedding→linear→attention→affine-normalization→linear workflow.
+`tests/cpp/inference_contract.h` checks the native ABI and output preservation
+on invalid descriptors. Actual platform acceptance is recorded only after the
+corresponding execution checks pass.
+
+
+Local inference validation (2026-10-04): the full CPU/CUDA Python suite passed
+4017 tests with 160 expected platform/capability skips; the new inference suite
+passed all 400 CPU/CUDA cases. Native and ASan/UBSan suites each passed 4/4.
+The 400 inference cases also passed CUDA memcheck and racecheck with no reported
+errors/hazards. Fresh CPU/CUDA sdist→wheel installs passed the distribution
+checks; isolated installed-wheel inference tests passed 199 CPU and 400
+CPU/CUDA cases. These results apply to the documented validation host/toolchain;
+they do not establish additional NVIDIA architecture support. Metal acceptance
+must use the real-device CI jobs; Linux validation does not substitute for it.
