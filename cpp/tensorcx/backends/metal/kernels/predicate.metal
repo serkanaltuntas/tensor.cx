@@ -18,6 +18,17 @@ template<typename T> inline bool predicate_compare(T a, T b, uint op) {
     default: return false;
   }
 }
+inline bool predicate_compare_float_bits(uint a, uint b, uint op) {
+  // Metal floating comparisons can flush subnormals to zero even without
+  // fast math. Read the stored IEEE words and compare ordered integer keys.
+  const uint magnitude_a = a & 0x7fffffffu, magnitude_b = b & 0x7fffffffu;
+  if (magnitude_a > 0x7f800000u || magnitude_b > 0x7f800000u) return op == 1;
+  if (magnitude_a == 0) a = 0;  // Both signed zeros compare equal.
+  if (magnitude_b == 0) b = 0;
+  const uint key_a = (a & 0x80000000u) ? ~a : (a ^ 0x80000000u);
+  const uint key_b = (b & 0x80000000u) ? ~b : (b ^ 0x80000000u);
+  return predicate_compare(key_a, key_b, op);
+}
 kernel void predicate_values(device const uchar* a [[buffer(0)]],
                              device const uchar* b [[buffer(1)]],
                              device const uchar* c [[buffer(2)]],
@@ -43,7 +54,7 @@ kernel void predicate_values(device const uchar* a [[buffer(0)]],
   if (op >= 6) {
     const bool left = a[ia] != 0, right = b[ib] != 0;
     output[id] = op == 6 ? left && right : op == 7 ? left || right : left != right;
-  } else if (dtype == 0) output[id] = predicate_compare(reinterpret_cast<device const float*>(a)[ia], reinterpret_cast<device const float*>(b)[ib], op);
+  } else if (dtype == 0) output[id] = predicate_compare_float_bits(reinterpret_cast<device const uint*>(a)[ia], reinterpret_cast<device const uint*>(b)[ib], op);
   else if (dtype == 1) output[id] = predicate_compare(reinterpret_cast<device const int*>(a)[ia], reinterpret_cast<device const int*>(b)[ib], op);
   else output[id] = predicate_compare(a[ia] != 0, b[ib] != 0, op);
 }
@@ -68,7 +79,7 @@ kernel void cast_bool(device const uchar* input [[buffer(0)]], device uchar* out
                       constant uint& target [[buffer(4)]], uint id [[thread_position_in_grid]]) {
   if (id >= count) return;
   if (source == 2 && target == 2) { output[id] = input[id]; return; }
-  const bool value = source == 0 ? reinterpret_cast<device const float*>(input)[id] != 0 :
+  const bool value = source == 0 ? (reinterpret_cast<device const uint*>(input)[id] & 0x7fffffffu) != 0 :
                      source == 1 ? reinterpret_cast<device const int*>(input)[id] != 0 : input[id] != 0;
   if (target == 2) output[id] = value;
   else if (target == 0) reinterpret_cast<device float*>(output)[id] = value;

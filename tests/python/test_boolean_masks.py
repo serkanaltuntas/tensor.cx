@@ -43,6 +43,22 @@ def test_comparison_ieee_and_integer_precision(device_name, name, op):
     np.testing.assert_array_equal(op(cx.tensor(a, device=device_name), cx.tensor(b, device=device_name)).numpy(), op(a,b))
 
 
+@pytest.mark.parametrize("name,op", COMPARE)
+def test_comparison_float_bit_patterns(device_name, name, op):
+    # Include both signs, all exponent boundaries, NaN payloads and subnormals.
+    magnitudes = np.array([0, 1, 2, 0x007fffff, 0x00800000, 0x00800001,
+                           0x3f000000, 0x3f800000, 0x7f7fffff, 0x7f800000,
+                           0x7f800001, 0x7fc01234, 0x7fffffff], dtype=np.uint32)
+    bits = np.concatenate([magnitudes, magnitudes | np.uint32(0x80000000)])
+    values = bits.view(np.float32)
+    x = cx.tensor(values[:, None], device=device_name)
+    y = cx.tensor(values[None, :], device=device_name)
+    with np.errstate(invalid="ignore"):
+        expected = op(values[:, None], values[None, :])
+    np.testing.assert_array_equal(getattr(cx, name)(x, y).numpy(), expected)
+    np.testing.assert_array_equal(x.astype(cx.bool).numpy(), (bits & 0x7fffffff != 0)[:, None])
+
+
 @pytest.mark.parametrize("dtype,scalar", [(cx.float32, 2), (cx.float32, np.float32(1.5)),
                                          (cx.int32, np.int32(2)), (cx.bool, True)])
 @pytest.mark.parametrize("name,op", COMPARE)
