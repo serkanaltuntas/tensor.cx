@@ -26,7 +26,7 @@ performance comparison.
 explicitly authored expression kernels, and an MLP pipeline. It requires real
 CUDA execution and LLVM 21.1.8 and validates each result against CPU outside the
 timed region. Read the complete
-[method and environment setup](https://github.com/serkanaltuntas/cortex-runtime/blob/main/docs/CUDA_PERFORMANCE.md)
+[method and environment setup](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/CUDA_PERFORMANCE.md)
 before running it.
 
 Recorded optimization results concern specific long contiguous rows on one
@@ -44,5 +44,5 @@ measurement boundaries, medians, variation, and regressions together.
 - Other workloads sharing the device and any measurement limitations.
 
 Keep raw local reports private until reviewed. Use the repository's
-[publication guidance](https://github.com/serkanaltuntas/cortex-runtime/blob/main/CONTRIBUTING.md#publish-only-reviewed-evidence)
+[publication guidance](https://github.com/serkanaltuntas/tensor.cx/blob/main/CONTRIBUTING.md#publish-only-reviewed-evidence)
 to remove personal paths and persistent device identifiers before sharing.

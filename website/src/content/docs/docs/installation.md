@@ -4,8 +4,8 @@ description: Build tensor.cx from source with uv, beginning with the CPU referen
 ---
 
 tensor.cx is installed from source. There is no published PyPI release or
-general-purpose binary wheel to install. Repository access is required; the
-repository is currently private pending the public launch.
+general-purpose binary wheel to install. The source is available on
+[GitHub](https://github.com/serkanaltuntas/tensor.cx) under Apache-2.0.
 
 ## Prerequisites
 
@@ -22,8 +22,8 @@ the validated installation path.
 ## Build the CPU reference
 
 ```bash
-git clone https://github.com/serkanaltuntas/cortex-runtime.git
-cd cortex-runtime
+git clone https://github.com/serkanaltuntas/tensor.cx.git
+cd tensor.cx
 uv venv --python 3.12
 source .venv/bin/activate
 CMAKE_ARGS="-DTENSORCX_ENABLE_METAL=OFF -DTENSORCX_ENABLE_CUDA=OFF" uv pip install -e ".[dev]"

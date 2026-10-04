@@ -17,7 +17,10 @@ public issue. Response times are not guaranteed.
   configured environment. Use trusted toolchains and dependencies.
 - Run untrusted contributions in isolated disposable environments. Never expose
   personal files, signing keys or privileged credentials to a GPU CI job.
-  Fork pull requests are excluded from the self-hosted CUDA workflow.
+  The CUDA job's fork filter is a scheduling guard, not a security boundary:
+  pull requests can modify workflows. Do not register a self-hosted runner for
+  this public repository until access controls outside PR-editable workflows
+  and disposable isolation have been reviewed and validated.
 - Validation and benchmark summaries remove known local metadata. Raw logs and
   arbitrary strings can still contain secrets; review them before sharing.
 

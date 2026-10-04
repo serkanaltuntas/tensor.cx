@@ -4,7 +4,7 @@ description: Contribute focused fixes, reproducible reports, and CPU-validated b
 ---
 
 tensor.cx is an independent personal project by [Serkan Altuntaş](https://serkan.ai/), licensed
-under [Apache 2.0](https://github.com/serkanaltuntas/cortex-runtime/blob/main/LICENSE).
+under [Apache 2.0](https://github.com/serkanaltuntas/tensor.cx/blob/main/LICENSE).
 The runtime is pre-alpha, and its API and implementation are still evolving.
 
 ## Useful contributions
@@ -15,13 +15,13 @@ The runtime is pre-alpha, and its API and implementation are still evolving.
 - Hardware validation that clearly records the tested scope and skipped cases.
 
 Discuss broad API or backend changes before implementation. Start with the
-repository's [contribution guide](https://github.com/serkanaltuntas/cortex-runtime/blob/main/CONTRIBUTING.md)
-and [project scope](https://github.com/serkanaltuntas/cortex-runtime/blob/main/PROJECT.md).
+repository's [contribution guide](https://github.com/serkanaltuntas/tensor.cx/blob/main/CONTRIBUTING.md)
+and [project scope](https://github.com/serkanaltuntas/tensor.cx/blob/main/PROJECT.md).
 They are the canonical development instructions.
 
 ## Report a security issue
 
-Follow [SECURITY.md](https://github.com/serkanaltuntas/cortex-runtime/blob/main/SECURITY.md)
+Follow [SECURITY.md](https://github.com/serkanaltuntas/tensor.cx/blob/main/SECURITY.md)
 for private reporting. Avoid putting secrets, personal paths, unreviewed raw
 logs, or persistent device identifiers into public issues.
 
@@ -29,5 +29,9 @@ logs, or persistent device identifiers into public issues.
 
 The website lives alongside the runtime in `website/`. User guides are curated
 Markdown/MDX pages; internal project records are not automatically published.
-See [the website README](https://github.com/serkanaltuntas/cortex-runtime/blob/main/website/README.md)
+See [the website README](https://github.com/serkanaltuntas/tensor.cx/blob/main/website/README.md)
 for local development and verification.
+
+The deployed site's [third-party notices](/third-party-notices.txt) cover its
+browser assets. Runtime dependency notices are maintained separately in
+[THIRD_PARTY_NOTICES.md](https://github.com/serkanaltuntas/tensor.cx/blob/main/THIRD_PARTY_NOTICES.md).

@@ -10,7 +10,7 @@ export default defineConfig({
       title: 'tensor.cx',
       description: 'A compact Python-first tensor runtime with a C++20 core, CPU references, and Metal and CUDA backends.',
       favicon: '/favicon.svg',
-      social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/serkanaltuntas/cortex-runtime' }],
+      social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/serkanaltuntas/tensor.cx' }],
       customCss: ['./src/styles/docs.css'],
       sidebar: [
         { label: 'Start here', items: [

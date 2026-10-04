@@ -72,6 +72,6 @@ execution are not implemented.
 
 Detailed, versioned records stay with the source:
 
-- [Backend execution contract](https://github.com/serkanaltuntas/cortex-runtime/blob/main/docs/BACKENDS.md)
-- [CUDA primitive validation](https://github.com/serkanaltuntas/cortex-runtime/blob/main/docs/CUDA_PRIMITIVES_VALIDATION.md)
-- [Distribution and host limits](https://github.com/serkanaltuntas/cortex-runtime/blob/main/docs/DISTRIBUTION.md)
+- [Backend execution contract](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/BACKENDS.md)
+- [CUDA primitive validation](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/CUDA_PRIMITIVES_VALIDATION.md)
+- [Distribution and host limits](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/DISTRIBUTION.md)

@@ -32,8 +32,8 @@ no PyTorch compatibility promise.
 
 ## Read the implementation
 
-The [source repository](https://github.com/serkanaltuntas/cortex-runtime) contains
+The [source repository](https://github.com/serkanaltuntas/tensor.cx) contains
 the runtime, tests, and engineering records. These guides are a curated user
-entry point. [PROJECT.md](https://github.com/serkanaltuntas/cortex-runtime/blob/main/PROJECT.md)
+entry point. [PROJECT.md](https://github.com/serkanaltuntas/tensor.cx/blob/main/PROJECT.md)
 remains the authoritative phase ledger; architecture and validation records stay
 with the implementation.

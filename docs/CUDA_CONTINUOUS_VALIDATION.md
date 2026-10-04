@@ -58,7 +58,11 @@ Runner contract:
   SSH/GPG keys, workspace records or Docker socket exposed to job code.
   A developer desktop account is not an isolated CI environment.
 
-Provision the selected isolated GPU environment first, then use GitHub's
+Before registering a runner for this public repository, validate access controls
+outside PR-editable workflows and a disposable isolation policy. Job conditions,
+repository rollout variables and custom runner labels are not access controls.
+Keep self-hosted runners unregistered until those protections are in place.
+After that review, provision the selected isolated GPU environment and use GitHub's
 [runner registration instructions](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/add-runners)
 for this repository and assign the custom label. Keep registration credentials
 out of Git and reports. GitHub supports
@@ -76,8 +80,10 @@ then verify push and PR runs before closing the continuous-validation ledger.
 This workflow does not provision a machine, register a runner or change branch
 protection by itself.
 
-Fork PRs do not run on this runner. Extending that scope requires a reviewed
-isolation and approval policy; `pull_request_target` must not be used to run
+The checked-in CUDA job skips fork PRs, but a pull request can change its
+condition or add another self-hosted job. This filter is not a security boundary.
+Untrusted contributions require a reviewed isolation and approval policy enforced
+outside their editable workflow; `pull_request_target` must not be used to run
 untrusted head code with privileged base-repository credentials. See GitHub's
 [self-hosted runner security guidance](https://docs.github.com/en/actions/reference/security/secure-use).
 This restriction and the still-unregistered runner remain explicit rollout

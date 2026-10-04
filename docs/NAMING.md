@@ -48,11 +48,19 @@ or supported backend scope changes are intended by the rename.
 
 ## Repository and historical evidence
 
-The existing GitHub repository remains
-[`serkanaltuntas/cortex-runtime`](https://github.com/serkanaltuntas/cortex-runtime).
-Its URLs and the local checkout directory are not renamed by this migration.
-No package has been published or a registry name reserved by changing source
-metadata. The website is not deployed by this change.
+The public source repository is
+[`serkanaltuntas/tensor.cx`](https://github.com/serkanaltuntas/tensor.cx).
+Clone it with `git clone https://github.com/serkanaltuntas/tensor.cx.git`, then
+`cd tensor.cx`. Existing checkout directories can retain their local names;
+update their Git remote to the new repository. The Python package/import name
+remains `tensorcx`. No package has been published to PyPI or a registry name
+reserved by changing source metadata.
+
+The public repository retains the reviewed Git history. Historical commits and
+reports can still contain the former working name and repository URLs; current
+source links and installation instructions use the public repository. CI runs,
+issues, settings and secrets do not move with Git history. Historical CI evidence
+is identified by revision and date rather than relinked to nonexistent new runs.
 
 Live instructions and code examples use the new spelling. Dated acceptance
 results still describe their original executions; the naming update does not

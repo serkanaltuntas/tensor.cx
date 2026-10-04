@@ -32,8 +32,8 @@ dependencies = [
 [project.urls]
 Homepage = "https://tensor.cx"
 Documentation = "https://tensor.cx/docs/"
-Repository = "https://github.com/serkanaltuntas/cortex-runtime"
-Issues = "https://github.com/serkanaltuntas/cortex-runtime/issues"
+Repository = "https://github.com/serkanaltuntas/tensor.cx"
+Issues = "https://github.com/serkanaltuntas/tensor.cx/issues"
 
 [project.optional-dependencies]
 dev = [

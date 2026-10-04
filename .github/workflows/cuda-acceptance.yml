@@ -17,8 +17,9 @@ jobs:
   cuda:
     name: Real CUDA acceptance (sm_52)
     # Enable automatic runs only after an isolated runner passes a manual run.
-    # A skipped job is not GPU acceptance. Fork code requires a separate,
-    # reviewed isolation/approval policy before it can use this runner.
+    # A skipped job is not GPU acceptance. This PR-editable filter is not a
+    # security boundary. Keep runners unregistered until external access controls
+    # and disposable isolation are reviewed (docs/CUDA_CONTINUOUS_VALIDATION.md).
     if: >-
       (vars.TENSORCX_CUDA_CI_ENABLED == 'true' || github.event_name == 'workflow_dispatch') &&
       (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)

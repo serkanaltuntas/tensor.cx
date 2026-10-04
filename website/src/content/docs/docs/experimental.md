@@ -24,10 +24,10 @@ interactive command string. Supported indexing, guards, argument layout, and
 launch geometry are part of the contract, so use the complete examples in the
 corresponding integration guide:
 
-- [Kernel DSL and Metal execution](https://github.com/serkanaltuntas/cortex-runtime/blob/main/docs/KERNEL_DSL.md)
-- [MLIR CPU installation and runnable example](https://github.com/serkanaltuntas/cortex-runtime/blob/main/docs/MLIR_RUNTIME_INTEGRATION_DECISION.md)
-- [MLIR CUDA installation and runnable example](https://github.com/serkanaltuntas/cortex-runtime/blob/main/docs/MLIR_CUDA_INTEGRATION_DECISION.md)
-- [CUDA local-expression contract](https://github.com/serkanaltuntas/cortex-runtime/blob/main/docs/MLIR_CUDA_EXPRESSIONS_DECISION.md)
+- [Kernel DSL and Metal execution](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/KERNEL_DSL.md)
+- [MLIR CPU installation and runnable example](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/MLIR_RUNTIME_INTEGRATION_DECISION.md)
+- [MLIR CUDA installation and runnable example](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/MLIR_CUDA_INTEGRATION_DECISION.md)
+- [CUDA local-expression contract](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/MLIR_CUDA_EXPRESSIONS_DECISION.md)
 
 ## Limits and trust
 
@@ -37,4 +37,4 @@ targets, and reduction support require separate validation.
 
 Generated native libraries and PTX are executable code, not a sandbox. Compile
 and load only artifacts you trust; see the repository
-[security policy](https://github.com/serkanaltuntas/cortex-runtime/blob/main/SECURITY.md).
+[security policy](https://github.com/serkanaltuntas/tensor.cx/blob/main/SECURITY.md).

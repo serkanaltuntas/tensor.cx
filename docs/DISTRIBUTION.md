@@ -124,8 +124,9 @@ under `build/distribution-ci-audited/`. The validator's nine regression tests
 passed (`uv run --no-sync pytest -q tests/python/test_distribution_validator.py`):
 stderr/JSON separation, failure-log retention, refusal to overwrite existing
 evidence, and rejection of contaminated/unresolved/wrong-backend dependencies.
-The remote [CPU distribution job for `2281ca9`](https://github.com/serkanaltuntas/cortex-runtime/actions/runs/37118427687/job/111189637894)
-also passed and retained its artifact, as verified on 2026-10-03.
+The remote CPU distribution job for `2281ca9` also passed and retained its
+artifact, as verified on 2026-10-03 in the predecessor repository. That Actions
+run is historical evidence; it is not a run in the public repository.
 That workflow's overall result was failure because the macOS jobs exposed a
 hardcoded `/tmp` assumption in a distribution-validator test. The fixture now
 uses the platform temporary directory; the production linkage audit is

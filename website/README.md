@@ -111,9 +111,10 @@ redirect. Local Wrangler tests do not simulate zone-level redirect rules.
 2. Preserve Google verification TXT and domain registration/nameservers. Review
    existing apex/www DNS records: binding the custom domains may require
    replacing placeholder records. A dry run does not validate remote DNS or TLS.
-3. Complete repository publication checks and resolve source-link visibility.
-   The installation page currently discloses private repository access; update
-   it when that changes. No PyPI release is claimed.
+3. Complete repository publication checks and verify anonymous access to the
+   public source links and clone URL. No PyPI release is claimed. Keep
+   `public/third-party-notices.txt` in the build and update its upstream notices
+   when dependencies that contribute browser assets change.
 4. Run the checks above. Only when publishing is explicitly authorized, run
    `npm run build` followed by the project-local `wrangler deploy` through the
    operator's credential wrapper. CI contains no deployment or secret setup.
