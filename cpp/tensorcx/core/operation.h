@@ -32,6 +32,8 @@ enum class OpKind {
   kDivideScalar,
   kCast,
   kTranspose,
+  kSlice,
+  kConcat,
 };
 
 enum class MatmulPreference {
@@ -63,11 +65,16 @@ struct OpDesc {
   // Absent preserves the original single-axis primitive. An empty selection
   // reduces no axes and returns independent storage, subject to dtype rules.
   std::optional<Shape> reduction_axes{};
+  Shape slice_starts{};
+  Shape slice_steps{};
+  Shape slice_shape{};
 };
 
 struct PrimitiveOpSchema {
   std::size_t input_count{0};
   std::size_t output_count{0};
+  // input_count is a minimum for variadic operations.
+  bool variadic_inputs{false};
 };
 
 // Returns the primitive operation shape expressible by BackendExecution today.

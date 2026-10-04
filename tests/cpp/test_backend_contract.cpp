@@ -380,6 +380,46 @@ void multi_axis_contract_tests() {
 }  // namespace
 
 int main() {
+  {
+    using namespace tensorcx;
+    cpu::CpuBackend backend;
+    const cpu::CpuTensor input({2, 3}, std::vector<std::int32_t>{1, 2, 3, 4, 5, 6});
+    std::vector<Tensor> inputs{cpu::to_core_tensor(input), cpu::to_core_tensor(input)};
+    std::array<Tensor, 1> outputs{};
+    BackendExecution execution;
+    execution.op = OpDesc{OpKind::kConcat}; execution.op.axis = 1;
+    execution.inputs = inputs; execution.outputs = outputs;
+    expect_ok("native concat", backend.execute(execution));
+    if (cpu::from_core_tensor(outputs[0]).int32_data() !=
+        std::vector<std::int32_t>{1, 2, 3, 1, 2, 3, 4, 5, 6, 4, 5, 6}) ++failures;
+    execution.inputs = {};
+    expect_status("concat no inputs", backend.execute(execution), StatusCode::kInvalidArgument);
+    execution.inputs = inputs;
+    inputs[1].offset = 1;
+    expect_status("concat malformed later input", backend.execute(execution), StatusCode::kInvalidArgument);
+    inputs[1] = inputs[0]; inputs[1].device.index = 1;
+    expect_status("concat wrong device index", backend.execute(execution), StatusCode::kInvalidArgument);
+    execution.inputs = std::span<const Tensor>(inputs.data(), 1);
+    execution.op = OpDesc{OpKind::kSlice};
+    execution.op.slice_starts = {1, 2}; execution.op.slice_steps = {-1, -2};
+    execution.op.slice_shape = {2, 2};
+    expect_ok("native reversed slice", backend.execute(execution));
+    if (cpu::from_core_tensor(outputs[0]).int32_data() !=
+        std::vector<std::int32_t>{6, 4, 3, 1}) ++failures;
+    execution.op.slice_steps[1] = INT64_MIN;
+    expect_status("slice signed overflow", backend.execute(execution), StatusCode::kInvalidArgument);
+    execution.op.slice_shape = {2, 1};
+    expect_ok("unused extreme stride", backend.execute(execution));
+    try {
+      (void)make_slice_plan({INT64_MAX, 0, 1}, {INT64_MAX - 1, 0, 0}, {-1, 1, 1},
+                            {INT64_MAX, 0, 1});
+    } catch (...) { ++failures; }
+    try {
+      (void)make_concat_plan({{INT64_MAX, 0}, {1, 0}}, 0);
+      ++failures;
+    } catch (const std::invalid_argument&) {}
+  }
+
   multi_axis_contract_tests();
   transpose_contract_tests();
   cast_broadcast_contract_tests();

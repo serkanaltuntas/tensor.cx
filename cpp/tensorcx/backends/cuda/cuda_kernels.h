@@ -22,7 +22,9 @@ cudaError_t launch_cast(const void* input, void* output, std::size_t count, DTyp
 // Metadata holds output dimensions followed by mapped input element strides.
 // Both supported dtypes are copied as 32-bit words, preserving their bits.
 cudaError_t launch_transpose(const void* input, void* output, std::size_t count,
-                             const Dim* metadata, std::size_t rank);
+                             const Dim* metadata, std::size_t rank, Dim offset);
+cudaError_t launch_concat(const void* input, void* output, std::size_t count,
+                          Dim block, Dim output_block, Dim offset);
 cudaError_t launch_scalar(const float* input, float* output, std::size_t count,
                           OpKind op, float scalar, bool scalar_left);
 

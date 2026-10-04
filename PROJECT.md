@@ -61,7 +61,8 @@ Next implementation:    compatibility and repository-wide continuous GPU validat
 Open scope:             other SM/host versions and broader compiler features
 API increment:          arithmetic/scalars, contiguous reshape and keepdims;
                         explicit casts, tensor broadcasting, transpose,
-                        squeeze, expand_dims and all-axis/multi-axis reductions;
+                        squeeze, expand_dims, all-axis/multi-axis reductions, and
+                        basic indexing/concat/stack/split;
                         docs/TENSOR_API.md (acceptance tracked separately)
 ```
 

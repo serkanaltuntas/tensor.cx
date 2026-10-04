@@ -24,11 +24,24 @@ BroadcastPlan make_broadcast_plan(const Shape& lhs, const Shape& rhs);
 struct TransposePlan {
   Shape output_shape;
   Shape input_strides;
+  Dim offset{0};
 };
 
 // Full permutation, including negative axes; checks output metadata even for
 // empty tensors. The caller materializes a new contiguous output buffer.
 TransposePlan make_transpose_plan(const Shape& input, const Shape& axes);
+
+// Normalized basic slice: signed element strides and starting element offset.
+// It retains input rank; integer-axis removal/new axes are metadata reshapes.
+TransposePlan make_slice_plan(const Shape& input, const Shape& starts,
+                              const Shape& steps, const Shape& lengths);
+
+struct ConcatPlan {
+  Shape output_shape;
+  std::size_t axis;
+  Dim inner;
+};
+ConcatPlan make_concat_plan(const std::vector<Shape>& inputs, Dim axis);
 
 struct ReductionPlan {
   Shape output_shape;

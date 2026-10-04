@@ -29,6 +29,53 @@ void same_float(float actual, float expected) {
   }
 }
 
+void indexing_contract(cuda::CudaBackend& backend) {
+  cpu::CpuBackend reference;
+  for (auto dtype : {DType::kFloat32, DType::kInt32}) {
+    for (const Shape& shape : {Shape{3, 257}, Shape{3, 0}}) {
+      cpu::CpuTensor source(dtype, shape);
+      for (Dim i = 0; i < source.size(); ++i) {
+        if (dtype == DType::kFloat32) source.mutable_float_data()[i] = static_cast<float>(i - 300);
+        else source.mutable_int32_data()[i] = static_cast<std::int32_t>(i - 300);
+      }
+      const auto uploaded = cuda::from_cpu(source).value();
+      std::array<Tensor, 2> gpu_inputs{cuda::to_core_tensor(uploaded), cuda::to_core_tensor(uploaded)};
+      std::array<Tensor, 2> cpu_inputs{cpu::to_core_tensor(source), cpu::to_core_tensor(source)};
+      std::array<Tensor, 1> gpu_outputs{}, cpu_outputs{};
+      for (const auto kind : {OpKind::kSlice, OpKind::kConcat}) {
+        OpDesc op{kind}; op.axis = -1;
+        op.slice_starts = {2, shape[1] ? 256 : 0}; op.slice_steps = {-1, -2};
+        op.slice_shape = {3, shape[1] ? 129 : 0};
+        const std::size_t arity = kind == OpKind::kSlice ? 1 : 2;
+        BackendExecution gpu{BackendOpClass::kPrimitive, op, std::span(gpu_inputs).first(arity), gpu_outputs};
+        BackendExecution cpu{BackendOpClass::kPrimitive, op, std::span(cpu_inputs).first(arity), cpu_outputs};
+        require(reference.execute(cpu).ok(), "CPU indexing reference failed");
+        require(backend.execute(gpu).ok(), "CUDA indexing failed");
+        const auto actual = cuda::to_cpu(cuda::from_core_tensor(gpu_outputs[0]).value()).value();
+        const auto expected = cpu::from_core_tensor(cpu_outputs[0]);
+        require(actual.shape() == expected.shape() && actual.dtype() == dtype,
+                "indexing metadata mismatch");
+        require(gpu_outputs[0].buffer != gpu_inputs[0].buffer, "indexing must copy");
+        if (dtype == DType::kFloat32) require(actual.float_data() == expected.float_data(), "slice/concat mismatch");
+        else require(actual.int32_data() == expected.int32_data(), "int32 slice/concat mismatch");
+        const auto previous = gpu_outputs[0].buffer;
+        gpu.inputs = {};
+        invalid(backend.execute(gpu));
+        require(gpu_outputs[0].buffer == previous, "indexing arity failure changed output");
+        gpu.inputs = std::span(gpu_inputs).first(arity);
+        gpu_inputs[arity - 1].offset = 1;
+        invalid(backend.execute(gpu));
+        require(gpu_outputs[0].buffer == previous, "indexing metadata failure changed output");
+        gpu_inputs[arity - 1].offset = 0;
+        if (kind == OpKind::kSlice) gpu.op.slice_steps[0] = INT64_MIN;
+        else gpu.op.axis = 2;
+        invalid(backend.execute(gpu));
+        require(gpu_outputs[0].buffer == previous, "indexing bounds failure changed output");
+      }
+    }
+  }
+}
+
 void arithmetic_contract(cuda::CudaBackend& backend) {
   const float inf = std::numeric_limits<float>::infinity();
   const float nan = std::numeric_limits<float>::quiet_NaN();
@@ -383,6 +430,7 @@ int main() {
         }
       }
     }
+    indexing_contract(backend);
     arithmetic_contract(backend);
     cast_contract(backend);
     broadcast_contract(backend);

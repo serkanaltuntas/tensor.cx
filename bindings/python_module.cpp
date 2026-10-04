@@ -702,6 +702,26 @@ NativeTensor reshape_tensor(const NativeTensor& input, nb::handle requested_shap
   return NativeTensor(input.dtype(), std::move(shape), input.buffer());
 }
 
+template <typename NativeTensor, typename Backend, typename Convert>
+void bind_concat(nb::module_& module, Convert convert) {
+  module.def("_concat", [convert](const NativeTensor& first, nb::iterable rest, nb::handle axis) {
+    OpDesc op{OpKind::kConcat}; op.axis = cast_dim_or_throw(axis);
+    std::vector<tensorcx::Tensor> inputs{to_core_tensor(first)};
+    for (nb::handle item : rest) {
+      if (!nb::isinstance<NativeTensor>(item))
+        throw std::invalid_argument("concat inputs must use the same backend");
+      inputs.push_back(to_core_tensor(nb::cast<const NativeTensor&>(item)));
+    }
+    std::array<tensorcx::Tensor, 1> outputs;
+    Backend backend;
+    tensorcx::BackendExecution execution;
+    execution.op = op; execution.inputs = inputs; execution.outputs = outputs;
+    const auto status = without_gil([&] { return backend.execute(execution); });
+    if (!status.ok()) throw_status(status);
+    return convert(outputs[0]);
+  }, nb::arg("first"), nb::arg("rest"), nb::arg("axis"));
+}
+
 template <typename NativeTensor, typename ExecuteSingle>
 void bind_tensor_extensions(nb::module_& module, ExecuteSingle execute_single) {
   for (auto [name, kind] : {std::pair{"_sum_axes", OpKind::kSum},
@@ -711,6 +731,13 @@ void bind_tensor_extensions(nb::module_& module, ExecuteSingle execute_single) {
       return execute_single(input, op);
     }, nb::arg("input"), nb::arg("axes"));
   }
+  module.def("_slice", [execute_single](const NativeTensor& input, nb::handle starts,
+                                        nb::handle steps, nb::handle lengths) {
+    OpDesc op{OpKind::kSlice};
+    op.slice_starts = parse_shape(starts); op.slice_steps = parse_shape(steps);
+    op.slice_shape = parse_shape(lengths);
+    return execute_single(input, op);
+  }, nb::arg("input"), nb::arg("starts"), nb::arg("steps"), nb::arg("lengths"));
   module.def("reshape", &reshape_tensor<NativeTensor>, nb::arg("input"), nb::arg("shape"));
   module.def("transpose", [execute_single](const NativeTensor& input, nb::handle axes) {
     OpDesc op{OpKind::kTranspose};
@@ -1042,6 +1069,7 @@ NB_MODULE(_core, module) {
              nb::arg("lhs"),
              nb::arg("rhs"));
   bind_tensor_extensions<CpuTensor>(module, cpu_single_input_backend_op);
+  bind_concat<CpuTensor, tensorcx::cpu::CpuBackend>(module, tensorcx::cpu::from_core_tensor);
   module.def("multiply",
              [](const CpuTensor& lhs, const CpuTensor& rhs) {
                return binary_op(lhs, rhs, OpKind::kMultiply);
@@ -1188,6 +1216,9 @@ NB_MODULE(_core, module) {
       })
       .def_prop_ro("device", [](const CudaTensor&) { return "cuda"; })
       .def_prop_ro("nbytes", &CudaTensor::nbytes);
+  bind_concat<CudaTensor, tensorcx::cuda::CudaBackend>(module, [](const tensorcx::Tensor& tensor) {
+    return unwrap(tensorcx::cuda::from_core_tensor(tensor));
+  });
   bind_tensor_extensions<CudaTensor>(module, [](const CudaTensor& input, const OpDesc& op) {
     return cuda_primitive(input, op);
   });
@@ -1254,6 +1285,8 @@ NB_MODULE(_core, module) {
       });
 
   bind_tensor_extensions<tensorcx::metal::MetalTensor>(module, metal_single_input_backend_op);
+  bind_concat<tensorcx::metal::MetalTensor, tensorcx::metal::MetalBackend>(
+      module, tensorcx::metal::from_core_tensor);
   module.def("cpu_to_metal",
              [](const CpuTensor& tensor) {
                return unwrap(without_gil([&] { return tensorcx::metal::from_cpu(tensor); }));

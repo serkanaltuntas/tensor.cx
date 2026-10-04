@@ -22,6 +22,8 @@ Start with `import tensorcx as cx`. The following example works on CPU:
 | Reshape | `x.reshape(shape)`, `cx.reshape(x, shape)` | Shares storage; same element count; one inferred `-1` allowed |
 | Transpose | `x.transpose(axes=None)`, `cx.transpose(x, axes=None)`, `x.T` | Reverses axes by default; always copies into a contiguous buffer on the same device |
 | Singleton axes | `x.squeeze(axis=None)`, `x.expand_dims(axis)`; also `cx.squeeze`, `cx.expand_dims` | Remove/insert size-one axes as views sharing storage |
+| Index / slice | `x[key]` | Integers, slices, negative steps, ellipsis and new axes; independent contiguous copies |
+| Join / split | `cx.concat`, `cx.stack`, `cx.split`, `x.split` | Same dtype/device; split uses equal sections or NumPy-style cut indices; all outputs copy |
 | Matrix multiply | `cx.matmul(a, b)` | Float32, 2D inputs, matching inner dimensions |
 | Reduce | `cx.sum(x, axis=None, keepdims=False)`, `max`, `mean` | All axes by default; integer or axis sequence; `keepdims=True` retains selected axes with size 1 |
 | Activate | `cx.exp(x)`, `gelu`, `silu` | Float32 |
@@ -67,7 +69,10 @@ Support varies by backend, particularly for `int32`. See the
 - Floating-point accumulation order can differ across backends. Compare with
   numerical tolerances, not bitwise equality.
 
-There is no autograd, batched matmul, or general
-slicing/strided execution in this API. Normalizations require one explicit axis.
+Basic slicing supports negative indices/steps and clips slice bounds. Integer
+selection returns a tensor even for a scalar. Concat joins an existing axis;
+stack inserts a new one. Split returns a tuple of independent copies. Boolean
+masks, advanced indexing, indexed assignment, autograd, batched matmul and
+general strided views are not implemented. Normalizations require one explicit axis.
 The [experimental kernel subset](/docs/experimental/) has its own arithmetic
 rules and does not extend the ordinary tensor operators.

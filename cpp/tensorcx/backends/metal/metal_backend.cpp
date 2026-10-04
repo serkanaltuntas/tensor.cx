@@ -197,6 +197,14 @@ Status MetalBackend::execute(const BackendExecution& execution) {
         execution.outputs[0] = to_core_tensor(result.move_value());
         return Status::Ok();
       }
+      case OpKind::kConcat: {
+        std::vector<MetalTensor> inputs;
+        for (const auto& input : execution.inputs) inputs.push_back(from_core_tensor(input));
+        auto result = execute_concat(execution.op, inputs);
+        if (!result) return result.status();
+        execution.outputs[0] = to_core_tensor(result.move_value());
+        return Status::Ok();
+      }
       case OpKind::kMatmul: {
         const MetalTensor lhs = from_core_tensor(execution.inputs[0]);
         const MetalTensor rhs = from_core_tensor(execution.inputs[1]);
@@ -209,6 +217,7 @@ Status MetalBackend::execute(const BackendExecution& execution) {
       }
       case OpKind::kCast:
       case OpKind::kTranspose:
+      case OpKind::kSlice:
       case OpKind::kNegate:
       case OpKind::kAddScalar:
       case OpKind::kSubtractScalar:

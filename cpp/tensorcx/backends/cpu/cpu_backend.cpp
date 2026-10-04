@@ -266,6 +266,7 @@ Status CpuBackend::execute(const BackendExecution& execution) {
       case OpKind::kMultiplyScalar:
       case OpKind::kDivideScalar:
       case OpKind::kCast:
+      case OpKind::kSlice:
       case OpKind::kTranspose: {
         const CpuTensor input = from_core_tensor(execution.inputs[0]);
         execution.outputs[0] = to_core_tensor(execute_unary(execution.op, input));
@@ -285,6 +286,36 @@ Status CpuBackend::execute(const BackendExecution& execution) {
         const CpuTensor lhs = from_core_tensor(execution.inputs[0]);
         const CpuTensor rhs = from_core_tensor(execution.inputs[1]);
         execution.outputs[0] = to_core_tensor(execute_binary(execution.op, lhs, rhs));
+        return Status::Ok();
+      }
+      case OpKind::kConcat: {
+        std::vector<CpuTensor> inputs;
+        std::vector<Shape> shapes;
+        const auto dtype = execution.inputs[0].dtype;
+        for (const auto& tensor : execution.inputs) {
+          inputs.push_back(from_core_tensor(tensor));
+          if (tensor.dtype != dtype) throw std::invalid_argument("concat dtypes must match");
+          shapes.push_back(tensor.shape);
+        }
+        const auto plan = make_concat_plan(shapes, execution.op.axis);
+        CpuTensor result(dtype, plan.output_shape);
+        if (result.size()) {
+          const auto output_block = plan.output_shape[plan.axis] * plan.inner;
+          Dim offset = 0;
+          for (const auto& input : inputs) {
+            const auto block = input.shape()[plan.axis] * plan.inner;
+            const auto copy = [&](const auto& source, auto& target) {
+              if (!block) return;
+              for (Dim pos = 0; pos < input.size(); pos += block)
+                std::memcpy(target.data() + (pos / block) * output_block + offset,
+                            source.data() + pos, static_cast<std::size_t>(block) * sizeof(source[0]));
+            };
+            if (dtype == DType::kFloat32) copy(input.float_data(), result.mutable_float_data());
+            else copy(input.int32_data(), result.mutable_int32_data());
+            offset += block;
+          }
+        }
+        execution.outputs[0] = to_core_tensor(result);
         return Status::Ok();
       }
       case OpKind::kMatmul: {
@@ -734,16 +765,18 @@ CpuTensor execute_unary(const OpDesc& op, const CpuTensor& input) {
   if (input.device().type != "cpu") {
     throw std::invalid_argument("CPU operations require CPU tensors");
   }
-  if (op.kind == OpKind::kTranspose) {
-    const auto plan = make_transpose_plan(input.shape(), op.axes);
+  if (op.kind == OpKind::kTranspose || op.kind == OpKind::kSlice) {
+    const auto plan = op.kind == OpKind::kTranspose
+        ? make_transpose_plan(input.shape(), op.axes)
+        : make_slice_plan(input.shape(), op.slice_starts, op.slice_steps, op.slice_shape);
     CpuTensor result(input.dtype(), plan.output_shape);
     const auto permute = [&](const auto& values, auto& output) {
       for (std::size_t i = 0; i < output.size(); ++i) {
         auto remaining = i;
-        std::size_t source = 0;
+        Dim source = plan.offset;
         for (std::size_t axis = plan.output_shape.size(); axis-- > 0;) {
           const auto extent = static_cast<std::size_t>(plan.output_shape[axis]);
-          source += (remaining % extent) * static_cast<std::size_t>(plan.input_strides[axis]);
+          source += static_cast<Dim>(remaining % extent) * plan.input_strides[axis];
           remaining /= extent;
         }
         // Reordering is bit-preserving, including NaN payloads and signed zero.

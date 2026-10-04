@@ -89,7 +89,8 @@ Status validate_primitive_execution_contract(
   if (!schema.has_value()) {
     return invalid_argument_status("primitive operation is not expressible by BackendExecution");
   }
-  if (execution.inputs.size() != schema->input_count) {
+  if (schema->variadic_inputs ? execution.inputs.size() < schema->input_count
+                              : execution.inputs.size() != schema->input_count) {
     return invalid_argument_status("primitive backend execution input count mismatch");
   }
   if (execution.outputs.size() != schema->output_count) {

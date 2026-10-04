@@ -46,6 +46,59 @@ Shape contiguous_strides(const Shape& shape) {
   return strides;
 }
 
+TransposePlan make_slice_plan(const Shape& input, const Shape& starts,
+                              const Shape& steps, const Shape& lengths) {
+  (void)numel(input);
+  const auto strides = contiguous_strides(input);
+  if (starts.size() != input.size() || steps.size() != input.size() ||
+      lengths.size() != input.size())
+    throw std::invalid_argument("slice metadata must match input rank");
+  const auto count = numel(lengths);
+  (void)contiguous_strides(lengths);
+  TransposePlan plan{lengths, Shape(input.size(), 0)};
+  for (std::size_t axis = 0; axis < input.size(); ++axis) {
+    const auto start = starts[axis], step = steps[axis], length = lengths[axis];
+    if (step == 0) throw std::invalid_argument("slice step cannot be zero");
+    if (length == 0) continue;
+    if (start < 0 || start >= input[axis])
+      throw std::invalid_argument("slice start is out of bounds");
+    if (length > 1) {
+      // Division checks endpoints without overflowing step*(length-1), even
+      // for INT64_MIN. Such a negative step cannot select a second element.
+      if ((step > 0 && step > (input[axis] - 1 - start) / (length - 1)) ||
+          (step < 0 && step < -(start / (length - 1))))
+        throw std::invalid_argument("slice endpoint is out of bounds");
+      if (count) plan.input_strides[axis] = step * strides[axis];
+    }
+    if (count) plan.offset += start * strides[axis];
+  }
+  return plan;
+}
+
+ConcatPlan make_concat_plan(const std::vector<Shape>& inputs, Dim axis) {
+  if (inputs.empty()) throw std::invalid_argument("concat requires at least one tensor");
+  const auto rank = static_cast<Dim>(inputs[0].size());
+  if (axis < 0) axis += rank;
+  if (axis < 0 || axis >= rank) throw std::invalid_argument("concat axis is out of range");
+  Shape output = inputs[0];
+  output[axis] = 0;
+  for (const auto& shape : inputs) {
+    (void)numel(shape);
+    (void)contiguous_strides(shape);
+    if (shape.size() != output.size()) throw std::invalid_argument("concat ranks must match");
+    for (std::size_t i = 0; i < shape.size(); ++i) {
+      if (i != static_cast<std::size_t>(axis) && shape[i] != output[i])
+        throw std::invalid_argument("concat non-axis dimensions must match");
+    }
+    if (shape[axis] > std::numeric_limits<Dim>::max() - output[axis])
+      throw std::invalid_argument("concat dimension overflow");
+    output[axis] += shape[axis];
+  }
+  (void)numel(output);
+  const auto strides = contiguous_strides(output);
+  return {output, static_cast<std::size_t>(axis), strides[axis]};
+}
+
 ReductionPlan make_reduction_plan(const Shape& input, const Shape& axes) {
   (void)numel(input);
   const auto strides = contiguous_strides(input);

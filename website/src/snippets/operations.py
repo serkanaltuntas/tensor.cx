@@ -38,3 +38,10 @@ print(expanded.squeeze().shape)  # (2, 3)
 
 print(a.sum().numpy())  # 10.0
 print(a.mean(axis=(0, 1), keepdims=True).numpy())  # [[2.5]]
+
+print(values[:, ::-1].numpy())
+# [[3 2 1]
+#  [6 5 4]]
+print(cx.concat([values, values], axis=0).shape)  # (4, 3)
+print(cx.stack([values, values], axis=1).shape)  # (2, 2, 3)
+print([part.shape for part in values.split([1], axis=1)])  # [(2, 1), (2, 2)]

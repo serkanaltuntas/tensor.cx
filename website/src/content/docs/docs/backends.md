@@ -17,6 +17,8 @@ only device index 0 is exposed.
 | Contiguous reshape (float32/int32) | Yes | Yes | Yes |
 | Transpose to contiguous copy (float32/int32) | Yes | Yes | Yes |
 | Squeeze / expand dims views (float32/int32) | Yes | Yes | Yes |
+| Basic indexing / slicing copies (float32/int32) | Yes | Yes | Yes |
+| Concat / stack / split copies (float32/int32) | Yes | Yes | Yes |
 | Explicit float32/int32 conversion | Yes | Yes | Yes |
 | Binary arithmetic broadcasting | Yes | Yes | Yes, float32 |
 | Float32 2D matmul | Yes | Custom + optional optimized path | Custom path |

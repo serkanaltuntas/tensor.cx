@@ -480,6 +480,9 @@ class KernelRuntime {
     if (std::strcmp(name, "copy_bits") == 0) {
       return pipeline_slot(copy_bits_, name);
     }
+    if (std::strcmp(name, "concat_bits") == 0) {
+      return pipeline_slot(concat_bits_, name);
+    }
     if (std::strcmp(name, "transpose_bits") == 0) {
       return pipeline_slot(transpose_bits_, name);
     }
@@ -631,6 +634,7 @@ class KernelRuntime {
   NS::SharedPtr<MTL::ComputePipelineState> broadcast_i32_;
   NS::SharedPtr<MTL::ComputePipelineState> copy_bits_;
   NS::SharedPtr<MTL::ComputePipelineState> transpose_bits_;
+  NS::SharedPtr<MTL::ComputePipelineState> concat_bits_;
   NS::SharedPtr<MTL::ComputePipelineState> cast_i32_f32_;
   NS::SharedPtr<MTL::ComputePipelineState> cast_f32_i32_;
   NS::SharedPtr<MTL::ComputePipelineState> fill_f32_;
@@ -769,7 +773,9 @@ Expected<MetalTensor> execute_cast(const OpDesc& op, const MetalTensor& input) {
 Expected<MetalTensor> execute_transpose(const OpDesc& op, const MetalTensor& input) {
   TransposePlan plan;
   try {
-    plan = make_transpose_plan(input.shape(), op.axes);
+    plan = op.kind == OpKind::kTranspose
+        ? make_transpose_plan(input.shape(), op.axes)
+        : make_slice_plan(input.shape(), op.slice_starts, op.slice_steps, op.slice_shape);
   } catch (const std::invalid_argument& error) {
     return Status(StatusCode::kInvalidArgument, error.what());
   }
@@ -778,10 +784,10 @@ Expected<MetalTensor> execute_transpose(const OpDesc& op, const MetalTensor& inp
     OpDesc copy{OpKind::kCast}; copy.target_dtype = input.dtype();
     return execute_cast(copy, input);
   }
-  auto count_result = checked_thread_count(input.size());
+  auto count_result = checked_thread_count(numel(plan.output_shape));
   if (!count_result) return count_result.status();
   const auto count = count_result.move_value();
-  auto allocated = MetalBuffer::create(input.dtype(), static_cast<std::size_t>(input.size()));
+  auto allocated = MetalBuffer::create(input.dtype(), static_cast<std::size_t>(numel(plan.output_shape)));
   if (!allocated) return allocated.status();
   auto buffer = allocated.move_value();
   MetalTensor result(input.dtype(), plan.output_shape, buffer);
@@ -792,11 +798,11 @@ Expected<MetalTensor> execute_transpose(const OpDesc& op, const MetalTensor& inp
     return Status(StatusCode::kInvalidArgument, "transpose metadata byte size overflow");
   }
   // Device metadata avoids imposing a rank cap from Metal's inline-data limit.
-  std::vector<std::uint64_t> metadata;
+  std::vector<Dim> metadata;
   metadata.reserve(static_cast<std::size_t>(rank) * 2);
   for (std::size_t axis = 0; axis < rank; ++axis) {
     metadata.push_back(static_cast<std::uint64_t>(plan.output_shape[axis]));
-    metadata.push_back(static_cast<std::uint64_t>(plan.input_strides[axis]));
+    metadata.push_back(plan.input_strides[axis]);
   }
   auto metadata_result = MetalBuffer::create(DType::kInt32, metadata.size() * 2);
   if (!metadata_result) return metadata_result.status();
@@ -811,6 +817,7 @@ Expected<MetalTensor> execute_transpose(const OpDesc& op, const MetalTensor& inp
     encoder.setBytes(&count, sizeof(count), 2);
     encoder.setBuffer(metadata_buffer->native(), 0, 3);
     encoder.setBytes(&rank, sizeof(rank), 4);
+    encoder.setBytes(&plan.offset, sizeof(plan.offset), 5);
   });
   if (!status.ok()) return status;
   return result;
@@ -1014,8 +1021,53 @@ Expected<MetalTensor> execute_layernorm(const OpDesc& op, const MetalTensor& inp
 
 }  // namespace
 
+Expected<MetalTensor> execute_concat(const OpDesc& op, const std::vector<MetalTensor>& inputs) {
+  if (inputs.empty()) return Status(StatusCode::kInvalidArgument, "concat requires inputs");
+  std::vector<Shape> shapes;
+  const auto dtype = inputs[0].dtype();
+  for (const auto& input : inputs) {
+    if (input.dtype() != dtype)
+      return Status(StatusCode::kInvalidArgument, "concat dtypes must match");
+    shapes.push_back(input.shape());
+  }
+  ConcatPlan plan;
+  try {
+    plan = make_concat_plan(shapes, op.axis);
+  } catch (const std::invalid_argument& error) {
+    return Status(StatusCode::kInvalidArgument, error.what());
+  }
+  auto count_result = checked_thread_count(numel(plan.output_shape));
+  if (!count_result) return count_result.status();
+  auto allocated = MetalBuffer::create(dtype, static_cast<std::size_t>(numel(plan.output_shape)));
+  if (!allocated) return allocated.status();
+  auto buffer = allocated.move_value();
+  MetalTensor result(dtype, plan.output_shape, buffer);
+  if (count_result.value() == 0) return result;
+  auto pipeline = runtime().pipeline("concat_bits");
+  if (!pipeline) return pipeline.status();
+  const std::uint64_t output_block = plan.output_shape[plan.axis] * plan.inner;
+  std::uint64_t offset = 0;
+  for (const auto& input : inputs) {
+    const auto count = static_cast<std::uint32_t>(input.size());
+    const std::uint64_t block = input.shape()[plan.axis] * plan.inner;
+    if (count) {
+      auto status = run_threads(*pipeline.value(), count, [&](MTL::ComputeCommandEncoder& encoder) {
+        encoder.setBuffer(input.buffer()->native(), 0, 0);
+        encoder.setBuffer(buffer->native(), 0, 1);
+        encoder.setBytes(&count, sizeof(count), 2);
+        encoder.setBytes(&block, sizeof(block), 3);
+        encoder.setBytes(&output_block, sizeof(output_block), 4);
+        encoder.setBytes(&offset, sizeof(offset), 5);
+      });
+      if (!status.ok()) return status;
+    }
+    offset += block;
+  }
+  return result;
+}
+
 Expected<MetalTensor> execute_unary(const OpDesc& op, const MetalTensor& input) {
-  if (op.kind == OpKind::kTranspose) {
+  if (op.kind == OpKind::kTranspose || op.kind == OpKind::kSlice) {
     return execute_transpose(op, input);
   }
   if (op.kind == OpKind::kCast) {

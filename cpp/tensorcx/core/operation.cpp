@@ -26,7 +26,10 @@ std::optional<PrimitiveOpSchema> primitive_op_schema(OpKind kind) {
     case OpKind::kDivideScalar:
     case OpKind::kCast:
     case OpKind::kTranspose:
+    case OpKind::kSlice:
       return PrimitiveOpSchema{1, 1};
+    case OpKind::kConcat:
+      return PrimitiveOpSchema{1, 1, true};
     case OpKind::kFill:
       return PrimitiveOpSchema{0, 1};
   }

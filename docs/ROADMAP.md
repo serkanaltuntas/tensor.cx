@@ -122,3 +122,30 @@ it does not add LLVM/MLIR to the C++ core or backend build. See PROJECT.md §16 
   remains deferred is asynchronous submission (streams, command-buffer
   batching); execution is still synchronous per op. See
   [`METAL_BACKEND.md`](METAL_BACKEND.md) → "Threading and the GIL".
+
+
+## Product feature backlog
+
+User-prioritized order, 2026-10-04; separate from the completed historical phases.
+Each package requires CPU references, applicable native backend paths, tests and
+documentation. This order does not claim that later packages are implemented.
+
+1. **Basic indexing/slicing, concat, stack, split:** implemented as contiguous
+   copies; [contract and verification](TENSOR_API.md#basic-indexing-and-joining).
+2. **Comparisons and masks:** boolean tensors, `where`, conditional computation.
+3. **Batched matmul:** batch and higher-dimensional inputs.
+4. **Math gaps:** `log`, `sqrt`, `abs`, `min`, `argmax`, `clip`, `topk`.
+5. **Inference:** linear, affine normalization, embedding, then attention.
+6. **DLPack and narrow PyTorch integration:** supported-device data sharing;
+   see the [staged portability plan](PYTORCH_PORTABILITY_ROADMAP.md).
+7. **Diagnostics:** operation/dtype capabilities, installation and memory reports.
+8. **Compiler/performance:** persistent compilation cache, profiling, broader
+   MLIR operations and measured kernel fusion.
+9. **Dtypes:** CUDA int32 arithmetic gaps; FP16/BF16 on suitable hardware.
+10. **Memory pool and asynchronous execution:** reduce allocation and waiting costs.
+11. **Portable distribution:** Linux/macOS wheels, versioned releases and installation.
+
+Parallel CUDA work remains additional real NVIDIA architectures, an isolated
+remote GPU CI runner, and device-index selection. Validation on one GPU cannot
+be generalized to every NVIDIA architecture. See the
+[CUDA completion ledger](CUDA_PRODUCT_COMPLETION.md).

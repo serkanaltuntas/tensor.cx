@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 import operator
 from typing import Any
 
@@ -82,6 +83,12 @@ class Tensor:
 
     def __neg__(self) -> "Tensor":
         return Tensor(_core.negative(self._impl))
+
+    def __getitem__(self, key) -> "Tensor":
+        return _getitem(self, key)
+
+    def split(self, indices_or_sections, axis=0) -> tuple["Tensor", ...]:
+        return split(self, indices_or_sections, axis)
 
     def reshape(self, shape) -> "Tensor":
         return reshape(self, shape)
@@ -477,3 +484,118 @@ def layernorm(input: Tensor, axis: int, eps: float = 1.0e-5) -> Tensor:
 
 def matmul_backends(device: str | Device = "cpu") -> list[str]:
     return _backend.matmul_backends(_normalize_device(device))
+
+
+def _index_integer(value, label: str) -> int:
+    if isinstance(value, (bool, np.bool_)):
+        raise ValueError(f"{label} must be an integer, not a boolean")
+    try:
+        return operator.index(value)
+    except TypeError as error:
+        raise ValueError(f"{label} must be an integer") from error
+
+
+def _getitem(x: Tensor, key) -> Tensor:
+    keys = key if isinstance(key, tuple) else (key,)
+    ellipses = builtins.sum(item is Ellipsis for item in keys)
+    if ellipses > 1:
+        raise IndexError("an index can contain only one ellipsis")
+    consumed = builtins.sum(item is not None and item is not Ellipsis for item in keys)
+    if consumed > len(x.shape):
+        raise IndexError("too many indices for tensor")
+    missing = len(x.shape) - consumed
+    expanded = []
+    for item in keys:
+        expanded.extend([slice(None)] * missing if item is Ellipsis else [item])
+    if not ellipses:
+        expanded.extend([slice(None)] * missing)
+    starts, steps, lengths, output_shape = [], [], [], []
+    axis = 0
+    for item in expanded:
+        if item is None:
+            output_shape.append(1)
+            continue
+        extent = x.shape[axis]
+        axis += 1
+        if isinstance(item, slice):
+            # Reject masks and non-integral bounds without NumPy's deprecated
+            # boolean-as-integer coercion. Python clips arbitrarily large ints.
+            bounds = [None if v is None else _index_integer(v, "slice bound")
+                      for v in (item.start, item.stop, item.step)]
+            start, stop, step = slice(*bounds).indices(extent)
+            length = len(range(start, stop, step))
+            output_shape.append(length)
+            # Unvisited strides need not fit int64 (e.g. x[::10**100]).
+            steps.append(step if length > 1 else 1)
+        else:
+            try:
+                start = _index_integer(item, "index")
+            except ValueError as error:
+                raise IndexError("only integers, slices, ellipsis and None are supported") from error
+            if start < 0:
+                start += extent
+            if start < 0 or start >= extent:
+                raise IndexError("tensor index is out of bounds")
+            length = 1
+            steps.append(1)
+        starts.append(start)
+        lengths.append(length)
+    result = Tensor(_core._slice(x._impl, starts, steps, lengths))
+    return reshape(result, tuple(output_shape))
+
+
+def _tensor_sequence(tensors) -> tuple[Tensor, ...]:
+    try:
+        inputs = tuple(tensors)
+    except TypeError as error:
+        raise ValueError("expected an iterable of tensors") from error
+    if not inputs or any(not isinstance(x, Tensor) for x in inputs):
+        raise ValueError("expected a non-empty iterable of tensors")
+    first = inputs[0]
+    if any(x.dtype != first.dtype or x.device != first.device for x in inputs):
+        raise ValueError("all tensors must have the same dtype and device")
+    return inputs
+
+
+def concat(tensors, axis=0) -> Tensor:
+    """Join tensors along an existing axis into independent contiguous storage."""
+    inputs = _tensor_sequence(tensors)
+    axis = _axes_in_rank((_normalize_axis(axis),), len(inputs[0].shape))[0]
+    return Tensor(_core._concat(inputs[0]._impl, [x._impl for x in inputs[1:]], axis))
+
+
+def stack(tensors, axis=0) -> Tensor:
+    """Join equal-shaped tensors along a new axis (including scalar inputs)."""
+    inputs = _tensor_sequence(tensors)
+    if any(x.shape != inputs[0].shape for x in inputs):
+        raise ValueError("stack inputs must have equal shapes")
+    axis = _axes_in_rank((_normalize_axis(axis),), len(inputs[0].shape) + 1)[0]
+    return concat([expand_dims(x, axis) for x in inputs], axis)
+
+
+def split(x: Tensor, indices_or_sections, axis=0) -> tuple[Tensor, ...]:
+    """NumPy-style equal sections or cut indices; each result owns its storage."""
+    if not isinstance(x, Tensor):
+        raise ValueError("split requires a tensor")
+    axis = _axes_in_rank((_normalize_axis(axis),), len(x.shape))[0]
+    extent = x.shape[axis]
+    if isinstance(indices_or_sections, (bool, np.bool_)):
+        raise ValueError("split sections must be an integer or iterable of integer cuts")
+    try:
+        sections = operator.index(indices_or_sections)
+    except TypeError:
+        try:
+            cuts = [_index_integer(v, "split index") for v in indices_or_sections]
+        except TypeError as error:
+            raise ValueError("split sections must be an integer or iterable of integer cuts") from error
+    else:
+        if sections <= 0 or extent % sections:
+            raise ValueError("split sections must be positive and divide the axis equally")
+        cuts = [i * (extent // sections) for i in range(1, sections)]
+    boundaries = [0, *cuts, extent]
+    outputs = []
+    for start, stop in zip(boundaries, boundaries[1:]):
+        key = [slice(None)] * len(x.shape)
+        key[axis] = slice(start, stop)
+        outputs.append(x[tuple(key)])
+    return tuple(outputs)

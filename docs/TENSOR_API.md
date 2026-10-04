@@ -3,7 +3,7 @@
 User-requested increment, 2026-10-04: basic arithmetic and Python/NumPy real
 scalars, contiguous reshape, and reduction `keepdims`, followed by explicit
 `astype` conversion, tensor broadcasting, and shape operations (`transpose`,
-`squeeze`, `expand_dims`), followed by all-axis/multi-axis reductions. These extend the original API;
+`squeeze`, `expand_dims`), followed by all-axis/multi-axis reductions and basic indexing/concat/stack/split. These extend the original API;
 they do not change the historical Phase 9/10 acceptance records.
 
 ## Arithmetic
@@ -86,8 +86,8 @@ One dimension may be `-1` and is inferred from the element count. Other negative
 dimensions, booleans, non-integral dimensions, mismatched sizes and metadata
 overflow are rejected. For empty tensors, `(-1, 3)` resolves to `(0, 3)`;
 `(0, -1)` is ambiguous and rejected. Existing contiguous shape/stride overflow
-checks also apply to empty tensors. Arbitrary strides and slicing remain
-separate future work.
+checks also apply to empty tensors. Arbitrary strided views remain separate future work; basic indexing below
+materializes contiguous copies.
 
 ## Transpose and singleton dimensions
 
@@ -127,6 +127,48 @@ x = cx.tensor([[1, 2, 3], [4, 5, 6]])
 print(x.T.numpy())  # [[1, 4], [2, 5], [3, 6]]
 print(x.expand_dims((0, -1)).shape)  # (1, 2, 3, 1)
 print(x.expand_dims((0, -1)).squeeze().shape)  # (2, 3)
+```
+
+## Basic indexing and joining
+
+`x[key]` accepts integers, slices (`start:stop:step`, including negative steps),
+`...`, `None` for new axes, and tuples combining them. Negative integers count
+from the end; slices clip their bounds like Python/NumPy. Selecting all axes
+with integers returns a rank-0 **Tensor**. Even `x[...]` and `x[()]` copy.
+Boolean masks, advanced array/list indexing and indexed assignment are not
+supported. Invalid integer indices raise `IndexError`; invalid slice bounds or
+zero steps raise `ValueError`.
+
+- `cx.concat(tensors, axis=0)` joins a non-empty iterable along an existing axis.
+  Ranks and all non-axis dimensions must match; scalars cannot be concatenated.
+- `cx.stack(tensors, axis=0)` joins equal-shaped tensors along a new axis.
+  Scalar inputs are supported; the axis is relative to the final output rank.
+- `cx.split(x, indices_or_sections, axis=0)` / `x.split(...)` return a tuple.
+  A positive integer requests equal sections and must divide the axis exactly.
+  An iterable gives NumPy-style cut indices, not chunk sizes: negative indices
+  count from the end, out-of-range cuts clip, repeated or descending cuts can
+  produce empty pieces. Empty axes can be divided into positive section counts.
+
+All operations preserve dtype/device and stored bits on CPU, Metal and CUDA,
+including float32/int32, scalar stack and empty outputs. Inputs to a join must
+share dtype/device; no casting, broadcasting or device transfers occur. Axes
+accept integers (including negative axes); booleans are rejected. Every result
+owns independent contiguous storage, including each split piece and a
+single-input concat. Results can feed reshape, reductions and matmul normally.
+
+The shared native `kSlice` validates normalized start/step/length metadata and
+copies with signed strides. Variadic `kConcat` validates all inputs before
+allocating once and copying each input into its output region. GPU paths execute
+on-device, transferring only slice metadata. `stack` composes shared-storage
+expand_dims with native concat; `split` composes native slices. General strided
+views and advanced indexing remain outside this increment.
+
+```python
+x = cx.tensor([[1, 2, 3], [4, 5, 6]])
+print(x[:, ::-1].numpy())  # [[3, 2, 1], [6, 5, 4]]
+print(cx.concat([x, x], axis=0).shape)  # (4, 3)
+print(cx.stack([x, x], axis=1).shape)  # (2, 2, 3)
+print([part.shape for part in x.split([1], axis=1)])  # [(2, 1), (2, 2)]
 ```
 
 ## Reduction dimensions
@@ -183,11 +225,13 @@ print(x.mean(axis=(0, 1), keepdims=True).numpy())  # [[2.5]]
 ## Verification and remaining work
 
 `tests/python/test_tensor_api.py`, `tests/python/test_cast_broadcast.py`,
-`tests/python/test_shape_ops.py` and `tests/python/test_multi_axis_reductions.py`
+`tests/python/test_shape_ops.py`, `tests/python/test_multi_axis_reductions.py`
+and `tests/python/test_indexing_joining.py`
 check the public contract on every available
 backend. CUDA acceptance requires a GPU before collection and includes these
 files without skips; native contracts cover arithmetic, cast, broadcast and
-transpose/multi-axis reduction validation and numerical edge cases. Metal must
+transpose/multi-axis reduction, signed slice mapping, variadic concat validation
+and numerical edge cases. Metal must
 also pass compilation and device parity on a Metal host.
 
 First increment acceptance on 2026-10-04 (before casts/broadcasting): full suite
@@ -227,10 +271,21 @@ CPU/CUDA multi-axis tests. Website checking, production build, four browser
 tests and the operations example passed. These are local CPU/CUDA results;
 Metal compilation and device execution require the separate macOS gate.
 
+Indexing/joining local acceptance on 2026-10-04: 340 new CPU/CUDA tests passed,
+including negative/large indices, empty and scalar tensors, storage independence,
+bit preservation and no host export. The full LLVM-enabled suite passed 2398
+with 161 expected platform/opt-in skips. Native and ASan/UBSan contracts passed
+4/4; all 340 indexing tests also passed CUDA memcheck with zero errors. Fresh
+CPU/CUDA sdist-to-wheel installs passed with LLVM present/absent and the GPU
+hidden; installed wheels passed 170 CPU / 340 CPU+CUDA indexing tests. Website
+check/build, four preview tests, five Workers-emulation tests, deploy dry run and
+the operations snippet passed. Metal compilation/device execution remains the
+separate macOS gate; these results do not cover other NVIDIA architectures.
+
 This increment does not complete the broader product backlog. The existing
 [CUDA completion ledger](CUDA_PRODUCT_COMPLETION.md) still tracks additional
 GPU/toolchain evidence and an isolated remote GPU runner. Further proposed API
-work includes slicing and concatenation.
+work follows the ordered [product feature backlog](ROADMAP.md#product-feature-backlog).
 Product proposals also include portable
 releases, diagnostics, interoperability, inference primitives, compiler caching,
 profiling, more dtypes, and asynchronous execution. These need their own scopes

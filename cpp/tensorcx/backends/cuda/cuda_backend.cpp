@@ -170,9 +170,12 @@ Status CudaBackend::execute(const BackendExecution& execution) {
       auto tensor=from_core_tensor(input);
       if (!tensor) return tensor.status();
     }
-    if (kind == OpKind::kTranspose) {
+    if (kind == OpKind::kTranspose || kind == OpKind::kSlice) {
       const auto& input = execution.inputs[0];
-      const auto plan = make_transpose_plan(input.shape, execution.op.axes);
+      const auto plan = kind == OpKind::kTranspose
+          ? make_transpose_plan(input.shape, execution.op.axes)
+          : make_slice_plan(input.shape, execution.op.slice_starts,
+                            execution.op.slice_steps, execution.op.slice_shape);
       const auto rank = plan.output_shape.size();
       if (rank > std::numeric_limits<std::size_t>::max() / (2 * sizeof(Dim)))
         return invalid("CUDA transpose metadata size overflow");
@@ -198,10 +201,37 @@ Status CudaBackend::execute(const BackendExecution& execution) {
         }
         // Rank-zero kernels copy one word without reading the null metadata.
         const auto status = runtime_status(launch_transpose(source->data(), result.value()->data(), count,
-            static_cast<const Dim*>(device_metadata.get()), rank), "CUDA transpose");
+            static_cast<const Dim*>(device_metadata.get()), rank, plan.offset), "CUDA index copy");
         if (!status.ok()) return status;
       }
       execution.outputs[0] = to_core_tensor(CudaTensor(input.dtype, plan.output_shape, result.move_value()));
+      return Status::Ok();
+    }
+    if (kind == OpKind::kConcat) {
+      const auto dtype = execution.inputs[0].dtype;
+      std::vector<Shape> shapes;
+      for (const auto& input : execution.inputs) {
+        if (input.dtype != dtype) return invalid("concat dtypes must match");
+        shapes.push_back(input.shape);
+      }
+      const auto plan = make_concat_plan(shapes, execution.op.axis);
+      ContextScope device;
+      if (!device.ready()) return device.status();
+      auto result = CudaBuffer::create(dtype, plan.output_shape);
+      if (!result) return result.status();
+      if (numel(plan.output_shape)) {
+        const auto output_block = plan.output_shape[plan.axis] * plan.inner;
+        Dim offset = 0;
+        for (const auto& input : execution.inputs) {
+          const auto block = input.shape[plan.axis] * plan.inner;
+          const auto source = std::static_pointer_cast<CudaBuffer>(input.buffer);
+          auto status = runtime_status(launch_concat(source->data(), result.value()->data(),
+              static_cast<std::size_t>(numel(input.shape)), block, output_block, offset), "CUDA concat");
+          if (!status.ok()) return status;
+          offset += block;
+        }
+      }
+      execution.outputs[0] = to_core_tensor(CudaTensor(dtype, plan.output_shape, result.move_value()));
       return Status::Ok();
     }
     if (kind == OpKind::kCast) {

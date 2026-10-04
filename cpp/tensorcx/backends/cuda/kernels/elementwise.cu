@@ -47,17 +47,25 @@ __global__ void broadcast_binary_f32(const float* lhs, const float* rhs, float* 
 }
 
 __global__ void transpose_bits(const std::uint32_t* input, std::uint32_t* output,
-                               std::size_t count, const Dim* metadata, std::size_t rank) {
+                               std::size_t count, const Dim* metadata, std::size_t rank, Dim offset) {
   for (std::size_t i = std::size_t(blockIdx.x) * blockDim.x + threadIdx.x;
        i < count; i += std::size_t(blockDim.x) * gridDim.x) {
-    std::size_t remaining = i, source = 0;
+    std::size_t remaining = i;
+    Dim source = offset;
     for (std::size_t axis = rank; axis-- > 0;) {
       const auto extent = static_cast<std::size_t>(metadata[axis]);
-      source += (remaining % extent) * static_cast<std::size_t>(metadata[rank + axis]);
+      source += static_cast<Dim>(remaining % extent) * metadata[rank + axis];
       remaining /= extent;
     }
     output[i] = input[source];
   }
+}
+
+__global__ void concat_bits(const std::uint32_t* input, std::uint32_t* output,
+                            std::size_t count, Dim block, Dim output_block, Dim offset) {
+  for (std::size_t i = std::size_t(blockIdx.x) * blockDim.x + threadIdx.x;
+       i < count; i += std::size_t(blockDim.x) * gridDim.x)
+    output[(i / block) * output_block + offset + i % block] = input[i];
 }
 
 __global__ void validate_int32_cast(const float* input, std::size_t count, int* invalid) {
@@ -124,10 +132,18 @@ cudaError_t launch_broadcast_binary(const float* lhs, const float* rhs, float* o
 }
 
 cudaError_t launch_transpose(const void* input, void* output, std::size_t count,
-                             const Dim* metadata, std::size_t rank) {
+                             const Dim* metadata, std::size_t rank, Dim offset) {
   if (count == 0) return cudaSuccess;
   transpose_bits<<<blocks(count), kThreads>>>(static_cast<const std::uint32_t*>(input),
-      static_cast<std::uint32_t*>(output), count, metadata, rank);
+      static_cast<std::uint32_t*>(output), count, metadata, rank, offset);
+  return finish_launch();
+}
+
+cudaError_t launch_concat(const void* input, void* output, std::size_t count,
+                          Dim block, Dim output_block, Dim offset) {
+  if (count == 0) return cudaSuccess;
+  concat_bits<<<blocks(count), kThreads>>>(static_cast<const std::uint32_t*>(input),
+      static_cast<std::uint32_t*>(output), count, block, output_block, offset);
   return finish_launch();
 }
 

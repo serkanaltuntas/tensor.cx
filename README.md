@@ -324,6 +324,11 @@ print(ln.cpu().numpy().shape)
   into a new contiguous buffer on the same device, including identity/scalar
   copies. `x.squeeze(axis=None)` and `x.expand_dims(axis)` (also top-level
   functions) share storage; float32/int32 work on CPU, Metal and CUDA.
+- Basic `x[key]` indexing/slicing, `cx.concat`, `cx.stack`, and `cx.split`
+  return independent contiguous copies on CPU/Metal/CUDA (float32/int32).
+  Negative steps, integer indices, ellipsis and new axes are supported;
+  masks/advanced indexing and indexed assignment are not. Split accepts equal
+  section counts or NumPy-style cut indices; see [the contract](docs/TENSOR_API.md).
 - `x.reshape(shape)` / `cx.reshape(x, shape)` create a contiguous view sharing
   the native buffer; one dimension may be `-1`. NumPy export still copies.
 - `softmax` requires an explicit `axis`, preserves the input shape, supports
