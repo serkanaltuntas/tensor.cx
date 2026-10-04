@@ -22,6 +22,56 @@ kernel void mul_f32(device const float* lhs [[buffer(0)]],
   }
 }
 
+kernel void sub_f32(device const float* lhs [[buffer(0)]],
+                    device const float* rhs [[buffer(1)]],
+                    device float* out [[buffer(2)]],
+                    constant uint& n [[buffer(3)]],
+                    uint id [[thread_position_in_grid]]) {
+  if (id < n) {
+    out[id] = lhs[id] - rhs[id];
+  }
+}
+
+kernel void div_f32(device const float* lhs [[buffer(0)]],
+                    device const float* rhs [[buffer(1)]],
+                    device float* out [[buffer(2)]],
+                    constant uint& n [[buffer(3)]],
+                    uint id [[thread_position_in_grid]]) {
+  if (id < n) {
+    out[id] = precise::divide(lhs[id], rhs[id]);
+  }
+}
+
+kernel void neg_f32(device const float* input [[buffer(0)]],
+                    device float* out [[buffer(1)]],
+                    constant uint& n [[buffer(2)]],
+                    uint id [[thread_position_in_grid]]) {
+  if (id < n) {
+    // Flip only the sign bit, preserving signed zero and NaN payloads.
+    out[id] = as_type<float>(as_type<uint>(input[id]) ^ 0x80000000u);
+  }
+}
+
+kernel void scalar_f32(device const float* input [[buffer(0)]],
+                       device float* out [[buffer(1)]],
+                       constant uint& n [[buffer(2)]],
+                       constant float& scalar [[buffer(3)]],
+                       constant uint& operation [[buffer(4)]],
+                       constant uint& scalar_left [[buffer(5)]],
+                       uint id [[thread_position_in_grid]]) {
+  if (id < n) {
+    const float lhs = scalar_left ? scalar : input[id];
+    const float rhs = scalar_left ? input[id] : scalar;
+    // Codes match scalar_operation_code in metal_kernels.cpp.
+    switch (operation) {
+      case 0: out[id] = lhs + rhs; break;
+      case 1: out[id] = lhs - rhs; break;
+      case 2: out[id] = lhs * rhs; break;
+      case 3: out[id] = precise::divide(lhs, rhs); break;
+    }
+  }
+}
+
 kernel void fill_f32(device float* out [[buffer(0)]],
                      constant float& value [[buffer(1)]],
                      constant uint& n [[buffer(2)]],
@@ -50,6 +100,44 @@ kernel void mul_i32(device const int* lhs [[buffer(0)]],
                     uint id [[thread_position_in_grid]]) {
   if (id < n) {
     out[id] = int(uint(lhs[id]) * uint(rhs[id]));
+  }
+}
+
+kernel void sub_i32(device const int* lhs [[buffer(0)]],
+                    device const int* rhs [[buffer(1)]],
+                    device int* out [[buffer(2)]],
+                    constant uint& n [[buffer(3)]],
+                    uint id [[thread_position_in_grid]]) {
+  if (id < n) {
+    out[id] = as_type<int>(uint(lhs[id]) - uint(rhs[id]));
+  }
+}
+
+kernel void neg_i32(device const int* input [[buffer(0)]],
+                    device int* out [[buffer(1)]],
+                    constant uint& n [[buffer(2)]],
+                    uint id [[thread_position_in_grid]]) {
+  if (id < n) {
+    out[id] = as_type<int>(0u - uint(input[id]));
+  }
+}
+
+kernel void scalar_i32(device const int* input [[buffer(0)]],
+                       device int* out [[buffer(1)]],
+                       constant uint& n [[buffer(2)]],
+                       constant int& scalar [[buffer(3)]],
+                       constant uint& operation [[buffer(4)]],
+                       constant uint& scalar_left [[buffer(5)]],
+                       uint id [[thread_position_in_grid]]) {
+  if (id < n) {
+    const uint lhs = uint(scalar_left ? scalar : input[id]);
+    const uint rhs = uint(scalar_left ? input[id] : scalar);
+    // Unsigned arithmetic defines wrapping, including INT_MIN negation.
+    switch (operation) {
+      case 0: out[id] = as_type<int>(lhs + rhs); break;
+      case 1: out[id] = as_type<int>(lhs - rhs); break;
+      case 2: out[id] = as_type<int>(lhs * rhs); break;
+    }
   }
 }
 

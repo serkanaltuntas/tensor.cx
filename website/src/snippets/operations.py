@@ -13,3 +13,9 @@ print(cx.sum(a, axis=1).numpy())
 
 print(cx.softmax(a, axis=-1).shape)
 # (2, 2)
+
+print(((a - 1) / 2).reshape((4,)).numpy())
+# [0.  0.5 1.  1.5]
+
+print(a.sum(axis=1, keepdims=True).shape)
+# (2, 1)

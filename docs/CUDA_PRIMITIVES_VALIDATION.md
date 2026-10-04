@@ -18,8 +18,9 @@ tensor.cx CUDA tensors; no implicit CPU fallback or dtype conversion is introduc
 
 | Operation | Contract |
 | --- | --- |
+| `+`, `-`, `*`, `/`, unary `-` | Float32; exact tensor shapes; real scalars in either position; [API contract](TENSOR_API.md) |
 | `matmul` / `@` | Rank-2 `(m,k) @ (k,n)`; `auto` and `custom` use the tiled CUDA kernel; `optimized` and unknown preferences fail explicitly |
-| `sum`, `max`, `mean` | Explicit axis, including negative axes; axis is removed; scalar accepts axis 0/-1; empty sum gives zero, empty mean NaN, empty max axis raises |
+| `sum`, `max`, `mean` | Explicit axis, including negative axes; axis removed unless `keepdims=True`; scalar accepts axis 0/-1; empty sum gives zero, empty mean NaN, empty max axis raises |
 | `exp`, `gelu`, `silu` | Shape-preserving; GELU uses the same tanh approximation as CPU |
 | `softmax` | Stable max-subtracted normalization along any valid axis; shape preserved |
 | `rmsnorm`, `layernorm` | Any valid axis, shape preserved, no affine weights; finite non-negative float32-representable epsilon required, even for empty input |

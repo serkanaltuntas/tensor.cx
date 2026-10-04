@@ -80,6 +80,11 @@ for discovery and copies. See [validation evidence](CUDA_PHASE9_VALIDATION.md).
   scaffold that builds without Metal.
 - Error taxonomy, CPU CI, benchmarks for copy / elementwise / matmul.
 
+The user-requested [tensor API extension](TENSOR_API.md) adds ordinary
+subtraction/division/negation, real scalars, shared-storage contiguous reshape,
+and reduction `keepdims`. These additions preserve the dtype/backend boundaries
+and do not complete the broader CUDA product goal.
+
 ## Intentionally not implemented yet
 
 Autograd, training, streams/async, broadcasting, non-contiguous execution, wide

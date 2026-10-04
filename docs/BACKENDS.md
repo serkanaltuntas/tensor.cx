@@ -100,6 +100,12 @@ backend-neutral `OpDesc.matmul_preference` field so public auto/custom/optimized
 selection can route through `BackendExecution` without naming Metal primitives
 in the core.
 
+Arithmetic extensions add subtract/divide/negate and one-input scalar variants.
+Scalar variants reuse `scalar_value` and `scalar_left` (for operand order), with
+the same shared schema validation. Reshape constructs typed metadata sharing
+the existing buffer; reduction `keepdims` reshapes the result without a new
+execution request. Dtype and ownership contracts are in [TENSOR_API.md](TENSOR_API.md).
+
 Kernel requests must pass the shared core kernel contract validator before a
 backend executes them: they require output metadata, launch metadata, a
 launch whose global work and thread-group dimensions are all non-zero, a compilation

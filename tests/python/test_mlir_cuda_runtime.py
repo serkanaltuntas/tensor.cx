@@ -310,3 +310,29 @@ def test_native_operation_manifest(compiled, operation):
     for other in {"add", "sub", "mul"} - {operation}:
         with pytest.raises(ValueError, match="manifest"):
             _core._load_cuda_kernel(ptx, cuda.entry_name(other), "tttu", 2, 3)
+
+
+@pytest.mark.parametrize("threads", [0, 3, 6])
+def test_reshape_views_compiled_output_preservation_and_lifetime(compiled, kernel, threads):
+    values = np.arange(2, 8, dtype=np.float32)
+    original = cx.tensor(values.reshape(2, 3), device="cuda")
+    input_view = original.reshape((-1,))
+    output_view = original.reshape((3, 2)).reshape((-1,))
+    surviving_view = original.reshape((-1,))
+    other = cx.tensor(np.full(6, 0.75, dtype=np.float32), device="cuda")
+    operation = {"add": np.add, "subtract": np.subtract, "multiply": np.multiply}[kernel.name]
+    expected = values.copy()
+    expected[:threads] = operation(values[:threads], np.float32(0.75))
+    result = compiled.launch(input_view, other, output_view, threads, thread_count=threads, block_size=2)
+    np.testing.assert_array_equal(result.numpy(), expected)
+    for view in (original, input_view, output_view, surviving_view):
+        np.testing.assert_array_equal(view.numpy().reshape(-1), values)
+    result_view = result.reshape((2, 3))
+    del original, input_view, output_view, result, view
+    gc.collect()
+    np.testing.assert_array_equal(result_view.numpy().reshape(-1), expected)
+    np.testing.assert_array_equal(surviving_view.numpy(), values)
+    another_view = surviving_view.reshape((3, 2)).reshape((-1,))
+    repeated = compiled.launch(surviving_view, other, another_view, threads, thread_count=threads, block_size=2)
+    np.testing.assert_array_equal(repeated.numpy(), expected)
+    np.testing.assert_array_equal(surviving_view.numpy(), values)

@@ -185,7 +185,9 @@ Status MetalBackend::execute(const BackendExecution& execution) {
 
     switch (execution.op.kind) {
       case OpKind::kAdd:
-      case OpKind::kMultiply: {
+      case OpKind::kSubtract:
+      case OpKind::kMultiply:
+      case OpKind::kDivide: {
         const MetalTensor lhs = from_core_tensor(execution.inputs[0]);
         const MetalTensor rhs = from_core_tensor(execution.inputs[1]);
         auto result = execute_binary(execution.op, lhs, rhs);
@@ -205,6 +207,11 @@ Status MetalBackend::execute(const BackendExecution& execution) {
         execution.outputs[0] = to_core_tensor(result.move_value());
         return Status::Ok();
       }
+      case OpKind::kNegate:
+      case OpKind::kAddScalar:
+      case OpKind::kSubtractScalar:
+      case OpKind::kMultiplyScalar:
+      case OpKind::kDivideScalar:
       case OpKind::kExp:
       case OpKind::kGelu:
       case OpKind::kSilu:

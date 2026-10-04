@@ -32,8 +32,15 @@ Expected<const char*> binary_kernel_name(OpKind kind, DType dtype) {
   switch (kind) {
     case OpKind::kAdd:
       return dtype == DType::kFloat32 ? "add_f32" : "add_i32";
+    case OpKind::kSubtract:
+      return dtype == DType::kFloat32 ? "sub_f32" : "sub_i32";
     case OpKind::kMultiply:
       return dtype == DType::kFloat32 ? "mul_f32" : "mul_i32";
+    case OpKind::kDivide:
+      if (dtype != DType::kFloat32) {
+        return Status(StatusCode::kInvalidArgument, "division only supports float32 tensors");
+      }
+      return "div_f32";
     default:
       return Status(StatusCode::kInvalidArgument, "unsupported Metal binary operation");
   }
@@ -51,6 +58,8 @@ Expected<const char*> fill_kernel_name(DType dtype) {
 
 Expected<const char*> unary_kernel_name(OpKind kind, DType dtype) {
   switch (kind) {
+    case OpKind::kNegate:
+      return dtype == DType::kFloat32 ? "neg_f32" : "neg_i32";
     case OpKind::kExp:
       if (dtype != DType::kFloat32) {
         return Status(StatusCode::kInvalidArgument, "exp only supports float32 tensors");
@@ -68,6 +77,17 @@ Expected<const char*> unary_kernel_name(OpKind kind, DType dtype) {
       return "silu_f32";
     default:
       return Status(StatusCode::kInvalidArgument, "unsupported Metal unary operation");
+  }
+}
+
+Expected<std::uint32_t> scalar_operation_code(OpKind kind) {
+  switch (kind) {
+    case OpKind::kAddScalar: return std::uint32_t{0};
+    case OpKind::kSubtractScalar: return std::uint32_t{1};
+    case OpKind::kMultiplyScalar: return std::uint32_t{2};
+    case OpKind::kDivideScalar: return std::uint32_t{3};
+    default:
+      return Status(StatusCode::kInvalidArgument, "unsupported Metal scalar operation");
   }
 }
 
@@ -435,6 +455,18 @@ class KernelRuntime {
     if (std::strcmp(name, "mul_f32") == 0) {
       return pipeline_slot(mul_f32_, name);
     }
+    if (std::strcmp(name, "sub_f32") == 0) {
+      return pipeline_slot(sub_f32_, name);
+    }
+    if (std::strcmp(name, "div_f32") == 0) {
+      return pipeline_slot(div_f32_, name);
+    }
+    if (std::strcmp(name, "neg_f32") == 0) {
+      return pipeline_slot(neg_f32_, name);
+    }
+    if (std::strcmp(name, "scalar_f32") == 0) {
+      return pipeline_slot(scalar_f32_, name);
+    }
     if (std::strcmp(name, "fill_f32") == 0) {
       return pipeline_slot(fill_f32_, name);
     }
@@ -443,6 +475,15 @@ class KernelRuntime {
     }
     if (std::strcmp(name, "mul_i32") == 0) {
       return pipeline_slot(mul_i32_, name);
+    }
+    if (std::strcmp(name, "sub_i32") == 0) {
+      return pipeline_slot(sub_i32_, name);
+    }
+    if (std::strcmp(name, "neg_i32") == 0) {
+      return pipeline_slot(neg_i32_, name);
+    }
+    if (std::strcmp(name, "scalar_i32") == 0) {
+      return pipeline_slot(scalar_i32_, name);
     }
     if (std::strcmp(name, "fill_i32") == 0) {
       return pipeline_slot(fill_i32_, name);
@@ -554,9 +595,16 @@ class KernelRuntime {
   Status status_;
   NS::SharedPtr<MTL::ComputePipelineState> add_f32_;
   NS::SharedPtr<MTL::ComputePipelineState> mul_f32_;
+  NS::SharedPtr<MTL::ComputePipelineState> sub_f32_;
+  NS::SharedPtr<MTL::ComputePipelineState> div_f32_;
+  NS::SharedPtr<MTL::ComputePipelineState> neg_f32_;
+  NS::SharedPtr<MTL::ComputePipelineState> scalar_f32_;
   NS::SharedPtr<MTL::ComputePipelineState> fill_f32_;
   NS::SharedPtr<MTL::ComputePipelineState> add_i32_;
   NS::SharedPtr<MTL::ComputePipelineState> mul_i32_;
+  NS::SharedPtr<MTL::ComputePipelineState> sub_i32_;
+  NS::SharedPtr<MTL::ComputePipelineState> neg_i32_;
+  NS::SharedPtr<MTL::ComputePipelineState> scalar_i32_;
   NS::SharedPtr<MTL::ComputePipelineState> fill_i32_;
   NS::SharedPtr<MTL::ComputePipelineState> matmul_f32_;
   NS::SharedPtr<MTL::ComputePipelineState> exp_f32_;
@@ -642,6 +690,65 @@ Status run_threads(MTL::ComputePipelineState& pipeline,
 }  // namespace
 
 namespace {
+
+Expected<MetalTensor> execute_scalar(const OpDesc& op, const MetalTensor& input) {
+  auto operation_result = scalar_operation_code(op.kind);
+  if (!operation_result) {
+    return operation_result.status();
+  }
+  const auto operation = operation_result.move_value();
+  // Validate before allocation and before the empty fast path. An int32
+  // operation must never silently truncate a fractional scalar or divide.
+  if (input.dtype() == DType::kInt32) {
+    if (op.kind == OpKind::kDivideScalar) {
+      return Status(StatusCode::kInvalidArgument, "division only supports float32 tensors");
+    }
+    if (!is_int32_representable(op.scalar_value) ||
+        std::trunc(op.scalar_value) != op.scalar_value) {
+      return Status(StatusCode::kInvalidArgument, "scalar must be an integer in the int32 range");
+    }
+  }
+  auto thread_count_result = checked_thread_count(input.size());
+  if (!thread_count_result) {
+    return thread_count_result.status();
+  }
+  const auto thread_count = thread_count_result.move_value();
+  auto output_buffer_result =
+      MetalBuffer::create(input.dtype(), static_cast<std::size_t>(input.size()));
+  if (!output_buffer_result) {
+    return output_buffer_result.status();
+  }
+  auto output_buffer = output_buffer_result.move_value();
+  MetalTensor output(input.dtype(), input.shape(), output_buffer);
+  if (thread_count == 0) {
+    return output;
+  }
+  auto pipeline_result = runtime().pipeline(
+      input.dtype() == DType::kFloat32 ? "scalar_f32" : "scalar_i32");
+  if (!pipeline_result) {
+    return pipeline_result.status();
+  }
+  const std::uint32_t scalar_left = op.scalar_left ? 1 : 0;
+  const Status run_status = run_threads(
+      *pipeline_result.move_value(), thread_count, [&](MTL::ComputeCommandEncoder& encoder) {
+        encoder.setBuffer(input.buffer()->native(), 0, 0);
+        encoder.setBuffer(output_buffer->native(), 0, 1);
+        encoder.setBytes(&thread_count, sizeof(thread_count), 2);
+        if (input.dtype() == DType::kFloat32) {
+          const float scalar = static_cast<float>(op.scalar_value);
+          encoder.setBytes(&scalar, sizeof(scalar), 3);
+        } else {
+          const auto scalar = static_cast<std::int32_t>(op.scalar_value);
+          encoder.setBytes(&scalar, sizeof(scalar), 3);
+        }
+        encoder.setBytes(&operation, sizeof(operation), 4);
+        encoder.setBytes(&scalar_left, sizeof(scalar_left), 5);
+      });
+  if (!run_status.ok()) {
+    return run_status;
+  }
+  return output;
+}
 
 Expected<MetalTensor> execute_softmax(const OpDesc& op, const MetalTensor& input) {
   auto dims_result = checked_axis_transform_dims(input, op);
@@ -783,6 +890,10 @@ Expected<MetalTensor> execute_layernorm(const OpDesc& op, const MetalTensor& inp
 }  // namespace
 
 Expected<MetalTensor> execute_unary(const OpDesc& op, const MetalTensor& input) {
+  if (op.kind == OpKind::kAddScalar || op.kind == OpKind::kSubtractScalar ||
+      op.kind == OpKind::kMultiplyScalar || op.kind == OpKind::kDivideScalar) {
+    return execute_scalar(op, input);
+  }
   if (op.kind == OpKind::kSoftmax) {
     return execute_softmax(op, input);
   }
@@ -834,6 +945,11 @@ Expected<MetalTensor> execute_binary(const OpDesc& op, const MetalTensor& lhs, c
     return metadata_status;
   }
 
+  auto kernel_name_result = binary_kernel_name(op.kind, lhs.dtype());
+  if (!kernel_name_result) {
+    return kernel_name_result.status();
+  }
+
   auto thread_count_result = checked_thread_count(lhs.size());
   if (!thread_count_result) {
     return thread_count_result.status();
@@ -848,10 +964,6 @@ Expected<MetalTensor> execute_binary(const OpDesc& op, const MetalTensor& lhs, c
   MetalTensor output(lhs.dtype(), lhs.shape(), output_buffer);
   if (thread_count == 0) {
     return output;
-  }
-  auto kernel_name_result = binary_kernel_name(op.kind, lhs.dtype());
-  if (!kernel_name_result) {
-    return kernel_name_result.status();
   }
   auto pipeline_result = runtime().pipeline(kernel_name_result.move_value());
   if (!pipeline_result) {

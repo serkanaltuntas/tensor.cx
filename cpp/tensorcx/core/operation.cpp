@@ -6,6 +6,8 @@ std::optional<PrimitiveOpSchema> primitive_op_schema(OpKind kind) {
   switch (kind) {
     case OpKind::kAdd:
     case OpKind::kMultiply:
+    case OpKind::kSubtract:
+    case OpKind::kDivide:
     case OpKind::kMatmul:
       return PrimitiveOpSchema{2, 1};
     case OpKind::kSum:
@@ -17,6 +19,11 @@ std::optional<PrimitiveOpSchema> primitive_op_schema(OpKind kind) {
     case OpKind::kSoftmax:
     case OpKind::kRmsNorm:
     case OpKind::kLayerNorm:
+    case OpKind::kNegate:
+    case OpKind::kAddScalar:
+    case OpKind::kSubtractScalar:
+    case OpKind::kMultiplyScalar:
+    case OpKind::kDivideScalar:
       return PrimitiveOpSchema{1, 1};
     case OpKind::kFill:
       return PrimitiveOpSchema{0, 1};

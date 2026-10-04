@@ -109,6 +109,10 @@ building a backend execution request. Phase 6 adds a minimal `axis` attribute to
 `OpDesc` for reductions and
 axis-aware transforms such as softmax, rmsnorm, and layernorm, plus an
 `epsilon` attribute for normalization ops. Phase 8 adds `scalar_value` for fill.
+The [tensor API extension](TENSOR_API.md) reuses `scalar_value` for single-input
+scalar arithmetic and adds `scalar_left` to preserve operand order. Contiguous
+reshape shares the typed buffer; `keepdims` uses this metadata operation after
+the existing reduction dispatch.
 Constructor-style `empty` allocation remains outside `Backend::execute` for now.
 
 This is a deliberate, documented transition kept small per the "avoid unrelated
@@ -185,7 +189,7 @@ Metal runtime unavailable         RuntimeError      Metal is not available
 Metal internal failure            RuntimeError      failed to
 ```
 
-`int32` overflow in elementwise `add`/`multiply` is **not** an error: it is
+`int32` overflow in elementwise add/subtract/multiply/negate is **not** an error: it is
 defined two's-complement wraparound, identical on the CPU and Metal paths (both
 compute through `uint32`), matching NumPy. Float inputs are narrowed to
 `float32`, so values may lose precision or overflow to `inf` — this is a silent,

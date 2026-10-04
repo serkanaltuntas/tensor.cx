@@ -924,16 +924,25 @@ def _bind_metal_arguments(ordered, loop_limits, output_tensor, output_numel):
 def _bind_reference_arrays(ordered):
     """Bind classified buffer arguments to numpy arrays for interpretation.
 
-    The same Tensor bound to two buffer parameters must share one array, as
-    the Metal path binds one native buffer twice. Tensor.numpy() copies, so
+    Views of the same storage bound to buffer parameters must share one array,
+    as the Metal path binds one native buffer twice. Tensor.numpy() copies, so
     the interpreter's stores never mutate caller-visible tensors.
     """
-    shared: dict[int, object] = {}
-    return {
-        parameter: shared.setdefault(id(value._impl), value.numpy().reshape(-1))
-        for kind, parameter, value in ordered
-        if kind == "buffer"
-    }
+    from . import _core
+
+    shared = []
+    arrays = {}
+    for kind, parameter, value in ordered:
+        if kind != "buffer":
+            continue
+        for native, array in shared:
+            if _core._shares_storage(value._impl, native):
+                break
+        else:
+            array = value.numpy().reshape(-1)
+            shared.append((value._impl, array))
+        arrays[parameter] = array
+    return arrays
 
 
 _UINT32_MASK = 2**32 - 1

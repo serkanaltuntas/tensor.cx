@@ -22,7 +22,7 @@ try:
 finally:
     sys.path.pop(0)
 TEST_FILES = ('test_cuda.py', 'test_cuda_primitives.py', 'test_mlir_cuda_runtime.py',
-              'test_mlir_cuda_expressions.py')
+              'test_mlir_cuda_expressions.py', 'test_tensor_api.py')
 
 
 def push_revisions(lines):
@@ -125,7 +125,8 @@ def validate(revision, llvm_bin):
                  '--junitxml', output / 'pytest.xml'], snapshot, env, output / 'pytest.log')
             report['python'] = junit_result(output / 'pytest.xml', 595,
                 ('test_cuda_registry_discovery', 'test_matmul_errors', 'test_parity',
-                 'test_gpu_emitter_expression_fixture'))
+                 'test_gpu_emitter_expression_fixture', 'test_arithmetic_float32_contract',
+                 'test_keepdims_matches_numpy_and_methods'))
             nanobind = run([*runner, 'python', '-I', '-c', 'import nanobind; print(nanobind.cmake_dir())'],
                            snapshot, env, output / 'nanobind.log')
             native = work / 'native'

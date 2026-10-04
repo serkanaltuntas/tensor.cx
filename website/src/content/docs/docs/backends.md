@@ -12,9 +12,13 @@ only device index 0 is exposed.
 | Float32/int32 tensor copy | Yes | Yes | Yes |
 | Float32 fill, add, multiply | Yes | Yes | Yes |
 | Int32 fill, add, multiply | Yes | Yes | No |
+| Float32 subtract, divide, negate and scalar arithmetic | Yes | Yes | Yes |
+| Int32 subtract, negate and scalar add/subtract/multiply | Yes | Yes | No |
+| Contiguous reshape (float32/int32) | Yes | Yes | Yes |
 | Float32 2D matmul | Yes | Custom + optional optimized path | Custom path |
 | Float32 sum, max, mean | Yes | Yes | Yes |
 | Int32 sum, max | Yes | Yes | No |
+| Reduction `keepdims` | Yes | Yes | Yes, float32 |
 | Float32 exp, GELU, SiLU | Yes | Yes | Yes |
 | Float32 softmax, RMSNorm, LayerNorm | Yes | Yes | Yes |
 | Generated kernels | Optional MLIR subset | Experimental MSL subset | Optional MLIR subset |

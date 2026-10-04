@@ -277,3 +277,31 @@ def test_empty_explicit_directory(monkeypatch):
     monkeypatch.setenv("TENSORCX_LLVM_BIN", "")
     with pytest.raises(RuntimeError, match="must name"):
         cpu.toolchain()
+
+
+@pytest.mark.parametrize("threads", [0, 3, 6])
+def test_reshape_views_preserve_alias_remapping_and_lifetime(compiled, threads):
+    values = np.arange(2, 8, dtype=np.float32)
+    original = cx.tensor(values.reshape(2, 3), device="cpu")
+    input_view = original.reshape((-1,))
+    output_view = original.reshape((3, 2)).reshape((-1,))
+    surviving_view = original.reshape((-1,))
+    expected = values.copy()
+    # The first store is visible through the aliased input on the second store.
+    # Independent copies would incorrectly produce 2*x+1 instead of 2*(x+1).
+    expected[:threads] = 2 * (values[:threads] + 1)
+    result = compiled["alias"].launch(input_view, output_view, threads, thread_count=threads)
+    np.testing.assert_array_equal(result.numpy(), expected)
+    reference = alias.reference(input_view, output_view, threads, thread_count=threads)
+    np.testing.assert_array_equal(reference.numpy(), expected)
+    for view in (original, input_view, output_view, surviving_view):
+        np.testing.assert_array_equal(view.numpy().reshape(-1), values)
+    result_view = result.reshape((2, 3))
+    del original, input_view, output_view, result, reference, view
+    gc.collect()
+    np.testing.assert_array_equal(result_view.numpy().reshape(-1), expected)
+    np.testing.assert_array_equal(surviving_view.numpy(), values)
+    another_view = surviving_view.reshape((3, 2)).reshape((-1,))
+    np.testing.assert_array_equal(
+        compiled["alias"].launch(surviving_view, another_view, threads, thread_count=threads).numpy(), expected,
+    )

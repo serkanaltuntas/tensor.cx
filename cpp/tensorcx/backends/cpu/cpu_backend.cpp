@@ -261,7 +261,12 @@ Status CpuBackend::execute(const BackendExecution& execution) {
       case OpKind::kSilu:
       case OpKind::kSoftmax:
       case OpKind::kRmsNorm:
-      case OpKind::kLayerNorm: {
+      case OpKind::kLayerNorm:
+      case OpKind::kNegate:
+      case OpKind::kAddScalar:
+      case OpKind::kSubtractScalar:
+      case OpKind::kMultiplyScalar:
+      case OpKind::kDivideScalar: {
         const CpuTensor input = from_core_tensor(execution.inputs[0]);
         execution.outputs[0] = to_core_tensor(execute_unary(execution.op, input));
         return Status::Ok();
@@ -274,6 +279,8 @@ Status CpuBackend::execute(const BackendExecution& execution) {
         return Status::Ok();
       }
       case OpKind::kAdd:
+      case OpKind::kSubtract:
+      case OpKind::kDivide:
       case OpKind::kMultiply: {
         const CpuTensor lhs = from_core_tensor(execution.inputs[0]);
         const CpuTensor rhs = from_core_tensor(execution.inputs[1]);
@@ -727,6 +734,55 @@ CpuTensor execute_unary(const OpDesc& op, const CpuTensor& input) {
   if (input.device().type != "cpu") {
     throw std::invalid_argument("CPU operations require CPU tensors");
   }
+  const bool scalar_op = op.kind == OpKind::kAddScalar || op.kind == OpKind::kSubtractScalar ||
+                         op.kind == OpKind::kMultiplyScalar || op.kind == OpKind::kDivideScalar;
+  if (op.kind == OpKind::kNegate || scalar_op) {
+    if (input.dtype() == DType::kInt32 && scalar_op) {
+      if (op.kind == OpKind::kDivideScalar) {
+        throw std::invalid_argument("division only supports float32 tensors");
+      }
+      if (!is_int32_representable(op.scalar_value)) {
+        throw std::invalid_argument("arithmetic scalar must be an integer in int32 range");
+      }
+    }
+    CpuTensor result(input.dtype(), input.shape());
+    if (input.dtype() == DType::kFloat32) {
+      const float scalar = static_cast<float>(op.scalar_value);
+      const auto& values = input.float_data();
+      auto& out = result.mutable_float_data();
+      for (std::size_t i = 0; i < out.size(); ++i) {
+        const float lhs = op.scalar_left ? scalar : values[i];
+        const float rhs = op.scalar_left ? values[i] : scalar;
+        switch (op.kind) {
+          case OpKind::kNegate: out[i] = -values[i]; break;
+          case OpKind::kAddScalar: out[i] = lhs + rhs; break;
+          case OpKind::kSubtractScalar: out[i] = lhs - rhs; break;
+          case OpKind::kMultiplyScalar: out[i] = lhs * rhs; break;
+          case OpKind::kDivideScalar: out[i] = lhs / rhs; break;
+          default: break;
+        }
+      }
+    } else {
+      const auto scalar = scalar_op ? static_cast<std::uint32_t>(static_cast<std::int32_t>(op.scalar_value)) : 0U;
+      const auto& values = input.int32_data();
+      auto& out = result.mutable_int32_data();
+      for (std::size_t i = 0; i < out.size(); ++i) {
+        const auto value = static_cast<std::uint32_t>(values[i]);
+        const auto lhs = op.scalar_left ? scalar : value;
+        const auto rhs = op.scalar_left ? value : scalar;
+        std::uint32_t bits{};
+        switch (op.kind) {
+          case OpKind::kNegate: bits = 0U - value; break;
+          case OpKind::kAddScalar: bits = lhs + rhs; break;
+          case OpKind::kSubtractScalar: bits = lhs - rhs; break;
+          case OpKind::kMultiplyScalar: bits = lhs * rhs; break;
+          default: break;
+        }
+        out[i] = static_cast<std::int32_t>(bits);
+      }
+    }
+    return result;
+  }
   if (op.kind != OpKind::kExp && op.kind != OpKind::kGelu && op.kind != OpKind::kSilu &&
       op.kind != OpKind::kSoftmax && op.kind != OpKind::kRmsNorm &&
       op.kind != OpKind::kLayerNorm) {
@@ -813,6 +869,13 @@ CpuTensor execute_unary(const OpDesc& op, const CpuTensor& input) {
 
 CpuTensor execute_binary(const OpDesc& op, const CpuTensor& lhs, const CpuTensor& rhs) {
   validate_binary_inputs(lhs, rhs);
+  if (op.kind != OpKind::kAdd && op.kind != OpKind::kSubtract &&
+      op.kind != OpKind::kMultiply && op.kind != OpKind::kDivide) {
+    throw std::invalid_argument("unsupported binary operation");
+  }
+  if (op.kind == OpKind::kDivide && lhs.dtype() != DType::kFloat32) {
+    throw std::invalid_argument("division only supports float32 tensors");
+  }
 
   CpuTensor result(lhs.dtype(), lhs.shape());
   switch (lhs.dtype()) {
@@ -824,6 +887,12 @@ CpuTensor execute_binary(const OpDesc& op, const CpuTensor& lhs, const CpuTensor
         switch (op.kind) {
           case OpKind::kAdd:
             out[i] = lhs_data[i] + rhs_data[i];
+            break;
+          case OpKind::kSubtract:
+            out[i] = lhs_data[i] - rhs_data[i];
+            break;
+          case OpKind::kDivide:
+            out[i] = lhs_data[i] / rhs_data[i];
             break;
           case OpKind::kMultiply:
             out[i] = lhs_data[i] * rhs_data[i];
@@ -848,6 +917,9 @@ CpuTensor execute_binary(const OpDesc& op, const CpuTensor& lhs, const CpuTensor
         switch (op.kind) {
           case OpKind::kAdd:
             out[i] = static_cast<std::int32_t>(a + b);
+            break;
+          case OpKind::kSubtract:
+            out[i] = static_cast<std::int32_t>(a - b);
             break;
           case OpKind::kMultiply:
             out[i] = static_cast<std::int32_t>(a * b);

@@ -16,6 +16,96 @@ void require(bool result, const char* message) {
 void invalid(const Status& status) {
   require(status.code() == StatusCode::kInvalidArgument, status.message().c_str());
 }
+void same_float(float actual, float expected) {
+  if (std::isnan(expected)) {
+    require(std::isnan(actual), "arithmetic NaN mismatch");
+  } else {
+    require(actual == expected, "arithmetic value mismatch");
+    if (expected == 0.0f || std::isinf(expected))
+      require(std::signbit(actual) == std::signbit(expected), "arithmetic sign mismatch");
+  }
+}
+
+void arithmetic_contract(cuda::CudaBackend& backend) {
+  const float inf = std::numeric_limits<float>::infinity();
+  const float nan = std::numeric_limits<float>::quiet_NaN();
+  const float tiny = std::numeric_limits<float>::denorm_min();
+  const std::array<float, 11> left{0.0f, -0.0f, 1.0f, -1.0f, inf, -inf, nan, tiny, -tiny, 7.0f, -7.0f};
+  const std::array<float, 11> right{-0.0f, 0.0f, 0.0f, -0.0f, inf, -inf, 2.0f, 2.0f, -2.0f, 2.0f, 3.0f};
+  cpu::CpuBackend reference;
+  // Rank zero, empty, and a partial second CUDA block. Include IEEE edge
+  // values as well as asymmetric finite operands to detect operand reversal.
+  for (const Shape& shape : {Shape{}, Shape{2, 0}, Shape{257}}) {
+    const auto count = static_cast<std::size_t>(numel(shape));
+    std::vector<float> lhs(count), rhs(count);
+    for (std::size_t i = 0; i < count; ++i) {
+      lhs[i] = left[i % left.size()];
+      rhs[i] = right[i % right.size()];
+    }
+    cpu::CpuTensor a(shape, lhs), b(shape, rhs);
+    auto ga = cuda::from_cpu(a).value(), gb = cuda::from_cpu(b).value();
+    std::array<Tensor, 2> gpu_inputs{cuda::to_core_tensor(ga), cuda::to_core_tensor(gb)};
+    std::array<Tensor, 2> cpu_inputs{cpu::to_core_tensor(a), cpu::to_core_tensor(b)};
+    std::array<Tensor, 1> gpu_outputs{}, cpu_outputs{};
+    auto verify = [&](OpDesc op, std::size_t arity) {
+      BackendExecution gpu{BackendOpClass::kPrimitive, op, std::span(gpu_inputs).first(arity), gpu_outputs};
+      BackendExecution cpu{BackendOpClass::kPrimitive, op, std::span(cpu_inputs).first(arity), cpu_outputs};
+      require(reference.execute(cpu).ok(), "CPU arithmetic reference failed");
+      require(backend.execute(gpu).ok(), "CUDA arithmetic failed");
+      const auto actual = cuda::to_cpu(cuda::from_core_tensor(gpu_outputs[0]).value()).value();
+      const auto expected = cpu::from_core_tensor(cpu_outputs[0]);
+      require(actual.shape() == shape && actual.dtype() == DType::kFloat32, "arithmetic metadata mismatch");
+      for (std::size_t i = 0; i < count; ++i) same_float(actual.float_data()[i], expected.float_data()[i]);
+      const auto previous = gpu_outputs[0].buffer;
+      gpu.inputs = {};
+      invalid(backend.execute(gpu));
+      require(gpu_outputs[0].buffer == previous, "arithmetic arity failure changed output");
+      gpu.inputs = std::span(gpu_inputs).first(arity);
+      gpu_inputs[0].offset = 1;
+      invalid(backend.execute(gpu));
+      require(gpu_outputs[0].buffer == previous, "arithmetic metadata failure changed output");
+      gpu_inputs[0].offset = 0;
+    };
+    for (const auto kind : {OpKind::kAdd, OpKind::kSubtract, OpKind::kMultiply, OpKind::kDivide})
+      verify(OpDesc{kind}, 2);
+    verify(OpDesc{OpKind::kNegate}, 1);
+    for (const auto kind : {OpKind::kAddScalar, OpKind::kSubtractScalar,
+                           OpKind::kMultiplyScalar, OpKind::kDivideScalar}) {
+      for (const double scalar : {-2.5, -0.0, static_cast<double>(inf), static_cast<double>(nan), 16777217.0}) {
+        for (const bool scalar_left : {false, true}) {
+          OpDesc op{kind}; op.scalar_value = scalar; op.scalar_left = scalar_left;
+          verify(op, 1);
+        }
+      }
+    }
+    const auto original_a = cuda::to_cpu(ga).value();
+    for (std::size_t i = 0; i < count; ++i) same_float(original_a.float_data()[i], lhs[i]);
+  }
+  // Genuine valid-but-incompatible tensor metadata, rather than only forged
+  // descriptors, must reject before launching and leave the old result intact.
+  auto f32 = cuda::from_cpu(cpu::CpuTensor({3}, std::vector<float>{1, 2, 3})).value();
+  auto smaller = cuda::from_cpu(cpu::CpuTensor({2}, std::vector<float>{1, 2})).value();
+  auto i32 = cuda::from_cpu(cpu::CpuTensor(DType::kInt32, {3})).value();
+  std::array<Tensor, 2> inputs{cuda::to_core_tensor(f32), cuda::to_core_tensor(smaller)};
+  std::array<Tensor, 1> outputs{cuda::to_core_tensor(f32)};
+  const auto previous = outputs[0].buffer;
+  for (const auto kind : {OpKind::kSubtract, OpKind::kDivide}) {
+    BackendExecution execution{BackendOpClass::kPrimitive, OpDesc{kind}, inputs, outputs};
+    invalid(backend.execute(execution));
+    inputs[1] = cuda::to_core_tensor(i32);
+    invalid(backend.execute(execution));
+    require(outputs[0].buffer == previous, "binary mismatch changed output");
+    inputs[1] = cuda::to_core_tensor(smaller);
+  }
+  inputs[0] = cuda::to_core_tensor(i32);
+  for (const auto kind : {OpKind::kNegate, OpKind::kAddScalar, OpKind::kSubtractScalar,
+                         OpKind::kMultiplyScalar, OpKind::kDivideScalar}) {
+    BackendExecution execution{BackendOpClass::kPrimitive, OpDesc{kind}, std::span(inputs).first(1), outputs};
+    invalid(backend.execute(execution));
+    require(outputs[0].buffer == previous, "unary dtype failure changed output");
+  }
+}
+
 Tensor descriptor(Shape shape = {3}) {
   const auto strides = contiguous_strides(shape);
   return {DType::kFloat32, std::move(shape), strides, {"cuda", 0}, nullptr, 0};
@@ -107,6 +197,7 @@ int main() {
         }
       }
     }
+    arithmetic_contract(backend);
     // Long contiguous rows exercise the cooperative path under device
     // memcheck/racecheck as well as ordinary native acceptance.
     for (const std::int64_t width : {256, 257, 4097}) {

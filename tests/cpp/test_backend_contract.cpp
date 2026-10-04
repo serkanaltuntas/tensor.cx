@@ -1,4 +1,5 @@
 #include <array>
+#include <cmath>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -6,6 +7,7 @@
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 #include "tensorcx/backends/cpu/cpu_backend.h"
 #include "tensorcx/backends/null/null_backend.h"
@@ -53,9 +55,124 @@ tensorcx::Tensor fill_descriptor(tensorcx::Device device = tensorcx::Device{"cpu
   };
 }
 
+void arithmetic_contract_tests() {
+  using namespace tensorcx;
+  using cpu::CpuTensor;
+  cpu::CpuBackend backend;
+  const auto check = [](bool passed, const char* scenario) {
+    if (!passed) { std::cerr << scenario << '\n'; ++failures; }
+  };
+  const CpuTensor integers({3}, std::vector<std::int32_t>{INT32_MIN, 7, INT32_MAX});
+  const CpuTensor ones({3}, std::vector<std::int32_t>{1, 1, 1});
+  const auto subtract = cpu::execute_binary(OpDesc{OpKind::kSubtract}, integers, ones);
+  check(subtract.int32_data() == std::vector<std::int32_t>{INT32_MAX, 6, INT32_MAX - 1},
+        "int32 subtraction must wrap");
+  const auto negate = cpu::execute_unary(OpDesc{OpKind::kNegate}, integers);
+  check(negate.int32_data() == std::vector<std::int32_t>{INT32_MIN, -7, -INT32_MAX},
+        "int32 negation must wrap INT_MIN");
+  const CpuTensor zeros({2}, std::vector<float>{0.0F, -0.0F});
+  const auto negated_zero = cpu::execute_unary(OpDesc{OpKind::kNegate}, zeros);
+  check(std::signbit(negated_zero.float_data()[0]) && !std::signbit(negated_zero.float_data()[1]),
+        "float negation must flip signed zero");
+  const CpuTensor numerators({2}, std::vector<float>{1.0F, 0.0F});
+  const auto division = cpu::execute_binary(OpDesc{OpKind::kDivide}, numerators, zeros);
+  check(std::isinf(division.float_data()[0]) && std::isnan(division.float_data()[1]),
+        "float division must retain IEEE zero behavior");
+  OpDesc zero_divisor{OpKind::kDivideScalar}; zero_divisor.scalar_value = -0.0;
+  const auto scalar_division = cpu::execute_unary(zero_divisor, numerators);
+  check(std::isinf(scalar_division.float_data()[0]) && std::signbit(scalar_division.float_data()[0]) &&
+            std::isnan(scalar_division.float_data()[1]),
+        "scalar division must retain IEEE signed zero behavior");
+  zero_divisor.scalar_value = 1; zero_divisor.scalar_left = true;
+  const auto reversed_division = cpu::execute_unary(zero_divisor, zeros);
+  check(std::isinf(reversed_division.float_data()[0]) && !std::signbit(reversed_division.float_data()[0]) &&
+            std::isinf(reversed_division.float_data()[1]) && std::signbit(reversed_division.float_data()[1]),
+        "reverse scalar division must retain tensor signed zeros");
+  for (const double scalar : {std::numeric_limits<double>::infinity(),
+                              std::numeric_limits<double>::quiet_NaN()}) {
+    OpDesc op{OpKind::kAddScalar}; op.scalar_value = scalar;
+    const auto result = cpu::execute_unary(op, numerators);
+    check(std::isnan(scalar) ? std::isnan(result.float_data()[0]) : std::isinf(result.float_data()[0]),
+          "float scalar arithmetic must allow nonfinite values");
+  }
+  const auto empty_float = cpu::empty({0}, DType::kFloat32);
+  for (const auto kind : {OpKind::kNegate, OpKind::kAddScalar, OpKind::kSubtractScalar,
+                          OpKind::kMultiplyScalar, OpKind::kDivideScalar}) {
+    const auto result = cpu::execute_unary(OpDesc{kind}, empty_float);
+    check(result.shape() == Shape{0} && result.size() == 0,
+          "empty float arithmetic must preserve metadata");
+  }
+  const CpuTensor value({1}, std::vector<std::int32_t>{7});
+  const CpuTensor float_value({1}, std::vector<float>{8.0F});
+  for (const auto kind : {OpKind::kAddScalar, OpKind::kSubtractScalar,
+                          OpKind::kMultiplyScalar, OpKind::kDivideScalar}) {
+    for (const bool left : {false, true}) {
+      OpDesc op{kind}; op.scalar_value = 2; op.scalar_left = left;
+      std::array<Tensor, 1> inputs{cpu::to_core_tensor(float_value)}, outputs{};
+      BackendExecution execution{BackendOpClass::kPrimitive, op, inputs, outputs,
+                                 std::nullopt, std::nullopt, {}};
+      expect_ok("scalar execution schema", backend.execute(execution));
+      const float expected = kind == OpKind::kAddScalar ? 10.0F :
+                             kind == OpKind::kSubtractScalar ? (left ? -6.0F : 6.0F) :
+                             kind == OpKind::kMultiplyScalar ? 16.0F : (left ? 0.25F : 4.0F);
+      if (outputs[0].buffer)
+        check(cpu::from_core_tensor(outputs[0]).float_data()[0] == expected,
+              "float scalar arithmetic/order mismatch");
+      if (kind != OpKind::kDivideScalar) {
+        const std::int32_t expected_int = kind == OpKind::kAddScalar ? 9 :
+                                        kind == OpKind::kSubtractScalar ? (left ? -5 : 5) : 14;
+        check(cpu::execute_unary(op, value).int32_data()[0] == expected_int,
+              "int32 scalar arithmetic/order mismatch");
+      }
+    }
+  }
+  OpDesc boundary{OpKind::kAddScalar}; boundary.scalar_value = INT32_MAX;
+  check(cpu::execute_unary(boundary, ones).int32_data()[0] == INT32_MIN,
+        "int32 scalar addition must wrap");
+  boundary.kind = OpKind::kMultiplyScalar; boundary.scalar_value = -1;
+  check(cpu::execute_unary(boundary, integers).int32_data()[0] == INT32_MIN,
+        "int32 scalar multiplication must wrap");
+  boundary.kind = OpKind::kSubtractScalar; boundary.scalar_value = INT32_MIN; boundary.scalar_left = true;
+  check(cpu::execute_unary(boundary, ones).int32_data()[0] == INT32_MAX,
+        "reverse int32 scalar subtraction must wrap");
+
+  // Reject invalid scalar descriptors even when an empty result bypasses loops,
+  // and do not publish a new output on failure.
+  for (const Shape& shape : {Shape{0}, Shape{1}}) {
+    const auto input = cpu::empty(shape, DType::kInt32);
+    std::array<Tensor, 1> inputs{cpu::to_core_tensor(input)}, outputs{cpu::to_core_tensor(value)};
+    const auto original = outputs[0].buffer;
+    for (const auto kind : {OpKind::kAddScalar, OpKind::kSubtractScalar, OpKind::kMultiplyScalar}) {
+      for (const double scalar : {0.5, 2147483648.0, -2147483649.0,
+                                 std::numeric_limits<double>::infinity(),
+                                 std::numeric_limits<double>::quiet_NaN()}) {
+        OpDesc op{kind}; op.scalar_value = scalar;
+        const BackendExecution execution{BackendOpClass::kPrimitive, op, inputs, outputs,
+                                         std::nullopt, std::nullopt, {}};
+        expect_status("invalid native int scalar", backend.execute(execution), StatusCode::kInvalidArgument);
+        check(outputs[0].buffer == original, "invalid arithmetic must preserve output slot");
+      }
+    }
+    BackendExecution unary{BackendOpClass::kPrimitive, OpDesc{OpKind::kDivideScalar}, inputs, outputs,
+                           std::nullopt, std::nullopt, {}};
+    expect_status("int scalar division", backend.execute(unary), StatusCode::kInvalidArgument);
+    std::array<Tensor, 2> pair{inputs[0], inputs[0]};
+    BackendExecution binary{BackendOpClass::kPrimitive, OpDesc{OpKind::kDivide}, pair, outputs,
+                            std::nullopt, std::nullopt, {}};
+    expect_status("int tensor division", backend.execute(binary), StatusCode::kInvalidArgument);
+    unary.op.kind = OpKind::kNegate;
+    expect_ok("integer negate schema/empty", backend.execute(unary));
+    unary.op.kind = OpKind::kAddScalar; unary.inputs = pair;
+    expect_status("scalar wrong input count", backend.execute(unary), StatusCode::kInvalidArgument);
+    binary.op.kind = OpKind::kSubtract; binary.inputs = inputs;
+    expect_status("subtract wrong input count", backend.execute(binary), StatusCode::kInvalidArgument);
+  }
+}
+
 }  // namespace
 
 int main() {
+  arithmetic_contract_tests();
   // Malformed native metadata must not wrap its byte count to a small buffer.
   for (auto dtype : {tensorcx::DType::kFloat32, tensorcx::DType::kInt32}) {
     for (std::size_t elements : {0U, 2U}) {

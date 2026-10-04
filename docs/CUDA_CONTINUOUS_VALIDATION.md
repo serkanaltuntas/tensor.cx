@@ -95,8 +95,9 @@ Every run requires:
 
 - the validated Nightblade CUDA/LLVM environment (GCC 13, CUDA 12.4, sm_52,
   LLVM 21.1.8), uv, and `compute-sanitizer`;
-- 595 or more tests from the CUDA discovery/primitive and MLIR runtime/expression
-  acceptance files, with no skipped, failed, errored or xfailed tests;
+- 595 or more tests from the CUDA discovery/primitive, MLIR runtime/expression,
+  and public tensor API acceptance files, with no skipped, failed, errored or
+  xfailed tests; named anchors include arithmetic and reduction `keepdims`;
 - four named native CTest contracts, with no skipped or failed cases;
 - CUDA backend native contracts under both memcheck and racecheck;
 - the CUDA MLP example reporting CPU parity and shape `(32,10)`.

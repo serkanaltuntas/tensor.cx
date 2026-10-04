@@ -16,6 +16,18 @@ namespace {
 Status invalid(std::string message) {
   return {StatusCode::kInvalidArgument, std::move(message)};
 }
+bool is_binary_arithmetic(OpKind kind) {
+  return kind == OpKind::kAdd || kind == OpKind::kSubtract ||
+         kind == OpKind::kMultiply || kind == OpKind::kDivide;
+}
+bool is_scalar_arithmetic(OpKind kind) {
+  return kind == OpKind::kAddScalar || kind == OpKind::kSubtractScalar ||
+         kind == OpKind::kMultiplyScalar || kind == OpKind::kDivideScalar;
+}
+bool is_elementwise_unary(OpKind kind) {
+  return kind == OpKind::kExp || kind == OpKind::kGelu ||
+         kind == OpKind::kSilu || kind == OpKind::kNegate;
+}
 Expected<std::size_t> byte_size(DType dtype, const Shape& shape) {
   if (dtype != DType::kFloat32 && dtype != DType::kInt32) return invalid("unsupported CUDA dtype");
   const auto count = static_cast<std::uint64_t>(numel(shape));
@@ -158,7 +170,7 @@ Status CudaBackend::execute(const BackendExecution& execution) {
       auto tensor=from_core_tensor(input);
       if (!tensor) return tensor.status();
     }
-    if ((kind==OpKind::kAdd || kind==OpKind::kMultiply) &&
+    if (is_binary_arithmetic(kind) &&
         execution.inputs[0].dtype!=execution.inputs[1].dtype) return invalid("dtype mismatch for binary operation");
     for (const auto& input : execution.inputs) {
       if (input.dtype!=DType::kFloat32) return invalid("CUDA operations only support float32");
@@ -168,7 +180,7 @@ Status CudaBackend::execute(const BackendExecution& execution) {
       shape=execution.outputs[0].shape;
     } else {
       shape=execution.inputs[0].shape;
-      if (kind==OpKind::kAdd || kind==OpKind::kMultiply) {
+      if (is_binary_arithmetic(kind)) {
         if(shape!=execution.inputs[1].shape) return invalid("shape mismatch for binary operation");
       } else if(kind==OpKind::kMatmul) {
         const auto& right=execution.inputs[1].shape;
@@ -177,7 +189,7 @@ Status CudaBackend::execute(const BackendExecution& execution) {
         if(execution.op.matmul_preference!=MatmulPreference::kAuto &&
            execution.op.matmul_preference!=MatmulPreference::kCustom) return invalid("CUDA matmul supports auto or custom");
         shape={shape[0],right[1]};
-      } else if(kind!=OpKind::kExp && kind!=OpKind::kGelu && kind!=OpKind::kSilu) {
+      } else if(!is_elementwise_unary(kind) && !is_scalar_arithmetic(kind)) {
         auto axis=execution.op.axis;
         const auto rank=static_cast<std::int64_t>(shape.size());
         if(!rank) {
@@ -214,11 +226,14 @@ Status CudaBackend::execute(const BackendExecution& execution) {
     cudaError_t error;
     if (kind==OpKind::kFill) {
       error=launch_fill(output,count,static_cast<float>(execution.op.scalar_value));
-    } else if(kind==OpKind::kAdd || kind==OpKind::kMultiply) {
-      error=launch_binary(data(0),data(1),output,count,kind==OpKind::kMultiply);
+    } else if(is_binary_arithmetic(kind)) {
+      error=launch_binary(data(0),data(1),output,count,kind);
+    } else if(is_scalar_arithmetic(kind)) {
+      error=launch_scalar(data(0),output,count,kind,
+                          static_cast<float>(execution.op.scalar_value),execution.op.scalar_left);
     } else if(kind==OpKind::kMatmul) {
       error=launch_matmul(data(0),data(1),output,shape[0],shape[1],execution.inputs[0].shape[1]);
-    } else if(kind==OpKind::kExp || kind==OpKind::kGelu || kind==OpKind::kSilu) {
+    } else if(is_elementwise_unary(kind)) {
       error=launch_unary(data(0),output,count,kind);
     } else {
       // Output allocation and validated input shapes bound the nonempty product.

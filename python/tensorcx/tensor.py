@@ -15,6 +15,10 @@ from .device import Device, _normalize_device
 class Tensor:
     """Public tensor wrapper over backend-specific native tensor objects."""
 
+    # Opt out of NumPy object-ufunc broadcasting; NumPy scalar operators still
+    # defer to our reflected arithmetic methods.
+    __array_ufunc__ = None
+
     def __init__(self, impl: Any):
         self._impl = impl
 
@@ -53,32 +57,48 @@ class Tensor:
         return Tensor(_backend.copy_tensor(self._impl, self.device, target))
 
     def __add__(self, other: "Tensor") -> "Tensor":
-        if not isinstance(other, Tensor):
-            return NotImplemented
-        if self.device != other.device:
-            raise ValueError("device mismatch for binary operation")
-        return Tensor(_core.add(self._impl, other._impl))
+        return _arithmetic(self, other, "add")
+
+    def __radd__(self, other) -> "Tensor":
+        return _arithmetic(self, other, "add", scalar_left=True)
+
+    def __sub__(self, other) -> "Tensor":
+        return _arithmetic(self, other, "subtract")
+
+    def __rsub__(self, other) -> "Tensor":
+        return _arithmetic(self, other, "subtract", scalar_left=True)
 
     def __mul__(self, other: "Tensor") -> "Tensor":
-        if not isinstance(other, Tensor):
-            return NotImplemented
-        if self.device != other.device:
-            raise ValueError("device mismatch for binary operation")
-        return Tensor(_core.multiply(self._impl, other._impl))
+        return _arithmetic(self, other, "multiply")
+
+    def __rmul__(self, other) -> "Tensor":
+        return _arithmetic(self, other, "multiply", scalar_left=True)
+
+    def __truediv__(self, other) -> "Tensor":
+        return _arithmetic(self, other, "divide")
+
+    def __rtruediv__(self, other) -> "Tensor":
+        return _arithmetic(self, other, "divide", scalar_left=True)
+
+    def __neg__(self) -> "Tensor":
+        return Tensor(_core.negative(self._impl))
+
+    def reshape(self, shape) -> "Tensor":
+        return reshape(self, shape)
 
     def __matmul__(self, other: "Tensor") -> "Tensor":
         if not isinstance(other, Tensor):
             return NotImplemented
         return matmul(self, other)
 
-    def sum(self, axis: int) -> "Tensor":
-        return sum(self, axis=axis)
+    def sum(self, axis: int, keepdims: bool = False) -> "Tensor":
+        return sum(self, axis=axis, keepdims=keepdims)
 
-    def max(self, axis: int) -> "Tensor":
-        return max(self, axis=axis)
+    def max(self, axis: int, keepdims: bool = False) -> "Tensor":
+        return max(self, axis=axis, keepdims=keepdims)
 
-    def mean(self, axis: int) -> "Tensor":
-        return mean(self, axis=axis)
+    def mean(self, axis: int, keepdims: bool = False) -> "Tensor":
+        return mean(self, axis=axis, keepdims=keepdims)
 
     def exp(self) -> "Tensor":
         return exp(self)
@@ -97,6 +117,43 @@ class Tensor:
 
     def layernorm(self, axis: int, eps: float = 1.0e-5) -> "Tensor":
         return layernorm(self, axis=axis, eps=eps)
+
+
+def _arithmetic(input: Tensor, other, name: str, *, scalar_left: bool = False):
+    if isinstance(other, Tensor):
+        if input.device != other.device:
+            raise ValueError("device mismatch for binary operation")
+        lhs, rhs = (other, input) if scalar_left else (input, other)
+        return Tensor(getattr(_core, name)(lhs._impl, rhs._impl))
+    if isinstance(other, (bool, np.bool_)):
+        raise TypeError("bool arithmetic scalars are not supported")
+    if isinstance(other, np.ndarray):
+        raise TypeError("NumPy arrays are not arithmetic scalars; use tensor() explicitly")
+    if not isinstance(other, (int, float, np.integer, np.floating)):
+        return NotImplemented
+    if input.dtype == "int32":
+        if not isinstance(other, (int, np.integer)):
+            raise ValueError("int32 arithmetic requires an integer scalar")
+        value = int(other)
+        if not -(2**31) <= value < 2**31:
+            raise ValueError("integer scalar is out of range for int32")
+    else:
+        try:
+            value = float(other)
+        except OverflowError as exc:
+            raise ValueError("scalar is out of range for float32 conversion") from exc
+    return Tensor(getattr(_core, name + "_scalar")(
+        input._impl, value, scalar_left=scalar_left
+    ))
+
+
+def reshape(input: Tensor, shape) -> Tensor:
+    """Return a contiguous view sharing storage; one dimension may be -1."""
+    if not isinstance(input, Tensor):
+        raise TypeError("reshape expects a Tensor argument")
+    if shape is None:
+        raise ValueError("shape must be an int or an iterable of ints")
+    return Tensor(_core.reshape(input._impl, shape))
 
 
 def _validate_creation_device(target: str) -> None:
@@ -235,22 +292,30 @@ def matmul(lhs: Tensor, rhs: Tensor, backend: str = "auto") -> Tensor:
     return Tensor(_core.matmul(lhs._impl, rhs._impl, backend=backend))
 
 
-def sum(input: Tensor, axis: int) -> Tensor:
+def _reduce(input: Tensor, axis: int, keepdims: bool, name: str) -> Tensor:
     if not isinstance(input, Tensor):
-        raise TypeError("sum expects a Tensor argument")
-    return Tensor(_core.sum(input._impl, axis=_normalize_axis(axis)))
+        raise TypeError(f"{name} expects a Tensor argument")
+    if not isinstance(keepdims, (bool, np.bool_)):
+        raise TypeError("keepdims must be a boolean")
+    axis = _normalize_axis(axis)
+    result = Tensor(getattr(_core, name)(input._impl, axis=axis))
+    if keepdims and input.shape:
+        shape = list(input.shape)
+        shape[axis] = 1
+        return result.reshape(shape)
+    return result
 
 
-def max(input: Tensor, axis: int) -> Tensor:
-    if not isinstance(input, Tensor):
-        raise TypeError("max expects a Tensor argument")
-    return Tensor(_core.max(input._impl, axis=_normalize_axis(axis)))
+def sum(input: Tensor, axis: int, keepdims: bool = False) -> Tensor:
+    return _reduce(input, axis, keepdims, "sum")
 
 
-def mean(input: Tensor, axis: int) -> Tensor:
-    if not isinstance(input, Tensor):
-        raise TypeError("mean expects a Tensor argument")
-    return Tensor(_core.mean(input._impl, axis=_normalize_axis(axis)))
+def max(input: Tensor, axis: int, keepdims: bool = False) -> Tensor:
+    return _reduce(input, axis, keepdims, "max")
+
+
+def mean(input: Tensor, axis: int, keepdims: bool = False) -> Tensor:
+    return _reduce(input, axis, keepdims, "mean")
 
 
 def exp(input: Tensor) -> Tensor:

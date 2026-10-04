@@ -17,7 +17,8 @@ __global__ void unary(const float* x, float* out, std::size_t n, OpKind op) {
   for (std::size_t i = std::size_t(blockIdx.x)*blockDim.x+threadIdx.x;
        i<n; i+=std::size_t(blockDim.x)*gridDim.x) {
     const float v=x[i];
-    if (op==OpKind::kExp) out[i]=expf(v);
+    if (op==OpKind::kNegate) out[i]=-v;
+    else if (op==OpKind::kExp) out[i]=expf(v);
     else if (op==OpKind::kSilu) out[i]=v/(1.0F+expf(-v));
     else {
       const float cubic=__fmul_rn(__fmul_rn(__fmul_rn(0.044715F,v),v),v);

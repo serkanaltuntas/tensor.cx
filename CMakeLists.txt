@@ -189,7 +189,7 @@ if(TENSORCX_ENABLE_METAL)
   add_custom_command(
     OUTPUT ${TENSORCX_METAL_AIR}
     COMMAND ${XCRUN_EXECUTABLE} -sdk macosx metal
-            -c ${TENSORCX_METAL_KERNEL_SOURCE}
+            -fno-fast-math -c ${TENSORCX_METAL_KERNEL_SOURCE}
             -o ${TENSORCX_METAL_AIR}
     DEPENDS ${TENSORCX_METAL_KERNEL_SOURCE}
     VERBATIM

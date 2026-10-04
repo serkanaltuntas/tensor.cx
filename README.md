@@ -43,6 +43,7 @@ x86_64 with external LLVM 21.1.8 tools. See the
 ## Documentation Map
 
 - [`docs/NAMING.md`](docs/NAMING.md): tensor.cx branding and migration from the pre-release Cortex Runtime names.
+- [`docs/TENSOR_API.md`](docs/TENSOR_API.md): arithmetic/scalars, shared-storage reshape, and reduction `keepdims` contracts.
 - [`website/`](website/README.md): Astro + Starlight product site and curated user guides for tensor.cx.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md): contributions, validation and publication hygiene.
 - [`SECURITY.md`](SECURITY.md): private vulnerability reporting and trust boundaries.
@@ -153,8 +154,9 @@ y = (x + x) * x
 print(y.cpu().numpy()[:3])  # [2. 2. 2.]
 ```
 
-The prototype exposes only device index 0. float32 add/multiply require exact
-shape/dtype matches; scalars and empty contiguous tensors work. Copies preserve
+The prototype exposes only device index 0. float32 add/subtract/multiply/divide
+require exact tensor shape/dtype matches; Python/NumPy real scalars, negation,
+rank-0 and empty contiguous tensors work. Copies preserve
 float32/int32. Float32 matmul (`auto`/`custom`), sum/max/mean, exp/GELU/SiLU,
 softmax, RMSNorm and LayerNorm are implemented; see [semantics and validation](docs/CUDA_PRIMITIVES_VALIDATION.md).
 Int32 fill/arithmetic/reductions and broad generated CUDA kernels remain unsupported. A separate
@@ -303,11 +305,15 @@ print(ln.cpu().numpy().shape)
   floating-point tolerances apply only when both inputs are floating point.
 - Supported dtypes are `float32` and `int32`. Float inputs are narrowed to
   `float32`, so values may lose precision or overflow to `inf`.
-- `int32` `add`/`multiply` overflow wraps (defined two's-complement), matching
+- Arithmetic accepts same-shape tensors or real scalars on either side, without
+  dtype promotion. Division requires float32. See [the full contract](docs/TENSOR_API.md).
+- `int32` add/subtract/multiply/negate overflow wraps (defined two's-complement), matching
   NumPy and identical on CPU and Metal.
 - `sum`, `max`, and `mean` require an explicit `axis`. Negative axes are
-  supported. `sum` over an empty axis returns zeros, `mean` over an empty axis
+  supported; `keepdims=True` retains that axis with size 1. `sum` over an empty axis returns zeros, `mean` over an empty axis
   returns NaNs, and `max` over an empty axis raises `ValueError`.
+- `x.reshape(shape)` / `cx.reshape(x, shape)` create a contiguous view sharing
+  the native buffer; one dimension may be `-1`. NumPy export still copies.
 - `softmax` requires an explicit `axis`, preserves the input shape, supports
   negative axes, and uses max-subtraction for numerical stability.
 - `rmsnorm` requires an explicit `axis`, preserves the input shape, supports

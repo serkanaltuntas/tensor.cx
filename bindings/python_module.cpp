@@ -91,7 +91,7 @@ bool is_index_like(nb::handle item) {
 // protocol so NumPy integer scalars behave like Python ints, while bools stay
 // rejected as shape dimensions.
 tensorcx::Dim cast_dim_or_throw(nb::handle item) {
-  if (PyBool_Check(item.ptr())) {
+  if (is_bool_like(item)) {
     throw std::invalid_argument("shape dimensions must be integers");
   }
 
@@ -671,6 +671,78 @@ nb::list cuda_backend_matmul_backends() {
 }
 #endif
 
+// Metadata-only view: the typed constructor validates the shared buffer and
+// computes contiguous strides without allocating or moving tensor data.
+template <typename NativeTensor>
+NativeTensor reshape_tensor(const NativeTensor& input, nb::handle requested_shape) {
+  Shape shape = parse_shape(requested_shape);
+  std::optional<std::size_t> inferred;
+  for (std::size_t i = 0; i < shape.size(); ++i) {
+    if (shape[i] == -1) {
+      if (inferred) {
+        throw std::invalid_argument("reshape permits only one inferred dimension");
+      }
+      inferred = i;
+      shape[i] = 1;
+    }
+  }
+  const auto count = tensorcx::numel(input.shape());
+  const auto specified = tensorcx::numel(shape);
+  if (inferred) {
+    if (specified == 0) {
+      throw std::invalid_argument("cannot infer reshape dimension with a zero product");
+    }
+    if (count % specified != 0) {
+      throw std::invalid_argument("reshape must preserve the number of elements");
+    }
+    shape[*inferred] = count / specified;
+  } else if (specified != count) {
+    throw std::invalid_argument("reshape must preserve the number of elements");
+  }
+  return NativeTensor(input.dtype(), std::move(shape), input.buffer());
+}
+
+template <typename NativeTensor, typename ExecuteSingle>
+void bind_tensor_extensions(nb::module_& module, ExecuteSingle execute_single) {
+  module.def("reshape", &reshape_tensor<NativeTensor>, nb::arg("input"), nb::arg("shape"));
+  // Internal interpreter support: compare ownership, never expose device pointers.
+  module.def("_shares_storage", [](const NativeTensor& lhs, const NativeTensor& rhs) {
+    return lhs.buffer() == rhs.buffer();
+  }, nb::arg("lhs"), nb::arg("rhs"));
+  for (auto [name, kind] : {std::pair{"subtract", OpKind::kSubtract},
+                            {"divide", OpKind::kDivide}}) {
+    module.def(name, [kind](const NativeTensor& lhs, const NativeTensor& rhs) {
+      return binary_op(lhs, rhs, kind);
+    }, nb::arg("lhs"), nb::arg("rhs"));
+  }
+  module.def("negative", [execute_single](const NativeTensor& input) {
+    return execute_single(input, OpDesc{OpKind::kNegate});
+  }, nb::arg("input"));
+  for (auto [name, kind] : {std::pair{"add_scalar", OpKind::kAddScalar},
+                            {"subtract_scalar", OpKind::kSubtractScalar},
+                            {"multiply_scalar", OpKind::kMultiplyScalar},
+                            {"divide_scalar", OpKind::kDivideScalar}}) {
+    module.def(name, [kind, execute_single](const NativeTensor& input,
+                                           nb::handle scalar, bool scalar_left) {
+      if (is_bool_like(scalar)) {
+        throw std::invalid_argument("bool arithmetic scalars are not supported");
+      }
+      OpDesc op{kind};
+      if (input.dtype() == DType::kInt32) {
+        op.scalar_value = cast_int32_or_throw(scalar);
+      } else {
+        try {
+          op.scalar_value = nb::cast<double>(scalar);
+        } catch (const std::exception&) {
+          throw std::invalid_argument("scalar must be a real number convertible to float32");
+        }
+      }
+      op.scalar_left = scalar_left;
+      return execute_single(input, op);
+    }, nb::arg("input"), nb::arg("scalar"), nb::arg("scalar_left") = false);
+  }
+}
+
 std::span<const BackendRoute> backend_routes() {
   static const BackendRoute routes[]{
       {"cpu", &cpu_backend_available, &cpu_backend_device_name,
@@ -952,6 +1024,7 @@ NB_MODULE(_core, module) {
              },
              nb::arg("lhs"),
              nb::arg("rhs"));
+  bind_tensor_extensions<CpuTensor>(module, cpu_single_input_backend_op);
   module.def("multiply",
              [](const CpuTensor& lhs, const CpuTensor& rhs) {
                return binary_op(lhs, rhs, OpKind::kMultiply);
@@ -1098,6 +1171,9 @@ NB_MODULE(_core, module) {
       })
       .def_prop_ro("device", [](const CudaTensor&) { return "cuda"; })
       .def_prop_ro("nbytes", &CudaTensor::nbytes);
+  bind_tensor_extensions<CudaTensor>(module, [](const CudaTensor& input, const OpDesc& op) {
+    return cuda_primitive(input, op);
+  });
   module.def("cpu_to_cuda", [](const CpuTensor& tensor) {
     return unwrap(without_gil([&] { return tensorcx::cuda::from_cpu(tensor); }));
   }, nb::arg("tensor"));
@@ -1160,6 +1236,7 @@ NB_MODULE(_core, module) {
         return binary_op(lhs, rhs, OpKind::kMultiply);
       });
 
+  bind_tensor_extensions<tensorcx::metal::MetalTensor>(module, metal_single_input_backend_op);
   module.def("cpu_to_metal",
              [](const CpuTensor& tensor) {
                return unwrap(without_gil([&] { return tensorcx::metal::from_cpu(tensor); }));

@@ -20,6 +20,13 @@ enum class OpKind {
   kSoftmax,
   kRmsNorm,
   kLayerNorm,
+  kSubtract,
+  kDivide,
+  kNegate,
+  kAddScalar,
+  kSubtractScalar,
+  kMultiplyScalar,
+  kDivideScalar,
 };
 
 enum class MatmulPreference {
@@ -44,6 +51,8 @@ struct OpDesc {
   double epsilon{1.0e-5};
   double scalar_value{0.0};
   MatmulPreference matmul_preference{MatmulPreference::kAuto};
+  // Scalar arithmetic reuses scalar_value; true places it left of the tensor.
+  bool scalar_left{false};
 };
 
 struct PrimitiveOpSchema {
