@@ -46,6 +46,41 @@ Shape contiguous_strides(const Shape& shape) {
   return strides;
 }
 
+ReductionPlan make_reduction_plan(const Shape& input, const Shape& axes) {
+  (void)numel(input);
+  const auto strides = contiguous_strides(input);
+  const auto rank = static_cast<Dim>(input.size());
+  std::vector<bool> selected(input.size(), false);
+  for (auto axis : axes) {
+    if (axis < 0) axis += rank;
+    if (axis < 0 || axis >= rank) throw std::invalid_argument("reduction axis is out of range");
+    if (selected[axis]) throw std::invalid_argument("reduction axes must not repeat");
+    selected[axis] = true;
+  }
+  ReductionPlan plan;
+  Shape reduced;
+  for (std::size_t axis = 0; axis < input.size(); ++axis) {
+    if (selected[axis]) {
+      reduced.push_back(input[axis]);
+    } else {
+      plan.output_shape.push_back(input[axis]);
+      plan.index_metadata.insert(plan.index_metadata.end(), {input[axis], strides[axis]});
+    }
+  }
+  for (std::size_t axis = 0; axis < input.size(); ++axis) {
+    if (selected[axis])
+      plan.index_metadata.insert(plan.index_metadata.end(), {input[axis], strides[axis]});
+  }
+  const auto count = numel(plan.output_shape);
+  (void)contiguous_strides(plan.output_shape);
+  if (std::find(reduced.begin(), reduced.end(), 0) != reduced.end()) {
+    plan.reduction_size = 0;
+  } else if (count != 0) {
+    plan.reduction_size = numel(reduced);
+  }
+  return plan;
+}
+
 TransposePlan make_transpose_plan(const Shape& input, const Shape& axes) {
   (void)numel(input);
   const auto strides = contiguous_strides(input);

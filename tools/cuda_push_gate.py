@@ -23,7 +23,7 @@ finally:
     sys.path.pop(0)
 TEST_FILES = ('test_cuda.py', 'test_cuda_primitives.py', 'test_mlir_cuda_runtime.py',
               'test_mlir_cuda_expressions.py', 'test_tensor_api.py', 'test_cast_broadcast.py',
-              'test_shape_ops.py')
+              'test_shape_ops.py', 'test_multi_axis_reductions.py')
 
 
 def push_revisions(lines):
@@ -132,7 +132,9 @@ def validate(revision, llvm_bin):
                  'test_broadcast_float32_numpy_and_cpu_parity',
                  'test_transpose_numpy_cpu_parity_and_copy',
                  'test_squeeze_numpy_and_shared_storage',
-                 'test_expand_dims_numpy_and_shared_storage'))
+                 'test_expand_dims_numpy_and_shared_storage',
+                 'test_multi_axis_numpy_cpu_parity',
+                 'test_multi_axis_special_values_and_canonical_order'))
             nanobind = run([*runner, 'python', '-I', '-c', 'import nanobind; print(nanobind.cmake_dir())'],
                            snapshot, env, output / 'nanobind.log')
             native = work / 'native'

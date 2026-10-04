@@ -29,6 +29,9 @@ cudaError_t launch_scalar(const float* input, float* output, std::size_t count,
 cudaError_t launch_unary(const float* input, float* output, std::size_t count, OpKind op);
 cudaError_t launch_axis(const float* input, float* output, std::size_t groups,
                         std::size_t reduce, std::size_t inner, OpKind op, float epsilon);
+cudaError_t launch_reduce_axes(const float* input, float* output, std::size_t groups,
+                               std::size_t reduce, const Dim* metadata,
+                               std::size_t output_rank, std::size_t rank, OpKind op);
 cudaError_t launch_matmul(const float* lhs, const float* rhs, float* output,
                           std::size_t m, std::size_t n, std::size_t k);
 

@@ -323,9 +323,64 @@ void transpose_contract_tests() {
   }
 }
 
+void multi_axis_contract_tests() {
+  using namespace tensorcx;
+  const auto check = [](bool passed, const char* scenario) {
+    if (!passed) { std::cerr << scenario << '\n'; ++failures; }
+  };
+  const auto plan = make_reduction_plan({2, 3, 4}, {-1, 0});
+  check(plan.output_shape == Shape{3} && plan.reduction_size == 8 &&
+        plan.index_metadata == Shape{3, 4, 2, 12, 4, 1}, "multi-axis plan/index order incorrect");
+  check(make_reduction_plan({}, {}).output_shape.empty(), "empty scalar axis set failed");
+  check(make_reduction_plan({0, 1, Dim{1} << 62, 4, 0}, {1, 2, 3}).output_shape == Shape{0, 0},
+        "empty output must not multiply an unvisited reduction space");
+  for (const Shape axes : {Shape{0, 0}, Shape{0, -3}, Shape{3}, Shape{-4}, Shape{INT64_MIN}}) {
+    try { (void)make_reduction_plan({2, 3, 4}, axes); check(false, "invalid reduction plan accepted"); }
+    catch (const std::invalid_argument&) {}
+  }
+  try {
+    (void)make_reduction_plan({INT64_MAX, 0, 2}, {1});
+    check(false, "overflowing reduction output accepted");
+  } catch (const std::invalid_argument&) {}
+  cpu::CpuTensor input(DType::kFloat32, {2, 3, 4});
+  for (int i = 0; i < 24; ++i) input.mutable_float_data()[i] = static_cast<float>(i);
+  cpu::CpuBackend backend;
+  for (const auto kind : {OpKind::kSum, OpKind::kMax, OpKind::kMean}) {
+    OpDesc op{kind}; op.reduction_axes = Shape{2, 0};
+    std::array<Tensor, 1> inputs{cpu::to_core_tensor(input)}, outputs{};
+    BackendExecution execution{BackendOpClass::kPrimitive, op, inputs, outputs};
+    expect_ok("native multi-axis reduction", backend.execute(execution));
+    if (outputs[0].buffer) {
+      const auto& actual = cpu::from_core_tensor(outputs[0]).float_data();
+      const std::vector<float> expected = kind == OpKind::kSum ? std::vector<float>{60, 92, 124} :
+          kind == OpKind::kMax ? std::vector<float>{15, 19, 23} : std::vector<float>{7.5F, 11.5F, 15.5F};
+      check(actual == expected && outputs[0].shape == Shape{3} && outputs[0].buffer != inputs[0].buffer,
+            "native multi-axis values/ownership mismatch");
+    }
+    const auto previous = outputs[0].buffer;
+    execution.op.reduction_axes = Shape{0, 0};
+    expect_status("duplicate native reduction axes", backend.execute(execution), StatusCode::kInvalidArgument);
+    check(outputs[0].buffer == previous, "failed multi-axis reduction published output");
+    execution.op.reduction_axes = Shape{};
+    expect_ok("native no-axes reduction copy", backend.execute(execution));
+    check(outputs[0].buffer != inputs[0].buffer && outputs[0].shape == input.shape(), "no-axes must copy");
+    const auto empty = cpu::empty({2, 0, 3}, DType::kFloat32);
+    inputs[0] = cpu::to_core_tensor(empty); execution.op.reduction_axes = Shape{1, 2};
+    if (kind == OpKind::kMax)
+      expect_status("empty max axes", backend.execute(execution), StatusCode::kInvalidArgument);
+    else {
+      expect_ok("empty multi-axis reduction", backend.execute(execution));
+      const auto result = cpu::from_core_tensor(outputs[0]);
+      check(result.shape() == Shape{2} && (kind == OpKind::kSum ? result.float_data()[0] == 0 :
+            std::isnan(result.float_data()[0])), "empty multi-axis identity mismatch");
+    }
+  }
+}
+
 }  // namespace
 
 int main() {
+  multi_axis_contract_tests();
   transpose_contract_tests();
   cast_broadcast_contract_tests();
   arithmetic_contract_tests();

@@ -26,9 +26,11 @@ contiguous `float32` and `int32` tensors, static Metal kernels for add,
 multiply, fill, `exp`, `gelu`, `silu`, `softmax`, `rmsnorm`, `layernorm`,
 `sum`, `max`, and `mean`, a naive custom MSL matmul kernel for `float32`, and an
 optional MPSGraph-backed matmul path for the Apple optimized primitive route.
-Reductions require an explicit axis and support negative axes; `sum` over an
-empty axis returns zeros, `mean` over an empty axis returns NaNs, and `max` over
-an empty axis is rejected. Softmax, rmsnorm, and layernorm also require an
+Reductions accept all axes (`None` by default), one integer or an axis sequence,
+including negative indices. Selected zero-size axes yield zeros for `sum`, NaNs
+for `mean`, and an error for `max`; `()` copies under the same dtype rules.
+Multi-axis kernels index the original buffer using shared extent/stride metadata;
+mean divides once after accumulation. Softmax, rmsnorm, and layernorm require an
 explicit axis and preserve input shape; softmax uses max-subtraction for
 numerical stability. Zero-element tensors are represented without allocating a
 zero-length Metal buffer, and their copy and kernel paths are no-ops.

@@ -408,6 +408,59 @@ kernel void matmul_f32(device const float* lhs [[buffer(0)]],
   out[id] = sum;
 }
 
+inline ulong reduction_offset(ulong index, device const ulong* metadata, ulong begin, ulong end) {
+  ulong offset = 0;
+  for (ulong axis = end; axis > begin; --axis) {
+    const ulong entry = (axis - 1) * 2;
+    offset += (index % metadata[entry]) * metadata[entry + 1];
+    index /= metadata[entry];
+  }
+  return offset;
+}
+
+kernel void reduce_axes_f32(device const float* input [[buffer(0)]],
+                            device float* out [[buffer(1)]],
+                            constant uint& output_n [[buffer(2)]],
+                            constant uint& reduce_n [[buffer(3)]],
+                            device const ulong* metadata [[buffer(4)]],
+                            constant ulong& output_rank [[buffer(5)]],
+                            constant ulong& rank [[buffer(6)]],
+                            constant uint& operation [[buffer(7)]],
+                            uint id [[thread_position_in_grid]]) {
+  if (id >= output_n) return;
+  const ulong base = reduction_offset(id, metadata, 0, output_rank);
+  float value = operation == 1 ? -INFINITY : 0.0f;
+  for (uint r = 0; r < reduce_n; ++r) {
+    const float item = input[base + reduction_offset(r, metadata, output_rank, rank)];
+    if (operation == 1) {
+      if (isnan(item)) { value = item; break; }
+      if (value < item) value = item;
+    } else value += item;
+  }
+  out[id] = operation == 2 ? value / float(reduce_n) : value;
+}
+
+kernel void reduce_axes_i32(device const int* input [[buffer(0)]],
+                            device int* out [[buffer(1)]],
+                            constant uint& output_n [[buffer(2)]],
+                            constant uint& reduce_n [[buffer(3)]],
+                            device const ulong* metadata [[buffer(4)]],
+                            constant ulong& output_rank [[buffer(5)]],
+                            constant ulong& rank [[buffer(6)]],
+                            constant uint& operation [[buffer(7)]],
+                            uint id [[thread_position_in_grid]]) {
+  if (id >= output_n) return;
+  const ulong base = reduction_offset(id, metadata, 0, output_rank);
+  uint sum = 0;
+  int maximum = (-2147483647 - 1);
+  for (uint r = 0; r < reduce_n; ++r) {
+    const int item = input[base + reduction_offset(r, metadata, output_rank, rank)];
+    if (operation == 1) maximum = max(maximum, item);
+    else sum += uint(item);
+  }
+  out[id] = operation == 1 ? maximum : as_type<int>(sum);
+}
+
 kernel void reduce_sum_f32(device const float* input [[buffer(0)]],
                            device float* out [[buffer(1)]],
                            constant uint& output_n [[buffer(2)]],

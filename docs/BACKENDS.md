@@ -108,6 +108,11 @@ execution request. Squeeze/expand_dims use the same shared-buffer path.
 Transpose is a one-input `kTranspose` request with `OpDesc.axes`, implemented
 on CPU/Metal/CUDA as a bit-preserving copy into an independent contiguous
 buffer. Dtype and ownership contracts are in [TENSOR_API.md](TENSOR_API.md).
+Optional `OpDesc.reduction_axes` extends sum/max/mean without changing dispatch.
+The shared plan validates selected axes and output metadata, and supplies
+canonical indexing for native CPU/MSL/CUDA loops. Empty selections return a
+copy; absent attributes preserve the original single-axis path. Multi-axis
+mean divides once by the total selected element count.
 
 Kernel requests must pass the shared core kernel contract validator before a
 backend executes them: they require output metadata, launch metadata, a

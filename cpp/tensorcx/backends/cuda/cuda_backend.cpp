@@ -252,6 +252,42 @@ Status CudaBackend::execute(const BackendExecution& execution) {
     for (const auto& input : execution.inputs) {
       if (input.dtype!=DType::kFloat32) return invalid("CUDA operations only support float32");
     }
+    if ((kind == OpKind::kSum || kind == OpKind::kMax || kind == OpKind::kMean) &&
+        execution.op.reduction_axes) {
+      const auto& input = execution.inputs[0];
+      const auto plan = make_reduction_plan(input.shape, *execution.op.reduction_axes);
+      if (kind == OpKind::kMax && plan.reduction_size == 0)
+        return invalid("max reduction requires non-empty axes");
+      if (execution.op.reduction_axes->empty()) {
+        auto copy = execution; copy.op.kind = OpKind::kCast; copy.op.target_dtype = input.dtype;
+        return execute(copy);
+      }
+      if (plan.index_metadata.size() > std::numeric_limits<std::size_t>::max() / sizeof(Dim))
+        return invalid("CUDA reduction metadata size overflow");
+      ContextScope device;
+      if (!device.ready()) return device.status();
+      auto result = CudaBuffer::create(input.dtype, plan.output_shape);
+      if (!result) return result.status();
+      const auto count = static_cast<std::size_t>(numel(plan.output_shape));
+      if (count) {
+        void* allocation = nullptr;
+        const auto bytes = plan.index_metadata.size() * sizeof(Dim);
+        auto status = runtime_status(cudaMalloc(&allocation, bytes), "CUDA reduction metadata allocation");
+        if (!status.ok()) return status;
+        std::unique_ptr<void, DeviceDeleter> metadata(allocation, DeviceDeleter{device.owner()});
+        status = runtime_status(cudaMemcpy(allocation, plan.index_metadata.data(), bytes, cudaMemcpyHostToDevice),
+                                "CUDA reduction metadata copy");
+        if (!status.ok()) return status;
+        const auto source = std::static_pointer_cast<CudaBuffer>(input.buffer);
+        status = runtime_status(launch_reduce_axes(static_cast<const float*>(source->data()),
+            static_cast<float*>(result.value()->data()), count, static_cast<std::size_t>(plan.reduction_size),
+            static_cast<const Dim*>(metadata.get()), plan.output_shape.size(), input.shape.size(), kind),
+            "CUDA multi-axis reduction");
+        if (!status.ok()) return status;
+      }
+      execution.outputs[0] = to_core_tensor(CudaTensor(input.dtype, plan.output_shape, result.move_value()));
+      return Status::Ok();
+    }
     std::optional<BroadcastPlan> broadcast;
     if (kind==OpKind::kFill) {
       if(execution.outputs[0].dtype!=DType::kFloat32) return invalid("CUDA fill only supports float32");

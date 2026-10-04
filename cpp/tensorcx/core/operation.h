@@ -60,6 +60,9 @@ struct OpDesc {
   bool scalar_left{false};
   DType target_dtype{DType::kFloat32};
   Shape axes{};
+  // Absent preserves the original single-axis primitive. An empty selection
+  // reduces no axes and returns independent storage, subject to dtype rules.
+  std::optional<Shape> reduction_axes{};
 };
 
 struct PrimitiveOpSchema {

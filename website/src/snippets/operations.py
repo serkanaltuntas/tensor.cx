@@ -35,3 +35,6 @@ print(values.T.numpy())
 expanded = values.expand_dims((0, -1))
 print(expanded.shape)  # (1, 2, 3, 1)
 print(expanded.squeeze().shape)  # (2, 3)
+
+print(a.sum().numpy())  # 10.0
+print(a.mean(axis=(0, 1), keepdims=True).numpy())  # [[2.5]]

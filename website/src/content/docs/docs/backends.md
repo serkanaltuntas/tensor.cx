@@ -23,6 +23,7 @@ only device index 0 is exposed.
 | Float32 sum, max, mean | Yes | Yes | Yes |
 | Int32 sum, max | Yes | Yes | No |
 | Reduction `keepdims` | Yes | Yes | Yes, float32 |
+| All-axis / multi-axis sum, max, mean | Yes | Yes | Yes, float32 |
 | Float32 exp, GELU, SiLU | Yes | Yes | Yes |
 | Float32 softmax, RMSNorm, LayerNorm | Yes | Yes | Yes |
 | Generated kernels | Optional MLIR subset | Experimental MSL subset | Optional MLIR subset |

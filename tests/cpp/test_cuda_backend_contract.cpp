@@ -255,6 +255,43 @@ void transpose_contract(cuda::CudaBackend& backend) {
   }
 }
 
+void multi_axis_contract(cuda::CudaBackend& backend) {
+  Shape high_rank(300, 1); high_rank.front() = 2; high_rank.back() = 3;
+  for (const auto& [shape, axes] : std::vector<std::pair<Shape, Shape>>{
+         {{2, 3, 4}, {2, 0}}, {{257, 2, 3}, {1, 2}}, {{2, 0, 3}, {1, 2}},
+         {{0, 2, 3}, {1, 2}}, {high_rank, {0, 299}}, {{}, {}}, {{2, 3}, {}}}) {
+    cpu::CpuTensor source(DType::kFloat32, shape);
+    for (std::size_t i = 0; i < static_cast<std::size_t>(source.size()); ++i)
+      source.mutable_float_data()[i] = static_cast<float>(i % 13) - 3.5F;
+    auto uploaded = cuda::from_cpu(source);
+    require(bool(uploaded), "multi-axis input upload failed");
+    for (const auto kind : {OpKind::kSum, OpKind::kMax, OpKind::kMean}) {
+      OpDesc op{kind}; op.reduction_axes = axes;
+      std::array<Tensor, 1> inputs{cuda::to_core_tensor(uploaded.value())}, outputs{inputs[0]};
+      const auto previous = outputs[0].buffer;
+      BackendExecution execution{BackendOpClass::kPrimitive, op, inputs, outputs};
+      if (kind == OpKind::kMax && make_reduction_plan(shape, axes).reduction_size == 0) {
+        invalid(backend.execute(execution));
+        require(outputs[0].buffer == previous, "empty max changed supplied output");
+        continue;
+      }
+      require(backend.execute(execution).ok(), "CUDA multi-axis reduction failed");
+      const auto actual = cuda::to_cpu(cuda::from_core_tensor(outputs[0]).value()).value();
+      const auto expected = cpu::reduce(op, source);
+      require(actual.shape() == expected.shape() && outputs[0].buffer != inputs[0].buffer,
+              "CUDA multi-axis shape/ownership mismatch");
+      for (std::size_t i = 0; i < actual.float_data().size(); ++i)
+        same_float(actual.float_data()[i], expected.float_data()[i]);
+      const auto output = outputs[0].buffer;
+      execution.op.reduction_axes = Shape{0, 0};
+      invalid(backend.execute(execution));
+      require(outputs[0].buffer == output, "invalid multi-axis request changed output");
+    }
+    require(cuda::to_cpu(uploaded.value()).value().float_data() == source.float_data(),
+            "multi-axis reduction changed input");
+  }
+}
+
 Tensor descriptor(Shape shape = {3}) {
   const auto strides = contiguous_strides(shape);
   return {DType::kFloat32, std::move(shape), strides, {"cuda", 0}, nullptr, 0};
@@ -350,6 +387,7 @@ int main() {
     cast_contract(backend);
     broadcast_contract(backend);
     transpose_contract(backend);
+    multi_axis_contract(backend);
     // Long contiguous rows exercise the cooperative path under device
     // memcheck/racecheck as well as ordinary native acceptance.
     for (const std::int64_t width : {256, 257, 4097}) {

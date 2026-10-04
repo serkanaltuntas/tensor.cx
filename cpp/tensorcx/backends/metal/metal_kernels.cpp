@@ -534,6 +534,12 @@ class KernelRuntime {
     if (std::strcmp(name, "reduce_sum_f32") == 0) {
       return pipeline_slot(reduce_sum_f32_, name);
     }
+    if (std::strcmp(name, "reduce_axes_f32") == 0) {
+      return pipeline_slot(reduce_axes_f32_, name);
+    }
+    if (std::strcmp(name, "reduce_axes_i32") == 0) {
+      return pipeline_slot(reduce_axes_i32_, name);
+    }
     if (std::strcmp(name, "reduce_max_f32") == 0) {
       return pipeline_slot(reduce_max_f32_, name);
     }
@@ -642,6 +648,8 @@ class KernelRuntime {
   NS::SharedPtr<MTL::ComputePipelineState> rmsnorm_f32_;
   NS::SharedPtr<MTL::ComputePipelineState> layernorm_f32_;
   NS::SharedPtr<MTL::ComputePipelineState> reduce_sum_f32_;
+  NS::SharedPtr<MTL::ComputePipelineState> reduce_axes_f32_;
+  NS::SharedPtr<MTL::ComputePipelineState> reduce_axes_i32_;
   NS::SharedPtr<MTL::ComputePipelineState> reduce_max_f32_;
   NS::SharedPtr<MTL::ComputePipelineState> reduce_mean_f32_;
   NS::SharedPtr<MTL::ComputePipelineState> reduce_sum_i32_;
@@ -1203,7 +1211,68 @@ Expected<MetalTensor> fill(const OpDesc& op, Shape shape, DType dtype, double va
   return output;
 }
 
+static Expected<MetalTensor> reduce_selected_axes(const OpDesc& op, const MetalTensor& input) {
+  if (op.kind != OpKind::kSum && op.kind != OpKind::kMax && op.kind != OpKind::kMean)
+    return Status(StatusCode::kInvalidArgument, "unsupported Metal reduction operation");
+  ReductionPlan plan;
+  try {
+    plan = make_reduction_plan(input.shape(), *op.reduction_axes);
+  } catch (const std::invalid_argument& error) {
+    return Status(StatusCode::kInvalidArgument, error.what());
+  }
+  if (op.kind == OpKind::kMean && input.dtype() != DType::kFloat32)
+    return Status(StatusCode::kInvalidArgument, "mean only supports float32 tensors");
+  if (op.kind == OpKind::kMax && plan.reduction_size == 0)
+    return Status(StatusCode::kInvalidArgument, "max reduction requires non-empty axes");
+  auto input_count = checked_thread_count(input.size());
+  if (!input_count) return input_count.status();
+  if (op.reduction_axes->empty()) {
+    OpDesc copy{OpKind::kCast}; copy.target_dtype = input.dtype();
+    return execute_cast(copy, input);
+  }
+  auto count_result = checked_thread_count(numel(plan.output_shape));
+  if (!count_result) return count_result.status();
+  const auto count = count_result.move_value();
+  auto reduce_result = checked_reduction_extent_for_metal(plan.reduction_size);
+  if (!reduce_result) return reduce_result.status();
+  const auto reduce_count = reduce_result.move_value();
+  auto allocated = MetalBuffer::create(input.dtype(), count);
+  if (!allocated) return allocated.status();
+  auto buffer = allocated.move_value();
+  MetalTensor result(input.dtype(), plan.output_shape, buffer);
+  if (count == 0) return result;
+  if (reduce_count == 0) {
+    const auto status = fill_empty_reduction_output(op.kind, input.dtype(), count, buffer);
+    if (!status.ok()) return status;
+    return result;
+  }
+  if (plan.index_metadata.size() > std::numeric_limits<std::size_t>::max() / sizeof(Dim))
+    return Status(StatusCode::kInvalidArgument, "Metal reduction metadata size overflow");
+  auto metadata_result = MetalBuffer::create(DType::kInt32, plan.index_metadata.size() * 2);
+  if (!metadata_result) return metadata_result.status();
+  auto metadata = metadata_result.move_value();
+  auto status = metadata->copy_from_host(plan.index_metadata.data(), metadata->nbytes());
+  if (!status.ok()) return status;
+  auto pipeline = runtime().pipeline(input.dtype() == DType::kFloat32 ? "reduce_axes_f32" : "reduce_axes_i32");
+  if (!pipeline) return pipeline.status();
+  const std::uint64_t output_rank = plan.output_shape.size(), rank = input.shape().size();
+  const std::uint32_t operation = op.kind == OpKind::kSum ? 0 : op.kind == OpKind::kMax ? 1 : 2;
+  status = run_threads(*pipeline.move_value(), count, [&](MTL::ComputeCommandEncoder& encoder) {
+    encoder.setBuffer(input.buffer()->native(), 0, 0);
+    encoder.setBuffer(buffer->native(), 0, 1);
+    encoder.setBytes(&count, sizeof(count), 2);
+    encoder.setBytes(&reduce_count, sizeof(reduce_count), 3);
+    encoder.setBuffer(metadata->native(), 0, 4);
+    encoder.setBytes(&output_rank, sizeof(output_rank), 5);
+    encoder.setBytes(&rank, sizeof(rank), 6);
+    encoder.setBytes(&operation, sizeof(operation), 7);
+  });
+  if (!status.ok()) return status;
+  return result;
+}
+
 Expected<MetalTensor> reduce(const OpDesc& op, const MetalTensor& input) {
+  if (op.reduction_axes) return reduce_selected_axes(op, input);
   auto dims_result = checked_reduction_dims(input, op);
   if (!dims_result) {
     return dims_result.status();

@@ -107,13 +107,13 @@ class Tensor:
             return NotImplemented
         return matmul(self, other)
 
-    def sum(self, axis: int, keepdims: bool = False) -> "Tensor":
+    def sum(self, axis=None, keepdims: bool = False) -> "Tensor":
         return sum(self, axis=axis, keepdims=keepdims)
 
-    def max(self, axis: int, keepdims: bool = False) -> "Tensor":
+    def max(self, axis=None, keepdims: bool = False) -> "Tensor":
         return max(self, axis=axis, keepdims=keepdims)
 
-    def mean(self, axis: int, keepdims: bool = False) -> "Tensor":
+    def mean(self, axis=None, keepdims: bool = False) -> "Tensor":
         return mean(self, axis=axis, keepdims=keepdims)
 
     def exp(self) -> "Tensor":
@@ -175,22 +175,22 @@ def reshape(input: Tensor, shape) -> Tensor:
 def _axis_sequence(axes) -> tuple[tuple[int, ...], bool]:
     """Return integer axes and whether the argument was one integer."""
     if isinstance(axes, (bool, np.bool_, str, bytes)):
-        raise ValueError("axes must be integers")
+        raise ValueError("axis must be an integer or iterable of integers")
     try:
         value = operator.index(axes)
     except TypeError:
         try:
             values = tuple(axes)
         except TypeError:
-            raise ValueError("axes must be an integer or iterable of integers") from None
+            raise ValueError("axis must be an integer or iterable of integers") from None
         return tuple(_normalize_axis(value) for value in values), False
     return (_normalize_axis(value),), True
 
 
-def _axes_in_rank(axes: tuple[int, ...], rank: int) -> tuple[int, ...]:
+def _axes_in_rank(axes: tuple[int, ...], rank: int, *, label: str = "axis") -> tuple[int, ...]:
     normalized = tuple(axis + rank if axis < 0 else axis for axis in axes)
     if any(axis < 0 or axis >= rank for axis in normalized):
-        raise ValueError("axis is out of range")
+        raise ValueError(f"{label} is out of range")
     if len(set(normalized)) != len(normalized):
         raise ValueError("axes must not repeat")
     return normalized
@@ -400,29 +400,42 @@ def matmul(lhs: Tensor, rhs: Tensor, backend: str = "auto") -> Tensor:
     return Tensor(_core.matmul(lhs._impl, rhs._impl, backend=backend))
 
 
-def _reduce(input: Tensor, axis: int, keepdims: bool, name: str) -> Tensor:
+def _reduce(input: Tensor, axis, keepdims: bool, name: str) -> Tensor:
     if not isinstance(input, Tensor):
         raise TypeError(f"{name} expects a Tensor argument")
     if not isinstance(keepdims, (bool, np.bool_)):
         raise TypeError("keepdims must be a boolean")
-    axis = _normalize_axis(axis)
-    result = Tensor(getattr(_core, name)(input._impl, axis=axis))
-    if keepdims and input.shape:
-        shape = list(input.shape)
-        shape[axis] = 1
-        return result.reshape(shape)
+    rank = len(input.shape)
+    if axis is None:
+        axes = tuple(range(rank))
+        scalar_reduction = rank == 0
+    else:
+        values, single = _axis_sequence(axis)
+        scalar_reduction = rank == 0 and single and values[0] in (0, -1)
+        axes = () if scalar_reduction else _axes_in_rank(values, rank, label="reduction axis")
+    # Preserve the original one-axis path, including scalar 0/-1 semantics.
+    if scalar_reduction or len(axes) == 1:
+        result = Tensor(getattr(_core, name)(input._impl, axis=axes[0] if axes else 0))
+    else:
+        result = Tensor(getattr(_core, f"_{name}_axes")(input._impl, axes))
+    if keepdims and rank:
+        selected = set(axes)
+        return result.reshape(tuple(1 if i in selected else size for i, size in enumerate(input.shape)))
     return result
 
 
-def sum(input: Tensor, axis: int, keepdims: bool = False) -> Tensor:
+def sum(input: Tensor, axis=None, keepdims: bool = False) -> Tensor:
+    """Sum over all axes (None), one axis, or an axis sequence; retain dtype."""
     return _reduce(input, axis, keepdims, "sum")
 
 
-def max(input: Tensor, axis: int, keepdims: bool = False) -> Tensor:
+def max(input: Tensor, axis=None, keepdims: bool = False) -> Tensor:
+    """Maximum over selected axes; reducing a zero-size axis is an error."""
     return _reduce(input, axis, keepdims, "max")
 
 
-def mean(input: Tensor, axis: int, keepdims: bool = False) -> Tensor:
+def mean(input: Tensor, axis=None, keepdims: bool = False) -> Tensor:
+    """Float32 mean over selected axes, dividing once by their element count."""
     return _reduce(input, axis, keepdims, "mean")
 
 

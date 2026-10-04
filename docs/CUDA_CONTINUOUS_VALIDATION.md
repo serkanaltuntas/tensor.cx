@@ -98,7 +98,7 @@ Every run requires:
 - 595 or more tests from the CUDA discovery/primitive, MLIR runtime/expression,
   and public tensor API acceptance files, with no skipped, failed, errored or
   xfailed tests; named anchors include arithmetic, reduction `keepdims`, casts,
-  broadcasting, transpose, squeeze and expand_dims;
+  broadcasting, transpose, squeeze, expand_dims and multi-axis reductions;
 - four named native CTest contracts, with no skipped or failed cases;
 - CUDA backend native contracts under both memcheck and racecheck;
 - the CUDA MLP example reporting CPU parity and shape `(32,10)`.

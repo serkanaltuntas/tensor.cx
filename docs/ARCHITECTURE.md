@@ -122,6 +122,12 @@ metadata to index original buffers and allocates only the contiguous result.
 output axes to input strides. CPU/MSL/CUDA implementations copy stored bits to
 an independent contiguous output. Squeeze/expand_dims reuse reshape metadata
 views. See [tensor API semantics](TENSOR_API.md).
+Reductions accept optional `OpDesc.reduction_axes`: absent uses the existing
+single `axis`; present selects axes with `make_reduction_plan`. The plan orders
+kept and reduced dimensions canonically and supplies extent/stride pairs.
+CPU/Metal/CUDA index the original buffer directly, with one accumulation and
+one final division for mean. An empty selection copies under the same dtype
+rules. Python implements `None` and `keepdims` ergonomics.
 Constructor-style `empty` allocation remains outside `Backend::execute` for now.
 
 This is a deliberate, documented transition kept small per the "avoid unrelated

@@ -1001,6 +1001,58 @@ CpuTensor execute_binary(const OpDesc& op, const CpuTensor& lhs, const CpuTensor
 }
 
 CpuTensor reduce(const OpDesc& op, const CpuTensor& input) {
+  if (op.reduction_axes) {
+    if (op.kind != OpKind::kSum && op.kind != OpKind::kMax && op.kind != OpKind::kMean)
+      throw std::invalid_argument("unsupported CPU reduction operation");
+    const auto plan = make_reduction_plan(input.shape(), *op.reduction_axes);
+    if (op.kind == OpKind::kMean && input.dtype() != DType::kFloat32)
+      throw std::invalid_argument("mean only supports float32 tensors");
+    if (op.kind == OpKind::kMax && plan.reduction_size == 0)
+      throw std::invalid_argument("max reduction requires non-empty axes");
+    if (op.reduction_axes->empty()) {
+      OpDesc copy{OpKind::kCast}; copy.target_dtype = input.dtype();
+      return execute_unary(copy, input);
+    }
+    CpuTensor result(input.dtype(), plan.output_shape);
+    const auto offset = [&](Dim index, std::size_t begin, std::size_t end) {
+      Dim value = 0;
+      for (auto axis = end; axis-- > begin;) {
+        const auto extent = plan.index_metadata[2 * axis];
+        value += (index % extent) * plan.index_metadata[2 * axis + 1];
+        index /= extent;
+      }
+      return static_cast<std::size_t>(value);
+    };
+    const auto outer_rank = plan.output_shape.size(), rank = input.shape().size();
+    for (Dim group = 0; group < result.size(); ++group) {
+      const auto base = offset(group, 0, outer_rank);
+      if (input.dtype() == DType::kFloat32) {
+        float value = op.kind == OpKind::kMax ? -std::numeric_limits<float>::infinity() : 0.0F;
+        for (Dim r = 0; r < plan.reduction_size; ++r) {
+          const auto item = input.float_data()[base + offset(r, outer_rank, rank)];
+          if (op.kind == OpKind::kMax) {
+            if (std::isnan(item)) { value = item; break; }
+            value = std::max(value, item);
+          } else value += item;
+        }
+        if (op.kind == OpKind::kMean)
+          value = plan.reduction_size ? value / static_cast<float>(plan.reduction_size)
+                                      : std::numeric_limits<float>::quiet_NaN();
+        result.mutable_float_data()[static_cast<std::size_t>(group)] = value;
+      } else {
+        std::uint32_t sum = 0;
+        std::int32_t maximum = std::numeric_limits<std::int32_t>::min();
+        for (Dim r = 0; r < plan.reduction_size; ++r) {
+          const auto item = input.int32_data()[base + offset(r, outer_rank, rank)];
+          if (op.kind == OpKind::kMax) maximum = std::max(maximum, item);
+          else sum += static_cast<std::uint32_t>(item);
+        }
+        result.mutable_int32_data()[static_cast<std::size_t>(group)] =
+            op.kind == OpKind::kMax ? maximum : static_cast<std::int32_t>(sum);
+      }
+    }
+    return result;
+  }
   const ReductionDims dims = reduction_dims(input, op.axis);
   if (op.kind == OpKind::kMax && dims.reduce == 0) {
     throw std::invalid_argument("max reduction requires a non-empty axis");

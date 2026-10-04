@@ -22,7 +22,7 @@ CPU fallback or dtype conversion is introduced.
 | `+`, `-`, `*`, `/`, unary `-` | Float32; broadcast-compatible binary shapes; real scalars in either position; [API contract](TENSOR_API.md) |
 | `astype` | Explicit float32/int32 conversion on the same device; checked float-to-int truncation; [API contract](TENSOR_API.md#explicit-dtype-conversion) |
 | `matmul` / `@` | Rank-2 `(m,k) @ (k,n)`; `auto` and `custom` use the tiled CUDA kernel; `optimized` and unknown preferences fail explicitly |
-| `sum`, `max`, `mean` | Explicit axis, including negative axes; axis removed unless `keepdims=True`; scalar accepts axis 0/-1; empty sum gives zero, empty mean NaN, empty max axis raises |
+| `sum`, `max`, `mean` | `axis=None` (all axes), integer or axis sequence; `keepdims` retains selected dimensions; `()` copies; [reduction semantics](TENSOR_API.md#reduction-dimensions) |
 | `exp`, `gelu`, `silu` | Shape-preserving; GELU uses the same tanh approximation as CPU |
 | `softmax` | Stable max-subtracted normalization along any valid axis; shape preserved |
 | `rmsnorm`, `layernorm` | Any valid axis, shape preserved, no affine weights; finite non-negative float32-representable epsilon required, even for empty input |

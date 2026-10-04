@@ -704,6 +704,13 @@ NativeTensor reshape_tensor(const NativeTensor& input, nb::handle requested_shap
 
 template <typename NativeTensor, typename ExecuteSingle>
 void bind_tensor_extensions(nb::module_& module, ExecuteSingle execute_single) {
+  for (auto [name, kind] : {std::pair{"_sum_axes", OpKind::kSum},
+                            {"_max_axes", OpKind::kMax}, {"_mean_axes", OpKind::kMean}}) {
+    module.def(name, [kind, execute_single](const NativeTensor& input, nb::handle axes) {
+      OpDesc op{kind}; op.reduction_axes = parse_shape(axes);
+      return execute_single(input, op);
+    }, nb::arg("input"), nb::arg("axes"));
+  }
   module.def("reshape", &reshape_tensor<NativeTensor>, nb::arg("input"), nb::arg("shape"));
   module.def("transpose", [execute_single](const NativeTensor& input, nb::handle axes) {
     OpDesc op{OpKind::kTranspose};

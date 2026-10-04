@@ -368,7 +368,8 @@ v0.1, elementwise operations require exact shape and dtype matches. Do not add
 broadcasting, implicit casts, or silent reinterpretation in that original scope.
 The user-authorized post-v0.1 API extension now includes explicit float32/int32
 `astype`, ordinary binary tensor broadcasting, contiguous-copy transpose, and
-shared-storage squeeze/expand_dims; see `docs/TENSOR_API.md`.
+shared-storage squeeze/expand_dims, and all-axis/multi-axis sum/max/mean;
+see `docs/TENSOR_API.md`. Normalizations still require one explicit axis.
 Implicit dtype promotion, device transfer, general strides and generated-kernel
 broadcasting remain outside that extension.
 

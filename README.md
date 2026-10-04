@@ -315,9 +315,11 @@ print(ln.cpu().numpy().shape)
   values. See [the full contract](docs/TENSOR_API.md).
 - `int32` add/subtract/multiply/negate overflow wraps (defined two's-complement), matching
   NumPy and identical on CPU and Metal.
-- `sum`, `max`, and `mean` require an explicit `axis`. Negative axes are
-  supported; `keepdims=True` retains that axis with size 1. `sum` over an empty axis returns zeros, `mean` over an empty axis
-  returns NaNs, and `max` over an empty axis raises `ValueError`.
+- `sum`, `max`, and `mean` accept `axis=None` (default: all axes), one integer
+  or an axis sequence such as `(0, -1)`. `keepdims=True` retains every selected
+  axis with size 1. An empty selection `()` copies. Sum over a zero-size selected
+  axis returns zeros, mean returns NaNs, and max raises `ValueError`.
+  Multi-axis mean sums each group then divides once; dtype limits are unchanged.
 - `x.transpose(axes=None)` / `cx.transpose(x, axes=None)` and `x.T` permute axes
   into a new contiguous buffer on the same device, including identity/scalar
   copies. `x.squeeze(axis=None)` and `x.expand_dims(axis)` (also top-level

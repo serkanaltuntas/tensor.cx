@@ -3,7 +3,7 @@
 User-requested increment, 2026-10-04: basic arithmetic and Python/NumPy real
 scalars, contiguous reshape, and reduction `keepdims`, followed by explicit
 `astype` conversion, tensor broadcasting, and shape operations (`transpose`,
-`squeeze`, `expand_dims`). These extend the original API;
+`squeeze`, `expand_dims`), followed by all-axis/multi-axis reductions. These extend the original API;
 they do not change the historical Phase 9/10 acceptance records.
 
 ## Arithmetic
@@ -131,12 +131,43 @@ print(x.expand_dims((0, -1)).squeeze().shape)  # (2, 3)
 
 ## Reduction dimensions
 
-`cx.sum/max/mean(x, axis, keepdims=False)` and corresponding tensor methods
-retain existing results by default. `keepdims=True` replaces the reduced axis
-with size 1 using a metadata view of the result. Negative axes work. A rank-0
-input remains rank-0 for axis 0/-1. `keepdims` must be a Python or NumPy boolean.
-The existing empty-axis and dtype contracts are unchanged. Axis is still one
-explicit integer; all-axis and multiple-axis reductions remain future work.
+`cx.sum/max/mean(x, axis=None, keepdims=False)` and corresponding tensor methods
+accept one integer, an iterable of integer axes, or `None` (the default) to
+reduce every axis. Negative indices refer to input rank. Repeated axes,
+out-of-range axes, booleans, strings and non-integral values are rejected.
+Axis values must fit signed 64 bits. An explicit empty selection `axis=()`
+reduces nothing and returns an independent same-shape copy preserving stored
+bits; dtype restrictions still apply. On a scalar, `None`, integer `0` and `-1`
+use the existing scalar reduction; `()` copies, and non-empty sequences fail.
+
+`keepdims=True` replaces every selected axis with size 1, using a metadata view
+of the independent result. Otherwise those axes are removed. The flag must be
+a Python or NumPy boolean. Results retain the input dtype and device. Sum/max
+support float32/int32 on CPU/Metal; CUDA reductions and all means require
+float32. Int32 sums wrap in two's-complement, with no implicit promotion.
+
+Selected axes are traversed in their original input order, independent of the
+order in the axis argument. Multiple-axis mean sums each group once in float32
+then divides once by the total number of selected elements. It is not a chain
+of intermediate means. NaNs propagate; sum/mean accumulation can overflow or
+lose precision, and NumPy may use a different accumulation order. The existing
+single-axis path remains unchanged. Max keeps the first equal value in the
+multi-axis traversal, including signed zeros.
+
+If any selected dimension is zero, sum fills zeros, mean fills NaNs, and max
+raises `ValueError`, even when the output would also be empty. A zero in a kept
+dimension instead yields an empty output. Output shape/stride overflow is
+always checked. An empty output does not multiply an unvisited nonzero
+reduction space, so valid empty shapes with very large dimensions remain usable.
+Existing Metal element-count limits apply; there is no additional rank cap.
+
+The optional native `OpDesc.reduction_axes` and shared `make_reduction_plan`
+map output/reduced coordinates directly into the original contiguous buffer.
+CPU, MSL and CUDA paths allocate an independent output and do not materialize
+a transposed intermediate or download the input. GPU indexing metadata is
+O(rank). Metal retains its existing host initialization of zero/NaN identities
+for empty reductions. Normalization operations still accept only one axis;
+generated-kernel semantics are unchanged.
 
 ```python
 import tensorcx as cx
@@ -145,15 +176,18 @@ x = cx.tensor([[1.0, 2.0], [3.0, 4.0]])
 print(((x - 1) / 2).numpy())  # [[0.  0.5], [1.  1.5]]
 print(x.reshape((4,)).shape)  # (4,)
 print(x.sum(axis=-1, keepdims=True).numpy())  # [[3.], [7.]]
+print(x.sum().numpy())  # 10.0
+print(x.mean(axis=(0, 1), keepdims=True).numpy())  # [[2.5]]
 ```
 
 ## Verification and remaining work
 
-`tests/python/test_tensor_api.py`, `tests/python/test_cast_broadcast.py` and
-`tests/python/test_shape_ops.py` check the public contract on every available
+`tests/python/test_tensor_api.py`, `tests/python/test_cast_broadcast.py`,
+`tests/python/test_shape_ops.py` and `tests/python/test_multi_axis_reductions.py`
+check the public contract on every available
 backend. CUDA acceptance requires a GPU before collection and includes these
 files without skips; native contracts cover arithmetic, cast, broadcast and
-transpose validation and numerical edge cases. Metal must
+transpose/multi-axis reduction validation and numerical edge cases. Metal must
 also pass compilation and device parity on a Metal host.
 
 First increment acceptance on 2026-10-04 (before casts/broadcasting): full suite
@@ -184,10 +218,19 @@ shape-operation tests. Website checking, production build, four browser tests
 and the operations example passed. These results establish local CPU/CUDA
 acceptance; Metal compilation and device execution require a separate macOS gate.
 
+Multi-axis reduction local acceptance on 2026-10-04: required CUDA/MLIR full
+suite passed 2059 tests with 160 expected platform/Metal skips. The new API
+file passed 322 CPU/CUDA tests without skips. Native and ASan/UBSan contracts
+passed 4/4 each. Fresh CPU/CUDA sdist-to-wheel installations passed with LLVM
+present, absent and the GPU hidden; installed wheels passed 161 CPU and 322
+CPU/CUDA multi-axis tests. Website checking, production build, four browser
+tests and the operations example passed. These are local CPU/CUDA results;
+Metal compilation and device execution require the separate macOS gate.
+
 This increment does not complete the broader product backlog. The existing
 [CUDA completion ledger](CUDA_PRODUCT_COMPLETION.md) still tracks additional
 GPU/toolchain evidence and an isolated remote GPU runner. Further proposed API
-work includes slicing, concatenation and multi-axis reductions.
+work includes slicing and concatenation.
 Product proposals also include portable
 releases, diagnostics, interoperability, inference primitives, compiler caching,
 profiling, more dtypes, and asynchronous execution. These need their own scopes

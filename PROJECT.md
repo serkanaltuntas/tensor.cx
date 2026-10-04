@@ -61,7 +61,7 @@ Next implementation:    compatibility and repository-wide continuous GPU validat
 Open scope:             other SM/host versions and broader compiler features
 API increment:          arithmetic/scalars, contiguous reshape and keepdims;
                         explicit casts, tensor broadcasting, transpose,
-                        squeeze and expand_dims;
+                        squeeze, expand_dims and all-axis/multi-axis reductions;
                         docs/TENSOR_API.md (acceptance tracked separately)
 ```
 
@@ -1282,8 +1282,9 @@ Progress:
 - sum and max are implemented for float32 and int32 on CPU and Metal.
 - mean, exp, gelu, silu, softmax, rmsnorm, and layernorm are implemented for
   float32 on CPU and Metal.
-- Reductions require an explicit axis, support negative axes, and remove the
-  reduced axis from the output shape.
+- Phase 6 reductions originally required one explicit axis. The later tensor
+  API increment adds axis=None, multi-axis selection and keepdims; see
+  docs/TENSOR_API.md for the current contract.
 - softmax requires an explicit axis, preserves the input shape, supports
   negative axes, and uses max-subtraction for numerical stability.
 - rmsnorm requires an explicit axis, preserves the input shape, supports

@@ -179,6 +179,36 @@ __global__ void staged_axis(const float* x, float* out, std::size_t groups,
     __syncthreads(); // All lanes must finish before reusing shared row state.
   }
 }
+__device__ std::size_t reduction_offset(std::size_t index, const Dim* metadata,
+                                       std::size_t begin, std::size_t end) {
+  std::size_t offset = 0;
+  for (auto axis = end; axis-- > begin;) {
+    const auto extent = static_cast<std::size_t>(metadata[2 * axis]);
+    offset += (index % extent) * static_cast<std::size_t>(metadata[2 * axis + 1]);
+    index /= extent;
+  }
+  return offset;
+}
+
+__global__ void reduce_axes(const float* input, float* output, std::size_t groups,
+                            std::size_t reduce, const Dim* metadata,
+                            std::size_t output_rank, std::size_t rank, OpKind op) {
+  for (std::size_t group = std::size_t(blockIdx.x) * blockDim.x + threadIdx.x;
+       group < groups; group += std::size_t(blockDim.x) * gridDim.x) {
+    const auto base = reduction_offset(group, metadata, 0, output_rank);
+    float value = op == OpKind::kMax ? -CUDART_INF_F : 0.0F;
+    for (std::size_t r = 0; r < reduce; ++r) {
+      const float item = input[base + reduction_offset(r, metadata, output_rank, rank)];
+      if (op == OpKind::kMax) {
+        if (isnan(item)) { value = item; break; }
+        if (value < item) value = item;
+      } else value = __fadd_rn(value, item);
+    }
+    if (op == OpKind::kMean) value = reduce ? value / static_cast<float>(reduce) : nanf("");
+    output[group] = value;
+  }
+}
+
 __global__ void matmul(const float* a,const float* b,float* out,
     std::size_t m,std::size_t n,std::size_t k,std::size_t tile_count) {
   __shared__ float left[16][16],right[16][16];
@@ -212,6 +242,14 @@ cudaError_t launch_axis(const float* x,float* out,std::size_t groups,std::size_t
   }
   axis_kernel<<<blocks(groups),threads>>>(x,out,groups,reduce,inner,op,eps);return finish();
 }
+cudaError_t launch_reduce_axes(const float* input, float* output, std::size_t groups,
+                               std::size_t reduce, const Dim* metadata,
+                               std::size_t output_rank, std::size_t rank, OpKind op) {
+  if (!groups) return cudaSuccess;
+  reduce_axes<<<blocks(groups), threads>>>(input, output, groups, reduce, metadata, output_rank, rank, op);
+  return finish();
+}
+
 cudaError_t launch_matmul(const float* a,const float* b,float* out,std::size_t m,std::size_t n,std::size_t k) {
   if(!m || !n)return cudaSuccess;
   const auto tiles=((m+15)/16)*((n+15)/16);

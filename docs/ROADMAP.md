@@ -62,7 +62,7 @@ for discovery and copies. See [validation evidence](CUDA_PHASE9_VALIDATION.md).
   optimized path. Removing the MPSGraph path leaves a working slow matmul — the
   project is not an MPSGraph wrapper (PROJECT.md §9.2).
 - Reductions: `sum` and `max` on CPU and Metal for `float32` and `int32`, plus
-  `mean` for `float32`, with explicit `axis`, negative-axis support, and
+  `mean` for `float32`, with all-axis, single-axis and multi-axis selection, and
   CPU-vs-Metal tests on non-trivial axes.
 - Unary float32 activations: `exp`, `gelu` (tanh approximation), and `silu` on
   CPU and Metal.
@@ -83,7 +83,8 @@ for discovery and copies. See [validation evidence](CUDA_PHASE9_VALIDATION.md).
 The user-requested [tensor API extension](TENSOR_API.md) adds ordinary
 subtraction/division/negation, real scalars, shared-storage contiguous reshape,
 reduction `keepdims`, explicit float32/int32 casts, binary broadcasting,
-contiguous-copy transpose and shared-storage squeeze/expand_dims.
+contiguous-copy transpose, shared-storage squeeze/expand_dims and
+all-axis/multi-axis reductions.
 These additions preserve the dtype/backend boundaries
 and do not complete the broader CUDA product goal.
 

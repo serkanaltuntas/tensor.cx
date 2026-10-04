@@ -299,6 +299,56 @@ bool transpose_contract() {
   return true;
 }
 
+bool multi_axis_contract() {
+  using namespace tensorcx;
+  metal::MetalBackend backend;
+  Shape high_rank(300, 1); high_rank.front() = 2; high_rank.back() = 3;
+  for (const auto dtype : {DType::kFloat32, DType::kInt32}) {
+    for (const auto& [shape, axes] : std::vector<std::pair<Shape, Shape>>{
+           {{2, 3, 4}, {2, 0}}, {{257, 2, 3}, {1, 2}}, {{2, 0, 3}, {1, 2}},
+           {{0, 2, 3}, {1, 2}}, {high_rank, {0, 299}}, {{}, {}}, {{2, 3}, {}}}) {
+      cpu::CpuTensor source(dtype, shape);
+      for (std::size_t i = 0; i < static_cast<std::size_t>(source.size()); ++i) {
+        if (dtype == DType::kFloat32) source.mutable_float_data()[i] = static_cast<float>(i % 13) - 3.5F;
+        else source.mutable_int32_data()[i] = i % 2 ? INT32_MAX : INT32_MIN;
+      }
+      auto uploaded = metal::from_cpu(source);
+      if (!uploaded) return false;
+      for (const auto kind : {OpKind::kSum, OpKind::kMax, OpKind::kMean}) {
+        OpDesc op{kind}; op.reduction_axes = axes;
+        std::array<Tensor, 1> inputs{metal::to_core_tensor(uploaded.value())}, outputs{inputs[0]};
+        const auto previous = outputs[0].buffer;
+        BackendExecution execution{BackendOpClass::kPrimitive, op, inputs, outputs};
+        if ((kind == OpKind::kMean && dtype == DType::kInt32) ||
+            (kind == OpKind::kMax && make_reduction_plan(shape, axes).reduction_size == 0)) {
+          if (backend.execute(execution).code() != StatusCode::kInvalidArgument ||
+              outputs[0].buffer != previous) return false;
+          continue;
+        }
+        if (!backend.execute(execution).ok() || outputs[0].buffer == inputs[0].buffer) return false;
+        const auto downloaded = metal::to_cpu(metal::from_core_tensor(outputs[0]));
+        if (!downloaded) return false;
+        const auto& actual = downloaded.value();
+        const auto expected = cpu::reduce(op, source);
+        if (actual.shape() != expected.shape() || actual.dtype() != dtype) return false;
+        if (dtype == DType::kInt32) {
+          if (actual.int32_data() != expected.int32_data()) return false;
+        } else {
+          for (std::size_t i = 0; i < actual.float_data().size(); ++i) {
+            const auto a = actual.float_data()[i], b = expected.float_data()[i];
+            if (std::isnan(b) ? !std::isnan(a) : a != b) return false;
+          }
+        }
+        const auto output = outputs[0].buffer;
+        execution.op.reduction_axes = Shape{0, 0};
+        if (backend.execute(execution).code() != StatusCode::kInvalidArgument ||
+            outputs[0].buffer != output) return false;
+      }
+    }
+  }
+  return true;
+}
+
 }  // namespace
 
 int main() {
@@ -326,8 +376,8 @@ int main() {
     std::cerr << "Metal arithmetic CPU parity or validation contract failed\n";
     return 1;
   }
-  if (!broadcast_contract() || !cast_contract() || !transpose_contract()) {
-    std::cerr << "Metal broadcast/cast/transpose CPU parity or validation contract failed\n";
+  if (!broadcast_contract() || !cast_contract() || !transpose_contract() || !multi_axis_contract()) {
+    std::cerr << "Metal broadcast/cast/transpose/reduction CPU parity or validation contract failed\n";
     return 1;
   }
 

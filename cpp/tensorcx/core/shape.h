@@ -30,4 +30,17 @@ struct TransposePlan {
 // empty tensors. The caller materializes a new contiguous output buffer.
 TransposePlan make_transpose_plan(const Shape& input, const Shape& axes);
 
+struct ReductionPlan {
+  Shape output_shape;
+  // Kept dimensions first, then reduced dimensions, each in input axis order.
+  // Metadata has extent/element-stride pairs in that same order.
+  Shape index_metadata;
+  Dim reduction_size{1};
+};
+
+// Validates selected axes and output metadata. With no output elements, a
+// nonempty reduction uses size 1 as an unvisited sentinel to avoid overflow
+// in an iteration space that will never be traversed. A zero extent stays 0.
+ReductionPlan make_reduction_plan(const Shape& input, const Shape& axes);
+
 }  // namespace tensorcx

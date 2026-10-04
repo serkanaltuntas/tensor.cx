@@ -23,7 +23,7 @@ Start with `import tensorcx as cx`. The following example works on CPU:
 | Transpose | `x.transpose(axes=None)`, `cx.transpose(x, axes=None)`, `x.T` | Reverses axes by default; always copies into a contiguous buffer on the same device |
 | Singleton axes | `x.squeeze(axis=None)`, `x.expand_dims(axis)`; also `cx.squeeze`, `cx.expand_dims` | Remove/insert size-one axes as views sharing storage |
 | Matrix multiply | `cx.matmul(a, b)` | Float32, 2D inputs, matching inner dimensions |
-| Reduce | `cx.sum(x, axis=..., keepdims=False)`, `max`, `mean` | Explicit axis; `keepdims=True` retains it with size 1 |
+| Reduce | `cx.sum(x, axis=None, keepdims=False)`, `max`, `mean` | All axes by default; integer or axis sequence; `keepdims=True` retains selected axes with size 1 |
 | Activate | `cx.exp(x)`, `gelu`, `silu` | Float32 |
 | Normalize | `softmax`, `rmsnorm`, `layernorm` | Float32, explicit axis; preserves shape |
 
@@ -48,8 +48,12 @@ Support varies by backend, particularly for `int32`. See the
   through a view also change other views sharing that storage. MLIR CPU/CUDA
   launches preserve caller tensors by copying their output. NumPy export still copies.
   Empty shape inference such as `(0, -1)` is ambiguous and rejected.
-- Reductions support negative axes. An empty-axis sum produces zeros; mean
-  produces NaNs; max raises `ValueError`.
+- Reductions support negative and multiple axes, such as `(0, -1)`; duplicates
+  are errors. `axis=None` reduces all axes, while `axis=()` returns an independent
+  same-shape copy under the same dtype restrictions. Multi-axis mean sums the
+  selected group then divides once; no intermediate means are taken. Reducing
+  a zero-size axis produces zeros for sum, NaNs for mean, and an error for max.
+  NaNs propagate and float32 accumulation can overflow or lose precision.
 - Transpose accepts a full axis permutation, with negative indices; even an
   identity or scalar transpose owns a new buffer. Squeeze removes all size-one
   axes by default, or selected axes. Expand dims accepts one or more positions
@@ -64,6 +68,6 @@ Support varies by backend, particularly for `int32`. See the
   numerical tolerances, not bitwise equality.
 
 There is no autograd, batched matmul, or general
-slicing/strided execution in this API. Reductions still require one explicit axis.
+slicing/strided execution in this API. Normalizations require one explicit axis.
 The [experimental kernel subset](/docs/experimental/) has its own arithmetic
 rules and does not extend the ordinary tensor operators.
