@@ -98,6 +98,11 @@ it does not add LLVM/MLIR to the C++ core or backend build. See PROJECT.md §16 
 
 ## Known deferred design work
 
+- **Device families and multi-device execution.** The dedicated
+  [device backlog](DEVICE_BACKLOG.md) tracks identity/discovery, per-device
+  ownership, transfers, ROCm, Vulkan/SPIR-V and multi-device acceptance.
+  Its proposed sequence is separate from the product feature order below.
+
 - **MLIR CUDA integration.** The [CPU-first runtime slice](MLIR_RUNTIME_INTEGRATION_DECISION.md)
   is implemented. The [CUDA ABI/toolchain decision](MLIR_CUDA_INTEGRATION_DECISION.md)
   and guarded add/subtract/multiply runtime are implemented on sm_52 with primary-context and
