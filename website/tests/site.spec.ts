@@ -27,6 +27,11 @@ test('built search returns a useful result and theme changes persist', async ({ 
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  // Expressive Code sets tabindex after its debounced ResizeObserver callback.
+  // Wait for keyboard access before auditing a freshly loaded code block.
+  await expect.poll(() => page.locator('.expressive-code pre').evaluateAll((blocks) =>
+    blocks.every((block) => block.scrollWidth <= block.clientWidth ||
+      block.getAttribute('tabindex') === '0'))).toBe(true);
   const accessibility = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   expect(accessibility.violations).toEqual([]);
 });

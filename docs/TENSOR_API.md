@@ -282,6 +282,14 @@ check/build, four preview tests, five Workers-emulation tests, deploy dry run an
 the operations snippet passed. Metal compilation/device execution remains the
 separate macOS gate; these results do not cover other NVIDIA architectures.
 
+The subsequent [CI run for `871bd64`](https://github.com/serkanaltuntas/tensor.cx/actions/runs/37213435073)
+passed all 11 jobs, including Metal with MPSGraph enabled and disabled. The
+MPSGraph-disabled job ran all 340 indexing tests on CPU/Metal without skips;
+its full suite passed 1688 tests with 871 expected CUDA/LLVM/platform skips,
+and both native CPU/Metal contracts passed. The same commit's mandatory local
+CUDA push gate passed 1897 tests without skips, all four native contracts,
+memcheck/racecheck and MLP CPU parity. Isolated remote GPU CI remains pending.
+
 This increment does not complete the broader product backlog. The existing
 [CUDA completion ledger](CUDA_PRODUCT_COMPLETION.md) still tracks additional
 GPU/toolchain evidence and an isolated remote GPU runner. Further proposed API

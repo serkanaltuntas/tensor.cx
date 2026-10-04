@@ -44,4 +44,5 @@ print(values[:, ::-1].numpy())
 #  [6 5 4]]
 print(cx.concat([values, values], axis=0).shape)  # (4, 3)
 print(cx.stack([values, values], axis=1).shape)  # (2, 2, 3)
-print([part.shape for part in values.split([1], axis=1)])  # [(2, 1), (2, 2)]
+parts = values.split([1], axis=1)
+print([part.shape for part in parts])  # [(2, 1), (2, 2)]
