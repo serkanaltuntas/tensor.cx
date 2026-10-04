@@ -3,7 +3,7 @@ title: Contributing
 description: Contribute focused fixes, reproducible reports, and CPU-validated backend behavior.
 ---
 
-tensor.cx is an independent personal project by Serkan Altuntas, licensed
+tensor.cx is an independent personal project by [Serkan Altuntaş](https://serkan.ai/), licensed
 under [Apache 2.0](https://github.com/serkanaltuntas/cortex-runtime/blob/main/LICENSE).
 The runtime is pre-alpha, and its API and implementation are still evolving.
 
