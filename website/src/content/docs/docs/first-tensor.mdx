@@ -1,0 +1,45 @@
+---
+title: Your first tensor
+description: Create a million-element tensor, execute an addition, and read the result in Python.
+---
+
+import { Code } from '@astrojs/starlight/components';
+import firstTensor from '../../../snippets/first-tensor.py?raw';
+
+After [installation](/docs/installation/), save this as `first_tensor.py` in
+the source checkout:
+
+<Code code={firstTensor.trim()} lang="python" title="first_tensor.py" />
+
+Run it in the installed environment:
+
+```bash
+uv run --no-sync python first_tensor.py
+```
+
+Expected output:
+
+```text
+[2. 2. 2. 2. 2.]
+```
+
+## What happens
+
+`best_device()` selects an available accelerator, falling back to CPU. Each
+`ones` call allocates a contiguous tensor on that device. Addition executes
+synchronously and returns a new tensor. `.cpu().numpy()` copies the result to
+the CPU as needed and returns a NumPy array.
+
+For a reproducible CPU baseline, change `device = cx.best_device()` to
+`device = "cpu"`. Constructors without a `device` argument also default to CPU.
+
+## Device selection is explicit
+
+Use `cx.devices()` to list available backend names and `cx.is_available("cuda")`
+or `cx.is_available("metal")` before selecting an accelerator. Use
+`tensor.to("cuda")` or `tensor.to("metal")` to transfer a tensor. Only device
+index 0 is currently supported.
+
+Binary operations require matching shapes, dtypes, and devices. They do not
+silently broadcast, cast, or move inputs. Read [tensor operations](/docs/operations/)
+for the next steps.

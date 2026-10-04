@@ -43,6 +43,7 @@ x86_64 with external LLVM 21.1.8 tools. See the
 
 ## Documentation Map
 
+- [`website/`](website/README.md): Astro + Starlight product site and curated user guides for tensor.cx.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md): contributions, validation and publication hygiene.
 - [`SECURITY.md`](SECURITY.md): private vulnerability reporting and trust boundaries.
 - [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md): notices included in source and wheels.

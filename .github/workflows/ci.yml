@@ -8,6 +8,25 @@ permissions:
   contents: read
 
 jobs:
+  website:
+    name: Website build and browser checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: website/.nvmrc
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm test
+
   publication:
     name: Publication hygiene and secret scan
     runs-on: ubuntu-latest
@@ -71,6 +90,11 @@ jobs:
 
       - name: Run CPU tests
         run: uv run pytest
+
+      - name: Run website examples against the CPU build
+        run: |
+          uv run --no-sync python website/src/snippets/first-tensor.py
+          uv run --no-sync python website/src/snippets/operations.py
 
       - name: Configure C++ tests
         run: |

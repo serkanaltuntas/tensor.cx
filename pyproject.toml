@@ -59,6 +59,7 @@ sdist.exclude = [
   ".env", ".env.*", "**/.env", "**/.env.*",
   "**/*.key", "**/*.pem", "**/*.p12", "**/*.pfx",
   "build/**", "dist/**", ".venv/**", ".git/**",
+  "website/**",
 ]
 
 [tool.pytest.ini_options]

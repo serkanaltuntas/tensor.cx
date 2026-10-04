@@ -1,0 +1,227 @@
+---
+import { Code } from 'astro:components';
+import firstTensor from '../snippets/first-tensor.py?raw';
+
+const repository = 'https://github.com/serkanaltuntas/cortex-runtime';
+const description = 'A compact Python-first tensor runtime. Explore CPU, Metal, and CUDA through a backend-neutral C++20 core.';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#f4f5ee" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="canonical" href={new URL('/', Astro.site)} />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Cortex Runtime — Tensor compute, from Python to silicon" />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={new URL('/', Astro.site)} />
+    <title>Cortex Runtime — Tensor compute, from Python to silicon</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header wrap">
+      <a class="brand" href="/" aria-label="Cortex Runtime home">
+        <img src="/favicon.svg" width="34" height="34" alt="" />
+        <span>Cortex<span class="brand-suffix"> Runtime</span></span>
+      </a>
+      <nav aria-label="Main navigation">
+        <a href="/docs/">Docs</a>
+        <a href="/docs/backends/">Backends</a>
+        <a href="/docs/examples/">Examples</a>
+        <a class="repo-link" href={repository}>GitHub <span aria-hidden="true">↗</span></a>
+      </nav>
+    </header>
+
+    <main id="main" class="wrap">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow"><span class="status-dot" aria-hidden="true"></span> INDEPENDENT · APACHE 2.0 · PRE-ALPHA</p>
+          <h1 id="hero-title">Tensor compute.<br /><span>From Python<br />to silicon.</span></h1>
+          <p class="hero-description">A compact tensor runtime for people who want to understand what runs underneath. Python up front. C++20 at the core. CPU, Metal, and CUDA behind one interface.</p>
+          <div class="actions">
+            <a class="button primary" href="/docs/installation/">Start building <span aria-hidden="true">↗</span></a>
+            <a class="text-link" href="/docs/">Explore the docs <span aria-hidden="true">→</span></a>
+          </div>
+          <p class="hero-note">Experimental by design. Explicit about its limits.</p>
+        </div>
+
+        <div class="workbench">
+          <div class="workbench-header"><span><span class="file-dot" aria-hidden="true"></span> first_tensor.py</span><span>PYTHON</span></div>
+          <div class="code-body"><Code code={firstTensor.trim()} lang="python" theme="github-dark-high-contrast" wrap /></div>
+          <div class="output"><span class="output-label">OUTPUT</span><code>[2. 2. 2. 2. 2.]</code><span class="output-caption">One million elements. One familiar API.</span></div>
+          <div class="execution-path" aria-label="Execution path: Python API through C++20 core to the selected CPU, Metal or CUDA backend">
+            <span>Python API</span><span aria-hidden="true">↓</span>
+            <span class="core">C++20 core <small>backend-neutral</small></span><span aria-hidden="true">↓</span>
+            <div class="backend-chips"><span>CPU</span><span>Metal</span><span>CUDA</span></div>
+          </div>
+          <div class="workbench-footer"><span class="status-dot" aria-hidden="true"></span> CPU reference. Accelerator execution. Shared contracts.</div>
+        </div>
+      </section>
+
+      <div class="spec-strip" aria-label="Runtime characteristics">
+        <span><small>INTERFACE</small>Python 3.11+</span>
+        <span><small>FOUNDATION</small>C++20 / nanobind</span>
+        <span><small>EXECUTION</small>Synchronous & explicit</span>
+        <span><small>LICENSE</small>Apache 2.0</span>
+      </div>
+
+      <section class="principles section" aria-labelledby="principles-title">
+        <div class="section-intro"><p class="eyebrow">01 / THE APPROACH</p><h2 id="principles-title">Small enough to follow.<br />Built to be understood.</h2><p>Explore tensor execution without losing sight of the runtime, the memory, or the hardware.</p></div>
+        <div class="principle-grid">
+          <article><span class="number">[01]</span><h3>Correctness has a reference.</h3><p>CPU execution is a required part of the runtime. Accelerator operations are checked against it with explicit numerical tolerances.</p></article>
+          <article><span class="number">[02]</span><h3>The core stays neutral.</h3><p>Device discovery, buffers, and operation dispatch share a contract. Platform-specific details stay inside each backend.</p></article>
+          <article><span class="number">[03]</span><h3>Experiments stay explicit.</h3><p>Custom kernels live under <code>cx.experimental</code>. Metal code generation and optional MLIR compilation have defined, narrow scopes.</p></article>
+        </div>
+      </section>
+
+      <section class="support section" aria-labelledby="support-title">
+        <div class="section-heading"><div><p class="eyebrow">02 / HARDWARE, HONESTLY</p><h2 id="support-title">Know what runs. And where.</h2></div><a class="text-link" href="/docs/backends/">Full support matrix <span aria-hidden="true">↗</span></a></div>
+        <div class="support-list">
+          <a class="support-row" href="/docs/backends/#cpu"><span class="backend-name">CPU</span><span class="badge">REFERENCE</span><p>The required baseline. Tensor operations, matmul, reductions, and normalization.</p><span aria-hidden="true">↗</span></a>
+          <a class="support-row" href="/docs/backends/#metal"><span class="backend-name">Metal</span><span class="badge">APPLE SILICON</span><p>Static Metal kernels, an optional optimized matmul path, and experimental generated kernels.</p><span aria-hidden="true">↗</span></a>
+          <a class="support-row" href="/docs/backends/#cuda"><span class="backend-name">CUDA</span><span class="badge experimental">OPT-IN</span><p>Float32 primitives validated on sm_52. Broader GPU and toolchain coverage remains open.</p><span aria-hidden="true">↗</span></a>
+        </div>
+        <p class="scope-note">Current scope: contiguous tensors, explicit devices, a small dtype set. Autograd, broadcasting, and distributed training are outside the current runtime.</p>
+      </section>
+
+      <section class="next section" aria-labelledby="next-title">
+        <div><p class="eyebrow">03 / OPEN THE WORKBENCH</p><h2 id="next-title">Start with a tensor.<br />Follow it all the way down.</h2></div>
+        <div class="next-links">
+          <a href="/docs/first-tensor/"><span><strong>Your first tensor</strong><small>Create, compute, and read the result.</small></span><span aria-hidden="true">↗</span></a>
+          <a href="/docs/examples/"><span><strong>A small inference pipeline</strong><small>Matmul, normalization, and activations.</small></span><span aria-hidden="true">↗</span></a>
+          <a href="/docs/performance/"><span><strong>Measure before you claim</strong><small>Benchmarks with boundaries and CPU parity.</small></span><span aria-hidden="true">↗</span></a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="wrap site-footer"><div><a class="brand" href="/">Cortex Runtime<span class="footer-domain"> / tensor.cx</span></a><p>An independent project by Serkan Altuntas.</p></div><div class="footer-links"><a href="/docs/contributing/">Contribute</a><a href={`${repository}/blob/main/LICENSE`}>Apache 2.0</a><a href={repository}>Source <span aria-hidden="true">↗</span></a></div></footer>
+  </body>
+</html>
+
+<style>
+  :global(*) { box-sizing: border-box; }
+  :global(html) { background: #f4f5ee; color: #202521; font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; scroll-padding-top: 2rem; }
+  :global(body) { margin: 0; }
+  :global(a) { color: inherit; text-decoration: none; }
+  :global(a:focus-visible) { outline: 3px solid #426624; outline-offset: 6px; border-radius: 3px; }
+  :global(code) { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace; }
+  :global(::selection) { background: #d4ed88; color: #202521; }
+  .wrap { max-width: 1320px; padding-inline: 48px; margin-inline: auto; }
+  .skip-link { position: fixed; left: 1rem; top: -100px; padding: 1rem; background: #d4ed88; z-index: 10; }
+  .skip-link:focus { top: 1rem; }
+  .site-header { display: flex; justify-content: space-between; align-items: center; min-height: 104px; gap: 24px; }
+  .brand { display: inline-flex; align-items: center; gap: 10px; font-size: 21px; font-weight: 700; letter-spacing: -0.7px; white-space: nowrap; }
+  .brand-suffix { font-weight: 400; }
+  nav { display: flex; align-items: center; gap: 32px; font-size: 14px; font-weight: 550; }
+  nav a:hover, .text-link:hover, .footer-links a:hover { color: #46652c; text-decoration: underline; text-underline-offset: 5px; }
+  .repo-link { padding-left: 30px; border-left: 1px solid #d4d9cb; }
+  .hero { display: grid; grid-template-columns: 1.05fr 1fr; align-items: center; gap: 64px; padding: 72px 0 80px; }
+  .eyebrow { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 11px; letter-spacing: 1.5px; font-weight: 600; line-height: 1.7; display: flex; align-items: center; gap: 9px; }
+  .status-dot { display: inline-block; background: #638b39; width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  h1 { font-size: clamp(42px, 5.05vw, 68px); letter-spacing: -3.6px; line-height: 1.07; font-weight: 550; margin: 28px 0; }
+  h1 span { color: #65715e; }
+  .hero-description { font-size: 17px; line-height: 1.75; max-width: 450px; color: #505c4d; }
+  .actions { display: flex; align-items: center; flex-wrap: wrap; gap: 24px; margin-top: 30px; }
+  .button { display: inline-flex; align-items: center; gap: 28px; border-radius: 5px; padding: 15px 20px; font-size: 14px; font-weight: 600; }
+  .primary { background: #253322; color: #f4f5ee; transition: background 150ms; }
+  .primary:hover { background: #3d542f; }
+  .text-link { font-size: 14px; font-weight: 550; white-space: nowrap; }
+  .text-link span { margin-left: 8px; }
+  .hero-note { font-size: 12px; color: #65715e; margin-top: 22px; }
+  .workbench { background: #202823; border: 1px solid #344537; border-radius: 10px; color: #e2e9da; min-width: 0; box-shadow: 0 14px 40px #26331c10; overflow: hidden; }
+  .workbench-header { padding: 18px 22px; display: flex; justify-content: space-between; border-bottom: 1px solid #3a463c; font: 11px Consolas, monospace; color: #b9c3b4; }
+  .workbench-header > span:first-child { display: flex; align-items: center; gap: 9px; }
+  .file-dot { width: 7px; height: 7px; background: #d4ed88; }
+  .code-body { padding: 18px 22px 10px; }
+  .code-body :global(pre) { background: transparent !important; font-size: 12px; line-height: 1.9; margin: 0; }
+  .output { margin: 0 22px; padding: 15px 0; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #3a463c; }
+  .output-label { font: 9px Consolas, monospace; letter-spacing: 1.4px; color: #a8b5a2; }
+  .output code { color: #d4ed88; font-size: 14px; }
+  .output-caption { color: #b5c0af; font-size: 11px; }
+  .execution-path { margin: 6px 22px 22px; padding: 20px; border: 1px solid #465440; border-radius: 5px; display: flex; align-items: center; flex-direction: column; gap: 10px; font: 11px Consolas, monospace; background-image: radial-gradient(#859a682c 1px, transparent 1px); background-size: 12px 12px; }
+  .execution-path > span[aria-hidden] { color: #8c9a83; }
+  .core { padding: 10px 25px; background: #36412e; border: 1px solid #75855b; border-radius: 3px; }
+  .core small { color: #c4d6ae; font-size: 9px; margin-left: 10px; }
+  .backend-chips { display: flex; width: 100%; justify-content: center; gap: 14px; }
+  .backend-chips span { border: 1px solid #617154; padding: 9px 18px; border-radius: 3px; background: #263024; }
+  .workbench-footer { display: flex; gap: 8px; align-items: center; border-top: 1px solid #3a463c; padding: 13px 22px; font-size: 10px; color: #bcc7b4; line-height: 1.5; }
+  .workbench-footer .status-dot { background: #d4ed88; }
+  .spec-strip { display: grid; grid-template-columns: repeat(4, 1fr); padding: 24px 0; border-block: 1px solid #d3d9cb; }
+  .spec-strip > span { font-size: 13px; padding-left: 26px; border-left: 1px solid #d3d9cb; }
+  .spec-strip > span:first-child { padding-left: 0; border: 0; }
+  .spec-strip small { display: block; font: 9px Consolas, monospace; letter-spacing: 1.5px; color: #626f59; margin-bottom: 9px; }
+  .section { padding: 80px 0; border-bottom: 1px solid #d3d9cb; }
+  h2 { font-weight: 500; font-size: 35px; letter-spacing: -1.2px; line-height: 1.2; margin: 18px 0; }
+  .section-intro > p:last-child { max-width: 430px; font-size: 15px; line-height: 1.7; color: #5b6755; }
+  .principles { display: grid; grid-template-columns: 1fr 1.2fr; gap: 80px; }
+  .principle-grid article { padding: 20px 0 20px 43px; position: relative; border-bottom: 1px solid #dce1d5; }
+  .principle-grid article:first-child { padding-top: 6px; }
+  .principle-grid article:last-child { border: 0; padding-bottom: 0; }
+  .number { position: absolute; left: 0; font: 11px Consolas, monospace; color: #65715e; top: 24px; }
+  article:first-child .number { top: 10px; }
+  h3 { font-size: 17px; font-weight: 550; margin: 0 0 10px; }
+  article p { font-size: 14px; color: #5b6755; line-height: 1.7; margin: 0; }
+  article code { font-size: 12px; }
+  .section-heading { display: flex; justify-content: space-between; gap: 24px; align-items: end; margin-bottom: 30px; }
+  .section-heading .text-link { margin-bottom: 23px; }
+  .support-row { display: grid; grid-template-columns: 100px 130px 1fr 20px; align-items: center; gap: 24px; padding: 27px 0; border-top: 1px solid #d3d9cb; transition: background 150ms; }
+  .support-row:hover { background: #e9eddf; }
+  .backend-name { font-size: 23px; font-weight: 500; letter-spacing: -0.6px; }
+  .badge { width: fit-content; border: 1px solid #c6d0b7; border-radius: 4px; padding: 5px 8px; font: 9px Consolas, monospace; letter-spacing: 0.5px; color: #415536; background: #e8efde; }
+  .badge.experimental { background: #f0ead9; color: #725c24; border-color: #d9cba7; }
+  .support-row p { margin: 0; font-size: 14px; line-height: 1.65; color: #5b6755; }
+  .scope-note { font-size: 12px; line-height: 1.8; color: #5b6755; max-width: 760px; margin-bottom: 0; }
+  .next { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; }
+  .next-links a { display: flex; justify-content: space-between; gap: 24px; padding: 20px 0; border-bottom: 1px solid #d3d9cb; }
+  .next-links a:last-child { border: 0; }
+  .next-links a:hover strong { text-decoration: underline; text-underline-offset: 4px; }
+  .next-links strong { font-size: 15px; font-weight: 550; display: block; margin-bottom: 8px; }
+  .next-links small { color: #5b6755; font-size: 13px; line-height: 1.6; }
+  .site-footer { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-block: 38px; }
+  .site-footer .brand { font-size: 15px; letter-spacing: -0.3px; }
+  .footer-domain { color: #65715e; font-weight: 400; }
+  .site-footer p { font-size: 11px; color: #65715e; margin: 10px 0 0; }
+  .footer-links { display: flex; gap: 26px; font-size: 12px; }
+  @media (max-width: 1020px) {
+    .wrap { padding-inline: 28px; }
+    .hero { gap: 32px; padding-block: 45px 60px; }
+    h1 { font-size: 48px; letter-spacing: -2.5px; }
+    .principles, .next { gap: 40px; }
+    nav { gap: 20px; }
+    .repo-link { padding-left: 20px; }
+  }
+  @media (max-width: 760px) {
+    .hero, .principles, .next { grid-template-columns: 1fr; }
+    .hero { gap: 35px; padding-top: 32px; }
+    h1 { font-size: clamp(42px, 9vw, 66px); }
+    .hero-description { max-width: 540px; }
+    .site-header { min-height: 110px; flex-wrap: wrap; justify-content: space-between; padding-block: 20px; gap: 20px; }
+    nav { gap: 22px; flex-wrap: wrap; }
+    .repo-link { padding-left: 0; border: 0; }
+    .spec-strip { grid-template-columns: 1fr 1fr; gap: 24px; }
+    .spec-strip > span:nth-child(3) { padding-left: 0; border: 0; }
+    .section { padding-block: 50px; }
+    h2 { font-size: 30px; }
+    .section-heading { display: block; }
+    .support-row { grid-template-columns: 1fr auto 20px; gap: 16px; }
+    .support-row p { grid-column: 1 / 3; grid-row: 2; }
+    .support-row > span:last-child { grid-column: 3; grid-row: 1; }
+    .site-footer { align-items: start; flex-direction: column; }
+  }
+  @media (max-width: 400px) {
+    .wrap { padding-inline: 20px; }
+    .brand { font-size: 20px; }
+    nav { gap: 20px; font-size: 13px; }
+    .code-body, .workbench-header { padding-inline: 16px; }
+    .execution-path { margin-inline: 16px; padding-inline: 12px; }
+    .backend-chips { gap: 10px; }
+    .backend-chips span { padding-inline: 12px; }
+    .core { padding-inline: 14px; }
+    .actions { gap: 18px; }
+    .eyebrow { font-size: 9px; letter-spacing: 1px; }
+  }
+</style>
