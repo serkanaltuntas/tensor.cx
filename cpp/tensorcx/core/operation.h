@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <optional>
 
+#include "tensorcx/core/dtype.h"
+
 namespace tensorcx {
 
 enum class OpKind {
@@ -27,6 +29,7 @@ enum class OpKind {
   kSubtractScalar,
   kMultiplyScalar,
   kDivideScalar,
+  kCast,
 };
 
 enum class MatmulPreference {
@@ -53,6 +56,7 @@ struct OpDesc {
   MatmulPreference matmul_preference{MatmulPreference::kAuto};
   // Scalar arithmetic reuses scalar_value; true places it left of the tensor.
   bool scalar_left{false};
+  DType target_dtype{DType::kFloat32};
 };
 
 struct PrimitiveOpSchema {

@@ -60,6 +60,7 @@ CUDA performance:       long contiguous axis optimization measured on Nightblade
 Next implementation:    compatibility and repository-wide continuous GPU validation
 Open scope:             other SM/host versions and broader compiler features
 API increment:          arithmetic/scalars, contiguous reshape and keepdims;
+                        followed by explicit casts and tensor broadcasting;
                         docs/TENSOR_API.md (acceptance tracked separately)
 ```
 

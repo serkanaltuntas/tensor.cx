@@ -80,14 +80,18 @@ Expected<const char*> unary_kernel_name(OpKind kind, DType dtype) {
   }
 }
 
-Expected<std::uint32_t> scalar_operation_code(OpKind kind) {
+Expected<std::uint32_t> arithmetic_operation_code(OpKind kind) {
   switch (kind) {
+    case OpKind::kAdd:
     case OpKind::kAddScalar: return std::uint32_t{0};
+    case OpKind::kSubtract:
     case OpKind::kSubtractScalar: return std::uint32_t{1};
+    case OpKind::kMultiply:
     case OpKind::kMultiplyScalar: return std::uint32_t{2};
+    case OpKind::kDivide:
     case OpKind::kDivideScalar: return std::uint32_t{3};
     default:
-      return Status(StatusCode::kInvalidArgument, "unsupported Metal scalar operation");
+      return Status(StatusCode::kInvalidArgument, "unsupported Metal arithmetic operation");
   }
 }
 
@@ -467,6 +471,21 @@ class KernelRuntime {
     if (std::strcmp(name, "scalar_f32") == 0) {
       return pipeline_slot(scalar_f32_, name);
     }
+    if (std::strcmp(name, "broadcast_f32") == 0) {
+      return pipeline_slot(broadcast_f32_, name);
+    }
+    if (std::strcmp(name, "broadcast_i32") == 0) {
+      return pipeline_slot(broadcast_i32_, name);
+    }
+    if (std::strcmp(name, "copy_bits") == 0) {
+      return pipeline_slot(copy_bits_, name);
+    }
+    if (std::strcmp(name, "cast_i32_f32") == 0) {
+      return pipeline_slot(cast_i32_f32_, name);
+    }
+    if (std::strcmp(name, "cast_f32_i32") == 0) {
+      return pipeline_slot(cast_f32_i32_, name);
+    }
     if (std::strcmp(name, "fill_f32") == 0) {
       return pipeline_slot(fill_f32_, name);
     }
@@ -599,6 +618,11 @@ class KernelRuntime {
   NS::SharedPtr<MTL::ComputePipelineState> div_f32_;
   NS::SharedPtr<MTL::ComputePipelineState> neg_f32_;
   NS::SharedPtr<MTL::ComputePipelineState> scalar_f32_;
+  NS::SharedPtr<MTL::ComputePipelineState> broadcast_f32_;
+  NS::SharedPtr<MTL::ComputePipelineState> broadcast_i32_;
+  NS::SharedPtr<MTL::ComputePipelineState> copy_bits_;
+  NS::SharedPtr<MTL::ComputePipelineState> cast_i32_f32_;
+  NS::SharedPtr<MTL::ComputePipelineState> cast_f32_i32_;
   NS::SharedPtr<MTL::ComputePipelineState> fill_f32_;
   NS::SharedPtr<MTL::ComputePipelineState> add_i32_;
   NS::SharedPtr<MTL::ComputePipelineState> mul_i32_;
@@ -623,16 +647,6 @@ class KernelRuntime {
 KernelRuntime& runtime() {
   static KernelRuntime instance;
   return instance;
-}
-
-Status validate_same_metadata(const MetalTensor& lhs, const MetalTensor& rhs) {
-  if (lhs.dtype() != rhs.dtype()) {
-    return Status(StatusCode::kInvalidArgument, "dtype mismatch for Metal binary operation");
-  }
-  if (lhs.shape() != rhs.shape()) {
-    return Status(StatusCode::kInvalidArgument, "shape mismatch for Metal binary operation");
-  }
-  return Status::Ok();
 }
 
 Status run_threads(MTL::ComputePipelineState& pipeline,
@@ -691,8 +705,57 @@ Status run_threads(MTL::ComputePipelineState& pipeline,
 
 namespace {
 
+Expected<MetalTensor> execute_cast(const OpDesc& op, const MetalTensor& input) {
+  if (op.target_dtype != DType::kFloat32 && op.target_dtype != DType::kInt32) {
+    return Status(StatusCode::kInvalidArgument, "unsupported Metal cast dtype");
+  }
+  auto count_result = checked_thread_count(input.size());
+  if (!count_result) return count_result.status();
+  const auto count = count_result.move_value();
+  auto buffer_result = MetalBuffer::create(op.target_dtype, static_cast<std::size_t>(input.size()));
+  if (!buffer_result) return buffer_result.status();
+  auto buffer = buffer_result.move_value();
+  MetalTensor result(op.target_dtype, input.shape(), buffer);
+  if (count == 0) return result;
+
+  const bool checked_conversion = input.dtype() == DType::kFloat32 &&
+                                  op.target_dtype == DType::kInt32;
+  const char* name = input.dtype() == op.target_dtype ? "copy_bits" :
+                     checked_conversion ? "cast_f32_i32" : "cast_i32_f32";
+  std::shared_ptr<MetalBuffer> invalid_buffer;
+  std::uint32_t invalid = 0;
+  if (checked_conversion) {
+    auto flag_result = MetalBuffer::create(DType::kInt32, 1);
+    if (!flag_result) return flag_result.status();
+    invalid_buffer = flag_result.move_value();
+    const auto status = invalid_buffer->copy_from_host(&invalid, sizeof(invalid));
+    if (!status.ok()) return status;
+  }
+  auto pipeline = runtime().pipeline(name);
+  if (!pipeline) return pipeline.status();
+  const auto status = run_threads(*pipeline.move_value(), count,
+      [&](MTL::ComputeCommandEncoder& encoder) {
+        encoder.setBuffer(input.buffer()->native(), 0, 0);
+        encoder.setBuffer(buffer->native(), 0, 1);
+        encoder.setBytes(&count, sizeof(count), 2);
+        if (invalid_buffer) encoder.setBuffer(invalid_buffer->native(), 0, 3);
+      });
+  if (!status.ok()) return status;
+  if (invalid_buffer) {
+    const auto copied = invalid_buffer->copy_to_host(&invalid, sizeof(invalid));
+    if (!copied.ok()) return copied;
+    if (invalid) {
+      return Status(StatusCode::kInvalidArgument,
+                    "float32 value is out of range for int32 cast");
+    }
+  }
+  // The caller publishes this independent buffer only on success. No input or
+  // supplied output is mutated when the GPU reports an invalid conversion.
+  return result;
+}
+
 Expected<MetalTensor> execute_scalar(const OpDesc& op, const MetalTensor& input) {
-  auto operation_result = scalar_operation_code(op.kind);
+  auto operation_result = arithmetic_operation_code(op.kind);
   if (!operation_result) {
     return operation_result.status();
   }
@@ -890,6 +953,9 @@ Expected<MetalTensor> execute_layernorm(const OpDesc& op, const MetalTensor& inp
 }  // namespace
 
 Expected<MetalTensor> execute_unary(const OpDesc& op, const MetalTensor& input) {
+  if (op.kind == OpKind::kCast) {
+    return execute_cast(op, input);
+  }
   if (op.kind == OpKind::kAddScalar || op.kind == OpKind::kSubtractScalar ||
       op.kind == OpKind::kMultiplyScalar || op.kind == OpKind::kDivideScalar) {
     return execute_scalar(op, input);
@@ -940,9 +1006,8 @@ Expected<MetalTensor> execute_unary(const OpDesc& op, const MetalTensor& input) 
 }
 
 Expected<MetalTensor> execute_binary(const OpDesc& op, const MetalTensor& lhs, const MetalTensor& rhs) {
-  const Status metadata_status = validate_same_metadata(lhs, rhs);
-  if (!metadata_status.ok()) {
-    return metadata_status;
+  if (lhs.dtype() != rhs.dtype()) {
+    return Status(StatusCode::kInvalidArgument, "dtype mismatch for Metal binary operation");
   }
 
   auto kernel_name_result = binary_kernel_name(op.kind, lhs.dtype());
@@ -950,22 +1015,57 @@ Expected<MetalTensor> execute_binary(const OpDesc& op, const MetalTensor& lhs, c
     return kernel_name_result.status();
   }
 
-  auto thread_count_result = checked_thread_count(lhs.size());
+  BroadcastPlan plan;
+  try {
+    plan = make_broadcast_plan(lhs.shape(), rhs.shape());
+  } catch (const std::invalid_argument& error) {
+    return Status(StatusCode::kInvalidArgument, error.what());
+  }
+  const auto output_elements = numel(plan.output_shape);
+  auto thread_count_result = checked_thread_count(output_elements);
   if (!thread_count_result) {
     return thread_count_result.status();
   }
   const auto thread_count = thread_count_result.move_value();
   auto output_buffer_result =
-      MetalBuffer::create(lhs.dtype(), static_cast<std::size_t>(lhs.size()));
+      MetalBuffer::create(lhs.dtype(), static_cast<std::size_t>(output_elements));
   if (!output_buffer_result) {
     return output_buffer_result.status();
   }
   auto output_buffer = output_buffer_result.move_value();
-  MetalTensor output(lhs.dtype(), lhs.shape(), output_buffer);
+  MetalTensor output(lhs.dtype(), plan.output_shape, output_buffer);
   if (thread_count == 0) {
     return output;
   }
-  auto pipeline_result = runtime().pipeline(kernel_name_result.move_value());
+  const bool broadcasting = lhs.shape() != rhs.shape();
+  std::shared_ptr<MetalBuffer> metadata_buffer;
+  const std::uint64_t rank = plan.output_shape.size();
+  std::uint32_t operation = 0;
+  if (broadcasting) {
+    // Only shape/stride metadata is uploaded. A device buffer avoids setBytes'
+    // small inline-data limit for high-rank tensors.
+    if (rank > std::numeric_limits<std::size_t>::max() / (3 * sizeof(std::uint64_t))) {
+      return Status(StatusCode::kInvalidArgument, "broadcast metadata byte size overflow");
+    }
+    std::vector<std::uint64_t> metadata;
+    metadata.reserve(static_cast<std::size_t>(rank) * 3);
+    for (std::size_t axis = 0; axis < rank; ++axis) {
+      metadata.push_back(static_cast<std::uint64_t>(plan.output_shape[axis]));
+      metadata.push_back(static_cast<std::uint64_t>(plan.lhs_strides[axis]));
+      metadata.push_back(static_cast<std::uint64_t>(plan.rhs_strides[axis]));
+    }
+    auto allocated = MetalBuffer::create(DType::kInt32, metadata.size() * 2);
+    if (!allocated) return allocated.status();
+    metadata_buffer = allocated.move_value();
+    const auto copied = metadata_buffer->copy_from_host(metadata.data(), metadata_buffer->nbytes());
+    if (!copied.ok()) return copied;
+    auto code = arithmetic_operation_code(op.kind);
+    if (!code) return code.status();
+    operation = code.move_value();
+  }
+  auto pipeline_result = runtime().pipeline(broadcasting
+      ? (lhs.dtype() == DType::kFloat32 ? "broadcast_f32" : "broadcast_i32")
+      : kernel_name_result.move_value());
   if (!pipeline_result) {
     return pipeline_result.status();
   }
@@ -974,6 +1074,11 @@ Expected<MetalTensor> execute_binary(const OpDesc& op, const MetalTensor& lhs, c
     encoder.setBuffer(rhs.buffer()->native(), 0, 1);
     encoder.setBuffer(output_buffer->native(), 0, 2);
     encoder.setBytes(&thread_count, sizeof(thread_count), 3);
+    if (metadata_buffer) {
+      encoder.setBuffer(metadata_buffer->native(), 0, 4);
+      encoder.setBytes(&rank, sizeof(rank), 5);
+      encoder.setBytes(&operation, sizeof(operation), 6);
+    }
   });
   if (!run_status.ok()) {
     return run_status;

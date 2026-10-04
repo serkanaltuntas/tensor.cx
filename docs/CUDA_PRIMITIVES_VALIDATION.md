@@ -13,12 +13,14 @@ not completion of compatibility, performance, GPU CI or distribution work.
 
 All operations compute on CUDA device 0, use `CudaBackend::execute`, retain
 primary-context ownership, run synchronously and publish a new output only on
-success. Input tensors remain unchanged. Inputs must be contiguous float32
-tensor.cx CUDA tensors; no implicit CPU fallback or dtype conversion is introduced.
+success. Input tensors remain unchanged. Arithmetic inputs must be contiguous
+float32 tensor.cx CUDA tensors; explicit casts also support int32. No implicit
+CPU fallback or dtype conversion is introduced.
 
 | Operation | Contract |
 | --- | --- |
-| `+`, `-`, `*`, `/`, unary `-` | Float32; exact tensor shapes; real scalars in either position; [API contract](TENSOR_API.md) |
+| `+`, `-`, `*`, `/`, unary `-` | Float32; broadcast-compatible binary shapes; real scalars in either position; [API contract](TENSOR_API.md) |
+| `astype` | Explicit float32/int32 conversion on the same device; checked float-to-int truncation; [API contract](TENSOR_API.md#explicit-dtype-conversion) |
 | `matmul` / `@` | Rank-2 `(m,k) @ (k,n)`; `auto` and `custom` use the tiled CUDA kernel; `optimized` and unknown preferences fail explicitly |
 | `sum`, `max`, `mean` | Explicit axis, including negative axes; axis removed unless `keepdims=True`; scalar accepts axis 0/-1; empty sum gives zero, empty mean NaN, empty max axis raises |
 | `exp`, `gelu`, `silu` | Shape-preserving; GELU uses the same tanh approximation as CPU |
@@ -26,7 +28,7 @@ tensor.cx CUDA tensors; no implicit CPU fallback or dtype conversion is introduc
 | `rmsnorm`, `layernorm` | Any valid axis, shape preserved, no affine weights; finite non-negative float32-representable epsilon required, even for empty input |
 
 Zero-size matmul outputs do not launch; `k=0` produces zeros. Empty normalization
-outputs do not launch. Int32 still supports copies only on CUDA; its arithmetic
+outputs do not launch. Int32 supports copies, reshape and explicit casts on CUDA; its arithmetic
 and reductions remain explicitly unsupported. Existing static fill/add/multiply
 and generated MLIR paths are preserved. The strict sm_52 MLIR toolchain gate
 is unchanged; these primitive kernels are ordinary build-time CUDA kernels.

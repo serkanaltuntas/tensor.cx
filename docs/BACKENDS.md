@@ -170,7 +170,10 @@ and contiguous-metadata validation. CUDA Runtime API resources stay inside
 `cpp/tensorcx/backends/cuda/`; nvcc compiles static kernels at build time.
 Device selection is scoped per calling thread and restored afterward. Each
 operation waits for completion before returning and publishes output metadata
-only after success. Copies support float32/int32; arithmetic is float32-only.
+only after success. Copies and explicit casts support float32/int32; arithmetic
+is float32-only and accepts broadcast-compatible shapes. Checked float-to-int
+casts validate on the device and read back only a status flag. See the
+[tensor API contract](TENSOR_API.md).
 See [`CUDA_PHASE9_VALIDATION.md`](CUDA_PHASE9_VALIDATION.md).
 Phase 10's MLIR
 exploration is complete as a decision/prototype only; it did not add MLIR to

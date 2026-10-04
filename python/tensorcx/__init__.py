@@ -6,6 +6,7 @@ from . import _core, experimental, testing
 from .device import Device, best_device, device, device_name, devices, is_available
 from .tensor import (
     Tensor,
+    astype,
     empty,
     exp,
     gelu,
@@ -39,6 +40,7 @@ __all__ = [
     "Tensor",
     "__version__",
     "Device",
+    "astype",
     "best_device",
     "device",
     "device_name",

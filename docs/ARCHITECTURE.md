@@ -112,7 +112,12 @@ axis-aware transforms such as softmax, rmsnorm, and layernorm, plus an
 The [tensor API extension](TENSOR_API.md) reuses `scalar_value` for single-input
 scalar arithmetic and adds `scalar_left` to preserve operand order. Contiguous
 reshape shares the typed buffer; `keepdims` uses this metadata operation after
-the existing reduction dispatch.
+the existing reduction dispatch. `kCast` carries `target_dtype` and returns a
+new native buffer; Python handles the explicit same-dtype `copy=False` alias.
+The shared `make_broadcast_plan` validates shapes and produces aligned input
+strides (zero for expanded axes). CPU/Metal/CUDA binary arithmetic uses this
+metadata to index original buffers and allocates only the contiguous result.
+See [conversion and broadcast semantics](TENSOR_API.md).
 Constructor-style `empty` allocation remains outside `Backend::execute` for now.
 
 This is a deliberate, documented transition kept small per the "avoid unrelated

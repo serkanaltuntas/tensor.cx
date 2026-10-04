@@ -93,9 +93,9 @@ def test_arithmetic_special_float_values(device_name):
 def test_arithmetic_rejects_invalid_inputs(device_name, op):
     x = cx.ones((2,), device=device_name)
     with pytest.raises(ValueError, match="shape mismatch"):
-        op(x, cx.ones((1, 2), device=device_name))
+        op(x, cx.ones((3,), device=device_name))
     with pytest.raises(ValueError, match="shape mismatch"):
-        op(x, cx.tensor(2.0, device=device_name))
+        op(x, cx.ones((2, 3), device=device_name))
     with pytest.raises(ValueError, match="dtype mismatch"):
         op(x, cx.tensor([1, 2], device=device_name))
     if device_name != "cpu":

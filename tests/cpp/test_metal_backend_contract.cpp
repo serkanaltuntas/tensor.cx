@@ -1,9 +1,11 @@
 #include <array>
+#include <bit>
 #include <cmath>
 #include <iostream>
 #include <limits>
 #include <span>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 #include "tensorcx/backends/cpu/cpu_backend.h"
@@ -124,6 +126,137 @@ bool arithmetic_contract() {
          outputs[0].buffer == original_buffer;
 }
 
+bool broadcast_contract() {
+  using namespace tensorcx;
+  const std::vector<std::pair<Shape, Shape>> shapes{
+      {{2, 1, 3}, {1, 4, 1}}, {{2, 3}, {3}}, {{}, {2, 3}},
+      {{2, 1, 1}, {1, 1, 5}}, {{0, 3}, {1, 3}}, {{1, 3}, {0, 1}},
+      // Metadata is larger than Metal setBytes' inline-data limit.
+      {Shape(180, 1), {}}, {{2, 3}, {2, 3}}};
+  for (const auto& [left_shape, right_shape] : shapes) {
+    for (const auto dtype : {DType::kFloat32, DType::kInt32}) {
+      cpu::CpuTensor left(dtype, left_shape), right(dtype, right_shape);
+      for (auto* tensor : {&left, &right}) {
+        for (std::size_t i = 0; i < static_cast<std::size_t>(tensor->size()); ++i) {
+          if (dtype == DType::kFloat32) {
+            tensor->mutable_float_data()[i] = 0.5F + static_cast<float>(i % 7);
+          } else {
+            tensor->mutable_int32_data()[i] = i % 2 ? std::numeric_limits<std::int32_t>::min()
+                                                    : std::numeric_limits<std::int32_t>::max();
+          }
+        }
+      }
+      for (const auto kind : {OpKind::kAdd, OpKind::kSubtract, OpKind::kMultiply, OpKind::kDivide}) {
+        if (kind == OpKind::kDivide && dtype == DType::kInt32) continue;
+        if (!arithmetic_matches_cpu(OpDesc{kind}, left, &right) ||
+            !arithmetic_matches_cpu(OpDesc{kind}, right, &left)) return false;
+      }
+    }
+  }
+  const cpu::CpuTensor special_left(Shape{2, 1}, std::vector<float>{1.0F, -0.0F});
+  const cpu::CpuTensor special_right(Shape{1, 4}, std::vector<float>{
+      0.0F, -0.0F, std::numeric_limits<float>::infinity(),
+      std::numeric_limits<float>::quiet_NaN()});
+  for (const auto kind : {OpKind::kAdd, OpKind::kSubtract, OpKind::kMultiply, OpKind::kDivide}) {
+    if (!arithmetic_matches_cpu(OpDesc{kind}, special_left, &special_right) ||
+        !arithmetic_matches_cpu(OpDesc{kind}, special_right, &special_left)) return false;
+  }
+  metal::MetalBackend backend;
+  auto left = metal::from_cpu(cpu::CpuTensor(DType::kFloat32, {2, 3}));
+  auto right = metal::from_cpu(cpu::CpuTensor(DType::kFloat32, {2, 4}));
+  if (!left || !right) return false;
+  std::array<Tensor, 2> inputs{metal::to_core_tensor(left.value()), metal::to_core_tensor(right.value())};
+  std::array<Tensor, 1> outputs{inputs[0]};
+  const auto previous = outputs[0].buffer;
+  for (const auto kind : {OpKind::kAdd, OpKind::kSubtract, OpKind::kMultiply, OpKind::kDivide}) {
+    BackendExecution execution{BackendOpClass::kPrimitive, OpDesc{kind}, inputs, outputs};
+    if (backend.execute(execution).code() != StatusCode::kInvalidArgument ||
+        outputs[0].buffer != previous) return false;
+  }
+  return true;
+}
+
+bool cast_contract() {
+  using namespace tensorcx;
+  const float inf = std::numeric_limits<float>::infinity();
+  const float nan = std::numeric_limits<float>::quiet_NaN();
+  const cpu::CpuTensor integers(Shape{7}, std::vector<std::int32_t>{
+      std::numeric_limits<std::int32_t>::min(), std::numeric_limits<std::int32_t>::max(),
+      16777217, 16777219, -16777217, 0, -1});
+  const cpu::CpuTensor floats(Shape{8}, std::vector<float>{
+      -2147483648.0F, 2147483520.0F, 1.9F, -1.9F, 0.0F, -0.0F, 0.99F, -0.99F});
+  metal::MetalBackend backend;
+  for (const auto dtype : {DType::kFloat32, DType::kInt32}) {
+    for (const auto& input : {integers, floats, cpu::CpuTensor(DType::kFloat32, {}),
+                              cpu::CpuTensor(DType::kInt32, {}),
+                              cpu::CpuTensor(DType::kFloat32, {2, 0}),
+                              cpu::CpuTensor(DType::kInt32, {0, 3})}) {
+      OpDesc op{OpKind::kCast}; op.target_dtype = dtype;
+      if (!arithmetic_matches_cpu(op, input)) return false;
+      auto native = metal::from_cpu(input);
+      if (!native) return false;
+      std::array<Tensor, 1> inputs{metal::to_core_tensor(native.value())}, outputs{};
+      BackendExecution execution{BackendOpClass::kPrimitive, op, inputs, outputs};
+      if (!backend.execute(execution).ok() || outputs[0].buffer == inputs[0].buffer) return false;
+      auto actual = metal::to_cpu(metal::from_core_tensor(outputs[0]));
+      if (!actual) return false;
+      const auto expected = cpu::execute_unary(op, input);
+      if (dtype == DType::kFloat32 && actual.value().float_data() != expected.float_data()) return false;
+    }
+  }
+  // Same-dtype float casts must preserve exact bits, including NaN payloads
+  // and signed zero, while allocating independent storage.
+  const cpu::CpuTensor special(Shape{5}, std::vector<float>{
+      -0.0F, inf, -inf, std::bit_cast<float>(std::uint32_t{0x7fc01234}),
+      std::bit_cast<float>(std::uint32_t{0xffc02345})});
+  auto native_special = metal::from_cpu(special);
+  if (!native_special) return false;
+  auto copied = metal::execute_unary(OpDesc{OpKind::kCast}, native_special.value());
+  if (!copied || copied.value().buffer() == native_special.value().buffer()) return false;
+  auto copied_cpu = metal::to_cpu(copied.value());
+  if (!copied_cpu) return false;
+  for (std::size_t i = 0; i < special.float_data().size(); ++i) {
+    if (std::bit_cast<std::uint32_t>(special.float_data()[i]) !=
+        std::bit_cast<std::uint32_t>(copied_cpu.value().float_data()[i])) return false;
+  }
+  // Invalid device values may touch a temporary result, never caller storage.
+  for (const float invalid : {nan, inf, -inf, 2147483648.0F,
+                              std::nextafter(-2147483648.0F, -inf)}) {
+    std::vector<float> values(257, 3.5F);
+    values[0] = 1.25F;
+    values.back() = invalid;
+    const cpu::CpuTensor original(Shape{257}, std::move(values));
+    auto native = metal::from_cpu(original);
+    if (!native) return false;
+    std::array<Tensor, 1> inputs{metal::to_core_tensor(native.value())}, outputs{inputs[0]};
+    const auto previous = outputs[0].buffer;
+    OpDesc op{OpKind::kCast}; op.target_dtype = DType::kInt32;
+    BackendExecution execution{BackendOpClass::kPrimitive, op, inputs, outputs};
+    if (backend.execute(execution).code() != StatusCode::kInvalidArgument ||
+        outputs[0].buffer != previous) return false;
+    auto unchanged = metal::to_cpu(native.value());
+    if (!unchanged || unchanged.value().float_data()[0] != 1.25F ||
+        unchanged.value().float_data()[2] != 3.5F) return false;
+    if (std::bit_cast<std::uint32_t>(unchanged.value().float_data().back()) !=
+        std::bit_cast<std::uint32_t>(invalid)) return false;
+  }
+  for (const Shape shape : {Shape{0}, Shape{1}}) {
+    auto native = metal::from_cpu(cpu::CpuTensor(DType::kFloat32, shape));
+    if (!native) return false;
+    std::array<Tensor, 1> inputs{metal::to_core_tensor(native.value())}, outputs{inputs[0]};
+    const auto previous = outputs[0].buffer;
+    OpDesc op{OpKind::kCast}; op.target_dtype = static_cast<DType>(99);
+    BackendExecution execution{BackendOpClass::kPrimitive, op, inputs, outputs};
+    if (backend.execute(execution).code() != StatusCode::kInvalidArgument ||
+        outputs[0].buffer != previous) return false;
+    execution.op.target_dtype = DType::kInt32;
+    execution.inputs = {};
+    if (backend.execute(execution).code() != StatusCode::kInvalidArgument ||
+        outputs[0].buffer != previous) return false;
+  }
+  return true;
+}
+
 }  // namespace
 
 int main() {
@@ -149,6 +282,10 @@ int main() {
 
   if (!arithmetic_contract()) {
     std::cerr << "Metal arithmetic CPU parity or validation contract failed\n";
+    return 1;
+  }
+  if (!broadcast_contract() || !cast_contract()) {
+    std::cerr << "Metal broadcast/cast CPU parity or validation contract failed\n";
     return 1;
   }
 

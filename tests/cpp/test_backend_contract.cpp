@@ -169,9 +169,104 @@ void arithmetic_contract_tests() {
   }
 }
 
+void cast_broadcast_contract_tests() {
+  using namespace tensorcx;
+  using cpu::CpuTensor;
+  cpu::CpuBackend backend;
+  const auto check = [](bool passed, const char* scenario) {
+    if (!passed) { std::cerr << scenario << '\n'; ++failures; }
+  };
+  const auto invalid_plan = [&](const Shape& lhs, const Shape& rhs) {
+    try { (void)make_broadcast_plan(lhs, rhs); check(false, "invalid broadcast plan accepted"); }
+    catch (const std::invalid_argument&) {}
+  };
+  auto plan = make_broadcast_plan({2, 1, 3}, {4, 1});
+  check(plan.output_shape == Shape{2, 4, 3} && plan.lhs_strides == Shape{3, 0, 1} &&
+            plan.rhs_strides == Shape{0, 1, 0}, "broadcast stride mapping incorrect");
+  check(make_broadcast_plan({}, {}).output_shape.empty(), "rank-zero broadcast changed rank");
+  check(make_broadcast_plan({0, 3}, {1, 3}).output_shape == Shape{0, 3},
+        "zero/one broadcast must stay empty");
+  check(make_broadcast_plan(Shape(128, 1), {}).output_shape == Shape(128, 1),
+        "broadcast imposed an arbitrary rank limit");
+  invalid_plan({2}, {3}); invalid_plan({0}, {2}); invalid_plan({0, -1}, {1});
+  invalid_plan({INT64_MAX, 2}, {}); invalid_plan({0, INT64_MAX, 2}, {});
+  invalid_plan({INT64_MAX, 1}, {1, 2});
+  // Individually valid empty inputs may produce overflowing output strides.
+  invalid_plan({0, INT64_MAX, 1}, {0, 1, 2});
+
+  const CpuTensor lhs({2, 1}, std::vector<float>{2, 8});
+  const CpuTensor rhs({3}, std::vector<float>{1, 2, 4});
+  for (const auto kind : {OpKind::kAdd, OpKind::kSubtract, OpKind::kMultiply, OpKind::kDivide}) {
+    std::array<Tensor, 2> inputs{cpu::to_core_tensor(lhs), cpu::to_core_tensor(rhs)};
+    std::array<Tensor, 1> outputs{};
+    const BackendExecution e{BackendOpClass::kPrimitive, OpDesc{kind}, inputs, outputs,
+                             std::nullopt, std::nullopt, {}};
+    expect_ok("broadcast backend execution", backend.execute(e));
+    if (!outputs[0].buffer) continue;
+    const auto result = cpu::from_core_tensor(outputs[0]);
+    check(result.shape() == Shape{2, 3}, "broadcast output shape incorrect");
+    for (std::size_t i = 0; i < 6; ++i) {
+      const float a = lhs.float_data()[i / 3], b = rhs.float_data()[i % 3];
+      const float expected = kind == OpKind::kAdd ? a+b : kind == OpKind::kSubtract ? a-b :
+                             kind == OpKind::kMultiply ? a*b : a/b;
+      check(result.float_data()[i] == expected, "broadcast mapped incorrect input values");
+    }
+  }
+  const CpuTensor scalar({}, std::vector<std::int32_t>{INT32_MAX});
+  const CpuTensor integer_rhs({2}, std::vector<std::int32_t>{1, 2});
+  check(cpu::execute_binary(OpDesc{OpKind::kAdd}, scalar, integer_rhs).int32_data() ==
+            std::vector<std::int32_t>{INT32_MIN, INT32_MIN + 1}, "broadcast int32 wrap mismatch");
+  const auto empty = cpu::empty({0, 3}, DType::kFloat32);
+  check(cpu::execute_binary(OpDesc{OpKind::kAdd}, empty, rhs).shape() == Shape{0, 3},
+        "empty broadcast output incorrect");
+
+  const CpuTensor floats({6}, std::vector<float>{-2147483648.0F, 2147483520.0F,
+                                               -1.9F, 1.9F, -0.0F, 0.0F});
+  OpDesc cast{OpKind::kCast}; cast.target_dtype = DType::kInt32;
+  std::array<Tensor, 1> inputs{cpu::to_core_tensor(floats)}, outputs{};
+  BackendExecution e{BackendOpClass::kPrimitive, cast, inputs, outputs, std::nullopt, std::nullopt, {}};
+  expect_ok("checked float-to-int cast", backend.execute(e));
+  if (outputs[0].buffer)
+    check(cpu::from_core_tensor(outputs[0]).int32_data() ==
+              std::vector<std::int32_t>{INT32_MIN, 2147483520, -1, 1, 0, 0},
+          "cast truncation/boundaries incorrect");
+  const auto original_output = outputs[0].buffer;
+  for (const float invalid : {2147483648.0F, -2147483904.0F,
+                              std::numeric_limits<float>::infinity(),
+                              -std::numeric_limits<float>::infinity(),
+                              std::numeric_limits<float>::quiet_NaN()}) {
+    const CpuTensor bad({2}, std::vector<float>{1, invalid});
+    inputs[0] = cpu::to_core_tensor(bad);
+    expect_status("invalid float-to-int cast", backend.execute(e), StatusCode::kInvalidArgument);
+    check(outputs[0].buffer == original_output, "failed cast replaced output slot");
+    check(bad.float_data()[0] == 1, "failed cast mutated input");
+  }
+  e.op.target_dtype = static_cast<DType>(99);
+  expect_status("invalid cast dtype", backend.execute(e), StatusCode::kInvalidArgument);
+  e.op = cast; e.inputs = {};
+  expect_status("missing cast input", backend.execute(e), StatusCode::kInvalidArgument);
+  for (const auto dtype : {DType::kFloat32, DType::kInt32}) {
+    const auto source = dtype == DType::kFloat32 ? floats : cpu::execute_unary(cast, floats);
+    OpDesc copy{OpKind::kCast}; copy.target_dtype = dtype;
+    const auto result = cpu::execute_unary(copy, source);
+    check(result.buffer() != source.buffer() && result.shape() == source.shape() &&
+              result.dtype() == dtype, "same-dtype cast must copy independently");
+    const auto empty_source = cpu::empty({2, 0}, dtype);
+    copy.target_dtype = dtype == DType::kFloat32 ? DType::kInt32 : DType::kFloat32;
+    const auto empty_cast = cpu::execute_unary(copy, empty_source);
+    check(empty_cast.shape() == Shape{2, 0} && empty_cast.size() == 0 &&
+              empty_cast.dtype() == copy.target_dtype, "empty cast metadata mismatch");
+  }
+  OpDesc to_float{OpKind::kCast};
+  const CpuTensor exact({}, std::vector<std::int32_t>{16777217});
+  check(cpu::execute_unary(to_float, exact).float_data()[0] == 16777216.0F,
+        "integer cast must round to float32 nearest");
+}
+
 }  // namespace
 
 int main() {
+  cast_broadcast_contract_tests();
   arithmetic_contract_tests();
   // Malformed native metadata must not wrap its byte count to a small buffer.
   for (auto dtype : {tensorcx::DType::kFloat32, tensorcx::DType::kInt32}) {

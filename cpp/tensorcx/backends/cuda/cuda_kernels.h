@@ -1,7 +1,9 @@
 #pragma once
 
 #include <cstddef>
+#include "tensorcx/core/dtype.h"
 #include "tensorcx/core/operation.h"
+#include "tensorcx/core/shape.h"
 #include <cuda_runtime_api.h>
 
 namespace tensorcx::cuda {
@@ -10,6 +12,13 @@ namespace tensorcx::cuda {
 cudaError_t launch_fill(float* output, std::size_t count, float value);
 cudaError_t launch_binary(const float* lhs, const float* rhs, float* output,
                           std::size_t count, OpKind op);
+// Metadata contains output dimensions, then lhs/rhs element strides; expanded
+// and padded dimensions have stride zero. Metadata is already on the device.
+cudaError_t launch_broadcast_binary(const float* lhs, const float* rhs, float* output,
+                                    std::size_t count, OpKind op,
+                                    const Dim* metadata, std::size_t rank);
+cudaError_t launch_validate_int32_cast(const float* input, std::size_t count, int* invalid);
+cudaError_t launch_cast(const void* input, void* output, std::size_t count, DType input_dtype);
 cudaError_t launch_scalar(const float* input, float* output, std::size_t count,
                           OpKind op, float scalar, bool scalar_left);
 

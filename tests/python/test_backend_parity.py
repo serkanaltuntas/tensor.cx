@@ -222,7 +222,7 @@ def test_backend_binary_rejects_dtype_and_shape_mismatch(backend_name, op):
     with pytest.raises(ValueError, match="dtype mismatch"):
         operation(x, y)
     with pytest.raises(ValueError, match="shape mismatch"):
-        operation(x, cx.ones((1, 2), device=backend_name))
+        operation(x, cx.ones((2, 3), device=backend_name))
     if backend_name != "cpu":
         with pytest.raises(ValueError, match="device mismatch"):
             operation(x, cx.ones((2,)))

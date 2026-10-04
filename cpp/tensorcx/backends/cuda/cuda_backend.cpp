@@ -170,18 +170,65 @@ Status CudaBackend::execute(const BackendExecution& execution) {
       auto tensor=from_core_tensor(input);
       if (!tensor) return tensor.status();
     }
+    if (kind == OpKind::kCast) {
+      const auto& input = execution.inputs[0];
+      const auto target = execution.op.target_dtype;
+      if (target != DType::kFloat32 && target != DType::kInt32)
+        return invalid("unsupported cast target dtype");
+      ContextScope device;
+      if (!device.ready()) return device.status();
+      const auto source = std::static_pointer_cast<CudaBuffer>(input.buffer);
+      const auto count = static_cast<std::size_t>(numel(input.shape));
+      if (input.dtype == DType::kFloat32 && target == DType::kInt32 && count) {
+        auto flag = CudaBuffer::create(DType::kInt32, {1});
+        if (!flag) return flag.status();
+        auto* invalid_flag = static_cast<int*>(flag.value()->data());
+        auto status = runtime_status(cudaMemset(invalid_flag, 0, sizeof(int)), "CUDA cast validation flag");
+        if (!status.ok()) return status;
+        status = runtime_status(launch_validate_int32_cast(
+            static_cast<const float*>(source->data()), count, invalid_flag), "CUDA cast validation");
+        if (!status.ok()) return status;
+        int invalid_value = 0;
+        status = runtime_status(cudaMemcpy(&invalid_value, invalid_flag, sizeof(int), cudaMemcpyDeviceToHost),
+                                "CUDA cast validation readback");
+        if (!status.ok()) return status;
+        if (invalid_value)
+          return invalid("float32 to int32 cast requires finite values in [-2147483648, 2147483648)");
+      }
+      auto result = CudaBuffer::create(target, input.shape);
+      if (!result) return result.status();
+      if (count) {
+        const auto error = input.dtype == target
+            ? cudaMemcpy(result.value()->data(), source->data(), source->nbytes(), cudaMemcpyDeviceToDevice)
+            : launch_cast(source->data(), result.value()->data(), count, input.dtype);
+        auto status = runtime_status(error, "CUDA tensor cast");
+        if (!status.ok()) return status;
+        // Device-to-device copies can return before completion. Cast kernels
+        // synchronize inside launch_cast; same-dtype copies have the same API.
+        if (input.dtype == target) {
+          status = runtime_status(cudaDeviceSynchronize(), "CUDA tensor cast synchronize");
+          if (!status.ok()) return status;
+        }
+      }
+      execution.outputs[0] = to_core_tensor(CudaTensor(target, input.shape, result.move_value()));
+      return Status::Ok();
+    }
     if (is_binary_arithmetic(kind) &&
         execution.inputs[0].dtype!=execution.inputs[1].dtype) return invalid("dtype mismatch for binary operation");
     for (const auto& input : execution.inputs) {
       if (input.dtype!=DType::kFloat32) return invalid("CUDA operations only support float32");
     }
+    std::optional<BroadcastPlan> broadcast;
     if (kind==OpKind::kFill) {
       if(execution.outputs[0].dtype!=DType::kFloat32) return invalid("CUDA fill only supports float32");
       shape=execution.outputs[0].shape;
     } else {
       shape=execution.inputs[0].shape;
       if (is_binary_arithmetic(kind)) {
-        if(shape!=execution.inputs[1].shape) return invalid("shape mismatch for binary operation");
+        if (shape != execution.inputs[1].shape) {
+          broadcast = make_broadcast_plan(shape, execution.inputs[1].shape);
+          shape = broadcast->output_shape;
+        }
       } else if(kind==OpKind::kMatmul) {
         const auto& right=execution.inputs[1].shape;
         if(shape.size()!=2 || right.size()!=2) return invalid("matmul requires rank-2 tensors");
@@ -227,7 +274,31 @@ Status CudaBackend::execute(const BackendExecution& execution) {
     if (kind==OpKind::kFill) {
       error=launch_fill(output,count,static_cast<float>(execution.op.scalar_value));
     } else if(is_binary_arithmetic(kind)) {
-      error=launch_binary(data(0),data(1),output,count,kind);
+      if (broadcast && count) {
+        // Transfer only O(rank) metadata. Inputs remain in their original
+        // buffers; zero strides implement broadcast dimensions in the kernel.
+        const auto rank = shape.size();
+        if (rank > std::numeric_limits<std::size_t>::max() / (3 * sizeof(Dim)))
+          return invalid("CUDA broadcast metadata size overflow");
+        Shape metadata;
+        metadata.reserve(3 * rank);
+        metadata.insert(metadata.end(), shape.begin(), shape.end());
+        metadata.insert(metadata.end(), broadcast->lhs_strides.begin(), broadcast->lhs_strides.end());
+        metadata.insert(metadata.end(), broadcast->rhs_strides.begin(), broadcast->rhs_strides.end());
+        void* allocation = nullptr;
+        auto status = runtime_status(cudaMalloc(&allocation, metadata.size() * sizeof(Dim)),
+                                     "CUDA broadcast metadata allocation");
+        if (!status.ok()) return status;
+        std::unique_ptr<void, DeviceDeleter> device_metadata(allocation, DeviceDeleter{device.owner()});
+        status = runtime_status(cudaMemcpy(device_metadata.get(), metadata.data(),
+                                           metadata.size() * sizeof(Dim), cudaMemcpyHostToDevice),
+                                "CUDA broadcast metadata copy");
+        if (!status.ok()) return status;
+        error = launch_broadcast_binary(data(0), data(1), output, count, kind,
+                                        static_cast<const Dim*>(device_metadata.get()), rank);
+      } else {
+        error=launch_binary(data(0),data(1),output,count,kind);
+      }
     } else if(is_scalar_arithmetic(kind)) {
       error=launch_scalar(data(0),output,count,kind,
                           static_cast<float>(execution.op.scalar_value),execution.op.scalar_left);

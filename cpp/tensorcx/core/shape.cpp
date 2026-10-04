@@ -1,6 +1,7 @@
 #include "tensorcx/core/shape.h"
 
 #include <limits>
+#include <algorithm>
 #include <stdexcept>
 
 namespace tensorcx {
@@ -43,6 +44,35 @@ Shape contiguous_strides(const Shape& shape) {
     stride = checked_multiply(stride, shape[index - 1], "shape stride overflow");
   }
   return strides;
+}
+
+BroadcastPlan make_broadcast_plan(const Shape& lhs, const Shape& rhs) {
+  (void)numel(lhs);
+  (void)numel(rhs);
+  const auto lhs_contiguous = contiguous_strides(lhs);
+  const auto rhs_contiguous = contiguous_strides(rhs);
+  const auto rank = std::max(lhs.size(), rhs.size());
+  BroadcastPlan plan{Shape(rank), Shape(rank, 0), Shape(rank, 0)};
+  const auto lhs_padding = rank - lhs.size();
+  const auto rhs_padding = rank - rhs.size();
+  for (std::size_t axis = 0; axis < rank; ++axis) {
+    const auto left = axis < lhs_padding ? Dim{1} : lhs[axis - lhs_padding];
+    const auto right = axis < rhs_padding ? Dim{1} : rhs[axis - rhs_padding];
+    if (left != right && left != 1 && right != 1) {
+      throw std::invalid_argument("shape mismatch: tensor shapes are not broadcastable");
+    }
+    // max(left, right) would incorrectly map 0 with 1 to 1.
+    plan.output_shape[axis] = left == 1 ? right : left;
+    if (axis >= lhs_padding && left != 1) {
+      plan.lhs_strides[axis] = lhs_contiguous[axis - lhs_padding];
+    }
+    if (axis >= rhs_padding && right != 1) {
+      plan.rhs_strides[axis] = rhs_contiguous[axis - rhs_padding];
+    }
+  }
+  (void)numel(plan.output_shape);
+  (void)contiguous_strides(plan.output_shape);
+  return plan;
 }
 
 }  // namespace tensorcx

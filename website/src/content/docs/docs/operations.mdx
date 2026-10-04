@@ -17,7 +17,8 @@ Start with `import tensorcx as cx`. The following example works on CPU:
 | Construct | `tensor`, `empty`, `zeros`, `ones`, `randn` | Explicit shape, dtype, and device; `empty` contents are unspecified |
 | Inspect | `Tensor.shape`, `.dtype`, `.device` | Metadata for a contiguous row-major tensor |
 | Transfer | `.to(device)`, `.cpu()`, `.numpy()` | Explicit device transfers; NumPy export copies to host |
-| Elementwise | `a + b`, `a - b`, `a * b`, `a / b`, `-a` | Exact tensor shape/dtype/device match; real scalars work on either side; division requires float32 |
+| Elementwise | `a + b`, `a - b`, `a * b`, `a / b`, `-a` | Broadcast-compatible shapes, same dtype/device; real scalars work on either side; division requires float32 |
+| Convert dtype | `x.astype(dtype)`, `cx.astype(x, dtype)` | Explicit float32/int32 conversion on the same device; copies by default |
 | Reshape | `x.reshape(shape)`, `cx.reshape(x, shape)` | Shares storage; same element count; one inferred `-1` allowed |
 | Matrix multiply | `cx.matmul(a, b)` | Float32, 2D inputs, matching inner dimensions |
 | Reduce | `cx.sum(x, axis=..., keepdims=False)`, `max`, `mean` | Explicit axis; `keepdims=True` retains it with size 1 |
@@ -30,6 +31,12 @@ Support varies by backend, particularly for `int32`. See the
 ## Numerical behavior
 
 - Float inputs are narrowed to `float32`; precision loss and overflow are possible.
+- Broadcasting aligns axes from the right; dimensions must match or be 1.
+  `(2, 3) + (3,)` returns `(2, 3)`. A dimension of 0 paired with 1 stays 0.
+  No dtype promotion or device transfer occurs; the result is contiguous.
+- `astype` truncates float-to-int toward zero and rejects NaN, infinity and
+  out-of-range values. Int-to-float can lose precision. `copy=False` returns
+  the input only when the dtype is unchanged; conversion still allocates.
 - CPU and Metal `int32` add/subtract/multiply/negate wrap on overflow. CUDA int32 arithmetic is
   unsupported.
 - Scalars preserve the tensor dtype. Int32 requires an integer scalar within
@@ -48,7 +55,7 @@ Support varies by backend, particularly for `int32`. See the
 - Floating-point accumulation order can differ across backends. Compare with
   numerical tolerances, not bitwise equality.
 
-There is no implicit tensor broadcasting, autograd, batched matmul, or general
+There is no autograd, batched matmul, or general
 slicing/strided execution in this API. Reductions still require one explicit axis.
 The [experimental kernel subset](/docs/experimental/) has its own arithmetic
 rules and does not extend the ordinary tensor operators.

@@ -15,6 +15,8 @@ only device index 0 is exposed.
 | Float32 subtract, divide, negate and scalar arithmetic | Yes | Yes | Yes |
 | Int32 subtract, negate and scalar add/subtract/multiply | Yes | Yes | No |
 | Contiguous reshape (float32/int32) | Yes | Yes | Yes |
+| Explicit float32/int32 conversion | Yes | Yes | Yes |
+| Binary arithmetic broadcasting | Yes | Yes | Yes, float32 |
 | Float32 2D matmul | Yes | Custom + optional optimized path | Custom path |
 | Float32 sum, max, mean | Yes | Yes | Yes |
 | Int32 sum, max | Yes | Yes | No |
@@ -51,7 +53,7 @@ own validation. The hosted CUDA build job tests compilation and no-device
 behavior; it does not run on an NVIDIA GPU. A local push gate exercises the
 validated GPU. Repository-wide GPU acceptance still needs an isolated runner.
 
-The CUDA backend copies `int32` tensors but rejects int32 factories and
+The CUDA backend copies and explicitly casts `int32` tensors but rejects int32 factories and
 arithmetic. Float32 matmul supports `auto` and `custom`, not `optimized`.
 
 ## Compiler boundary

@@ -4,6 +4,8 @@
 #include <limits>
 #include <stdexcept>
 #include <cmath>
+#include <utility>
+#include <vector>
 
 #include "tensorcx/backends/cuda/cuda_backend.h"
 #include "tensorcx/backends/cpu/cpu_backend.h"
@@ -106,6 +108,115 @@ void arithmetic_contract(cuda::CudaBackend& backend) {
   }
 }
 
+void cast_contract(cuda::CudaBackend& backend) {
+  const auto verify = [&](const cpu::CpuTensor& source, DType target) {
+    auto device = cuda::from_cpu(source).value();
+    std::array<Tensor, 1> inputs{cuda::to_core_tensor(device)}, outputs{};
+    OpDesc op{OpKind::kCast};
+    op.target_dtype = target;
+    BackendExecution execution{BackendOpClass::kPrimitive, op, inputs, outputs};
+    require(backend.execute(execution).ok(), "CUDA cast failed");
+    const auto actual = cuda::to_cpu(cuda::from_core_tensor(outputs[0]).value()).value();
+    require(actual.dtype() == target && actual.shape() == source.shape(), "cast metadata mismatch");
+    require(outputs[0].buffer != inputs[0].buffer, "cast must create independent storage");
+    if (target == DType::kFloat32) {
+      for (std::size_t i = 0; i < actual.size(); ++i) {
+        const float expected = source.dtype() == target ? source.float_data()[i]
+            : static_cast<float>(source.int32_data()[i]);
+        same_float(actual.float_data()[i], expected);
+      }
+    } else {
+      for (std::size_t i = 0; i < actual.size(); ++i) {
+        const auto expected = source.dtype() == target ? source.int32_data()[i]
+            : static_cast<std::int32_t>(source.float_data()[i]);
+        require(actual.int32_data()[i] == expected, "cast truncation mismatch");
+      }
+    }
+    const auto previous = outputs[0].buffer;
+    execution.op.target_dtype = static_cast<DType>(123);
+    invalid(backend.execute(execution));
+    require(outputs[0].buffer == previous, "invalid cast target changed output");
+    execution.op.target_dtype = target;
+    inputs[0].offset = 1;
+    invalid(backend.execute(execution));
+    require(outputs[0].buffer == previous, "malformed cast changed output");
+  };
+  const std::vector<float> floats{0.0F, -0.0F, 1.9F, -1.9F, 2147483520.0F, -2147483648.0F};
+  const std::vector<std::int32_t> integers{0, -1, 16777217, -16777217, INT32_MIN, INT32_MAX};
+  for (const Shape& shape : {Shape{}, Shape{2, 0}, Shape{257}}) {
+    const auto count = static_cast<std::size_t>(numel(shape));
+    std::vector<float> fvalues(count);
+    std::vector<std::int32_t> ivalues(count);
+    for (std::size_t i = 0; i < count; ++i) {
+      fvalues[i] = floats[i % floats.size()];
+      ivalues[i] = integers[i % integers.size()];
+    }
+    for (const auto target : {DType::kFloat32, DType::kInt32}) {
+      verify(cpu::CpuTensor(shape, fvalues), target);
+      verify(cpu::CpuTensor(shape, ivalues), target);
+    }
+  }
+  const float inf = std::numeric_limits<float>::infinity();
+  const float nan = std::numeric_limits<float>::quiet_NaN();
+  verify(cpu::CpuTensor({4}, std::vector<float>{inf, -inf, nan, -0.0F}), DType::kFloat32);
+  // Put bad values past the first CUDA block, testing both conversion bounds
+  // and the atomic validation status without ever publishing a partial output.
+  for (const float bad : {inf, -inf, nan, 2147483648.0F, std::nextafter(-2147483648.0F, -inf)}) {
+    std::vector<float> values(257, 1.5F); values.back() = bad;
+    auto source = cuda::from_cpu(cpu::CpuTensor({257}, values)).value();
+    auto sentinel = cuda::from_cpu(cpu::CpuTensor({1}, std::vector<std::int32_t>{42})).value();
+    std::array<Tensor, 1> inputs{cuda::to_core_tensor(source)}, outputs{cuda::to_core_tensor(sentinel)};
+    OpDesc op{OpKind::kCast}; op.target_dtype = DType::kInt32;
+    BackendExecution execution{BackendOpClass::kPrimitive, op, inputs, outputs};
+    invalid(backend.execute(execution));
+    require(outputs[0].buffer == cuda::to_core_tensor(sentinel).buffer, "invalid values changed cast output");
+    require(cuda::to_cpu(sentinel).value().int32_data()[0] == 42, "cast failure modified sentinel data");
+  }
+}
+
+void broadcast_contract(cuda::CudaBackend& backend) {
+  Shape high_rank(40, 1); high_rank[0] = 2; high_rank.back() = 3;
+  const std::vector<std::pair<Shape, Shape>> pairs{
+      {{2, 3}, {3}}, {{3}, {2, 3}}, {{2, 1, 3}, {1, 4, 1}},
+      {{}, {257}}, {{257}, {}}, {{2, 0, 3}, {1, 3}}, {{0, 3}, {1, 3}},
+      {high_rank, {3}}, {{0, 1, Dim{1} << 62, 4, 0}, {1}}};
+  cpu::CpuBackend reference;
+  for (const auto& [lhs_shape, rhs_shape] : pairs) {
+    std::vector<float> lhs(static_cast<std::size_t>(numel(lhs_shape)));
+    std::vector<float> rhs(static_cast<std::size_t>(numel(rhs_shape)));
+    for (std::size_t i = 0; i < lhs.size(); ++i) lhs[i] = static_cast<float>(i % 7) - 3.5F;
+    for (std::size_t i = 0; i < rhs.size(); ++i) rhs[i] = static_cast<float>(i % 3) + 0.5F;
+    cpu::CpuTensor a(lhs_shape, lhs), b(rhs_shape, rhs);
+    auto ga = cuda::from_cpu(a).value(), gb = cuda::from_cpu(b).value();
+    std::array<Tensor, 2> gpu_inputs{cuda::to_core_tensor(ga), cuda::to_core_tensor(gb)};
+    std::array<Tensor, 2> cpu_inputs{cpu::to_core_tensor(a), cpu::to_core_tensor(b)};
+    std::array<Tensor, 1> gpu_outputs{}, cpu_outputs{};
+    for (const auto kind : {OpKind::kAdd, OpKind::kSubtract, OpKind::kMultiply, OpKind::kDivide}) {
+      BackendExecution gpu{BackendOpClass::kPrimitive, OpDesc{kind}, gpu_inputs, gpu_outputs};
+      BackendExecution cpu{BackendOpClass::kPrimitive, OpDesc{kind}, cpu_inputs, cpu_outputs};
+      require(reference.execute(cpu).ok(), "broadcast CPU reference failed");
+      require(backend.execute(gpu).ok(), "CUDA broadcast failed");
+      const auto actual = cuda::to_cpu(cuda::from_core_tensor(gpu_outputs[0]).value()).value();
+      const auto expected = cpu::from_core_tensor(cpu_outputs[0]);
+      require(actual.shape() == expected.shape(), "broadcast output shape mismatch");
+      for (std::size_t i = 0; i < actual.size(); ++i)
+        same_float(actual.float_data()[i], expected.float_data()[i]);
+    }
+    require(cuda::to_cpu(ga).value().float_data() == lhs, "broadcast changed lhs input");
+    require(cuda::to_cpu(gb).value().float_data() == rhs, "broadcast changed rhs input");
+  }
+  auto left = cuda::from_cpu(cpu::CpuTensor({2, 0}, std::vector<float>{})).value();
+  auto right = cuda::from_cpu(cpu::CpuTensor({3, 0}, std::vector<float>{})).value();
+  std::array<Tensor, 2> inputs{cuda::to_core_tensor(left), cuda::to_core_tensor(right)};
+  std::array<Tensor, 1> outputs{inputs[0]};
+  const auto previous = outputs[0].buffer;
+  for (const auto kind : {OpKind::kAdd, OpKind::kSubtract, OpKind::kMultiply, OpKind::kDivide}) {
+    BackendExecution execution{BackendOpClass::kPrimitive, OpDesc{kind}, inputs, outputs};
+    invalid(backend.execute(execution));
+    require(outputs[0].buffer == previous, "empty incompatible broadcast changed output");
+  }
+}
+
 Tensor descriptor(Shape shape = {3}) {
   const auto strides = contiguous_strides(shape);
   return {DType::kFloat32, std::move(shape), strides, {"cuda", 0}, nullptr, 0};
@@ -198,6 +309,8 @@ int main() {
       }
     }
     arithmetic_contract(backend);
+    cast_contract(backend);
+    broadcast_contract(backend);
     // Long contiguous rows exercise the cooperative path under device
     // memcheck/racecheck as well as ordinary native acceptance.
     for (const std::int64_t width : {256, 257, 4097}) {

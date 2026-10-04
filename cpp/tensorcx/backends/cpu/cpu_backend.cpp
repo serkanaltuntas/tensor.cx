@@ -43,9 +43,6 @@ void validate_binary_inputs(const CpuTensor& lhs, const CpuTensor& rhs) {
   if (lhs.dtype() != rhs.dtype()) {
     throw std::invalid_argument("dtype mismatch for binary operation");
   }
-  if (lhs.shape() != rhs.shape()) {
-    throw std::invalid_argument("shape mismatch for binary operation");
-  }
 }
 
 Status invalid_argument_status(const char* message) {
@@ -266,7 +263,8 @@ Status CpuBackend::execute(const BackendExecution& execution) {
       case OpKind::kAddScalar:
       case OpKind::kSubtractScalar:
       case OpKind::kMultiplyScalar:
-      case OpKind::kDivideScalar: {
+      case OpKind::kDivideScalar:
+      case OpKind::kCast: {
         const CpuTensor input = from_core_tensor(execution.inputs[0]);
         execution.outputs[0] = to_core_tensor(execute_unary(execution.op, input));
         return Status::Ok();
@@ -734,6 +732,34 @@ CpuTensor execute_unary(const OpDesc& op, const CpuTensor& input) {
   if (input.device().type != "cpu") {
     throw std::invalid_argument("CPU operations require CPU tensors");
   }
+  if (op.kind == OpKind::kCast) {
+    if (op.target_dtype != DType::kFloat32 && op.target_dtype != DType::kInt32) {
+      throw std::invalid_argument("unsupported cast target dtype");
+    }
+    if (input.dtype() == op.target_dtype) {
+      if (input.dtype() == DType::kFloat32) return CpuTensor(input.shape(), input.float_data());
+      return CpuTensor(input.shape(), input.int32_data());
+    }
+    if (op.target_dtype == DType::kInt32) {
+      const auto& values = input.float_data();
+      // Validate every source before converting: out-of-range floating-to-int
+      // conversion is undefined, including NaN and infinity.
+      for (const float value : values) {
+        if (!std::isfinite(value) || value < -2147483648.0F || value >= 2147483648.0F) {
+          throw std::invalid_argument("float32 value is out of range for int32 cast");
+        }
+      }
+      CpuTensor result(op.target_dtype, input.shape());
+      auto& out = result.mutable_int32_data();
+      for (std::size_t i = 0; i < out.size(); ++i) out[i] = static_cast<std::int32_t>(values[i]);
+      return result;
+    }
+    CpuTensor result(op.target_dtype, input.shape());
+    const auto& values = input.int32_data();
+    auto& out = result.mutable_float_data();
+    for (std::size_t i = 0; i < out.size(); ++i) out[i] = static_cast<float>(values[i]);
+    return result;
+  }
   const bool scalar_op = op.kind == OpKind::kAddScalar || op.kind == OpKind::kSubtractScalar ||
                          op.kind == OpKind::kMultiplyScalar || op.kind == OpKind::kDivideScalar;
   if (op.kind == OpKind::kNegate || scalar_op) {
@@ -877,25 +903,39 @@ CpuTensor execute_binary(const OpDesc& op, const CpuTensor& lhs, const CpuTensor
     throw std::invalid_argument("division only supports float32 tensors");
   }
 
-  CpuTensor result(lhs.dtype(), lhs.shape());
+  const auto plan = make_broadcast_plan(lhs.shape(), rhs.shape());
+  CpuTensor result(lhs.dtype(), plan.output_shape);
+  const bool same_shape = lhs.shape() == rhs.shape();
+  const auto input_offsets = [&](std::size_t index) {
+    if (same_shape) return std::pair{index, index};
+    std::size_t left = 0, right = 0;
+    for (auto axis = plan.output_shape.size(); axis > 0; --axis) {
+      const auto coordinate = index % static_cast<std::size_t>(plan.output_shape[axis - 1]);
+      index /= static_cast<std::size_t>(plan.output_shape[axis - 1]);
+      left += coordinate * static_cast<std::size_t>(plan.lhs_strides[axis - 1]);
+      right += coordinate * static_cast<std::size_t>(plan.rhs_strides[axis - 1]);
+    }
+    return std::pair{left, right};
+  };
   switch (lhs.dtype()) {
     case DType::kFloat32: {
       const auto& lhs_data = lhs.float_data();
       const auto& rhs_data = rhs.float_data();
       auto& out = result.mutable_float_data();
       for (std::size_t i = 0; i < out.size(); ++i) {
+        const auto [left, right] = input_offsets(i);
         switch (op.kind) {
           case OpKind::kAdd:
-            out[i] = lhs_data[i] + rhs_data[i];
+            out[i] = lhs_data[left] + rhs_data[right];
             break;
           case OpKind::kSubtract:
-            out[i] = lhs_data[i] - rhs_data[i];
+            out[i] = lhs_data[left] - rhs_data[right];
             break;
           case OpKind::kDivide:
-            out[i] = lhs_data[i] / rhs_data[i];
+            out[i] = lhs_data[left] / rhs_data[right];
             break;
           case OpKind::kMultiply:
-            out[i] = lhs_data[i] * rhs_data[i];
+            out[i] = lhs_data[left] * rhs_data[right];
             break;
           default:
             throw std::invalid_argument("unsupported binary float32 operation");
@@ -908,12 +948,13 @@ CpuTensor execute_binary(const OpDesc& op, const CpuTensor& lhs, const CpuTensor
       const auto& rhs_data = rhs.int32_data();
       auto& out = result.mutable_int32_data();
       for (std::size_t i = 0; i < out.size(); ++i) {
+        const auto [left, right] = input_offsets(i);
         // Compute in uint32 and cast back so int32 overflow is defined
         // two's-complement wraparound (matching NumPy), not signed-overflow UB.
         // This keeps the §12.3 exact-equality contract identical to the Metal
         // add_i32/mul_i32 kernels, which use the same uint round-trip.
-        const auto a = static_cast<std::uint32_t>(lhs_data[i]);
-        const auto b = static_cast<std::uint32_t>(rhs_data[i]);
+        const auto a = static_cast<std::uint32_t>(lhs_data[left]);
+        const auto b = static_cast<std::uint32_t>(rhs_data[right]);
         switch (op.kind) {
           case OpKind::kAdd:
             out[i] = static_cast<std::int32_t>(a + b);

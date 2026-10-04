@@ -26,7 +26,7 @@ backend contracts, and testing small tensor workloads. APIs may change.
 - CPU references for accelerator correctness checks.
 - A separate [experimental kernel API](/docs/experimental/).
 
-Autograd, model training, broadcasting, asynchronous streams, distributed
+Autograd, model training, asynchronous streams, distributed
 execution, and broad dtype coverage are outside the current runtime. There is
 no PyTorch compatibility promise.
 

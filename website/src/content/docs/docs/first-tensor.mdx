@@ -40,6 +40,7 @@ or `cx.is_available("metal")` before selecting an accelerator. Use
 `tensor.to("cuda")` or `tensor.to("metal")` to transfer a tensor. Only device
 index 0 is currently supported.
 
-Binary operations require matching shapes, dtypes, and devices. They do not
-silently broadcast, cast, or move inputs. Read [tensor operations](/docs/operations/)
+Binary operations accept broadcast-compatible shapes with matching dtypes and
+devices. Use `astype` to convert dtype explicitly; operations never move inputs
+between devices. Read [tensor operations](/docs/operations/)
 for the next steps.

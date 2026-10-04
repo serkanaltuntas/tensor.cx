@@ -19,3 +19,10 @@ print(((a - 1) / 2).reshape((4,)).numpy())
 
 print(a.sum(axis=1, keepdims=True).shape)
 # (2, 1)
+
+values = cx.tensor([[1, 2, 3], [4, 5, 6]])
+bias = cx.tensor([0.25, 0.5, 0.75])
+result = values.astype(cx.float32) + bias
+print((result - result.mean(axis=-1, keepdims=True)).numpy())
+# [[-1.25  0.    1.25]
+#  [-1.25  0.    1.25]]

@@ -29,6 +29,47 @@ __global__ void binary_f32(const float* lhs, const float* rhs, float* output,
   }
 }
 
+__global__ void broadcast_binary_f32(const float* lhs, const float* rhs, float* output,
+                                     std::size_t count, OpKind op,
+                                     const Dim* metadata, std::size_t rank) {
+  for (std::size_t i = std::size_t(blockIdx.x) * blockDim.x + threadIdx.x;
+       i < count; i += std::size_t(blockDim.x) * gridDim.x) {
+    std::size_t remaining = i, left_offset = 0, right_offset = 0;
+    for (std::size_t axis = rank; axis-- > 0;) {
+      const auto dim = static_cast<std::size_t>(metadata[axis]);
+      const auto coordinate = remaining % dim;
+      remaining /= dim;
+      left_offset += coordinate * static_cast<std::size_t>(metadata[rank + axis]);
+      right_offset += coordinate * static_cast<std::size_t>(metadata[2 * rank + axis]);
+    }
+    output[i] = arithmetic(lhs[left_offset], rhs[right_offset], op);
+  }
+}
+
+__global__ void validate_int32_cast(const float* input, std::size_t count, int* invalid) {
+  for (std::size_t i = std::size_t(blockIdx.x) * blockDim.x + threadIdx.x;
+       i < count; i += std::size_t(blockDim.x) * gridDim.x) {
+    const float value = input[i];
+    // Negated comparisons reject NaNs as well as both infinities. The upper
+    // bound is exclusive because INT32_MAX itself rounds to 2**31 in float32.
+    if (!(value >= -2147483648.0F && value < 2147483648.0F)) atomicExch(invalid, 1);
+  }
+}
+
+__global__ void cast_f32_i32(const float* input, std::int32_t* output, std::size_t count) {
+  for (std::size_t i = std::size_t(blockIdx.x) * blockDim.x + threadIdx.x;
+       i < count; i += std::size_t(blockDim.x) * gridDim.x) {
+    output[i] = __float2int_rz(input[i]);
+  }
+}
+
+__global__ void cast_i32_f32(const std::int32_t* input, float* output, std::size_t count) {
+  for (std::size_t i = std::size_t(blockIdx.x) * blockDim.x + threadIdx.x;
+       i < count; i += std::size_t(blockDim.x) * gridDim.x) {
+    output[i] = __int2float_rn(input[i]);
+  }
+}
+
 __global__ void scalar_f32(const float* input, float* output, std::size_t count,
                            OpKind op, float scalar, bool scalar_left) {
   for (std::size_t i = std::size_t(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -58,6 +99,31 @@ cudaError_t launch_binary(const float* lhs, const float* rhs, float* output,
                           std::size_t count, OpKind op) {
   if (count == 0) return cudaSuccess;
   binary_f32<<<blocks(count), kThreads>>>(lhs, rhs, output, count, op);
+  return finish_launch();
+}
+cudaError_t launch_broadcast_binary(const float* lhs, const float* rhs, float* output,
+                                    std::size_t count, OpKind op,
+                                    const Dim* metadata, std::size_t rank) {
+  if (count == 0) return cudaSuccess;
+  broadcast_binary_f32<<<blocks(count), kThreads>>>(lhs, rhs, output, count, op, metadata, rank);
+  return finish_launch();
+}
+
+cudaError_t launch_validate_int32_cast(const float* input, std::size_t count, int* invalid) {
+  if (count == 0) return cudaSuccess;
+  validate_int32_cast<<<blocks(count), kThreads>>>(input, count, invalid);
+  return finish_launch();
+}
+
+cudaError_t launch_cast(const void* input, void* output, std::size_t count, DType input_dtype) {
+  if (count == 0) return cudaSuccess;
+  if (input_dtype == DType::kFloat32) {
+    cast_f32_i32<<<blocks(count), kThreads>>>(static_cast<const float*>(input),
+                                            static_cast<std::int32_t*>(output), count);
+  } else {
+    cast_i32_f32<<<blocks(count), kThreads>>>(static_cast<const std::int32_t*>(input),
+                                            static_cast<float*>(output), count);
+  }
   return finish_launch();
 }
 cudaError_t launch_scalar(const float* input, float* output, std::size_t count,

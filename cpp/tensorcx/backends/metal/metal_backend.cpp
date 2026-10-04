@@ -207,6 +207,7 @@ Status MetalBackend::execute(const BackendExecution& execution) {
         execution.outputs[0] = to_core_tensor(result.move_value());
         return Status::Ok();
       }
+      case OpKind::kCast:
       case OpKind::kNegate:
       case OpKind::kAddScalar:
       case OpKind::kSubtractScalar:

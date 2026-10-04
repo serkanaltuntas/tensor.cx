@@ -2,6 +2,92 @@
 
 using namespace metal;
 
+// Three ulong entries per axis: output extent, left stride, right stride.
+// Dynamic metadata avoids imposing an artificial tensor-rank limit. Broadcast
+// axes have stride zero; the actual tensor buffers are never expanded.
+inline ulong2 broadcast_offsets(uint id, device const ulong* metadata, ulong rank) {
+  ulong remaining = id;
+  ulong2 offsets(0);
+  for (ulong axis = rank; axis > 0; --axis) {
+    const ulong entry = (axis - 1) * 3;
+    const ulong coordinate = remaining % metadata[entry];
+    remaining /= metadata[entry];
+    offsets.x += coordinate * metadata[entry + 1];
+    offsets.y += coordinate * metadata[entry + 2];
+  }
+  return offsets;
+}
+
+kernel void broadcast_f32(device const float* lhs [[buffer(0)]],
+                          device const float* rhs [[buffer(1)]],
+                          device float* out [[buffer(2)]],
+                          constant uint& n [[buffer(3)]],
+                          device const ulong* metadata [[buffer(4)]],
+                          constant ulong& rank [[buffer(5)]],
+                          constant uint& operation [[buffer(6)]],
+                          uint id [[thread_position_in_grid]]) {
+  if (id < n) {
+    const ulong2 offsets = broadcast_offsets(id, metadata, rank);
+    const float a = lhs[offsets.x], b = rhs[offsets.y];
+    switch (operation) {
+      case 0: out[id] = a + b; break;
+      case 1: out[id] = a - b; break;
+      case 2: out[id] = a * b; break;
+      case 3: out[id] = precise::divide(a, b); break;
+    }
+  }
+}
+
+kernel void broadcast_i32(device const int* lhs [[buffer(0)]],
+                          device const int* rhs [[buffer(1)]],
+                          device int* out [[buffer(2)]],
+                          constant uint& n [[buffer(3)]],
+                          device const ulong* metadata [[buffer(4)]],
+                          constant ulong& rank [[buffer(5)]],
+                          constant uint& operation [[buffer(6)]],
+                          uint id [[thread_position_in_grid]]) {
+  if (id < n) {
+    const ulong2 offsets = broadcast_offsets(id, metadata, rank);
+    const uint a = uint(lhs[offsets.x]), b = uint(rhs[offsets.y]);
+    switch (operation) {
+      case 0: out[id] = as_type<int>(a + b); break;
+      case 1: out[id] = as_type<int>(a - b); break;
+      case 2: out[id] = as_type<int>(a * b); break;
+    }
+  }
+}
+
+kernel void copy_bits(device const uint* input [[buffer(0)]],
+                      device uint* out [[buffer(1)]],
+                      constant uint& n [[buffer(2)]],
+                      uint id [[thread_position_in_grid]]) {
+  if (id < n) out[id] = input[id];
+}
+
+kernel void cast_i32_f32(device const int* input [[buffer(0)]],
+                         device float* out [[buffer(1)]],
+                         constant uint& n [[buffer(2)]],
+                         uint id [[thread_position_in_grid]]) {
+  if (id < n) out[id] = float(input[id]);
+}
+
+kernel void cast_f32_i32(device const float* input [[buffer(0)]],
+                         device int* out [[buffer(1)]],
+                         constant uint& n [[buffer(2)]],
+                         device atomic_uint* invalid [[buffer(3)]],
+                         uint id [[thread_position_in_grid]]) {
+  if (id < n) {
+    const float value = input[id];
+    if (!isfinite(value) || value < -2147483648.0f || value >= 2147483648.0f) {
+      atomic_store_explicit(invalid, 1u, memory_order_relaxed);
+    } else {
+      // MSL floating-to-integer conversion truncates toward zero. Guard first
+      // so an invalid conversion never reaches the device instruction.
+      out[id] = int(value);
+    }
+  }
+}
+
 kernel void add_f32(device const float* lhs [[buffer(0)]],
                     device const float* rhs [[buffer(1)]],
                     device float* out [[buffer(2)]],
@@ -62,7 +148,7 @@ kernel void scalar_f32(device const float* input [[buffer(0)]],
   if (id < n) {
     const float lhs = scalar_left ? scalar : input[id];
     const float rhs = scalar_left ? input[id] : scalar;
-    // Codes match scalar_operation_code in metal_kernels.cpp.
+    // Codes match arithmetic_operation_code in metal_kernels.cpp.
     switch (operation) {
       case 0: out[id] = lhs + rhs; break;
       case 1: out[id] = lhs - rhs; break;

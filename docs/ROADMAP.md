@@ -82,12 +82,13 @@ for discovery and copies. See [validation evidence](CUDA_PHASE9_VALIDATION.md).
 
 The user-requested [tensor API extension](TENSOR_API.md) adds ordinary
 subtraction/division/negation, real scalars, shared-storage contiguous reshape,
-and reduction `keepdims`. These additions preserve the dtype/backend boundaries
+reduction `keepdims`, explicit float32/int32 casts, and binary broadcasting.
+These additions preserve the dtype/backend boundaries
 and do not complete the broader CUDA product goal.
 
 ## Intentionally not implemented yet
 
-Autograd, training, streams/async, broadcasting, non-contiguous execution, wide
+Autograd, training, streams/async, non-contiguous execution, wide
 dtypes, broad generated-kernel semantics, top-level kernel APIs, broader CUDA operations, ROCm
 backends, and broader MLIR/backend integration are out of scope until their
 phases. The optional CPU runtime slice follows the completed Phase 10 research;

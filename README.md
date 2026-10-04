@@ -20,7 +20,7 @@ The project is useful today as:
 
 It is intentionally not a PyTorch, JAX, TensorFlow, MLX, Triton, or training
 framework replacement. Autograd, distributed training, broad dtype coverage,
-broadcasting, async streams, ROCm, and production compiler integration are
+async streams, ROCm, and production compiler integration are
 not part of the current runtime.
 
 The first milestone was deliberately small:
@@ -43,7 +43,7 @@ x86_64 with external LLVM 21.1.8 tools. See the
 ## Documentation Map
 
 - [`docs/NAMING.md`](docs/NAMING.md): tensor.cx branding and migration from the pre-release Cortex Runtime names.
-- [`docs/TENSOR_API.md`](docs/TENSOR_API.md): arithmetic/scalars, shared-storage reshape, and reduction `keepdims` contracts.
+- [`docs/TENSOR_API.md`](docs/TENSOR_API.md): arithmetic/scalars, broadcasting, explicit casts, shared-storage reshape, and reduction `keepdims` contracts.
 - [`website/`](website/README.md): Astro + Starlight product site and curated user guides for tensor.cx.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md): contributions, validation and publication hygiene.
 - [`SECURITY.md`](SECURITY.md): private vulnerability reporting and trust boundaries.
@@ -155,9 +155,10 @@ print(y.cpu().numpy()[:3])  # [2. 2. 2.]
 ```
 
 The prototype exposes only device index 0. float32 add/subtract/multiply/divide
-require exact tensor shape/dtype matches; Python/NumPy real scalars, negation,
+support broadcast-compatible shapes with matching dtypes; Python/NumPy real scalars, negation,
 rank-0 and empty contiguous tensors work. Copies preserve
-float32/int32. Float32 matmul (`auto`/`custom`), sum/max/mean, exp/GELU/SiLU,
+float32/int32, and `astype` converts explicitly between them on the device.
+Float32 matmul (`auto`/`custom`), sum/max/mean, exp/GELU/SiLU,
 softmax, RMSNorm and LayerNorm are implemented; see [semantics and validation](docs/CUDA_PRIMITIVES_VALIDATION.md).
 Int32 fill/arithmetic/reductions and broad generated CUDA kernels remain unsupported. A separate
 explicit MLIR compiler supports guarded float32 add/subtract/multiply on the validated sm_52
@@ -305,8 +306,11 @@ print(ln.cpu().numpy().shape)
   floating-point tolerances apply only when both inputs are floating point.
 - Supported dtypes are `float32` and `int32`. Float inputs are narrowed to
   `float32`, so values may lose precision or overflow to `inf`.
-- Arithmetic accepts same-shape tensors or real scalars on either side, without
-  dtype promotion. Division requires float32. See [the full contract](docs/TENSOR_API.md).
+- Arithmetic accepts broadcast-compatible tensors or real scalars on either
+  side, without dtype promotion or device transfer. Division requires float32.
+  `astype(dtype, copy=True)` explicitly converts float32/int32 on the same
+  device; float-to-int truncates toward zero and rejects non-finite/out-of-range
+  values. See [the full contract](docs/TENSOR_API.md).
 - `int32` add/subtract/multiply/negate overflow wraps (defined two's-complement), matching
   NumPy and identical on CPU and Metal.
 - `sum`, `max`, and `mean` require an explicit `axis`. Negative axes are

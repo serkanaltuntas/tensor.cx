@@ -86,6 +86,9 @@ class Tensor:
     def reshape(self, shape) -> "Tensor":
         return reshape(self, shape)
 
+    def astype(self, dtype: str, *, copy: bool = True) -> "Tensor":
+        return astype(self, dtype, copy=copy)
+
     def __matmul__(self, other: "Tensor") -> "Tensor":
         if not isinstance(other, Tensor):
             return NotImplemented
@@ -154,6 +157,24 @@ def reshape(input: Tensor, shape) -> Tensor:
     if shape is None:
         raise ValueError("shape must be an int or an iterable of ints")
     return Tensor(_core.reshape(input._impl, shape))
+
+
+def astype(input: Tensor, dtype: str, *, copy: bool = True) -> Tensor:
+    """Convert explicitly on the same device; float-to-int truncates toward zero.
+
+    Non-finite or out-of-range float-to-int values raise ValueError. By default
+    the result owns a new buffer, including same-dtype casts. With copy=False,
+    a same-dtype cast returns the input; changing dtype still allocates.
+    """
+    if not isinstance(input, Tensor):
+        raise TypeError("astype expects a Tensor argument")
+    if not isinstance(dtype, str) or dtype not in ("float32", "int32"):
+        raise ValueError("astype dtype must be 'float32' or 'int32'")
+    if not isinstance(copy, (bool, np.bool_)):
+        raise TypeError("copy must be a boolean")
+    if not copy and input.dtype == dtype:
+        return input
+    return Tensor(_core.astype(input._impl, dtype))
 
 
 def _validate_creation_device(target: str) -> None:
