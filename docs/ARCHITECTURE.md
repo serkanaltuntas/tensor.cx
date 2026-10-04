@@ -49,7 +49,7 @@ contract; core types and the C++ build still have no LLVM/MLIR dependency.
 
 The public Python `Tensor` wraps backend-specific native tensor objects. CPU and
 Metal tensors both support add and multiply; Metal tensors also support direct
-fill through `zeros` and `ones`, rank-2 float32 matmul, axis-based
+fill through `zeros` and `ones`, float32 vector/batched matmul with batch broadcasting, axis-based
 `sum`/`max`/`mean` reductions, `softmax`, `rmsnorm`, `layernorm`, and
 `exp`/`gelu`/`silu`.
 
@@ -179,7 +179,7 @@ Unsupported device transfer       ValueError        unsupported device transfer
 Binary device mismatch            ValueError        device mismatch
 Binary shape mismatch             ValueError        shape mismatch
 Binary dtype mismatch             ValueError        dtype mismatch
-Matmul rank mismatch              ValueError        matmul requires rank-2
+Matmul rank mismatch              ValueError        matmul requires rank >= 1
 Matmul shape mismatch             ValueError        matmul shape mismatch
 Matmul dtype mismatch             ValueError        matmul only supports float32
 Non-integer axis                  ValueError        axis must be an integer

@@ -14,14 +14,14 @@ not completion of compatibility, performance, GPU CI or distribution work.
 All operations compute on CUDA device 0, use `CudaBackend::execute`, retain
 primary-context ownership, run synchronously and publish a new output only on
 success. Input tensors remain unchanged. Arithmetic inputs must be contiguous
-float32 tensor.cx CUDA tensors; explicit casts also support int32. No implicit
+float32 tensor.cx CUDA tensors; explicit casts also support int32 and bool. No implicit
 CPU fallback or dtype conversion is introduced.
 
 | Operation | Contract |
 | --- | --- |
 | `+`, `-`, `*`, `/`, unary `-` | Float32; broadcast-compatible binary shapes; real scalars in either position; [API contract](TENSOR_API.md) |
-| `astype` | Explicit float32/int32 conversion on the same device; checked float-to-int truncation; [API contract](TENSOR_API.md#explicit-dtype-conversion) |
-| `matmul` / `@` | Rank-2 `(m,k) @ (k,n)`; `auto` and `custom` use the tiled CUDA kernel; `optimized` and unknown preferences fail explicitly |
+| `astype` | Explicit float32/int32/bool conversion on the same device; checked float-to-int truncation; [API contract](TENSOR_API.md#explicit-dtype-conversion) |
+| `matmul` / `@` | Rank >= 1, vector promotion and broadcasted batch axes; [matmul contract](TENSOR_API.md#batched-matrix-multiplication); `auto` and `custom` use the tiled CUDA kernel; `optimized` and unknown preferences fail explicitly |
 | `sum`, `max`, `mean` | `axis=None` (all axes), integer or axis sequence; `keepdims` retains selected dimensions; `()` copies; [reduction semantics](TENSOR_API.md#reduction-dimensions) |
 | `exp`, `gelu`, `silu` | Shape-preserving; GELU uses the same tanh approximation as CPU |
 | `softmax` | Stable max-subtracted normalization along any valid axis; shape preserved |

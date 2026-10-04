@@ -31,8 +31,8 @@ The Metal backend currently supports:
 - add and multiply kernels for float32 and int32 tensors
 - fill kernels for zeros/ones on float32 and int32 tensors
 - exp, gelu, silu, softmax, rmsnorm, and layernorm kernels for float32 tensors
-- naive custom MSL matmul for float32 rank-2 tensors
-- MPSGraph matmul for float32 rank-2 tensors
+- custom MSL float32 matmul with broadcasted batches and vector promotion
+- MPSGraph float32 matmul with broadcasted batches and vector promotion
 - reduction kernels for sum/max on float32 and int32 tensors
 - reduction kernel for mean on float32 tensors
 - experimental generated-kernel validation and synchronous launch for float32

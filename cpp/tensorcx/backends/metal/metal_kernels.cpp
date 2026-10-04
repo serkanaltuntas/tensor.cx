@@ -185,13 +185,6 @@ Status fill_empty_reduction_output(
   return Status(StatusCode::kInvalidArgument, "unsupported empty reduction operation");
 }
 
-struct MatmulDims {
-  std::uint32_t m;
-  std::uint32_t k;
-  std::uint32_t n;
-  std::int64_t output_elements;
-};
-
 struct ReductionDims {
   Shape output_shape;
   std::uint32_t output_elements;
@@ -244,18 +237,6 @@ Expected<std::uint32_t> checked_thread_count(std::int64_t size) {
         "Metal kernels currently support at most 2^32 - 1 elements");
   }
   return static_cast<std::uint32_t>(size);
-}
-
-Expected<std::uint32_t> checked_dim_for_metal(Dim dim, const char* name) {
-  if (dim < 0) {
-    return Status(StatusCode::kInvalidArgument, "shape dimensions must be non-negative");
-  }
-  if (dim > std::numeric_limits<std::uint32_t>::max()) {
-    return Status(
-        StatusCode::kInvalidArgument,
-        std::string("Metal matmul dimension exceeds 2^32 - 1: ") + name);
-  }
-  return static_cast<std::uint32_t>(dim);
 }
 
 Expected<std::uint32_t> checked_reduction_extent_for_metal(Dim dim) {
@@ -386,62 +367,6 @@ Expected<AxisTransformDims> checked_axis_transform_dims(const MetalTensor& input
       total_count_result.move_value(),
       reduce_result.move_value(),
       inner_result.move_value()};
-}
-
-Expected<MatmulDims> checked_matmul_dims(const MetalTensor& lhs, const MetalTensor& rhs) {
-  if (lhs.dtype() != DType::kFloat32 || rhs.dtype() != DType::kFloat32) {
-    return Status(StatusCode::kInvalidArgument, "Metal matmul only supports float32 tensors");
-  }
-  if (lhs.shape().size() != 2 || rhs.shape().size() != 2) {
-    return Status(StatusCode::kInvalidArgument, "matmul requires rank-2 tensors");
-  }
-  if (lhs.shape()[1] != rhs.shape()[0]) {
-    return Status(StatusCode::kInvalidArgument, "matmul shape mismatch");
-  }
-
-  auto m_result = checked_dim_for_metal(lhs.shape()[0], "M");
-  if (!m_result) {
-    return m_result.status();
-  }
-  auto k_result = checked_dim_for_metal(lhs.shape()[1], "K");
-  if (!k_result) {
-    return k_result.status();
-  }
-  auto n_result = checked_dim_for_metal(rhs.shape()[1], "N");
-  if (!n_result) {
-    return n_result.status();
-  }
-
-  const auto m = m_result.move_value();
-  const auto k = k_result.move_value();
-  const auto n = n_result.move_value();
-  if (m != 0 && n > std::numeric_limits<std::uint32_t>::max() / m) {
-    return Status(
-        StatusCode::kInvalidArgument,
-        "Metal kernels currently support at most 2^32 - 1 elements");
-  }
-  // The custom matmul_f32 kernel indexes operands as lhs[row*k + inner] and
-  // rhs[inner*n + col] in 32-bit uint, so the per-operand element counts (M*K
-  // and K*N) must also fit in 2^32 - 1 or the index arithmetic would overflow
-  // and read the wrong elements. These buffers must already be allocated to
-  // reach here, so this is defensive depth rather than a reachable input today.
-  if (m != 0 && k > std::numeric_limits<std::uint32_t>::max() / m) {
-    return Status(
-        StatusCode::kInvalidArgument,
-        "Metal matmul operand element count exceeds 2^32 - 1");
-  }
-  if (k != 0 && n > std::numeric_limits<std::uint32_t>::max() / k) {
-    return Status(
-        StatusCode::kInvalidArgument,
-        "Metal matmul operand element count exceeds 2^32 - 1");
-  }
-  const std::int64_t output_elements =
-      static_cast<std::int64_t>(m) * static_cast<std::int64_t>(n);
-  auto thread_count_result = checked_thread_count(output_elements);
-  if (!thread_count_result) {
-    return thread_count_result.status();
-  }
-  return MatmulDims{m, k, n, output_elements};
 }
 
 class KernelRuntime {
@@ -1127,7 +1052,7 @@ std::uint32_t predicate_operation_code(OpKind kind) {
 std::uint32_t predicate_dtype_code(DType dtype) {
   return dtype == DType::kFloat32 ? 0 : dtype == DType::kInt32 ? 1 : 2;
 }
-Expected<std::shared_ptr<MetalBuffer>> predicate_metadata(Shape metadata) {
+Expected<std::shared_ptr<MetalBuffer>> index_metadata_buffer(Shape metadata) {
   // Metal requires a bound buffer even when scalar kernels never index it.
   if (metadata.empty()) metadata.push_back(0);
   if (metadata.size() > std::numeric_limits<std::size_t>::max() / sizeof(Dim))
@@ -1154,7 +1079,7 @@ Expected<MetalTensor> execute_predicate(const OpDesc& op, const std::vector<Meta
     if (!count) return result;
     Shape metadata = plan.output_shape;
     for (const auto& strides : plan.input_strides) metadata.insert(metadata.end(), strides.begin(), strides.end());
-    auto gpu_metadata = predicate_metadata(std::move(metadata));
+    auto gpu_metadata = index_metadata_buffer(std::move(metadata));
     if (!gpu_metadata) return gpu_metadata.status();
     auto pipeline = runtime().pipeline("predicate_values");
     if (!pipeline) return pipeline.status();
@@ -1185,7 +1110,7 @@ Expected<MetalTensor> execute_predicate(const OpDesc& op, const std::vector<Meta
     if (!buffer) return buffer.status();
     MetalTensor result(DType::kBool, plan.output_shape, buffer.value());
     if (!count) return result;
-    auto metadata = predicate_metadata(plan.index_metadata);
+    auto metadata = index_metadata_buffer(plan.index_metadata);
     if (!metadata) return metadata.status();
     auto pipeline = runtime().pipeline("reduce_bool");
     if (!pipeline) return pipeline.status();
@@ -1576,45 +1501,49 @@ Expected<MetalTensor> reduce(const OpDesc& op, const MetalTensor& input) {
   return output;
 }
 
+Expected<MatmulPlan> checked_metal_matmul_plan(const MetalTensor& lhs, const MetalTensor& rhs) {
+  if (lhs.dtype() != DType::kFloat32 || rhs.dtype() != DType::kFloat32)
+    return Status(StatusCode::kInvalidArgument, "Metal matmul only supports float32 tensors");
+  try {
+    auto plan = make_matmul_plan(lhs.shape(), rhs.shape());
+    auto count = checked_thread_count(numel(plan.output_shape));
+    if (!count) return count.status();
+    return plan;
+  } catch (const std::invalid_argument& error) {
+    return Status(StatusCode::kInvalidArgument, error.what());
+  }
+}
+
 Expected<MetalTensor> matmul_custom(const MetalTensor& lhs, const MetalTensor& rhs) {
-  auto dims_result = checked_matmul_dims(lhs, rhs);
-  if (!dims_result) {
-    return dims_result.status();
-  }
-  const auto dims = dims_result.move_value();
-
-  auto output_buffer_result =
-      MetalBuffer::create(DType::kFloat32, static_cast<std::size_t>(dims.output_elements));
-  if (!output_buffer_result) {
-    return output_buffer_result.status();
-  }
-  auto output_buffer = output_buffer_result.move_value();
-  MetalTensor output(DType::kFloat32, Shape{dims.m, dims.n}, output_buffer);
-
-  auto thread_count_result = checked_thread_count(dims.output_elements);
-  if (!thread_count_result) {
-    return thread_count_result.status();
-  }
-  const auto thread_count = thread_count_result.move_value();
-  if (thread_count == 0) {
-    return output;
-  }
-
-  auto pipeline_result = runtime().pipeline("matmul_f32");
-  if (!pipeline_result) {
-    return pipeline_result.status();
-  }
-  const Status run_status = run_threads(*pipeline_result.move_value(), thread_count, [&](MTL::ComputeCommandEncoder& encoder) {
+  auto planned = checked_metal_matmul_plan(lhs, rhs);
+  if (!planned) return planned.status();
+  const auto plan = planned.move_value();
+  const auto count = static_cast<std::uint32_t>(numel(plan.output_shape));
+  auto allocated = MetalBuffer::create(DType::kFloat32, count);
+  if (!allocated) return allocated.status();
+  auto buffer = allocated.move_value();
+  MetalTensor output(DType::kFloat32, plan.output_shape, buffer);
+  if (!count) return output;
+  Shape metadata = plan.batch_shape;
+  metadata.insert(metadata.end(), plan.lhs_batch_strides.begin(), plan.lhs_batch_strides.end());
+  metadata.insert(metadata.end(), plan.rhs_batch_strides.begin(), plan.rhs_batch_strides.end());
+  auto gpu_metadata = index_metadata_buffer(std::move(metadata));
+  if (!gpu_metadata) return gpu_metadata.status();
+  auto pipeline = runtime().pipeline("matmul_f32");
+  if (!pipeline) return pipeline.status();
+  const std::uint64_t rank = plan.batch_shape.size();
+  auto status = run_threads(*pipeline.move_value(), count, [&](MTL::ComputeCommandEncoder& encoder) {
     encoder.setBuffer(lhs.buffer()->native(), 0, 0);
     encoder.setBuffer(rhs.buffer()->native(), 0, 1);
-    encoder.setBuffer(output_buffer->native(), 0, 2);
-    encoder.setBytes(&dims.m, sizeof(dims.m), 3);
-    encoder.setBytes(&dims.k, sizeof(dims.k), 4);
-    encoder.setBytes(&dims.n, sizeof(dims.n), 5);
+    encoder.setBuffer(buffer->native(), 0, 2);
+    encoder.setBytes(&plan.m, sizeof(plan.m), 3);
+    encoder.setBytes(&plan.k, sizeof(plan.k), 4);
+    encoder.setBytes(&plan.n, sizeof(plan.n), 5);
+    encoder.setBytes(&count, sizeof(count), 6);
+    encoder.setBuffer(gpu_metadata.value()->native(), 0, 7);
+    encoder.setBytes(&rank, sizeof(rank), 8);
   });
-  if (!run_status.ok()) {
-    return run_status;
-  }
+  if (!status.ok()) return status;
   return output;
 }
 

@@ -23,7 +23,7 @@ only device index 0 is exposed.
 | Comparisons and `where` (float32/int32/bool) | Yes | Yes | Yes |
 | Bool fill, logic, any/all and mask selection | Yes | Yes | Yes |
 | Binary arithmetic broadcasting | Yes | Yes | Yes, float32 |
-| Float32 2D matmul | Yes | Custom + optional optimized path | Custom path |
+| Float32 batched/vector matmul | Yes | Custom + optional optimized path | Custom path |
 | Float32 sum, max, mean | Yes | Yes | Yes |
 | Int32 sum, max | Yes | Yes | No |
 | Numeric reduction `keepdims` | Yes | Yes | Yes, float32 |

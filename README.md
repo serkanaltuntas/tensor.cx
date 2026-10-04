@@ -334,6 +334,9 @@ print(ln.cpu().numpy().shape)
   logic (`&`, `|`, `^`, `~`), `where`, `any`/`all`, and `x[mask]` execute natively
   on CPU/Metal/CUDA. Masks match leading dimensions; full masks flatten the
   selected elements. See [the contract](docs/TENSOR_API.md#comparisons-and-boolean-masks).
+- `cx.matmul(a, b)` / `a @ b` support float32 vectors, matrices and broadcasted
+  batch axes on CPU/Metal/CUDA. Contracting dimensions must match; no dtype
+  promotion or device transfer occurs. See [matmul semantics](docs/TENSOR_API.md#batched-matrix-multiplication).
 - `x.reshape(shape)` / `cx.reshape(x, shape)` create a contiguous view sharing
   the native buffer; one dimension may be `-1`. NumPy export still copies.
 - `softmax` requires an explicit `axis`, preserves the input shape, supports

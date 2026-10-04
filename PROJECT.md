@@ -63,7 +63,8 @@ API increment:          arithmetic/scalars, contiguous reshape and keepdims;
                         explicit casts, tensor broadcasting, transpose,
                         squeeze, expand_dims, all-axis/multi-axis reductions, and
                         basic indexing/concat/stack/split, bool comparisons,
-                        logical masks, where, any/all and masked selection;
+                        logical masks, where, any/all, masked selection, and
+                        float32 batched/vector matmul with batch broadcasting;
                         docs/TENSOR_API.md (acceptance tracked separately)
 ```
 

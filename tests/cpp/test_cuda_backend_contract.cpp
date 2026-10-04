@@ -1,4 +1,5 @@
 #include "predicate_contract.h"
+#include "batched_matmul_contract.h"
 
 #include <array>
 #include <bit>
@@ -436,6 +437,9 @@ int main() {
     predicate_contract(backend,
       [](const cpu::CpuTensor& value) { return cuda::to_core_tensor(cuda::from_cpu(value).value()); },
       [](const Tensor& value) { return cuda::to_cpu(cuda::from_core_tensor(value).value()).value(); });
+    batched_matmul_contract(backend,
+      [](const cpu::CpuTensor& value) { return cuda::to_core_tensor(cuda::from_cpu(value).value()); },
+      [](const Tensor& value) { return cuda::to_cpu(cuda::from_core_tensor(value).value()).value(); });
     arithmetic_contract(backend);
     cast_contract(backend);
     broadcast_contract(backend);
@@ -486,7 +490,9 @@ int main() {
     inputs[0] = original;
     auto unsupported = binary;
     unsupported.op.kind = OpKind::kMatmul;
+    inputs[1].shape = {1, 3}; inputs[1].strides = {3, 1};
     invalid(backend.execute(unsupported));
+    inputs[1] = original;
     // A kernel contract with an unknown artifact must still be rejected.
     KernelArgument arg{KernelArgumentKind::kTensor, &original, 0};
     BackendExecution kernel{BackendOpClass::kKernel, {}, {}, outputs,

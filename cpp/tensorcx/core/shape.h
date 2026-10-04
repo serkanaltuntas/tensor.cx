@@ -21,6 +21,19 @@ struct BroadcastPlan {
 // padded dimensions have zero strides; incompatible/overflowing shapes throw.
 BroadcastPlan make_broadcast_plan(const Shape& lhs, const Shape& rhs);
 
+struct MatmulPlan {
+  Shape output_shape;
+  Shape batch_shape;
+  Shape lhs_batch_strides;
+  Shape rhs_batch_strides;
+  Dim m, k, n;
+};
+
+// NumPy-style matmul: rank-one operands are promoted to matrices and their
+// temporary axes removed from the result; only leading batch axes broadcast.
+MatmulPlan make_matmul_plan(const Shape& lhs, const Shape& rhs);
+Dim matmul_batch_offset(Dim batch, const Shape& shape, const Shape& strides);
+
 struct TransposePlan {
   Shape output_shape;
   Shape input_strides;

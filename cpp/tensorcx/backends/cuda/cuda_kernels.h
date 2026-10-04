@@ -35,6 +35,7 @@ cudaError_t launch_reduce_axes(const float* input, float* output, std::size_t gr
                                std::size_t reduce, const Dim* metadata,
                                std::size_t output_rank, std::size_t rank, OpKind op);
 cudaError_t launch_matmul(const float* lhs, const float* rhs, float* output,
-                          std::size_t m, std::size_t n, std::size_t k);
+                          std::size_t m, std::size_t n, std::size_t k, std::size_t batches,
+                          const Dim* metadata, std::size_t batch_rank);
 
 }  // namespace tensorcx::cuda

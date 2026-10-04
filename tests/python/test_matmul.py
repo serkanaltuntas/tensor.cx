@@ -68,9 +68,9 @@ def test_metal_matmul_rejects_output_element_count_overflow_before_allocation():
     lhs = cx.ones((4_294_967_295, 0), dtype=cx.float32, device="metal")
     rhs = cx.ones((0, 4_294_967_295), dtype=cx.float32, device="metal")
 
-    with pytest.raises(ValueError, match="support at most 2\\^32 - 1 elements"):
+    with pytest.raises(ValueError, match="overflow|support at most 2\\^32 - 1 elements"):
         cx.matmul(lhs, rhs, backend="custom")
-    with pytest.raises(ValueError, match="support at most 2\\^32 - 1 elements"):
+    with pytest.raises(ValueError, match="overflow|support at most 2\\^32 - 1 elements"):
         cx.matmul(lhs, rhs)
 
 

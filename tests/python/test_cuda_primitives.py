@@ -74,7 +74,7 @@ def test_bad_axis_dtype(op):
 
 def test_matmul_errors():
     a=cx.ones((2,3),device='cuda')
-    for other in [cx.ones((2,3),device='cuda'),cx.ones((3,),device='cuda')]:
+    for other in [cx.ones((2,3),device='cuda'),cx.ones((),device='cuda')]:
         with pytest.raises(ValueError):cx.matmul(a,other)
     with pytest.raises(ValueError):cx.matmul(a,cx.ones((3,2),device='cpu'))
     for name in ['optimized','unknown']:

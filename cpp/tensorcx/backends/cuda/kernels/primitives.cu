@@ -210,21 +210,30 @@ __global__ void reduce_axes(const float* input, float* output, std::size_t group
 }
 
 __global__ void matmul(const float* a,const float* b,float* out,
-    std::size_t m,std::size_t n,std::size_t k,std::size_t tile_count) {
+    std::size_t m,std::size_t n,std::size_t k,std::size_t tile_count,
+    std::size_t tiles_per_matrix,const Dim* metadata,std::size_t rank) {
   __shared__ float left[16][16],right[16][16];
   const unsigned x=threadIdx.x,y=threadIdx.y;
   const std::size_t columns=(n+15)/16;
   for(std::size_t tile=blockIdx.x;tile<tile_count;tile+=gridDim.x) {
-    const std::size_t row=(tile/columns)*16+y,col=(tile%columns)*16+x;
+    const auto batch = tile / tiles_per_matrix, matrix_tile = tile % tiles_per_matrix;
+    std::size_t left_base = 0, right_base = 0, remaining = batch;
+    for (std::size_t axis = rank; axis-- > 0;) {
+      const auto coordinate = remaining % metadata[axis];
+      remaining /= metadata[axis];
+      left_base += coordinate * metadata[rank + axis];
+      right_base += coordinate * metadata[2 * rank + axis];
+    }
+    const std::size_t row=(matrix_tile/columns)*16+y,col=(matrix_tile%columns)*16+x;
     float sum=0;
     for(std::size_t base=0;base<k;base+=16) {
-      left[y][x]=(row<m && base+x<k)?a[row*k+base+x]:0;
-      right[y][x]=(base+y<k && col<n)?b[(base+y)*n+col]:0;
+      left[y][x]=(row<m && base+x<k)?a[left_base+row*k+base+x]:0;
+      right[y][x]=(base+y<k && col<n)?b[right_base+(base+y)*n+col]:0;
       __syncthreads();
       for(unsigned j=0;j<16 && base+j<k;++j) sum=__fadd_rn(sum,__fmul_rn(left[y][j],right[j][x]));
       __syncthreads();
     }
-    if(row<m && col<n)out[row*n+col]=sum;
+    if(row<m && col<n)out[(batch*m+row)*n+col]=sum;
     __syncthreads();
   }
 }
@@ -250,10 +259,15 @@ cudaError_t launch_reduce_axes(const float* input, float* output, std::size_t gr
   return finish();
 }
 
-cudaError_t launch_matmul(const float* a,const float* b,float* out,std::size_t m,std::size_t n,std::size_t k) {
-  if(!m || !n)return cudaSuccess;
-  const auto tiles=((m+15)/16)*((n+15)/16);
-  matmul<<<static_cast<unsigned>(std::min<std::size_t>(tiles,65535)),dim3(16,16)>>>(a,b,out,m,n,k,tiles);
+cudaError_t launch_matmul(const float* a, const float* b, float* out,
+    std::size_t m, std::size_t n, std::size_t k, std::size_t batches,
+    const Dim* metadata, std::size_t batch_rank) {
+  if (!batches || !m || !n) return cudaSuccess;
+  const auto tiles_per_matrix = ((m + 15) / 16) * ((n + 15) / 16);
+  const auto tiles = tiles_per_matrix * batches; // Bounded by validated output elements.
+  matmul<<<static_cast<unsigned>(std::min<std::size_t>(tiles,65535)),dim3(16,16)>>>(
+      a, b, out, m, n, k, tiles, tiles_per_matrix, metadata, batch_rank);
   return finish();
 }
+
 } // namespace tensorcx::cuda

@@ -20,7 +20,8 @@ empty results. There is no implicit dtype promotion or device transfer.
 Broadcasting reads original contiguous buffers with per-axis index mapping;
 it does not allocate expanded operands. The result is a new contiguous tensor.
 Equal-shape arithmetic retains its direct indexing path. This applies only to
-ordinary binary arithmetic, not matmul or experimental generated kernels.
+ordinary binary arithmetic. Matmul has separate batch broadcasting rules below;
+experimental generated kernels retain their exact-shape contract.
 
 CPU and Metal support float32 for all operations; int32 supports add, subtract,
 multiply and negate with defined two's-complement wraparound. Division requires
@@ -369,3 +370,67 @@ tests, five Workers tests, deploy dry run and the operations snippet passed.
 Two code reviews and independent test/acceptance QA closed their findings.
 Metal compilation and device execution remain the separate macOS CI gate;
 these local results do not cover additional NVIDIA architectures.
+
+
+## Batched matrix multiplication
+
+`cx.matmul(lhs, rhs, backend="auto")` and `lhs @ rhs` now accept float32 tensors
+with rank >= 1 on CPU, Metal and CUDA. Dtype and device must match; scalar
+operands, implicit dtype promotion and implicit device transfer are rejected.
+
+The last two dimensions represent `(M, K)` and `(K, N)`; contracting dimensions
+must match exactly. Leading batch dimensions broadcast from the right using the
+same equal-or-one rule as elementwise operations, including zero versus one.
+For example, `(2, 1, 3, 4) @ (1, 5, 4, 6)` returns `(2, 5, 3, 6)`. No expanded
+copies of the operands are allocated.
+
+Rank-one inputs follow NumPy semantics. A left vector becomes `(1, K)` and a
+right vector becomes `(K, 1)` for execution; the corresponding temporary output
+axes are then omitted. Vector dot products return a rank-0 Tensor; matrix/vector
+returns `(..., M)`, vector/matrix returns `(..., N)`. Matrix dimensions never
+broadcast against the contracting dimension.
+
+Every result owns new contiguous storage. Empty batch/M/N dimensions produce
+empty tensors. A zero K produces positive zeros, including the dot product of
+two empty vectors. Invalid batch/K dimensions, dtypes and metadata overflow are
+still rejected for empty outputs. Inputs and supplied native result slots stay
+unchanged on failure. Metadata-only reshapes may be used as inputs.
+
+CPU executes each output against its broadcasted batch offsets. CUDA extends
+the existing 16x16 shared-memory tiled kernel over a bounded, grid-stride batch
+index; one launch handles the full product. Custom Metal kernels use 64-bit
+operand offsets and retain the existing 2^32-1 output-element limit. GPU paths
+upload only O(batch rank) metadata and do not export input tensors to NumPy/CPU.
+The shared backend-neutral MatmulPlan owns promotion, broadcasting and overflow
+checks. This adds no batched generated-kernel/MLIR or integer matmul support.
+
+Backend choices stay explicit: CPU `auto`/`cpu`/`reference`, CUDA `auto`/`custom`,
+and Metal `auto`/`custom`/`optimized` when MPSGraph is enabled. The optimized
+path uses [MPSGraph broadcasting](https://developer.apple.com/documentation/metalperformanceshadersgraph/mpsgraph/matrixmultiplication(primary:secondary:name:)).
+It removes common singleton batch axes and promotes vectors in graph metadata,
+without copying the inputs. The graph is limited to 16 dimensions (including
+matrix axes), matching [MPSNDArray's dimensional limit](https://developer.apple.com/videos/play/wwdc2020/10677/);
+explicit optimized requests above that limit fail clearly. `auto` selects custom
+when either original input rank exceeds 16. Custom kernels have no rank cap.
+Zero-K products use the custom zero-producing path, and empty products do not
+submit work, including explicit optimized requests. Accumulation order can vary;
+compare float32 results at the existing matmul tolerance (rtol/atol 1e-4).
+
+`tests/python/test_batched_matmul.py` compares NumPy and CPU across every
+available backend preference, vector/matrix combinations, broadcast axes,
+partial tiles, empty/high-rank inputs, grid-stride batches, special values,
+ownership and no-host-fallback behavior. The shared native
+`tests/cpp/batched_matmul_contract.h` checks CPU/Metal/CUDA parity and malformed
+input descriptors without replacing result slots on errors. The new Python
+file and native checks are included in the strict CUDA push gate.
+
+Batched-matmul local acceptance on 2026-10-04: all 200 new CPU/CUDA cases
+passed; the full required-CUDA/LLVM suite passed 3171 with 160 expected platform
+and capability skips. Native and ASan/UBSan contracts passed 4/4; the new cases
+passed GPU memcheck/racecheck with zero errors or hazards. Fresh CPU/CUDA
+sdist-to-wheel installations passed with LLVM present/absent and GPU hidden;
+installed wheels passed 120 CPU / 200 CPU+CUDA cases. Website checking/build,
+four preview tests, five Workers tests, deploy dry run and the operations
+snippet passed. Two code reviews and separate test/acceptance QA closed their
+findings. Real Metal execution remains the separate macOS CI gate; these local
+results do not cover additional NVIDIA architectures or make performance claims.

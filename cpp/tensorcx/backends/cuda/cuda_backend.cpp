@@ -337,6 +337,7 @@ Status CudaBackend::execute(const BackendExecution& execution) {
       return Status::Ok();
     }
     std::optional<BroadcastPlan> broadcast;
+    std::optional<MatmulPlan> matmul_plan;
     if (kind==OpKind::kFill) {
       if(execution.outputs[0].dtype!=DType::kFloat32) return invalid("CUDA fill only supports float32");
       shape=execution.outputs[0].shape;
@@ -348,12 +349,10 @@ Status CudaBackend::execute(const BackendExecution& execution) {
           shape = broadcast->output_shape;
         }
       } else if(kind==OpKind::kMatmul) {
-        const auto& right=execution.inputs[1].shape;
-        if(shape.size()!=2 || right.size()!=2) return invalid("matmul requires rank-2 tensors");
-        if(shape[1]!=right[0]) return invalid("matmul shape mismatch");
         if(execution.op.matmul_preference!=MatmulPreference::kAuto &&
            execution.op.matmul_preference!=MatmulPreference::kCustom) return invalid("CUDA matmul supports auto or custom");
-        shape={shape[0],right[1]};
+        matmul_plan = make_matmul_plan(shape, execution.inputs[1].shape);
+        shape = matmul_plan->output_shape;
       } else if(!is_elementwise_unary(kind) && !is_scalar_arithmetic(kind)) {
         auto axis=execution.op.axis;
         const auto rank=static_cast<std::int64_t>(shape.size());
@@ -421,7 +420,23 @@ Status CudaBackend::execute(const BackendExecution& execution) {
       error=launch_scalar(data(0),output,count,kind,
                           static_cast<float>(execution.op.scalar_value),execution.op.scalar_left);
     } else if(kind==OpKind::kMatmul) {
-      error=launch_matmul(data(0),data(1),output,shape[0],shape[1],execution.inputs[0].shape[1]);
+      const auto& plan = *matmul_plan;
+      Shape metadata = plan.batch_shape;
+      metadata.insert(metadata.end(), plan.lhs_batch_strides.begin(), plan.lhs_batch_strides.end());
+      metadata.insert(metadata.end(), plan.rhs_batch_strides.begin(), plan.rhs_batch_strides.end());
+      void* allocation = nullptr;
+      std::unique_ptr<void, DeviceDeleter> gpu_metadata(nullptr, DeviceDeleter{device.owner()});
+      if (count && !metadata.empty()) {
+        auto status = runtime_status(cudaMalloc(&allocation, metadata.size() * sizeof(Dim)), "CUDA matmul metadata allocation");
+        if (!status.ok()) return status;
+        gpu_metadata.reset(allocation);
+        status = runtime_status(cudaMemcpy(allocation, metadata.data(), metadata.size() * sizeof(Dim),
+                                           cudaMemcpyHostToDevice), "CUDA matmul metadata copy");
+        if (!status.ok()) return status;
+      }
+      const auto batches = count ? count / plan.n / plan.m : 0;
+      error = launch_matmul(data(0), data(1), output, plan.m, plan.n, plan.k,
+                            batches, static_cast<const Dim*>(gpu_metadata.get()), plan.batch_shape.size());
     } else if(is_elementwise_unary(kind)) {
       error=launch_unary(data(0),output,count,kind);
     } else {

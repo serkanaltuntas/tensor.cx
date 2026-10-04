@@ -54,3 +54,9 @@ print(cx.where(mask, values, 0).numpy())
 # [[0 0 0]
 #  [4 5 6]]
 print(mask.any(axis=1).numpy())  # [False  True]
+
+# Leading batch dimensions broadcast; the last two axes form each matrix.
+batch = cx.ones((2, 1, 3, 4))
+weights = cx.ones((1, 5, 4, 6))
+print((batch @ weights).shape)  # (2, 5, 3, 6)
+print((cx.tensor([1., 2., 3.]) @ cx.tensor([4., 5., 6.])).numpy())  # 32.0

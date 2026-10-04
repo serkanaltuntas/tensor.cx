@@ -140,7 +140,8 @@ documentation. This order does not claim that later packages are implemented.
 2. **Comparisons and masks:** implemented: boolean tensors, six comparisons,
    logical masks, `where`, `any`/`all`, and boolean selection;
    [contract and verification](TENSOR_API.md#comparisons-and-boolean-masks).
-3. **Batched matmul:** batch and higher-dimensional inputs.
+3. **Batched matmul:** implemented: broadcasted batches and rank-one vector
+   inputs; [contract and verification](TENSOR_API.md#batched-matrix-multiplication).
 4. **Math gaps:** `log`, `sqrt`, `abs`, `min`, `argmax`, `clip`, `topk`.
 5. **Inference:** linear, affine normalization, embedding, then attention.
 6. **DLPack and narrow PyTorch integration:** supported-device data sharing;

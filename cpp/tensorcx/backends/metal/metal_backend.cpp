@@ -36,6 +36,8 @@ Expected<MetalTensor> execute_matmul(
   switch (op.matmul_preference) {
     case MatmulPreference::kAuto:
 #if TENSORCX_ENABLE_MPSGRAPH
+      // MPSNDArray is limited to 16 dimensions; custom kernels map any rank.
+      if (lhs.shape().size() > 16 || rhs.shape().size() > 16) return matmul_custom(lhs, rhs);
       return matmul_mpsgraph(lhs, rhs);
 #else
       return matmul_custom(lhs, rhs);

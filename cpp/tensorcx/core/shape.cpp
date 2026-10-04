@@ -46,6 +46,44 @@ Shape contiguous_strides(const Shape& shape) {
   return strides;
 }
 
+MatmulPlan make_matmul_plan(const Shape& lhs, const Shape& rhs) {
+  if (lhs.empty() || rhs.empty()) throw std::invalid_argument("matmul requires rank >= 1 tensors");
+  (void)numel(lhs); (void)numel(rhs);
+  const auto ls = contiguous_strides(lhs), rs = contiguous_strides(rhs);
+  const bool lv = lhs.size() == 1, rv = rhs.size() == 1;
+  const Dim m = lv ? 1 : lhs[lhs.size() - 2], k = lhs.back();
+  const Dim rk = rv ? rhs[0] : rhs[rhs.size() - 2], n = rv ? 1 : rhs.back();
+  if (k != rk) throw std::invalid_argument("matmul shape mismatch: contracting dimensions differ");
+  const auto lb = lv ? 0 : lhs.size() - 2, rb = rv ? 0 : rhs.size() - 2;
+  const auto rank = std::max(lb, rb);
+  MatmulPlan plan{{}, Shape(rank, 1), Shape(rank, 0), Shape(rank, 0), m, k, n};
+  for (std::size_t axis = 0; axis < rank; ++axis) {
+    const bool has_l = axis >= rank - lb, has_r = axis >= rank - rb;
+    const auto li = has_l ? axis - (rank - lb) : 0, ri = has_r ? axis - (rank - rb) : 0;
+    const Dim l = has_l ? lhs[li] : 1, r = has_r ? rhs[ri] : 1;
+    if (l != r && l != 1 && r != 1) throw std::invalid_argument("matmul batch dimensions cannot broadcast");
+    plan.batch_shape[axis] = l == 1 ? r : l;
+    if (has_l && l != 1) plan.lhs_batch_strides[axis] = ls[li];
+    if (has_r && r != 1) plan.rhs_batch_strides[axis] = rs[ri];
+  }
+  plan.output_shape = plan.batch_shape;
+  if (!lv) plan.output_shape.push_back(m);
+  if (!rv) plan.output_shape.push_back(n);
+  (void)numel(plan.output_shape); (void)contiguous_strides(plan.output_shape);
+  // Do not multiply batch extents separately: a zero matrix dimension can
+  // make the full tensor empty while that unused partial product overflows.
+  return plan;
+}
+
+Dim matmul_batch_offset(Dim batch, const Shape& shape, const Shape& strides) {
+  Dim offset = 0;
+  for (std::size_t axis = shape.size(); axis-- > 0;) {
+    offset += (batch % shape[axis]) * strides[axis];
+    batch /= shape[axis];
+  }
+  return offset;
+}
+
 TransposePlan make_slice_plan(const Shape& input, const Shape& starts,
                               const Shape& steps, const Shape& lengths) {
   (void)numel(input);

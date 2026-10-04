@@ -582,8 +582,8 @@ def test_matmul_cpu_rejects_invalid_inputs():
         cx.matmul(x, y)
     with pytest.raises(ValueError, match="matmul only supports float32"):
         cx.matmul(x, z)
-    with pytest.raises(ValueError, match="matmul requires rank-2"):
-        cx.matmul(cx.ones((3,), dtype=cx.float32, device="cpu"), y)
+    with pytest.raises(ValueError, match="matmul requires rank >= 1"):
+        cx.matmul(cx.ones((), dtype=cx.float32, device="cpu"), y)
 
 
 def test_tensor_rejects_unsupported_device():

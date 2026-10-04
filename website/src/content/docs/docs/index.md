@@ -21,7 +21,7 @@ backend contracts, and testing small tensor workloads. APIs may change.
 
 - Contiguous row-major tensors, with `float32`, a smaller `int32` operation set, and boolean masks.
 - Explicit device transfers and synchronous execution.
-- Elementwise add/multiply, 2D matmul, axis reductions, and selected activations
+- Elementwise add/multiply, batched/vector matmul, axis reductions, and selected activations
   and normalization operations.
 - CPU references for accelerator correctness checks.
 - A separate [experimental kernel API](/docs/experimental/).

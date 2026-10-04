@@ -95,7 +95,10 @@ binding. Async submission and streams remain out of scope.
 - Only device index 0 is supported.
 - Only contiguous tensors are supported.
 - Metal kernels currently support at most 2^32 - 1 elements per launch.
-- Matmul currently supports float32 rank-2 tensors only.
+- Matmul supports float32 rank-one vectors and broadcasted batches. MPSGraph
+  accepts at most 16 graph dimensions after dropping common singleton batch
+  axes; auto uses the custom kernel when either input rank exceeds 16.
+  See [the matmul contract](TENSOR_API.md#batched-matrix-multiplication).
 - `mean`, `exp`, `gelu`, `silu`, `softmax`, `rmsnorm`, and `layernorm`
   currently support float32 tensors only.
 - Reduction kernels are correctness-first and use one thread per output element;

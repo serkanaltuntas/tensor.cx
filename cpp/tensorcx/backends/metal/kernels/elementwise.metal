@@ -402,21 +402,25 @@ kernel void layernorm_f32(device const float* input [[buffer(0)]],
 kernel void matmul_f32(device const float* lhs [[buffer(0)]],
                        device const float* rhs [[buffer(1)]],
                        device float* out [[buffer(2)]],
-                       constant uint& m [[buffer(3)]],
-                       constant uint& k [[buffer(4)]],
-                       constant uint& n [[buffer(5)]],
+                       constant ulong& m [[buffer(3)]],
+                       constant ulong& k [[buffer(4)]],
+                       constant ulong& n [[buffer(5)]],
+                       constant uint& count [[buffer(6)]],
+                       device const long* metadata [[buffer(7)]],
+                       constant ulong& rank [[buffer(8)]],
                        uint id [[thread_position_in_grid]]) {
-  const uint total = m * n;
-  if (id >= total) {
-    return;
+  if (id >= count) return;
+  const ulong row = (ulong(id) / n) % m, col = ulong(id) % n;
+  ulong batch = (ulong(id) / n) / m, left = 0, right = 0;
+  for (ulong axis = rank; axis > 0; --axis) {
+    const ulong coordinate = batch % ulong(metadata[axis - 1]);
+    batch /= ulong(metadata[axis - 1]);
+    left += coordinate * ulong(metadata[rank + axis - 1]);
+    right += coordinate * ulong(metadata[2 * rank + axis - 1]);
   }
-
-  const uint row = id / n;
-  const uint col = id - row * n;
   float sum = 0.0f;
-  for (uint inner = 0; inner < k; ++inner) {
-    sum += lhs[row * k + inner] * rhs[inner * n + col];
-  }
+  for (ulong inner = 0; inner < k; ++inner)
+    sum += lhs[left + row * k + inner] * rhs[right + inner * n + col];
   out[id] = sum;
 }
 
