@@ -93,6 +93,7 @@ class CompiledKernel:
     ir: IRKernel
     msl_source: str
     metallib: bytes
+    cache_hit: bool = False
 
     def validate_metal_function(self, function_name: str | None = None) -> str:
         """Load this metallib through Metal and verify a function exists."""
@@ -172,6 +173,7 @@ class CompiledCpuKernel:
     ir: IRKernel
     mlir_source: str
     _module: object
+    cache_hit: bool = False
 
     def launch(self, *args, thread_count: int | None = None, block_size: int = 256):
         """Return a new CPU tensor, preserving the supplied output and its suffix."""
@@ -196,6 +198,7 @@ class CompiledCudaKernel:
     ir: IRKernel
     mlir_source: str
     _module: object
+    cache_hit: bool = False
 
     def launch(self, *args, thread_count: int | None = None, block_size: int = 256):
         _, _, ordered, _, _, _, threads, block = _launch_contract(
@@ -305,9 +308,11 @@ class Kernel:
         return tuple(inspect.signature(self.fn).parameters)
 
     def compile(
-        self, *, target: str | None = None, compiler: str = "auto",
+        self, *, target: str | None = None, compiler: str = "auto", cache: bool = True,
     ) -> CompiledKernel | CompiledCpuKernel | CompiledCudaKernel:
         selected = self.target if target is None else _validate_target(target)
+        if not isinstance(cache, bool):
+            raise TypeError("experimental kernel cache must be bool")
         if not isinstance(compiler, str):
             raise TypeError("experimental kernel compiler must be a string")
         if compiler not in {"auto", "mlir"}:
@@ -319,7 +324,7 @@ class Kernel:
                 from ._compiler.cuda import compile_kernel
             else:
                 raise ValueError("MLIR compilation requires target 'cpu' or 'cuda'")
-            return compile_kernel(self.parse_ir())
+            return compile_kernel(self.parse_ir(), cache=cache)
         resolved = "metal" if selected == "auto" else selected
         if resolved != "metal":
             raise NotImplementedError(
@@ -329,12 +334,15 @@ class Kernel:
 
         ir = self.parse_ir()
         msl_source = _emit_msl(ir)
+        from ._compiler.metal import compile_artifact
+        metallib, hit = compile_artifact(ir.name, msl_source, cache=cache)
         return CompiledKernel(
             name=ir.name,
             target=resolved,
             ir=ir,
             msl_source=msl_source,
-            metallib=_compile_msl_to_metallib(ir.name, msl_source),
+            metallib=metallib,
+            cache_hit=hit,
         )
 
     def parse_ir(self) -> IRKernel:

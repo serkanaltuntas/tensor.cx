@@ -142,7 +142,9 @@ the entry and retain the module through every synchronous launch. Keep typed
 tensor owners, argument slots and module alive while the GIL is released.
 Use the existing synchronous/default-stream policy and wait before returning.
 Unload under the correct context only after the last launch owner releases;
-then release its primary-context owner. Keep no persistent compilation cache.
+then release its primary-context owner. The original slice kept no persistent
+compilation cache; [current persistence](COMPILATION_CACHE.md) stores code only
+and retains these module/context ownership rules.
 Destructor failures must not throw; device-loss handling must not free under
 the wrong context or report a successful result.
 

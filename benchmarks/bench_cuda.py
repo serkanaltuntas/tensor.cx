@@ -152,7 +152,7 @@ def run(args):
     expected_probe = (probe.cpu() + probe.cpu()) * probe.cpu()
     check_probe = parity(expected_probe)
     compilation = measure(
-        {"mlir_cuda": lambda: fused.compile(target="cuda", compiler="mlir")},
+        {"mlir_cuda": lambda: fused.compile(target="cuda", compiler="mlir", cache=False)},
         args.compile_repeats, 1,
         lambda artifact: check_probe(artifact.launch(probe, probe, probe, 257)),
     )

@@ -9,8 +9,13 @@ from .. import _core
 from ..experimental import CompiledCudaKernel, IRAssign, IRBinaryOp, IRConstant, IRIf, IRLoad, IRName, IRStore, KernelCompileError
 from .cpu import _signature as elementwise_signature, _run, toolchain
 from .emitter import format_f32_constant
+from .cache import artifact_cache, cache_enabled, descriptor
 
 ENTRY = "tensorcx_add_v1"
+LOWER_FLAGS = ["--convert-scf-to-cf", "--convert-gpu-to-nvvm=index-bitwidth=64",
+               "--reconcile-unrealized-casts"]
+SERIALIZE_FLAGS = ["--nvvm-attach-target=chip=sm_52 features=+ptx78 O=2",
+                   "--gpu-module-to-binary=format=assembly"]
 OPERATIONS = {"add": "arith.addf", "sub": "arith.subf", "mul": "arith.mulf"}
 
 
@@ -198,27 +203,39 @@ def extract_ptx(serialized, kinds, operation="add"):
     return ptx
 
 
-def lower(ir):
+def lower(ir, *, tools=None):
     kinds, output, guard, _, _, operation = signature(ir)
     source = emit_cuda(ir)
-    opt = toolchain()["mlir-opt"]
+    opt = (toolchain() if tools is None else tools)["mlir-opt"]
     with tempfile.TemporaryDirectory(prefix="tensorcx-cuda-") as directory:
         root = Path(directory)
         original, lowered, serialized = [root / name for name in ("kernel.mlir", "nvvm.mlir", "serialized.mlir")]
         original.write_text(source)
-        _run([opt, str(original), "--convert-scf-to-cf", "--convert-gpu-to-nvvm=index-bitwidth=64",
-              "--reconcile-unrealized-casts", "-o", str(lowered)])
-        _run([opt, str(lowered), "--nvvm-attach-target=chip=sm_52 features=+ptx78 O=2",
-              "--gpu-module-to-binary=format=assembly", "-o", str(serialized)])
+        _run([opt, str(original), *LOWER_FLAGS, "-o", str(lowered)])
+        _run([opt, str(lowered), *SERIALIZE_FLAGS, "-o", str(serialized)])
         ptx = extract_ptx(serialized.read_text(), kinds, operation)
     return source, "// " + manifest(kinds, output, guard, operation) + "\n" + ptx
 
 
-def compile_kernel(ir):
+def compile_kernel(ir, *, cache=True):
     kinds, output, guard, _, _, operation = signature(ir)
     if not hasattr(_core, "_cuda_kernel_support"):
         raise RuntimeError("MLIR CUDA requires a CUDA-enabled tensor.cx build")
     _core._cuda_kernel_support()
-    source, ptx = lower(ir)
-    module = _core._load_cuda_kernel(ptx, entry_name(operation), kinds, output, guard)
-    return CompiledCudaKernel(ir.name, "cuda", ir, source, module)
+    source = emit_cuda(ir)
+    tools = toolchain()
+    options = {"lower": LOWER_FLAGS, "serialize": SERIALIZE_FLAGS}
+    description = descriptor("cuda", source, tools=tools, options=options,
+                             abi=manifest(kinds, output, guard, operation)) if cache_enabled(cache) else {}
+    with artifact_cache(description, enabled=cache) as entry:
+        payload = entry.read()
+        hit = payload is not None
+        if hit:
+            ptx = payload.decode("utf-8")
+        else:
+            _, ptx = lower(ir, tools=tools)
+        # Native validation/JIT and device/context ownership remain mandatory.
+        module = _core._load_cuda_kernel(ptx, entry_name(operation), kinds, output, guard)
+        if not hit:
+            entry.store(ptx.encode("utf-8"))
+    return CompiledCudaKernel(ir.name, "cuda", ir, source, module, cache_hit=hit)

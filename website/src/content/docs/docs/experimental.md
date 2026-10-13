@@ -19,6 +19,13 @@ or `kernel.compile(target="cuda", compiler="mlir")` on a supported experimental
 kernel. External LLVM tools must be discoverable through the documented
 toolchain setup. A missing toolchain or unsupported kernel fails explicitly.
 
+Compiled CPU/CUDA/Metal code is cached in private local storage by default,
+including across process restarts. Inspect `compiled.cache_hit` for reuse, or
+use `kernel.compile(..., cache=False)` to bypass storage.
+`TENSORCX_DISABLE_CACHE=1` disables persistence globally. Toolchain and target
+checks still run on hits; this does not make kernels standalone packages.
+See the [cache controls and trust contract](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/COMPILATION_CACHE.md).
+
 The kernel parser reads Python source. Define kernels in source files, not an
 interactive command string. Supported indexing, guards, argument layout, and
 launch geometry are part of the contract, so use the complete examples in the

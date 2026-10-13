@@ -152,8 +152,9 @@ documentation. This order does not claim that later packages are implemented.
 7. **Diagnostics:** CPU/CUDA operation/dtype, installation and memory reports
    implemented, including a standalone CLI; Metal metadata is included, native
    Metal memory reporting remains open. See [DIAGNOSTICS.md](DIAGNOSTICS.md).
-8. **Compiler/performance:** persistent compilation cache, profiling, broader
-   MLIR operations and measured kernel fusion.
+8. **Compiler/performance:** persistent CPU/CUDA/Metal cache implemented;
+   [contract](COMPILATION_CACHE.md). Profiling, broader MLIR operations and
+   measured kernel fusion remain open.
 9. **Dtypes:** CUDA int32 arithmetic gaps; FP16/BF16 on suitable hardware.
 10. **Memory pool and asynchronous execution:** reduce allocation and waiting costs.
 11. **Portable distribution:** Linux/macOS wheels, versioned releases and installation.

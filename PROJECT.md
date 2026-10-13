@@ -72,6 +72,8 @@ DLPack increment:       CPU/CUDA storage exchange and optional inference-only
                         PyTorch linear custom op; docs/DLPACK.md
 Diagnostics increment:  CPU/CUDA capability, installation and memory snapshots;
                         standalone CLI; docs/DIAGNOSTICS.md (Metal memory deferred)
+Cache increment:        persistent experimental CPU/CUDA/Metal code artifacts;
+                        docs/COMPILATION_CACHE.md; broader compiler work remains open
 ```
 
 Phase checklist:

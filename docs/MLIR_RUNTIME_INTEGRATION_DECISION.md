@@ -99,7 +99,7 @@ execution errors return `Status`, translated once at nanobind.
 The compiled Python object retains native module ownership; each launch holds a
 strong reference until completion, including when another thread drops the
 object. Temporary library files live until loading/ownership rules allow cleanup.
-Reject unknown/expired artifact IDs and ABI mismatches. No persistent disk cache
+Reject unknown/expired artifact IDs and ABI mismatches. The original slice had no persistent disk cache
 or unbounded global module retention in this slice; compile once and reuse the
 returned object. Module lifetime, cleanup, and concurrent launches need tests.
 
@@ -232,8 +232,10 @@ while the native descriptor flattens contiguous storage.
 Each compiled object owns a native library loaded by the CPU backend. Temporary
 compiler files are removed after loading, and the library unloads when its last
 owner is released. Launch holds a strong owner across GIL release; registry IDs
-are weak, process-local, and cannot revive expired modules. There is no cache,
-serialization, or externally supported artifact-loading API. Native libraries
+are weak, process-local, and cannot revive expired modules. The original slice
+had no persistent cache. Code artifacts now use the
+[persistent compilation cache](COMPILATION_CACHE.md); native module handles are
+never serialized, and there is no externally supported artifact-loading API. Native libraries
 are trusted compiler output; the internal manifest detects ABI/signature errors
 and is not a sandbox for arbitrary native code.
 

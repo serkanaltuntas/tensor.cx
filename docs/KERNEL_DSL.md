@@ -179,9 +179,9 @@ uint scalar parameters
 one-dimensional program_id/thread_id/block_size mapping
 ```
 
-The compiled metallib is not cached. The current launch path creates a pipeline,
-binds runtime buffers and uint32 scalar arguments in source-parameter order,
-dispatches synchronously, and returns the single output tensor object supplied by
+Compiled metallibs use the [persistent compilation cache](COMPILATION_CACHE.md).
+The Metal backend manages its bounded native pipeline cache; launches bind runtime buffers and uint32 scalar arguments in source-parameter order,
+dispatch synchronously, and return the single output tensor object supplied by
 the caller. It is intentionally limited to float32 Metal tensors, one output
 buffer, exact tensor shape matches, one-dimensional dispatch, and buffer
 loads/stores guarded by a scalar bound such as `if i < n:`. The guard bound must
@@ -237,7 +237,8 @@ Phase 7 is complete for the first accepted slice:
 - Unsupported syntax produces stable compile-time errors.
 ```
 
-Broader DSL semantics, caching, and top-level `cx.kernel` remain future work.
+Broader DSL semantics and top-level `cx.kernel` remain future work. Persistent
+compilation caching is implemented; see [COMPILATION_CACHE.md](COMPILATION_CACHE.md).
 CPU execution for DSL kernels exists as `Kernel.reference(...)`, the
 interpreter-based reference path for generated kernels.
 

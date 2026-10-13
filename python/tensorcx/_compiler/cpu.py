@@ -15,9 +15,14 @@ from ..experimental import (
     _iter_buffer_references, _single_output_parameter,
 )
 from .emitter import emit_mlir
+from .cache import artifact_cache, cache_enabled, descriptor, _dependencies
 
 LLVM_VERSION = "21.1.8"
 COMMAND_TIMEOUT = 60
+OPT_FLAGS = ["--convert-scf-to-cf", "--convert-to-llvm", "--reconcile-unrealized-casts"]
+TRANSLATE_FLAGS = ["--mlir-to-llvmir"]
+CLANG_FLAGS = ["-O2", "-fPIC", "-shared", "-ffp-contract=off",
+               "-Wno-override-module", "-Wl,-Bsymbolic"]
 
 
 def _run(command: list[str]) -> str:
@@ -142,24 +147,48 @@ void tensorcx_launch_v1(void** args) {{ _mlir_ciface_{ir.name}({", ".join(values
 """
 
 
-def compile_kernel(ir) -> CompiledCpuKernel:
+
+def _link_inputs(tools):
+    linker = _run([tools["clang"], "-print-prog-name=ld"]).strip()
+    if not Path(linker).is_absolute():
+        linker = shutil.which(linker)
+    if not linker:
+        raise RuntimeError("CPU linker identity is unavailable")
+    files = [Path(linker), *_dependencies(linker)]
+    for name in ("crtbeginS.o", "crtendS.o", "crti.o", "crtn.o", "libgcc.a", "libgcc_s.so", "libc.so"):
+        path = _run([tools["clang"], "-print-file-name=" + name]).strip()
+        if path == name or not Path(path).is_file():
+            raise RuntimeError("CPU link input identity is unavailable")
+        files.append(Path(path))
+    return files
+
+def compile_kernel(ir, *, cache=True) -> CompiledCpuKernel:
     signature = _signature(ir)
     if not _core._cpu_kernel_supported():
         raise RuntimeError("MLIR CPU runtime requires Linux x86_64")
     source = emit_mlir(ir)
     tools = toolchain()
-    with tempfile.TemporaryDirectory(prefix="tensorcx-mlir-") as directory:
+    adapter_source = _adapter(ir, *signature)
+    options = {"opt": OPT_FLAGS, "translate": TRANSLATE_FLAGS, "clang": CLANG_FLAGS}
+    description = descriptor("cpu", source, tools=tools, options=options,
+                             abi=adapter_source, extra_files=lambda: _link_inputs(tools)) if cache_enabled(cache) else {}
+    with artifact_cache(description, enabled=cache) as entry, tempfile.TemporaryDirectory(prefix="tensorcx-mlir-") as directory:
         root = Path(directory)
         mlir, lowered, llvm, adapter, library = [
             root / name for name in ("kernel.mlir", "lowered.mlir", "kernel.ll", "adapter.c", "kernel.so")
         ]
-        mlir.write_text(source)
-        adapter.write_text(_adapter(ir, *signature))
-        _run([tools["mlir-opt"], str(mlir), "--convert-scf-to-cf", "--convert-to-llvm",
-              "--reconcile-unrealized-casts", "-o", str(lowered)])
-        _run([tools["mlir-translate"], "--mlir-to-llvmir", str(lowered), "-o", str(llvm)])
-        _run([tools["clang"], "-O2", "-fPIC", "-shared", "-ffp-contract=off",
-              "-Wno-override-module", "-Wl,-Bsymbolic", str(llvm), str(adapter), "-o", str(library)])
+        payload = entry.read()
+        hit = payload is not None
+        if hit:
+            library.write_bytes(payload)
+        else:
+            mlir.write_text(source)
+            adapter.write_text(adapter_source)
+            _run([tools["mlir-opt"], str(mlir), *OPT_FLAGS, "-o", str(lowered)])
+            _run([tools["mlir-translate"], *TRANSLATE_FLAGS, str(lowered), "-o", str(llvm)])
+            _run([tools["clang"], *CLANG_FLAGS, str(llvm), str(adapter), "-o", str(library)])
         module = _core._load_cpu_kernel(str(library), *signature)
+        if not hit:
+            entry.store(library.read_bytes())
     # Linux keeps the mapped image alive after the private scratch files vanish.
-    return CompiledCpuKernel(ir.name, "cpu", ir, source, module)
+    return CompiledCpuKernel(ir.name, "cpu", ir, source, module, cache_hit=hit)

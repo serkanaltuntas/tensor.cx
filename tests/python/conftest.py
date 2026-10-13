@@ -5,6 +5,18 @@ import pytest
 import tensorcx as cx
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _uncached_compiler_tests():
+    """Keep compiler-failure tests cold; dedicated cache tests enable reuse."""
+    previous = os.environ.get("TENSORCX_DISABLE_CACHE")
+    os.environ["TENSORCX_DISABLE_CACHE"] = "1"
+    yield
+    if previous is None:
+        os.environ.pop("TENSORCX_DISABLE_CACHE", None)
+    else:
+        os.environ["TENSORCX_DISABLE_CACHE"] = previous
+
+
 BACKEND_ORDER = ("cpu", "metal", "cuda")
 KNOWN_BACKENDS = frozenset(BACKEND_ORDER)
 KNOWN_CAPABILITIES = frozenset(
