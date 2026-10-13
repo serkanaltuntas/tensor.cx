@@ -35,6 +35,9 @@ Documentation = "https://tensor.cx/docs/"
 Repository = "https://github.com/serkanaltuntas/tensor.cx"
 Issues = "https://github.com/serkanaltuntas/tensor.cx/issues"
 
+[project.scripts]
+tensorcx-doctor = "tensorcx_doctor:main"
+
 [project.optional-dependencies]
 dev = [
   "nanobind>=2.4",

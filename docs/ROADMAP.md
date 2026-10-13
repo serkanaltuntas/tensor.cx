@@ -149,7 +149,9 @@ documentation. This order does not claim that later packages are implemented.
 6. **DLPack and narrow PyTorch integration:** CPU/CUDA contiguous storage sharing
    and an optional inference-only `linear` custom op; see the
    [exchange contract](DLPACK.md) and [staged portability plan](PYTORCH_PORTABILITY_ROADMAP.md).
-7. **Diagnostics:** operation/dtype capabilities, installation and memory reports.
+7. **Diagnostics:** CPU/CUDA operation/dtype, installation and memory reports
+   implemented, including a standalone CLI; Metal metadata is included, native
+   Metal memory reporting remains open. See [DIAGNOSTICS.md](DIAGNOSTICS.md).
 8. **Compiler/performance:** persistent compilation cache, profiling, broader
    MLIR operations and measured kernel fusion.
 9. **Dtypes:** CUDA int32 arithmetic gaps; FP16/BF16 on suitable hardware.

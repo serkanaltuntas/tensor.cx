@@ -348,3 +348,4 @@ if(TENSORCX_ENABLE_CUDA)
 endif()
 
 install(TARGETS _core LIBRARY DESTINATION tensorcx)
+install(FILES python/tensorcx_doctor.py DESTINATION .)

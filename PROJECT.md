@@ -70,6 +70,8 @@ API increment:          arithmetic/scalars, contiguous reshape and keepdims;
                         docs/TENSOR_API.md (acceptance tracked separately)
 DLPack increment:       CPU/CUDA storage exchange and optional inference-only
                         PyTorch linear custom op; docs/DLPACK.md
+Diagnostics increment:  CPU/CUDA capability, installation and memory snapshots;
+                        standalone CLI; docs/DIAGNOSTICS.md (Metal memory deferred)
 ```
 
 Phase checklist:

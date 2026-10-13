@@ -133,7 +133,7 @@ def main():
             audit_wheel_notices(archive)
             if any(name.endswith('.pth') or 'editable' in name for name in names):
                 raise RuntimeError('editable artifacts in wheel')
-            for required in ('tensorcx/__init__.py', 'tensorcx/_compiler/cuda.py'):
+            for required in ('tensorcx/__init__.py', 'tensorcx/_compiler/cuda.py', 'tensorcx_doctor.py'):
                 if required not in names:
                     raise RuntimeError(f'wheel missing {required}')
             if len([name for name in names if name.startswith('tensorcx/_core.') and name.endswith('.so')]) != 1:
@@ -156,6 +156,16 @@ def main():
             (work / 'mlp.py').write_bytes(example)
             runtime_env = {**env, 'TENSORCX_LLVM_BIN': str(work / 'absent-llvm')}
             command = ['uv', 'run', '--no-project', '--python', python, 'python', '-I']
+            doctor = json.loads(run([*command, '-m', 'tensorcx_doctor', '--json'],
+                                    work, env, destination / 'doctor.log'))
+            if doctor.get('status') != 'ok' or doctor['backends']['cpu']['compiled'] is not True:
+                raise RuntimeError('standalone diagnostic module failed in the fresh wheel environment')
+            # Also exercise the installed entry point, outside the checkout.
+            cli_doctor = json.loads(run([work / 'env/bin/tensorcx-doctor', '--json'],
+                                        work, env, destination / 'doctor-cli.log'))
+            if cli_doctor.get('status') != 'ok':
+                raise RuntimeError('installed diagnostic console script failed')
+            record['diagnostics'] = doctor
             modes = [('without-llvm', []), ('hidden-gpu', ['--hidden-gpu'])]
             if args.llvm_bin:
                 modes.append(('with-llvm', ['--mlir']))

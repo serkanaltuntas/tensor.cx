@@ -36,6 +36,12 @@ class CudaBackend final : public Backend {
 
 bool available();
 Expected<std::string> device_name();
+struct DeviceInfo {
+  std::string name;
+  int major{0}, minor{0}, runtime_version{0}, driver_version{0};
+  std::size_t free_bytes{0}, total_bytes{0};
+};
+Expected<DeviceInfo> device_info();
 Expected<CudaTensor> from_cpu(const cpu::CpuTensor& tensor);
 Expected<cpu::CpuTensor> to_cpu(const CudaTensor& tensor);
 Tensor to_core_tensor(const CudaTensor& tensor);

@@ -1027,7 +1027,28 @@ void bind_dlpack(nb::module_& module);
 
 NB_MODULE(_core, module) {
   module.doc() = "Native extension module for tensor.cx.";
+  module.def("_build_info", [] {
+    nb::dict result;
+    result["cpu"] = true;
+    result["metal"] = static_cast<bool>(TENSORCX_ENABLE_METAL);
+    result["cuda"] = static_cast<bool>(TENSORCX_ENABLE_CUDA);
+    return result;
+  });
 #if TENSORCX_ENABLE_CUDA
+  module.def("_cuda_device_info", [] {
+    auto info = unwrap(without_gil([] { return tensorcx::cuda::device_info(); }));
+    nb::dict memory;
+    memory["scope"] = "cuda_device";
+    memory["total_bytes"] = info.total_bytes;
+    memory["available_bytes"] = info.free_bytes;
+    nb::dict result;
+    result["name"] = info.name;
+    result["architecture"] = "sm_" + std::to_string(info.major) + std::to_string(info.minor);
+    result["runtime_version"] = info.runtime_version;
+    result["driver_api_version"] = info.driver_version;
+    result["memory"] = memory;
+    return result;
+  });
   nb::class_<tensorcx::cuda::CudaKernelModule>(module, "_CudaKernelModule");
   module.def("_cuda_kernel_support", [] {
     auto status = without_gil([] { return tensorcx::cuda::compiled_kernel_support(); });

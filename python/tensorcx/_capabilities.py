@@ -1,0 +1,40 @@
+"""Declared dtype contracts for built-in operations, not hardware promises.
+
+The dtype is that of the data operand (weights for embedding). Shape, index,
+scalar and other-operand rules still apply; see docs/TENSOR_API.md.
+"""
+
+_ALL = ("float32", "int32", "bool")
+_NUMERIC = ("float32", "int32")
+_FLOAT = ("float32",)
+_BOOL = ("bool",)
+
+
+def _profile(*, cuda=False, dlpack=False):
+    result = {}
+    for name in ("tensor", "empty", "copy", "astype", "reshape", "transpose",
+                 "squeeze", "expand_dims", "indexing", "concat", "stack", "split",
+                 "equal", "not_equal", "less", "less_equal", "greater", "greater_equal",
+                 "where", "masked_select"):
+        result[name] = _ALL
+    for name in ("zeros", "ones"):
+        result[name] = ("float32", "bool") if cuda else _ALL
+    for name in ("add", "subtract", "multiply", "negative", "sum", "max"):
+        result[name] = _FLOAT if cuda else _NUMERIC
+    for name in ("divide", "randn", "matmul", "mean", "exp", "gelu", "silu", "softmax",
+                 "rmsnorm", "layernorm", "log", "sqrt", "linear", "embedding",
+                 "scaled_dot_product_attention", "attention"):
+        result[name] = _FLOAT
+    for name in ("abs", "min", "argmax", "clip", "topk"):
+        result[name] = _NUMERIC
+    for name in ("logical_and", "logical_or", "logical_xor", "logical_not", "any", "all"):
+        result[name] = _BOOL
+    if dlpack:
+        result["from_dlpack"] = _ALL
+        result["__dlpack__"] = _ALL
+    return result
+
+
+CPU_OPERATIONS = _profile(dlpack=True)
+METAL_OPERATIONS = _profile()
+CUDA_OPERATIONS = _profile(cuda=True, dlpack=True)

@@ -5,6 +5,7 @@ from __future__ import annotations
 from . import _core, experimental, testing
 from .dlpack import from_dlpack
 from .device import Device, best_device, device, device_name, devices, is_available
+from .diagnostics import capabilities, diagnostics, memory_info
 from .tensor import (
     Tensor,
     log, sqrt, abs, min, argmax, clip, topk,
@@ -61,6 +62,7 @@ def version() -> str:
 
 
 __all__ = [
+    "capabilities", "diagnostics", "memory_info",
     "Tensor", "from_dlpack",
     "log", "sqrt", "abs", "min", "argmax", "clip", "topk",
     "linear", "embedding", "scaled_dot_product_attention", "attention",

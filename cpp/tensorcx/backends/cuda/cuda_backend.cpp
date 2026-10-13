@@ -139,6 +139,26 @@ Expected<std::string> device_name() {
   return std::string(properties.name);
 }
 
+Expected<DeviceInfo> device_info() {
+  // Scope restores a foreign current context; do not reset or synchronize it.
+  ContextScope context;
+  if (!context.ready()) return context.status();
+  cudaDeviceProp properties{};
+  if (auto status = runtime_status(cudaGetDeviceProperties(&properties, 0),
+                                   "CUDA device properties"); !status.ok()) return status;
+  DeviceInfo info;
+  info.name = properties.name;
+  info.major = properties.major;
+  info.minor = properties.minor;
+  if (auto status = runtime_status(cudaRuntimeGetVersion(&info.runtime_version),
+                                   "CUDA runtime version"); !status.ok()) return status;
+  if (auto status = driver_status(cuDriverGetVersion(&info.driver_version),
+                                  "CUDA Driver API version"); !status.ok()) return status;
+  if (auto status = runtime_status(cudaMemGetInfo(&info.free_bytes, &info.total_bytes),
+                                   "CUDA memory information"); !status.ok()) return status;
+  return info;
+}
+
 Expected<CudaTensor> from_cpu(const cpu::CpuTensor& tensor) {
   try {
     ContextScope device;

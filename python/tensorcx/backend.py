@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from . import _core
+from ._capabilities import CPU_OPERATIONS, CUDA_OPERATIONS, METAL_OPERATIONS
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,6 +22,8 @@ class Backend:
     copy_to_cpu: Callable[[Any], Any] | None = None
     fill: Callable[[Any, str, float], Any] | None = None
     matmul_backends: Callable[[], list[str]] | None = None
+    operations: dict[str, tuple[str, ...]] | None = None
+    diagnostic_info: Callable[[], dict[str, Any]] | None = None
 
 
 _BACKENDS: dict[str, Backend] = {}
@@ -125,6 +128,11 @@ def _cpu_matmul_backends() -> list[str]:
     return list(_core.matmul_backends("cpu"))
 
 
+def _cpu_diagnostic_info() -> dict[str, Any]:
+    from .diagnostics import _host_memory
+    return {"name": "CPU", "memory": _host_memory()}
+
+
 def _metal_available() -> bool:
     return bool(_core.is_available("metal"))
 
@@ -158,6 +166,8 @@ _register_backend(
         copy_to_cpu=lambda impl: impl,
         fill=_cpu_fill,
         matmul_backends=_cpu_matmul_backends,
+        operations=CPU_OPERATIONS,
+        diagnostic_info=_cpu_diagnostic_info,
     )
 )
 _register_backend(
@@ -171,6 +181,7 @@ _register_backend(
         copy_to_cpu=_metal_to_cpu,
         fill=_metal_fill,
         matmul_backends=_metal_matmul_backends,
+        operations=METAL_OPERATIONS,
     )
 )
 
@@ -189,5 +200,7 @@ if _core.is_available("cuda"):
                 shape, dtype=dtype, value=value, device="cuda"
             ),
             matmul_backends=lambda: list(_core.matmul_backends("cuda")),
+            operations=CUDA_OPERATIONS,
+            diagnostic_info=lambda: dict(_core._cuda_device_info()),
         )
     )

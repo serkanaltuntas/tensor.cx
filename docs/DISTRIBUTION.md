@@ -75,6 +75,8 @@ memory pressure. The check records:
 - hidden-GPU CPU execution, including the CUDA-enabled wheel;
 - MLP execution outside the checkout, CPU parity and probability row sums;
 - resolved shared libraries, ELF dependencies, search paths and symbol versions.
+- packaged `tensorcx_doctor` module and `tensorcx-doctor` console script in the
+  fresh environment, with successful CPU/CUDA diagnostic reports.
 
 Use `--variants cpu` for CPU-only hosts, or `--variants cuda` for a required-GPU
 run. Omit `--llvm-bin` to check ordinary use without LLVM; the report then does
