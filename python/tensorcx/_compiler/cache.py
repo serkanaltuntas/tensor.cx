@@ -175,6 +175,19 @@ class _Entry:
                 pass
 
 
+def _open_lock(root, key):
+    # Concurrent macOS CI observed ENOENT even with O_CREAT. Bound recovery to
+    # this error and the same validated directory descriptor; never reopen the
+    # root, follow a link, unlink a lock or bypass its subsequent validation.
+    for attempt in range(3):
+        try:
+            return os.open(key + ".lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK,
+                           0o600, dir_fd=root)
+        except FileNotFoundError:
+            if attempt == 2:
+                raise
+
+
 def _open_root(path):
     # Parent symlinks (e.g. macOS /var) can be legitimate; the cache leaf cannot.
     path = path.parent.resolve() / path.name
@@ -218,8 +231,7 @@ def artifact_cache(description, *, enabled=True):
     try:
         try:
             root = _open_root(path)
-            lock = os.open(key + ".lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK,
-                           0o600, dir_fd=root)
+            lock = _open_lock(root, key)
             info = os.fstat(lock)
             if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
                     or info.st_mode & 0o077 or info.st_nlink != 1):

@@ -37,6 +37,12 @@ rejected. Symlink/damaged artifacts are misses. Directory descriptors anchor
 artifact I/O and atomic replacement. Per-key process locks coordinate cold
 builders and release on termination. Waiting is limited to 30 seconds; busy
 default storage falls back to uncached work, explicit storage reports an error.
+Lock-file creation allows at most three identical no-follow opens against the
+same validated directory descriptor when an open returns `ENOENT`, as observed
+in concurrent macOS CI. This is bounded recovery, not a confirmed filesystem
+root cause. It never reopens/recreates the root or removes a lock; persistent
+missing storage and unsafe replacements retain the existing error/fallback
+policy and permission/type/link checks. Other open errors are not retried.
 
 ## Compatibility, integrity and trust
 

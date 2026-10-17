@@ -186,6 +186,23 @@ def test_unknown_compiler_identity_never_reuses(cache_dir, monkeypatch):
     with cache.artifact_cache(description) as entry:
         assert entry.root is None
 
+def _run_workers(code, timeout=30):
+    workers = []
+    try:
+        for index in range(4):
+            workers.append(subprocess.Popen([sys.executable, "-I", "-c", code, str(index)],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True))
+        for worker in workers:
+            stdout, stderr = worker.communicate(timeout=timeout)
+            assert worker.returncode == 0, stdout + stderr
+    finally:
+        for worker in workers:
+            if worker.poll() is None:
+                worker.kill()
+        for worker in workers:
+            worker.communicate(timeout=30)
+
+
 def test_cross_process_single_publication(cache_dir):
     code = '''
 from tensorcx._compiler.cache import artifact_cache
@@ -198,12 +215,113 @@ with artifact_cache({"source":"concurrent"}) as entry:
         entry.store(b"complete artifact")
     assert entry.read() == b"complete artifact"
 '''
-    workers = [subprocess.Popen([sys.executable, "-I", "-c", code], stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE, text=True) for _ in range(4)]
-    for worker in workers:
-        stdout, stderr = worker.communicate(timeout=30)
-        assert worker.returncode == 0, stdout + stderr
+    _run_workers(code)
     assert (cache_dir.parent / "build-count").read_text().splitlines() == ["one"]
+
+
+@pytest.mark.parametrize("missing", [1, 2])
+def test_lock_creation_transient_missing_reuses_validated_root(cache_dir, monkeypatch, missing):
+    original, attempts = os.open, []
+    def open_file(path, flags, mode=0o777, *, dir_fd=None):
+        if isinstance(path, str) and path.endswith(".lock"):
+            attempts.append((path, flags, mode, dir_fd))
+            if len(attempts) <= missing:
+                raise FileNotFoundError(2, "transient creation lookup", path)
+        return original(path, flags, mode, dir_fd=dir_fd)
+    monkeypatch.setattr(cache.os, "open", open_file)
+    with cache.artifact_cache({"source": "transient"}) as entry:
+        entry.store(b"complete artifact")
+        assert entry.read() == b"complete artifact"
+    assert len(attempts) == missing + 1 and len(set(attempts)) == 1
+    assert not list(cache_dir.glob(".tmp-*"))
+
+
+@pytest.mark.parametrize("explicit", [True, False])
+def test_lock_creation_persistent_missing_is_bounded_and_fails_closed(cache_dir, tmp_path, monkeypatch, explicit):
+    if not explicit:
+        monkeypatch.delenv("TENSORCX_CACHE_DIR")
+        monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+        (tmp_path / "tensorcx").mkdir(mode=0o700)
+    original, attempts = os.open, []
+    def open_file(path, flags, mode=0o777, *, dir_fd=None):
+        if isinstance(path, str) and path.endswith(".lock"):
+            attempts.append((path, flags, mode, dir_fd))
+            raise FileNotFoundError(2, "persistent missing storage", path)
+        return original(path, flags, mode, dir_fd=dir_fd)
+    monkeypatch.setattr(cache.os, "open", open_file)
+    if explicit:
+        with pytest.raises(RuntimeError, match="unsafe"):
+            with cache.artifact_cache({}):
+                pytest.fail("persistent missing explicit lock accepted")
+    else:
+        with cache.artifact_cache({}) as entry:
+            assert entry.root is None
+    assert len(attempts) == 3 and len(set(attempts)) == 1
+    with pytest.raises(OSError):
+        os.fstat(attempts[0][-1])  # Failed setup closed the directory descriptor.
+
+
+@pytest.mark.parametrize("kind", ["symlink", "permissions", "hardlink", "fifo"])
+def test_lock_creation_retry_does_not_bypass_storage_checks(cache_dir, tmp_path, monkeypatch, kind):
+    original, attempts = os.open, []
+    outside = tmp_path / "outside"
+    outside.write_bytes(b"untouched")
+    outside.chmod(0o600)
+    def open_file(path, flags, mode=0o777, *, dir_fd=None):
+        if isinstance(path, str) and path.endswith(".lock"):
+            attempts.append((path, flags, mode, dir_fd))
+            if len(attempts) == 1:
+                lock = cache_dir / path
+                if kind == "symlink": lock.symlink_to(outside)
+                elif kind == "hardlink": os.link(outside, lock)
+                elif kind == "fifo": os.mkfifo(lock, 0o600)
+                else:
+                    lock.write_bytes(b"invalid permissions")
+                    lock.chmod(0o666)
+                raise FileNotFoundError(2, "concurrent replacement", path)
+        return original(path, flags, mode, dir_fd=dir_fd)
+    monkeypatch.setattr(cache.os, "open", open_file)
+    with pytest.raises(RuntimeError, match="unsafe"):
+        with cache.artifact_cache({}):
+            pytest.fail("unsafe lock accepted after retry")
+    assert outside.read_bytes() == b"untouched"
+    assert len(attempts) <= 3 and len(set(attempts)) == 1
+
+
+def test_lock_retry_never_reopens_replaced_root(cache_dir, monkeypatch):
+    original, attempts = os.open, []
+    original_inode = None
+    def open_file(path, flags, mode=0o777, *, dir_fd=None):
+        nonlocal original_inode
+        if isinstance(path, str) and path.endswith(".lock"):
+            inode = os.fstat(dir_fd).st_ino
+            if not attempts:
+                original_inode = inode
+                cache_dir.rmdir()
+                cache_dir.mkdir(mode=0o700)
+            assert inode == original_inode
+            attempts.append(dir_fd)
+            raise FileNotFoundError(2, "removed original directory", path)
+        return original(path, flags, mode, dir_fd=dir_fd)
+    monkeypatch.setattr(cache.os, "open", open_file)
+    with pytest.raises(RuntimeError, match="unsafe"):
+        with cache.artifact_cache({}):
+            pytest.fail("replaced root silently reopened")
+    assert len(attempts) == 3 and not list(cache_dir.iterdir())
+
+
+@pytest.mark.parametrize("failure", ["exit", "timeout"])
+def test_cross_process_failure_reaps_every_worker(monkeypatch, failure):
+    original, workers = subprocess.Popen, []
+    def spawn(*args, **kwargs):
+        process = original(*args, **kwargs)
+        workers.append(process)
+        return process
+    monkeypatch.setattr(subprocess, "Popen", spawn)
+    code = 'import sys,time\nif sys.argv[1]=="0": sys.exit(1)\ntime.sleep(60)' if failure == "exit" else 'import time; time.sleep(60)'
+    with pytest.raises(AssertionError if failure == "exit" else subprocess.TimeoutExpired):
+        _run_workers(code, timeout=30 if failure == "exit" else .1)
+    assert len(workers) == 4 and all(worker.poll() is not None for worker in workers)
 
 
 def test_lock_timeout_is_bounded(cache_dir, monkeypatch):
