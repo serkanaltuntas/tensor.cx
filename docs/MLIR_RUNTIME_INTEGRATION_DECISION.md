@@ -22,7 +22,7 @@ ABI. Keep the CPU interpreter as the independent semantic reference.
 | Question | Selected approach | Reason / deferred alternative |
 | --- | --- | --- |
 | First execution target | CPU on Linux x86_64 (Nightblade) | Existing lowering now passes locally. CUDA-first would combine new GPU lowering, module loading, context ownership, and runtime integration. |
-| IR | Existing tensor.cx IR → `func/scf/arith/memref` → LLVM | No custom tensor.cx dialect until an operation needs semantics the standard dialects cannot express. |
+| IR | Existing tensor.cx IR → `func/scf/arith/math/memref` → LLVM | No custom tensor.cx dialect until an operation needs semantics the standard dialects cannot express. |
 | Compilation | External tools → native shared library before launch | Reuses the prototype and avoids linking MLIR or LLVM ExecutionEngine into the extension. In-process JIT is deferred. |
 | Runtime entry | `CpuBackend::execute`, `BackendOpClass::kKernel` | The same validation/ownership boundary used by generated Metal kernels; no ctypes/NumPy execution bypass. |
 | Second target | CUDA device-only lowering via `gpu`/NVVM → PTX | A later slice with its own hardware acceptance; no generated host scheduler replacing tensor.cx's backend. |
@@ -227,6 +227,9 @@ body expressions use float32 loads, floating constants, local values and
 `+`/`-`/`*`/`/`. Division was added on 2026-10-17; its float-only typing and
 numerical contract are in [MLIR_DIVISION.md](MLIR_DIVISION.md).
 Local assignments follow existing DSL rules (no reassignment).
+Float32 `cx.experimental.sqrt` is also supported inside guarded expressions;
+see [MLIR_SQRT.md](MLIR_SQRT.md) for operand types and numerical limits.
+
 Float comparisons and boolean locals may feed the explicit selector described
 in [MLIR_SELECT.md](MLIR_SELECT.md); general branch bodies remain outside the runtime slice.
 All parameters must be used as buffers or the uint32 bound. This structural

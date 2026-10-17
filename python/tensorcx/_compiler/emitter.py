@@ -166,7 +166,7 @@ def _buffer_names(kernel_ir: IRKernel) -> tuple[set[str], set[str]]:
 
 
 def emit_mlir(kernel_ir: IRKernel) -> str:
-    """Emit an MLIR module (func/scf/arith/memref dialects) for the kernel."""
+    """Emit an MLIR module (func/scf/arith/math/memref dialects) for the kernel."""
 
     store_buffers, load_buffers = _buffer_names(kernel_ir)
     if not store_buffers:
@@ -437,6 +437,16 @@ def _emit_expression(
         )
         return value, "f32"
     if isinstance(expression, IRCall):
+        if expression.name == "sqrt":
+            if len(expression.args) != 1:
+                raise MlirEmitError("sqrt requires one float32 argument")
+            operand, kind = _emit_expression(
+                emitter, expression.args[0], indent=indent, context=context)
+            if kind != "f32":
+                raise MlirEmitError("sqrt requires one float32 argument")
+            value = emitter.fresh()
+            emitter.emit(indent, f"{value} = math.sqrt {operand} : f32")
+            return value, "f32"
         if expression.name == "select":
             if len(expression.args) != 3:
                 raise MlirEmitError("select requires three arguments")

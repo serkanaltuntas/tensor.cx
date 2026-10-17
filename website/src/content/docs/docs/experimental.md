@@ -9,8 +9,8 @@ require a compiler SDK at runtime. Explicit custom-kernel compilation does.
 | Path | What is implemented | Required environment |
 | --- | --- | --- |
 | Metal / MSL | Restricted Python kernel DSL, float32 elementwise and bounded rowwise reductions | Apple Metal compiler tools and an available Metal device |
-| CPU / MLIR | Guarded float32 arithmetic, division, comparisons and select; bounded local/nested expressions | Validated on Linux x86_64 with LLVM/MLIR 21.1.8 |
-| CUDA / MLIR | Guarded float32 add/subtract/multiply/divide, comparisons and select; bounded local/nested expressions | Validated CPU toolchain plus CUDA toolkit 12.4, CUDA Driver API 13.0, and sm_52 hardware |
+| CPU / MLIR | Guarded float32 arithmetic, division, sqrt, comparisons and select; bounded local/nested expressions | Validated on Linux x86_64 with LLVM/MLIR 21.1.8 |
+| CUDA / MLIR | Guarded float32 add/subtract/multiply/divide, sqrt, comparisons and select; bounded local/nested expressions | Validated CPU toolchain plus CUDA toolkit 12.4, CUDA Driver API 13.0, and sm_52 hardware |
 
 ## Explicit compilation
 
@@ -34,6 +34,14 @@ does not replace a memory-safety guard. The output remains float32. See the
 [comparison/select contract and example](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/MLIR_SELECT.md)
 for NaN behavior, complexity limits and Metal validation scope.
 
+Guarded kernels accept `cx.experimental.sqrt(value)` for one float32 operand,
+including locals and nested/selected expressions. CPU/CUDA numerical tests
+cover signed zero, negative inputs, NaN, infinity and subnormals; CUDA produces
+strict `sqrt.rn.f32` without an external math library. Direct MSL uses the
+qualified Metal builtin and its existing finite-input tolerance. CUDA retains
+its two-input/one-output signature. See the
+[square-root contract and runnable example](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/MLIR_SQRT.md).
+
 Compiled CPU/CUDA/Metal code is cached in private local storage by default,
 including across process restarts. Inspect `compiled.cache_hit` for reuse, or
 use `kernel.compile(..., cache=False)` to bypass storage.
@@ -56,8 +64,8 @@ corresponding integration guide:
 This is not general Python compilation or a full graph compiler. Ordinary
 tensor expressions are not automatically fused. Broader generated operations,
 targets, and reduction support require separate validation.
-Ordinary `cx.sqrt` is implemented, but `sqrt` inside the guarded MLIR kernel
-subset remains a proposed extension. See [remaining compiler work](/docs/status/#remaining-work).
+Ordinary tensor `cx.sqrt` and the explicit `cx.experimental.sqrt` kernel
+intrinsic are implemented within their documented subsets. See [remaining compiler work](/docs/status/#remaining-work).
 
 Generated native libraries and PTX are executable code, not a sandbox. Compile
 and load only artifacts you trust; see the repository

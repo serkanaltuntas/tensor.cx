@@ -130,6 +130,7 @@ cx.experimental.block_size()
 +, -, *, / (division requires two float32 operands)
 single comparisons: <, <=, >, >=, ==, !=
 cx.experimental.select(boolean_condition, float_value, float_value)
+cx.experimental.sqrt(float_value)
 if blocks without else
 numeric constants
 for var in range(bound_name) with an assignment-only body (any local
@@ -270,3 +271,5 @@ CPU/CUDA numerical edges and the direct MSL validation limits.
 The [comparison/select extension](MLIR_SELECT.md) permits internal boolean
 locals and explicit float32 value selection in guarded MLIR bodies. It does
 not add general runtime branches, lazy selection or boolean output buffers.
+The [float32 sqrt extension](MLIR_SQRT.md) adds one strictly typed unary
+intrinsic; CPU/CUDA rounding checks and direct MSL limits are recorded there.

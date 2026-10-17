@@ -35,7 +35,9 @@ canonical global index and the single outer `if i < n` guard. Inside that guard:
   other than `i`, extra parameters, broadcasting and non-contiguous views.
 - Float comparisons and internal boolean locals may feed explicit float32
   selection; this 2026-10-17 extension is defined in [MLIR_SELECT.md](MLIR_SELECT.md).
-- Bound this compiler slice to 32 local assignments, 64 arithmetic/comparison/selection
+- Float32 `cx.experimental.sqrt` is supported; [MLIR_SQRT.md](MLIR_SQRT.md)
+  defines its strict rounding/lowering and target-specific limits.
+- Bound this compiler slice to 32 local assignments, 64 arithmetic/sqrt/comparison/selection
   nodes in the guarded body and expression-tree depth 16. A leaf has depth 1;
   an operator node has depth `1 + max(children)`, including all three selector
   arguments. Count each syntactic expression

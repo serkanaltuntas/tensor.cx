@@ -19,7 +19,7 @@ the [support matrix](/docs/backends/) defines backend availability.
 | Inference | Float32 linear, affine RMSNorm/LayerNorm, int32-indexed embedding and scaled dot-product attention with boolean/additive/causal masks | [Inference](/docs/operations/#inference) |
 | Storage exchange | CPU/CUDA device-0 DLPack sharing or explicit copy; optional inference-only PyTorch `linear` custom op | [DLPack & PyTorch](/docs/interoperability/) |
 | Diagnostics | Standalone `tensorcx-doctor`, installation checks, operation/dtype capabilities and CPU/CUDA memory snapshots | [Diagnostics](/docs/diagnostics/) |
-| Explicit kernels | Experimental Metal MSL and guarded float32 CPU/CUDA MLIR compilation; division, comparisons and value selection in the MLIR subset | [Experimental kernels](/docs/experimental/) |
+| Explicit kernels | Experimental Metal MSL and guarded float32 CPU/CUDA MLIR compilation; division, sqrt, comparisons and value selection in the MLIR subset | [Experimental kernels](/docs/experimental/) |
 | Compilation tools | Persistent CPU/CUDA/Metal code cache; compile/launch latency measurements and separate compilation profiles | [Performance](/docs/performance/#compilation-cache-measurements) |
 | Runtime profiling | Opt-in CPU/CUDA native host spans and Chrome trace export, with allocation/copy/execution/wait attribution | [Host profiling](/docs/performance/#native-runtime-profiling) |
 | CUDA allocation | Bounded opt-in exact-size reuse, pool stats/trim, and direct `empty` allocation without CPU staging | [Memory reuse](/docs/performance/#bounded-cuda-memory-reuse) |
@@ -47,10 +47,11 @@ remaining parts; completed pieces above are not reset by this list.
 | Distribution and releases | Portable macOS/CUDA wheels, versioned releases and package-index publication; Linux ARM64 and musl/Alpine wheels are outside the current matrix |
 | CUDA validation and devices | Execution on additional real NVIDIA architectures/toolchains, an isolated automatic GPU CI runner, and device-index selection beyond 0 |
 
-A proposed next compiler increment is float32 `sqrt` inside the guarded
-experimental kernel/MLIR path, with CPU/CUDA numerical acceptance. It is **not
-implemented** there. Ordinary `cx.sqrt` is already available on CPU/Metal/CUDA.
-This is a scoped candidate, not a release date or a promise of a full compiler.
+Float32 `sqrt` is now implemented inside guarded experimental kernels, with
+CPU/CUDA numerical acceptance and a bounded direct MSL path; ordinary tensor
+`cx.sqrt` remains available. A proposed next compiler increment is float32
+`abs` in the same guarded subset. This is a scoped candidate, not a release
+date or a promise of a full compiler.
 
 ## Validation boundaries
 

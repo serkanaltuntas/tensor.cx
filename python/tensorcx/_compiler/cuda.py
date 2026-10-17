@@ -58,7 +58,9 @@ def signature(ir):
                 reject(str(error))
         elif ((isinstance(value, IRBinaryOp) and value.op in OPERATIONS)
               or (isinstance(value, IRCompare) and value.op in PREDICATES)
-              or (isinstance(value, IRCall) and value.name == "select" and len(value.args) == 3)):
+              or (isinstance(value, IRCall)
+                  and ((value.name == "select" and len(value.args) == 3)
+                       or (value.name == "sqrt" and len(value.args) == 1)))):
             operators += 1
             if operators > 64:
                 reject("expression operation count exceeds 64")
@@ -177,6 +179,12 @@ def emit_expression_cuda(ir, kinds, output, guard):
             return instruction(f"llvm.load {ptr} : !llvm.ptr -> f32")
         if isinstance(value, IRCall):
             values = [expression(argument) for argument in value.args]
+            if value.name == "sqrt":
+                # LLVM 21's GPU math.sqrt lowering calls external libdevice.
+                # Pin the native RN intrinsic instead: no approximation/FTZ,
+                # external library, or change to existing lowering options.
+                return instruction('llvm.call_intrinsic "llvm.nvvm.sqrt.rn.f"'
+                                   f'({values[0]}) : (f32) -> f32')
             return instruction(f"arith.select {', '.join(values)} : f32")
         lhs, rhs = expression(value.lhs), expression(value.rhs)
         if isinstance(value, IRCompare):

@@ -75,6 +75,7 @@ x86_64 with external LLVM 21.1.8 tools. See the
   bounded local/nested expression support and its numerical/ownership contract.
 - [`docs/MLIR_DIVISION.md`](docs/MLIR_DIVISION.md): float32 kernel division, CPU/CUDA IEEE checks and direct MSL limits.
 - [`docs/MLIR_SELECT.md`](docs/MLIR_SELECT.md): float32 kernel comparisons, internal boolean locals and explicit value selection.
+- [`docs/MLIR_SQRT.md`](docs/MLIR_SQRT.md): guarded float32 kernel square root, strict CPU/CUDA lowering and numerical limits.
 - [`docs/CUDA_INT32.md`](docs/CUDA_INT32.md): native int32 factories, wrapping arithmetic and signed sum/max validation.
 - [`docs/CUDA_PRODUCT_COMPLETION.md`](docs/CUDA_PRODUCT_COMPLETION.md):
   active CUDA product completion work and remaining evidence.
