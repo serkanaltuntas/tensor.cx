@@ -264,6 +264,8 @@ add/subtract/multiply/divide runtime integration is implemented on the validated
 see docs/MLIR_CUDA_INTEGRATION_DECISION.md for usage, tests and strict subset.
 Wider generated operations or targets require their own parity/acceptance tests.
 Float32 division's contract and target-specific numerical limits are in docs/MLIR_DIVISION.md.
+Guarded float32 comparisons and select are implemented; docs/MLIR_SELECT.md
+defines internal boolean values, eager value selection and target-specific limits.
 ```
 
 `docs/CUDA_PHASE9_ENVIRONMENT.md` records the selected host and entry criteria;

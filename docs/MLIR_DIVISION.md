@@ -11,7 +11,8 @@ rejected before compiler tools; write `2.0`, not `2`. Floor division, remainder,
 power, integer/index division and broadcasting remain unsupported. CPU/CUDA
 runtime bodies still require the canonical guarded index and exact shapes.
 CUDA retains two input parameters, one output, one uint32 bound, at most 32
-locals/64 binary operators and expression depth 16. `/` counts as one operator.
+locals/64 operation nodes and expression depth 16. `/` counts as one operator;
+the [selection extension](MLIR_SELECT.md) also counts comparisons and selectors.
 
 CPU and CUDA emit `arith.divf` without fast-math flags. On the pinned LLVM
 21.1.8/sm_52 path, CUDA emits `div.rn.f32`, with no approximate reciprocal or

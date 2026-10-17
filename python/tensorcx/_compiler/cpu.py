@@ -105,7 +105,7 @@ def _signature(ir):
     def reject():
         raise KernelCompileError(
             "MLIR CPU runtime requires a canonical global index and one guarded "
-            "float32 elementwise body (add/subtract/multiply/divide and local assignments)"
+            "float32 elementwise body (arithmetic, comparisons, select and local assignments)"
         )
 
     if not re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*", ir.name) or ir.name.startswith("tensorcx_"):
@@ -133,21 +133,33 @@ def _signature(ir):
     if guard_name in buffers or set(ir.parameters) != buffers | {guard_name}:
         reject()
     output = _single_output_parameter(ir)
-    locals_ = set()
+    locals_ = {}
 
     def expression(value):
         if isinstance(value, IRLoad):
             if value.index != IRName(index.target) or value.buffer not in ir.parameters:
                 reject()
+            return "float"
         elif isinstance(value, IRConstant):
             if type(value.value) is not float:
                 reject()
+            return "float"
         elif isinstance(value, IRName):
             if value.name not in locals_:
                 reject()
+            return locals_[value.name]
         elif isinstance(value, IRBinaryOp) and value.op in {"add", "sub", "mul", "div"}:
-            expression(value.lhs)
-            expression(value.rhs)
+            if (expression(value.lhs), expression(value.rhs)) != ("float", "float"):
+                reject()
+            return "float"
+        elif isinstance(value, IRCompare) and value.op in {"lt", "lte", "gt", "gte", "eq", "neq"}:
+            if (expression(value.lhs), expression(value.rhs)) != ("float", "float"):
+                reject()
+            return "bool"
+        elif isinstance(value, IRCall) and value.name == "select" and len(value.args) == 3:
+            if tuple(expression(argument) for argument in value.args) != ("bool", "float", "float"):
+                reject()
+            return "float"
         else:
             reject()
 
@@ -155,12 +167,12 @@ def _signature(ir):
         if isinstance(statement, IRAssign):
             if statement.target == index.target or statement.target in ir.parameters:
                 reject()
-            expression(statement.value)
-            locals_.add(statement.target)
+            locals_[statement.target] = expression(statement.value)
         elif isinstance(statement, IRStore):
             if statement.buffer != output or statement.index != IRName(index.target):
                 reject()
-            expression(statement.value)
+            if expression(statement.value) != "float":
+                reject()
         else:
             reject()
     # Preserve common DSL typing, identifier, and unused-parameter restrictions.

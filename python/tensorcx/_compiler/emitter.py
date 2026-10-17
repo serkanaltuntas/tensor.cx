@@ -437,6 +437,16 @@ def _emit_expression(
         )
         return value, "f32"
     if isinstance(expression, IRCall):
+        if expression.name == "select":
+            if len(expression.args) != 3:
+                raise MlirEmitError("select requires three arguments")
+            values = [_emit_expression(emitter, argument, indent=indent, context=context)
+                      for argument in expression.args]
+            if tuple(kind for _, kind in values) != ("i1", "f32", "f32"):
+                raise MlirEmitError("select requires a boolean condition and two float32 values")
+            value = emitter.fresh()
+            emitter.emit(indent, f"{value} = arith.select {', '.join(name for name, _ in values)} : f32")
+            return value, "f32"
         return _emit_call(expression)
     if isinstance(expression, IRBinaryOp):
         lhs, lhs_type = _emit_expression(

@@ -20,7 +20,7 @@ distinct input parameter names, one output parameter and one uint32 guard.
 All four parameters must be used; parameter order may vary. Preserve the
 canonical global index and the single outer `if i < n` guard. Inside that guard:
 
-- Permit zero or more float32 local assignments followed by exactly one final
+- Permit zero or more float32/internal-boolean local assignments followed by exactly one final
   `out[i] = expression` store. Locals are assigned once, cannot shadow parameters
   or the index, and may reference only earlier locals.
 - Expressions contain canonical `a[i]`/`b[i]` loads, earlier float32 locals,
@@ -31,11 +31,14 @@ canonical global index and the single outer `if i < n` guard. Inside that guard:
   the store, undefined/reassigned locals, and locals outside the guard. Actual
   tensor objects may still alias, including input/output aliases.
 - Reject integer/bool literals in arithmetic, runtime float scalar arguments,
-  integer/mixed division, comparisons in the body, branches, loops, reductions, indexing
+  integer/mixed division, general branches, loops, reductions, indexing
   other than `i`, extra parameters, broadcasting and non-contiguous views.
-- Bound this first compiler slice to 32 local assignments, 64 binary arithmetic
+- Float comparisons and internal boolean locals may feed explicit float32
+  selection; this 2026-10-17 extension is defined in [MLIR_SELECT.md](MLIR_SELECT.md).
+- Bound this compiler slice to 32 local assignments, 64 arithmetic/comparison/selection
   nodes in the guarded body and expression-tree depth 16. A leaf has depth 1;
-  a binary node has depth `1 + max(children)`. Count each syntactic expression
+  an operator node has depth `1 + max(children)`, including all three selector
+  arguments. Count each syntactic expression
   once, without expanding local references. Reject larger bodies before tools.
   These are initial compiler complexity limits, not hardware limits.
 

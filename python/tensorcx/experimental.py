@@ -39,6 +39,7 @@ _SUPPORTED_INTRINSICS = {
     "cx.experimental.program_id": 1,
     "cx.experimental.thread_id": 0,
     "cx.experimental.block_size": 0,
+    "cx.experimental.select": 3,
 }
 _MSL_BINARY_OPS = {
     "add": "+",
@@ -988,6 +989,11 @@ def _reference_execute(kernel_ir, arrays, scalars, thread_count, block_size):
             # integer literal is always C-typed int.
             return ("int", expression.value & _UINT32_MASK)
         if isinstance(expression, IRCall):
+            if expression.name == "select":
+                condition, on_true, on_false = (
+                    eval_expression(argument, env, intrinsics) for argument in expression.args
+                )
+                return on_true if condition[1] else on_false
             return ("uint", intrinsics[expression.name])
         if isinstance(expression, IRLoad):
             index_tag, index_bits = eval_expression(
@@ -1045,14 +1051,15 @@ def _reference_execute(kernel_ir, arrays, scalars, thread_count, block_size):
                 lhs_c, rhs_c = as_signed(lhs), as_signed(rhs)
             else:
                 lhs_c, rhs_c = lhs, rhs
-            comparisons = {
-                "lt": lhs_c < rhs_c,
-                "lte": lhs_c <= rhs_c,
-                "gt": lhs_c > rhs_c,
-                "gte": lhs_c >= rhs_c,
-                "eq": lhs_c == rhs_c,
-                "neq": lhs_c != rhs_c,
-            }
+            with np.errstate(invalid="ignore"):
+                comparisons = {
+                    "lt": lhs_c < rhs_c,
+                    "lte": lhs_c <= rhs_c,
+                    "gt": lhs_c > rhs_c,
+                    "gte": lhs_c >= rhs_c,
+                    "eq": lhs_c == rhs_c,
+                    "neq": lhs_c != rhs_c,
+                }
             return ("bool", bool(comparisons[expression.op]))
         raise KernelCompileError(
             f"unhandled IR expression: {type(expression).__name__}"
@@ -1841,6 +1848,14 @@ def _emit_msl_constant(value: int | float) -> str:
 
 
 def _emit_msl_call(call: IRCall, builtin_names: dict[str, str]) -> str:
+    if call.name == "select":
+        if len(call.args) != 3:
+            raise KernelCompileError("select requires three arguments")
+        condition, on_true, on_false = call.args
+        # MSL's builtin takes false, true, condition. Arguments are values,
+        # not lazy branches; the launch validator checks every load.
+        return "::metal::select(" + ", ".join(_emit_msl_expression(value, builtin_names)
+                                      for value in (on_false, on_true, condition)) + ")"
     if call.name not in builtin_names:
         raise TypeError(f"unhandled IR call: {call.name}")
     return f"{builtin_names[call.name]}.x"
@@ -1852,6 +1867,13 @@ def _infer_msl_type(expression: IRExpression, context: dict[str, str]) -> str:
             return "float"
         return "int" if expression.value < 0 else "uint"
     if isinstance(expression, IRCall):
+        if expression.name == "select":
+            if len(expression.args) != 3:
+                raise KernelCompileError("select requires three arguments")
+            types = tuple(_infer_msl_type(value, context) for value in expression.args)
+            if types != ("bool", "float", "float"):
+                raise KernelCompileError("select requires a boolean condition and two float32 values")
+            return "float"
         return "uint"
     if isinstance(expression, IRLoad):
         _infer_msl_type(expression.index, context)
@@ -1911,6 +1933,11 @@ def block_size() -> int:
     raise NotImplementedError("block_size is only valid inside compiled experimental kernels")
 
 
+def select(condition, on_true, on_false):
+    """Select a float32 value inside a kernel; all three arguments are evaluated."""
+    raise NotImplementedError("select is only valid inside compiled experimental kernels")
+
+
 __all__ = [
     "CompiledKernel",
     "IRAssign",
@@ -1929,5 +1956,6 @@ __all__ = [
     "block_size",
     "kernel",
     "program_id",
+    "select",
     "thread_id",
 ]

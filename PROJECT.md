@@ -51,6 +51,8 @@ CUDA MLIR:              guarded float32 add/subtract/multiply/divide implemented
 Expressions:            bounded CUDA local/nested expressions implemented
                         docs/MLIR_CUDA_EXPRESSIONS_DECISION.md (2026-09-29)
 Division increment:     float32 DSL/MLIR division; docs/MLIR_DIVISION.md (2026-10-17)
+Selection increment:    float32 comparisons and value selection in guarded kernels;
+                        docs/MLIR_SELECT.md (2026-10-17); general branches remain open
 Active user goal:       complete CUDA product list; docs/CUDA_PRODUCT_COMPLETION.md
 CUDA primitives:        float32 matmul, reductions, activations and normalization
                         implemented; docs/CUDA_PRIMITIVES_VALIDATION.md

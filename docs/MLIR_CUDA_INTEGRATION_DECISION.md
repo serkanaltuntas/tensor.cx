@@ -33,6 +33,8 @@ expressions are now supported by the [expression extension](MLIR_CUDA_EXPRESSION
 Float32 division was added on 2026-10-17 through the same expression ABI;
 see its [contract and validation](MLIR_DIVISION.md). The original dated
 add/subtract/multiply evidence below is preserved.
+The [comparison/select extension](MLIR_SELECT.md) adds float32 predicates and
+value selection through that expression ABI; general branches remain excluded.
 
 The returned CUDA tensor is a new value, matching the compiled CPU/reference
 ownership contract: privately copy the original output including its unwritten

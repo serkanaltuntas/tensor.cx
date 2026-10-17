@@ -155,7 +155,7 @@ documentation. This order does not claim that later packages are implemented.
 8. **Compiler/performance:** persistent CPU/CUDA/Metal cache, public compile/launch
    latency measurements and separate compilation profiles implemented;
    [contract](COMPILATION_CACHE.md). [Float32 kernel division](MLIR_DIVISION.md)
-   is implemented. Broader runtime profiling, MLIR operations
+   and [comparison/select](MLIR_SELECT.md) are implemented. Broader runtime profiling, MLIR operations
    and measured kernel fusion remain open.
 9. **Dtypes:** CUDA int32 arithmetic gaps; FP16/BF16 on suitable hardware.
 10. **Memory pool and asynchronous execution:** reduce allocation and waiting costs.

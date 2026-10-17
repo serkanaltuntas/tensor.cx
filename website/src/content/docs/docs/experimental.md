@@ -27,6 +27,13 @@ finite-input parity at the existing tolerances. See the
 [division contract and example](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/MLIR_DIVISION.md)
 for numerical limits and unchanged launch/alias rules.
 
+Guarded MLIR kernels also support six float32 comparisons and
+`cx.experimental.select(condition, on_true, on_false)`, including boolean locals
+and nested values. Both values are validated and may be evaluated; selection
+does not replace a memory-safety guard. The output remains float32. See the
+[comparison/select contract and example](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/MLIR_SELECT.md)
+for NaN behavior, complexity limits and Metal validation scope.
+
 Compiled CPU/CUDA/Metal code is cached in private local storage by default,
 including across process restarts. Inspect `compiled.cache_hit` for reuse, or
 use `kernel.compile(..., cache=False)` to bypass storage.

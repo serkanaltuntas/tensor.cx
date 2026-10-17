@@ -52,7 +52,8 @@ expected = add_kernel.reference(a_cpu, b_cpu, out_cpu, n, thread_count=n, block_
   with public shapes preserved, uint32 scalars, guarded elementwise indexing,
   float32 `+`, `-`, `*`, and local assignments. Reject loops, float comparisons,
   mixed int/float arithmetic, signed ordered comparisons, and unsupported index
-  expressions before compilation. The existing rowsum prototype remains research
+  expressions before compilation. Float comparisons feeding selection were
+  added on 2026-10-17; see [MLIR_SELECT.md](MLIR_SELECT.md). The existing rowsum prototype remains research
   evidence, not a promise of compiled runtime reductions in this slice.
 - Reuse the shared launch contract: exact elementwise shapes; guard bound equals
   `thread_count`; `thread_count <= output_numel`; positive uint32 block size.
@@ -226,6 +227,8 @@ body expressions use float32 loads, floating constants, local values and
 `+`/`-`/`*`/`/`. Division was added on 2026-10-17; its float-only typing and
 numerical contract are in [MLIR_DIVISION.md](MLIR_DIVISION.md).
 Local assignments follow existing DSL rules (no reassignment).
+Float comparisons and boolean locals may feed the explicit selector described
+in [MLIR_SELECT.md](MLIR_SELECT.md); general branch bodies remain outside the runtime slice.
 All parameters must be used as buffers or the uint32 bound. This structural
 restriction proves bounds safety before compilation; it is narrower than the
 research emitter. Public multidimensional shapes remain exact-match metadata,

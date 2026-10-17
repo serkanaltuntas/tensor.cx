@@ -6,7 +6,7 @@ import re
 import tempfile
 
 from .. import _core
-from ..experimental import CompiledCudaKernel, IRAssign, IRBinaryOp, IRConstant, IRIf, IRLoad, IRName, IRStore, KernelCompileError
+from ..experimental import CompiledCudaKernel, IRAssign, IRBinaryOp, IRCall, IRCompare, IRConstant, IRIf, IRLoad, IRName, IRStore, KernelCompileError
 from .cpu import _signature as elementwise_signature, _run, toolchain
 from .emitter import format_f32_constant
 from .cache import artifact_cache, cache_enabled, descriptor
@@ -17,6 +17,7 @@ LOWER_FLAGS = ["--convert-scf-to-cf", "--convert-gpu-to-nvvm=index-bitwidth=64",
 SERIALIZE_FLAGS = ["--nvvm-attach-target=chip=sm_52 features=+ptx78 O=2",
                    "--gpu-module-to-binary=format=assembly"]
 OPERATIONS = {"add": "arith.addf", "sub": "arith.subf", "mul": "arith.mulf", "div": "arith.divf"}
+PREDICATES = {"lt": "olt", "lte": "ole", "gt": "ogt", "gte": "oge", "eq": "oeq", "neq": "une"}
 
 
 def entry_name(operation):
@@ -47,7 +48,7 @@ def signature(ir):
             loads.add(value.buffer)
         elif isinstance(value, IRName):
             if value.name not in locals_:
-                reject("undefined float32 local")
+                reject("undefined local")
         elif isinstance(value, IRConstant):
             if type(value.value) is not float:
                 reject("arithmetic literals must be float32")
@@ -55,12 +56,15 @@ def signature(ir):
                 format_f32_constant(value.value)
             except ValueError as error:
                 reject(str(error))
-        elif isinstance(value, IRBinaryOp) and value.op in OPERATIONS:
+        elif ((isinstance(value, IRBinaryOp) and value.op in OPERATIONS)
+              or (isinstance(value, IRCompare) and value.op in PREDICATES)
+              or (isinstance(value, IRCall) and value.name == "select" and len(value.args) == 3)):
             operators += 1
             if operators > 64:
-                reject("binary operation count exceeds 64")
-            expression(value.lhs, depth + 1)
-            expression(value.rhs, depth + 1)
+                reject("expression operation count exceeds 64")
+            children = value.args if isinstance(value, IRCall) else (value.lhs, value.rhs)
+            for child in children:
+                expression(child, depth + 1)
         else:
             reject("unsupported expression")
 
@@ -81,8 +85,10 @@ def signature(ir):
         value = stack.pop()
         if isinstance(value, IRLoad) and value.index != IRName(index_name):
             reject("loads require the canonical index")
-        if isinstance(value, IRBinaryOp):
+        if isinstance(value, (IRBinaryOp, IRCompare)):
             stack.extend((value.lhs, value.rhs))
+        elif isinstance(value, IRCall):
+            stack.extend(value.args)
     if body[-1].index != IRName(index_name):
         reject("store requires the canonical index")
     if len(ir.parameters) != 4 or len(set(ir.parameters)) != 4 or len(loads) != 2:
@@ -169,7 +175,12 @@ def emit_expression_cuda(ir, kinds, output, guard):
             index = ir.parameters.index(value.buffer)
             ptr = instruction(f"llvm.getelementptr %p{index}[%idx] : (!llvm.ptr, i64) -> !llvm.ptr, f32")
             return instruction(f"llvm.load {ptr} : !llvm.ptr -> f32")
+        if isinstance(value, IRCall):
+            values = [expression(argument) for argument in value.args]
+            return instruction(f"arith.select {', '.join(values)} : f32")
         lhs, rhs = expression(value.lhs), expression(value.rhs)
+        if isinstance(value, IRCompare):
+            return instruction(f"arith.cmpf {PREDICATES[value.op]}, {lhs}, {rhs} : f32")
         return instruction(f"{OPERATIONS[value.op]} {lhs}, {rhs} : f32")
 
     for statement in ir.body[1].body[:-1]:
