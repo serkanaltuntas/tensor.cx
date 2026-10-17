@@ -52,10 +52,12 @@ and launch is checked against CPU outside timing. The profiler runs separately;
 its nested cumulative times overlap and cannot be added or used as benchmark
 samples. These are synchronous public API timings, not device-only kernel time.
 
-A cache hit still checks toolchain identity and loads CPU/CUDA modules. On the
-measured Linux host, small-kernel CPU warm calls were slower than uncached calls;
-first hits in new processes paid for dependency hashing again. CUDA warm calls
-were faster in those local runs. These observations do not establish a speedup
+A cache hit still checks toolchain identity and loads CPU/CUDA modules. The
+initial Linux measurements found small-kernel CPU warm calls slower than
+uncached calls. Bounded parallel execution of the same fresh linker queries
+subsequently reduced that CPU compile latency; no identity check was removed.
+First hits in new processes still pay for dependency hashing again. CUDA warm
+calls were faster than uncached calls in those local runs. These observations do not establish a speedup
 on another host, workload or GPU. Metal was not measured in that Linux run.
 
 See [cache controls](/docs/experimental/) and the

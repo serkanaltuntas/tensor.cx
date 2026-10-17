@@ -1,0 +1,1945 @@
+{
+  "schema_version": 2,
+  "target": "cuda",
+  "metadata": {
+    "started_utc": "2026-10-17T13:15:25.235009+00:00",
+    "revision": "ae7b6333e4b2cd6bad797d6a3e415c361f6093da",
+    "git_dirty": true,
+    "tracked_diff_sha256": "c2ff73366f36400343dc3eb558069bbe3d0fea7465ff4a2496d0c1bb5398efd2",
+    "benchmark_sha256": "183e1c6b85582a7a48841c971727704b1af722fc8bdd8b4c9a3231850665b80b",
+    "extension_sha256": "ecc4978920054b56b02951315d138190823b717bc2819afe66920f66e0cae7de",
+    "tensorcx": "0.1.0",
+    "python": "3.12.14",
+    "system": "Linux",
+    "machine": "x86_64",
+    "libc": [
+      "glibc",
+      "2.43"
+    ],
+    "numpy": "2.4.6",
+    "host_before": {
+      "load_average": [
+        1.55810546875,
+        1.380859375,
+        1.44921875
+      ],
+      "gpu": "NVIDIA GeForce GTX 980 Ti, 5.2, 580.178.04, 573, 16",
+      "other_compute_processes": [
+        {
+          "memory_mib": "101"
+        },
+        {
+          "memory_mib": "21"
+        }
+      ]
+    },
+    "host_after": {
+      "load_average": [
+        1.97265625,
+        1.48486328125,
+        1.48046875
+      ],
+      "gpu": "NVIDIA GeForce GTX 980 Ti, 5.2, 580.178.04, 892, 4",
+      "other_compute_processes": [
+        {
+          "memory_mib": "101"
+        },
+        {
+          "memory_mib": "21"
+        }
+      ]
+    }
+  },
+  "parameters": {
+    "repeats": 7,
+    "warmup": 1,
+    "restart_repeats": 3,
+    "seed": 17
+  },
+  "boundaries": {
+    "compile": "public compile wall latency; IR primed; validation/identity plus CPU/CUDA loading/JIT; Metal metallib only",
+    "restart": "first compile in each new process; excludes interpreter/tensorcx import/device/IR setup; lazy adapter imports included",
+    "launch": "synchronous public launch with resident inputs/artifact, output poisoned before clock; no device-only claim",
+    "excluded": "validation, result cleanup, tensor setup and subprocess startup",
+    "profile": "separate cProfile calls; cumulative times overlap and must not be summed; not benchmark samples",
+    "host": "OS/driver caches are not cleared; shared host, no exclusivity or universal speedup claim"
+  },
+  "initial_cache_miss_ms": 893.694315,
+  "compile": {
+    "uncached": {
+      "samples_ms": [
+        117.88924,
+        117.181177,
+        115.852626,
+        115.707581,
+        118.878236,
+        117.335741,
+        120.593883
+      ],
+      "median_ms": 117.335741,
+      "p10_ms": 115.794608,
+      "p90_ms": 119.5644948
+    },
+    "warm": {
+      "samples_ms": [
+        81.25052,
+        82.344605,
+        81.721601,
+        82.63777,
+        81.478163,
+        82.852979,
+        86.878827
+      ],
+      "median_ms": 82.344605,
+      "p10_ms": 81.3871058,
+      "p90_ms": 84.4633182
+    },
+    "restart": {
+      "samples_ms": [
+        840.605162,
+        838.814713,
+        830.717149
+      ],
+      "median_ms": 838.814713,
+      "p10_ms": 832.3366618,
+      "p90_ms": 840.2470721999999
+    }
+  },
+  "launch": [
+    {
+      "elements": 1024,
+      "cpu_parity": true,
+      "samples_ms": [
+        0.081303,
+        0.076299,
+        0.076566,
+        0.07539,
+        0.075896,
+        0.079169,
+        0.076293
+      ],
+      "median_ms": 0.076299,
+      "p10_ms": 0.0756936,
+      "p90_ms": 0.0800226
+    },
+    {
+      "elements": 16384,
+      "cpu_parity": true,
+      "samples_ms": [
+        0.28542,
+        0.10528,
+        0.082894,
+        0.078293,
+        0.0869,
+        0.077144,
+        0.081032
+      ],
+      "median_ms": 0.082894,
+      "p10_ms": 0.0778334,
+      "p90_ms": 0.17733600000000008
+    },
+    {
+      "elements": 262144,
+      "cpu_parity": true,
+      "samples_ms": [
+        0.261956,
+        0.257383,
+        0.256768,
+        0.20093,
+        0.268675,
+        0.320816,
+        0.259158
+      ],
+      "median_ms": 0.259158,
+      "p10_ms": 0.2344328,
+      "p90_ms": 0.2895314
+    },
+    {
+      "elements": 1048576,
+      "cpu_parity": true,
+      "samples_ms": [
+        0.448204,
+        0.448013,
+        0.44742,
+        0.458239,
+        0.451333,
+        0.447158,
+        0.45483
+      ],
+      "median_ms": 0.448204,
+      "p10_ms": 0.44731519999999997,
+      "p90_ms": 0.45619360000000003
+    },
+    {
+      "elements": 16777216,
+      "cpu_parity": true,
+      "samples_ms": [
+        3.58047,
+        3.586149,
+        3.583223,
+        3.590662,
+        3.567743,
+        3.577544,
+        3.610601
+      ],
+      "median_ms": 3.583223,
+      "p10_ms": 3.5736236,
+      "p90_ms": 3.5986376
+    }
+  ],
+  "profiles": {
+    "uncached": {
+      "instrumented_wall_ms": 133.70005,
+      "subprocess_run": {
+        "calls": 5,
+        "cumulative_ms": 125.61718099999999
+      },
+      "subprocess_popen": {
+        "calls": 5,
+        "cumulative_ms": 2.581097
+      },
+      "functions": [
+        {
+          "function": "benchmarks/bench_compilation_cache.py:<lambda>",
+          "line": 176,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.006056,
+          "cumulative_ms": 133.643481
+        },
+        {
+          "function": "benchmarks/bench_compilation_cache.py:compile_call",
+          "line": 117,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.0037,
+          "cumulative_ms": 133.637425
+        },
+        {
+          "function": "python/tensorcx/experimental.py:compile",
+          "line": 310,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.014921000000000002,
+          "cumulative_ms": 133.633725
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:compile_kernel",
+          "line": 220,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.366856,
+          "cumulative_ms": 130.854623
+        },
+        {
+          "function": "python/tensorcx/_compiler/cpu.py:_run",
+          "line": 31,
+          "calls": 5,
+          "primitive_calls": 5,
+          "self_ms": 0.047575000000000006,
+          "cumulative_ms": 125.67111200000001
+        },
+        {
+          "function": "python/tensorcx/_compiler/cpu.py:toolchain",
+          "line": 82,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.07602400000000001,
+          "cumulative_ms": 68.010678
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:lower",
+          "line": 206,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.040935,
+          "cumulative_ms": 61.622372
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:<module>",
+          "line": 1,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.020099000000000002,
+          "cumulative_ms": 2.1051520000000004
+        },
+        {
+          "function": "python/tensorcx/_compiler/cpu.py:<module>",
+          "line": 1,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.01997,
+          "cumulative_ms": 1.843615
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:extract_ptx",
+          "line": 183,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.021727,
+          "cumulative_ms": 1.469576
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:signature",
+          "line": 26,
+          "calls": 4,
+          "primitive_calls": 4,
+          "self_ms": 0.084552,
+          "cumulative_ms": 1.2144840000000001
+        },
+        {
+          "function": "python/tensorcx/_compiler/cpu.py:_signature",
+          "line": 99,
+          "calls": 4,
+          "primitive_calls": 4,
+          "self_ms": 0.09437900000000002,
+          "cumulative_ms": 1.06162
+        },
+        {
+          "function": "python/tensorcx/_compiler/emitter.py:<module>",
+          "line": 1,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.013891,
+          "cumulative_ms": 0.658575
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:<module>",
+          "line": 1,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.015871,
+          "cumulative_ms": 0.6577320000000001
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:emit_cuda",
+          "line": 109,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_ms": 0.00495,
+          "cumulative_ms": 0.450023
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_emit_msl",
+          "line": 1571,
+          "calls": 4,
+          "primitive_calls": 4,
+          "self_ms": 0.043152,
+          "cumulative_ms": 0.434331
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_iter_buffer_references",
+          "line": 1510,
+          "calls": 80,
+          "primitive_calls": 40,
+          "self_ms": 0.039944,
+          "cumulative_ms": 0.1751
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_emit_msl_statement_block",
+          "line": 1722,
+          "calls": 8,
+          "primitive_calls": 4,
+          "self_ms": 0.013475,
+          "cumulative_ms": 0.14924
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_emit_msl_statement",
+          "line": 1737,
+          "calls": 16,
+          "primitive_calls": 8,
+          "self_ms": 0.029588000000000003,
+          "cumulative_ms": 0.139053
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_iter_expression_buffers",
+          "line": 1525,
+          "calls": 200,
+          "primitive_calls": 64,
+          "self_ms": 0.09083700000000001,
+          "cumulative_ms": 0.12920800000000002
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_validate_msl_parameter_usage",
+          "line": 1700,
+          "calls": 4,
+          "primitive_calls": 4,
+          "self_ms": 0.009782,
+          "cumulative_ms": 0.10657
+        },
+        {
+          "function": "python/tensorcx/experimental.py:<genexpr>",
+          "line": 1706,
+          "calls": 8,
+          "primitive_calls": 8,
+          "self_ms": 0.007644,
+          "cumulative_ms": 0.092293
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_iter_name_references",
+          "line": 1540,
+          "calls": 56,
+          "primitive_calls": 32,
+          "self_ms": 0.021409,
+          "cumulative_ms": 0.084649
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:<lambda>",
+          "line": 188,
+          "calls": 110,
+          "primitive_calls": 110,
+          "self_ms": 0.053074,
+          "cumulative_ms": 0.068877
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_emit_msl_expression",
+          "line": 1803,
+          "calls": 72,
+          "primitive_calls": 20,
+          "self_ms": 0.046270000000000006,
+          "cumulative_ms": 0.06810200000000001
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_iter_expression_names",
+          "line": 1555,
+          "calls": 140,
+          "primitive_calls": 48,
+          "self_ms": 0.045395000000000005,
+          "cumulative_ms": 0.060535000000000005
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:emit_expression_cuda",
+          "line": 142,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_ms": 0.012626,
+          "cumulative_ms": 0.057396
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:expression",
+          "line": 40,
+          "calls": 24,
+          "primitive_calls": 8,
+          "self_ms": 0.028494000000000002,
+          "cumulative_ms": 0.03742
+        },
+        {
+          "function": "python/tensorcx/_compiler/cpu.py:expression",
+          "line": 138,
+          "calls": 24,
+          "primitive_calls": 8,
+          "self_ms": 0.024066000000000004,
+          "cumulative_ms": 0.034297
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:expression",
+          "line": 162,
+          "calls": 12,
+          "primitive_calls": 4,
+          "self_ms": 0.017194,
+          "cumulative_ms": 0.034062
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_infer_msl_type",
+          "line": 1839,
+          "calls": 32,
+          "primitive_calls": 8,
+          "self_ms": 0.021947,
+          "cumulative_ms": 0.03153
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_single_output_parameter",
+          "line": 514,
+          "calls": 4,
+          "primitive_calls": 4,
+          "self_ms": 0.007737000000000001,
+          "cumulative_ms": 0.022637
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_iter_store_buffers",
+          "line": 1491,
+          "calls": 32,
+          "primitive_calls": 16,
+          "self_ms": 0.015418000000000001,
+          "cumulative_ms": 0.020642
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_emit_msl_parameters",
+          "line": 1670,
+          "calls": 4,
+          "primitive_calls": 4,
+          "self_ms": 0.015068,
+          "cumulative_ms": 0.017988
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_iter_assignment_targets",
+          "line": 1499,
+          "calls": 20,
+          "primitive_calls": 12,
+          "self_ms": 0.013476000000000002,
+          "cumulative_ms": 0.01582
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:instruction",
+          "line": 155,
+          "calls": 18,
+          "primitive_calls": 18,
+          "self_ms": 0.011481,
+          "cumulative_ms": 0.013799
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_emit_msl_call",
+          "line": 1833,
+          "calls": 12,
+          "primitive_calls": 12,
+          "self_ms": 0.004991,
+          "cumulative_ms": 0.004991
+        },
+        {
+          "function": "python/tensorcx/_compiler/emitter.py:_Emitter",
+          "line": 115,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.002683,
+          "cumulative_ms": 0.004963
+        },
+        {
+          "function": "python/tensorcx/experimental.py:parse_ir",
+          "line": 348,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.0021460000000000003,
+          "cumulative_ms": 0.004426
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:<genexpr>",
+          "line": 143,
+          "calls": 10,
+          "primitive_calls": 10,
+          "self_ms": 0.004142000000000001,
+          "cumulative_ms": 0.004142000000000001
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:artifact_cache",
+          "line": 198,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_ms": 0.002903,
+          "cumulative_ms": 0.003916
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_validate_target",
+          "line": 430,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.0033740000000000003,
+          "cumulative_ms": 0.0037540000000000004
+        },
+        {
+          "function": "python/tensorcx/_compiler/cpu.py:<genexpr>",
+          "line": 168,
+          "calls": 20,
+          "primitive_calls": 20,
+          "self_ms": 0.0033770000000000002,
+          "cumulative_ms": 0.0033770000000000002
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:manifest",
+          "line": 104,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.0014240000000000001,
+          "cumulative_ms": 0.0014240000000000001
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:store",
+          "line": 150,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.0009680000000000001,
+          "cumulative_ms": 0.0009680000000000001
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:__init__",
+          "line": 119,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.0008770000000000001,
+          "cumulative_ms": 0.0008770000000000001
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:_Entry",
+          "line": 118,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.000849,
+          "cumulative_ms": 0.000849
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:entry_name",
+          "line": 22,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_ms": 0.0007390000000000001,
+          "cumulative_ms": 0.0007390000000000001
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:read",
+          "line": 122,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.000364,
+          "cumulative_ms": 0.000364
+        },
+        {
+          "function": "python/tensorcx/_compiler/emitter.py:MlirEmitError",
+          "line": 80,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.000329,
+          "cumulative_ms": 0.000329
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:cache_enabled",
+          "line": 91,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_ms": 0.000264,
+          "cumulative_ms": 0.000264
+        },
+        {
+          "function": "python/tensorcx/_compiler/__init__.py:<module>",
+          "line": 1,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.00022,
+          "cumulative_ms": 0.00022
+        }
+      ]
+    },
+    "miss": {
+      "instrumented_wall_ms": 901.158584,
+      "subprocess_run": {
+        "calls": 8,
+        "cumulative_ms": 137.87443000000002
+      },
+      "subprocess_popen": {
+        "calls": 8,
+        "cumulative_ms": 4.709573
+      },
+      "functions": [
+        {
+          "function": "benchmarks/bench_compilation_cache.py:<lambda>",
+          "line": 176,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.005876,
+          "cumulative_ms": 901.1140230000001
+        },
+        {
+          "function": "benchmarks/bench_compilation_cache.py:compile_call",
+          "line": 117,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.0033130000000000004,
+          "cumulative_ms": 901.108147
+        },
+        {
+          "function": "python/tensorcx/experimental.py:compile",
+          "line": 310,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.015390000000000001,
+          "cumulative_ms": 901.1048340000001
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:compile_kernel",
+          "line": 220,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.35737700000000006,
+          "cumulative_ms": 898.397723
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:descriptor",
+          "line": 96,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.035797,
+          "cumulative_ms": 773.788722
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:identity",
+          "line": 74,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.137918,
+          "cumulative_ms": 773.6721470000001
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:_fingerprint",
+          "line": 38,
+          "calls": 19,
+          "primitive_calls": 19,
+          "self_ms": 0.12150000000000001,
+          "cumulative_ms": 752.736609
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:_file_digest",
+          "line": 31,
+          "calls": 19,
+          "primitive_calls": 19,
+          "self_ms": 0.10831500000000001,
+          "cumulative_ms": 750.8415850000001
+        },
+        {
+          "function": "python/tensorcx/_compiler/cpu.py:_run",
+          "line": 31,
+          "calls": 5,
+          "primitive_calls": 5,
+          "self_ms": 0.041155000000000004,
+          "cumulative_ms": 118.99357400000001
+        },
+        {
+          "function": "python/tensorcx/_compiler/cpu.py:toolchain",
+          "line": 82,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.082842,
+          "cumulative_ms": 66.72072200000001
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:lower",
+          "line": 206,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.037026,
+          "cumulative_ms": 56.209143000000005
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:_dependencies",
+          "line": 47,
+          "calls": 3,
+          "primitive_calls": 3,
+          "self_ms": 0.083207,
+          "cumulative_ms": 19.650806
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:<module>",
+          "line": 1,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.018241,
+          "cumulative_ms": 2.0489200000000003
+        },
+        {
+          "function": "python/tensorcx/_compiler/cpu.py:<module>",
+          "line": 1,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.017455000000000002,
+          "cumulative_ms": 1.7937710000000002
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:extract_ptx",
+          "line": 183,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.018543,
+          "cumulative_ms": 1.3606920000000002
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:signature",
+          "line": 26,
+          "calls": 4,
+          "primitive_calls": 4,
+          "self_ms": 0.082238,
+          "cumulative_ms": 1.198826
+        },
+        {
+          "function": "python/tensorcx/_compiler/cpu.py:_signature",
+          "line": 99,
+          "calls": 4,
+          "primitive_calls": 4,
+          "self_ms": 0.086308,
+          "cumulative_ms": 1.051454
+        },
+        {
+          "function": "python/tensorcx/_compiler/emitter.py:<module>",
+          "line": 1,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.014288,
+          "cumulative_ms": 0.6386940000000001
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:<module>",
+          "line": 1,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.014014000000000002,
+          "cumulative_ms": 0.629167
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:emit_cuda",
+          "line": 109,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_ms": 0.0046570000000000005,
+          "cumulative_ms": 0.43556700000000004
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_emit_msl",
+          "line": 1571,
+          "calls": 4,
+          "primitive_calls": 4,
+          "self_ms": 0.039473,
+          "cumulative_ms": 0.426759
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:artifact_cache",
+          "line": 198,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_ms": 0.027318000000000002,
+          "cumulative_ms": 0.311856
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:_open_root",
+          "line": 178,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.023060000000000004,
+          "cumulative_ms": 0.17999500000000002
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_iter_buffer_references",
+          "line": 1510,
+          "calls": 80,
+          "primitive_calls": 40,
+          "self_ms": 0.039710999999999996,
+          "cumulative_ms": 0.174884
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_emit_msl_statement_block",
+          "line": 1722,
+          "calls": 8,
+          "primitive_calls": 4,
+          "self_ms": 0.013619000000000001,
+          "cumulative_ms": 0.14635900000000002
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:store",
+          "line": 150,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.028435000000000002,
+          "cumulative_ms": 0.14354
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_emit_msl_statement",
+          "line": 1737,
+          "calls": 16,
+          "primitive_calls": 8,
+          "self_ms": 0.028747,
+          "cumulative_ms": 0.136085
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_iter_expression_buffers",
+          "line": 1525,
+          "calls": 200,
+          "primitive_calls": 64,
+          "self_ms": 0.091784,
+          "cumulative_ms": 0.12973800000000002
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_validate_msl_parameter_usage",
+          "line": 1700,
+          "calls": 4,
+          "primitive_calls": 4,
+          "self_ms": 0.009299,
+          "cumulative_ms": 0.10759900000000001
+        },
+        {
+          "function": "python/tensorcx/experimental.py:<genexpr>",
+          "line": 1706,
+          "calls": 8,
+          "primitive_calls": 8,
+          "self_ms": 0.007880000000000002,
+          "cumulative_ms": 0.093381
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_iter_name_references",
+          "line": 1540,
+          "calls": 56,
+          "primitive_calls": 32,
+          "self_ms": 0.024284,
+          "cumulative_ms": 0.08550100000000001
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:<lambda>",
+          "line": 188,
+          "calls": 110,
+          "primitive_calls": 110,
+          "self_ms": 0.052923000000000005,
+          "cumulative_ms": 0.068025
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_emit_msl_expression",
+          "line": 1803,
+          "calls": 72,
+          "primitive_calls": 20,
+          "self_ms": 0.046068,
+          "cumulative_ms": 0.066783
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_iter_expression_names",
+          "line": 1555,
+          "calls": 140,
+          "primitive_calls": 48,
+          "self_ms": 0.044268,
+          "cumulative_ms": 0.058709000000000004
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:emit_expression_cuda",
+          "line": 142,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_ms": 0.012683,
+          "cumulative_ms": 0.056131
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:digest",
+          "line": 27,
+          "calls": 3,
+          "primitive_calls": 3,
+          "self_ms": 0.0066240000000000005,
+          "cumulative_ms": 0.035883000000000005
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:expression",
+          "line": 40,
+          "calls": 24,
+          "primitive_calls": 8,
+          "self_ms": 0.026617000000000002,
+          "cumulative_ms": 0.034861
+        },
+        {
+          "function": "python/tensorcx/_compiler/cpu.py:expression",
+          "line": 138,
+          "calls": 24,
+          "primitive_calls": 8,
+          "self_ms": 0.023089000000000002,
+          "cumulative_ms": 0.033199000000000006
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:expression",
+          "line": 162,
+          "calls": 12,
+          "primitive_calls": 4,
+          "self_ms": 0.016677,
+          "cumulative_ms": 0.032697000000000004
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_infer_msl_type",
+          "line": 1839,
+          "calls": 32,
+          "primitive_calls": 8,
+          "self_ms": 0.021685,
+          "cumulative_ms": 0.031009000000000002
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_single_output_parameter",
+          "line": 514,
+          "calls": 4,
+          "primitive_calls": 4,
+          "self_ms": 0.009295,
+          "cumulative_ms": 0.024129
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_iter_store_buffers",
+          "line": 1491,
+          "calls": 32,
+          "primitive_calls": 16,
+          "self_ms": 0.015066000000000001,
+          "cumulative_ms": 0.020571
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_emit_msl_parameters",
+          "line": 1670,
+          "calls": 4,
+          "primitive_calls": 4,
+          "self_ms": 0.015070000000000002,
+          "cumulative_ms": 0.017954
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:cache_enabled",
+          "line": 91,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_ms": 0.008337,
+          "cumulative_ms": 0.017694
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:read",
+          "line": 122,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.0028150000000000002,
+          "cumulative_ms": 0.013082000000000002
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:instruction",
+          "line": 155,
+          "calls": 18,
+          "primitive_calls": 18,
+          "self_ms": 0.010886,
+          "cumulative_ms": 0.013073
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_iter_assignment_targets",
+          "line": 1499,
+          "calls": 20,
+          "primitive_calls": 12,
+          "self_ms": 0.007430000000000001,
+          "cumulative_ms": 0.009577
+        },
+        {
+          "function": "python/tensorcx/_compiler/emitter.py:_Emitter",
+          "line": 115,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.0029630000000000004,
+          "cumulative_ms": 0.004981
+        },
+        {
+          "function": "python/tensorcx/experimental.py:parse_ir",
+          "line": 348,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.001971,
+          "cumulative_ms": 0.004948
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_emit_msl_call",
+          "line": 1833,
+          "calls": 12,
+          "primitive_calls": 12,
+          "self_ms": 0.004218,
+          "cumulative_ms": 0.004218
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:<genexpr>",
+          "line": 143,
+          "calls": 10,
+          "primitive_calls": 10,
+          "self_ms": 0.004166,
+          "cumulative_ms": 0.004166
+        },
+        {
+          "function": "python/tensorcx/_compiler/cpu.py:<genexpr>",
+          "line": 168,
+          "calls": 20,
+          "primitive_calls": 20,
+          "self_ms": 0.003661,
+          "cumulative_ms": 0.003661
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_validate_target",
+          "line": 430,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.0028560000000000005,
+          "cumulative_ms": 0.003219
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:manifest",
+          "line": 104,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_ms": 0.0029070000000000003,
+          "cumulative_ms": 0.0029070000000000003
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:entry_name",
+          "line": 22,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_ms": 0.000854,
+          "cumulative_ms": 0.000854
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:__init__",
+          "line": 119,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.000826,
+          "cumulative_ms": 0.000826
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:_Entry",
+          "line": 118,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.0006940000000000001,
+          "cumulative_ms": 0.0006940000000000001
+        },
+        {
+          "function": "python/tensorcx/_compiler/emitter.py:MlirEmitError",
+          "line": 80,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.00041200000000000004,
+          "cumulative_ms": 0.00041200000000000004
+        },
+        {
+          "function": "python/tensorcx/_compiler/__init__.py:<module>",
+          "line": 1,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.000216,
+          "cumulative_ms": 0.000216
+        }
+      ]
+    },
+    "warm": {
+      "instrumented_wall_ms": 88.67375,
+      "subprocess_run": {
+        "calls": 6,
+        "cumulative_ms": 82.98445800000002
+      },
+      "subprocess_popen": {
+        "calls": 6,
+        "cumulative_ms": 3.409149
+      },
+      "functions": [
+        {
+          "function": "benchmarks/bench_compilation_cache.py:<lambda>",
+          "line": 176,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.006034,
+          "cumulative_ms": 88.62663300000001
+        },
+        {
+          "function": "benchmarks/bench_compilation_cache.py:compile_call",
+          "line": 117,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.003927,
+          "cumulative_ms": 88.62059900000001
+        },
+        {
+          "function": "python/tensorcx/experimental.py:compile",
+          "line": 310,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.048025000000000005,
+          "cumulative_ms": 88.61667200000001
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:compile_kernel",
+          "line": 220,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.41558700000000004,
+          "cumulative_ms": 88.557827
+        },
+        {
+          "function": "python/tensorcx/_compiler/cpu.py:toolchain",
+          "line": 82,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.067787,
+          "cumulative_ms": 66.194978
+        },
+        {
+          "function": "python/tensorcx/_compiler/cpu.py:_run",
+          "line": 31,
+          "calls": 3,
+          "primitive_calls": 3,
+          "self_ms": 0.022901,
+          "cumulative_ms": 64.97145600000002
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:descriptor",
+          "line": 96,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.035642,
+          "cumulative_ms": 21.024798
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:identity",
+          "line": 74,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.10072400000000001,
+          "cumulative_ms": 20.90811
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:_dependencies",
+          "line": 47,
+          "calls": 3,
+          "primitive_calls": 3,
+          "self_ms": 0.075328,
+          "cumulative_ms": 18.430215
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:_fingerprint",
+          "line": 38,
+          "calls": 19,
+          "primitive_calls": 19,
+          "self_ms": 0.074836,
+          "cumulative_ms": 1.5341030000000002
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:signature",
+          "line": 26,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_ms": 0.040904,
+          "cumulative_ms": 0.428899
+        },
+        {
+          "function": "python/tensorcx/_compiler/cpu.py:_signature",
+          "line": 99,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_ms": 0.041903,
+          "cumulative_ms": 0.360134
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:artifact_cache",
+          "line": 198,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_ms": 0.027881000000000003,
+          "cumulative_ms": 0.29063500000000003
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_emit_msl",
+          "line": 1571,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_ms": 0.020973000000000002,
+          "cumulative_ms": 0.21346400000000001
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:emit_cuda",
+          "line": 109,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.002635,
+          "cumulative_ms": 0.208383
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:_open_root",
+          "line": 178,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.020666,
+          "cumulative_ms": 0.172191
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:read",
+          "line": 122,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.015493000000000002,
+          "cumulative_ms": 0.141965
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_iter_buffer_references",
+          "line": 1510,
+          "calls": 40,
+          "primitive_calls": 20,
+          "self_ms": 0.019015,
+          "cumulative_ms": 0.083411
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_emit_msl_statement_block",
+          "line": 1722,
+          "calls": 4,
+          "primitive_calls": 2,
+          "self_ms": 0.007738000000000001,
+          "cumulative_ms": 0.074685
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_emit_msl_statement",
+          "line": 1737,
+          "calls": 8,
+          "primitive_calls": 4,
+          "self_ms": 0.014661,
+          "cumulative_ms": 0.068522
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_iter_expression_buffers",
+          "line": 1525,
+          "calls": 100,
+          "primitive_calls": 32,
+          "self_ms": 0.043158,
+          "cumulative_ms": 0.061456000000000004
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_validate_msl_parameter_usage",
+          "line": 1700,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_ms": 0.006445,
+          "cumulative_ms": 0.05675
+        },
+        {
+          "function": "python/tensorcx/experimental.py:<genexpr>",
+          "line": 1706,
+          "calls": 4,
+          "primitive_calls": 4,
+          "self_ms": 0.004825,
+          "cumulative_ms": 0.048086
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_iter_name_references",
+          "line": 1540,
+          "calls": 28,
+          "primitive_calls": 16,
+          "self_ms": 0.01135,
+          "cumulative_ms": 0.04326100000000001
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_emit_msl_expression",
+          "line": 1803,
+          "calls": 36,
+          "primitive_calls": 10,
+          "self_ms": 0.023302000000000003,
+          "cumulative_ms": 0.03349800000000001
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_iter_expression_names",
+          "line": 1555,
+          "calls": 70,
+          "primitive_calls": 24,
+          "self_ms": 0.022819000000000002,
+          "cumulative_ms": 0.030438000000000003
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:digest",
+          "line": 27,
+          "calls": 3,
+          "primitive_calls": 3,
+          "self_ms": 0.006564,
+          "cumulative_ms": 0.028698
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:emit_expression_cuda",
+          "line": 142,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.005966,
+          "cumulative_ms": 0.025164000000000002
+        },
+        {
+          "function": "python/tensorcx/_compiler/cpu.py:expression",
+          "line": 138,
+          "calls": 12,
+          "primitive_calls": 4,
+          "self_ms": 0.010753,
+          "cumulative_ms": 0.015806999999999998
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_infer_msl_type",
+          "line": 1839,
+          "calls": 16,
+          "primitive_calls": 4,
+          "self_ms": 0.010803000000000002,
+          "cumulative_ms": 0.015716
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:expression",
+          "line": 162,
+          "calls": 6,
+          "primitive_calls": 2,
+          "self_ms": 0.007457000000000001,
+          "cumulative_ms": 0.014103000000000001
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:expression",
+          "line": 40,
+          "calls": 12,
+          "primitive_calls": 4,
+          "self_ms": 0.00975,
+          "cumulative_ms": 0.013305
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:cache_enabled",
+          "line": 91,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_ms": 0.006,
+          "cumulative_ms": 0.013303
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_single_output_parameter",
+          "line": 514,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_ms": 0.003232,
+          "cumulative_ms": 0.010753
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_iter_store_buffers",
+          "line": 1491,
+          "calls": 16,
+          "primitive_calls": 8,
+          "self_ms": 0.006913000000000001,
+          "cumulative_ms": 0.009590000000000001
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_emit_msl_parameters",
+          "line": 1670,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_ms": 0.00774,
+          "cumulative_ms": 0.009257000000000001
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:instruction",
+          "line": 155,
+          "calls": 9,
+          "primitive_calls": 9,
+          "self_ms": 0.004199,
+          "cumulative_ms": 0.005299000000000001
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_validate_target",
+          "line": 430,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.004543,
+          "cumulative_ms": 0.004987000000000001
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_iter_assignment_targets",
+          "line": 1499,
+          "calls": 10,
+          "primitive_calls": 6,
+          "self_ms": 0.0034330000000000003,
+          "cumulative_ms": 0.004791
+        },
+        {
+          "function": "python/tensorcx/experimental.py:parse_ir",
+          "line": 348,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.0009330000000000001,
+          "cumulative_ms": 0.003484
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_emit_msl_call",
+          "line": 1833,
+          "calls": 6,
+          "primitive_calls": 6,
+          "self_ms": 0.0018880000000000001,
+          "cumulative_ms": 0.0018880000000000001
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:<genexpr>",
+          "line": 143,
+          "calls": 5,
+          "primitive_calls": 5,
+          "self_ms": 0.001884,
+          "cumulative_ms": 0.001884
+        },
+        {
+          "function": "python/tensorcx/_compiler/cpu.py:<genexpr>",
+          "line": 168,
+          "calls": 10,
+          "primitive_calls": 10,
+          "self_ms": 0.0014550000000000001,
+          "cumulative_ms": 0.0014550000000000001
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:__init__",
+          "line": 119,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.001105,
+          "cumulative_ms": 0.001105
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:manifest",
+          "line": 104,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.0009440000000000001,
+          "cumulative_ms": 0.0009440000000000001
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:entry_name",
+          "line": 22,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.000491,
+          "cumulative_ms": 0.000491
+        }
+      ]
+    },
+    "restart": {
+      "instrumented_wall_ms": 826.263667,
+      "subprocess_run": {
+        "calls": 6,
+        "cumulative_ms": 80.023317
+      },
+      "subprocess_popen": {
+        "calls": 6,
+        "cumulative_ms": 3.79318
+      },
+      "functions": [
+        {
+          "function": "benchmarks/bench_compilation_cache.py:<lambda>",
+          "line": 302,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.007245,
+          "cumulative_ms": 826.21131
+        },
+        {
+          "function": "benchmarks/bench_compilation_cache.py:compile_call",
+          "line": 117,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.0039310000000000005,
+          "cumulative_ms": 826.2040650000001
+        },
+        {
+          "function": "python/tensorcx/experimental.py:compile",
+          "line": 310,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.021748000000000003,
+          "cumulative_ms": 826.200134
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:compile_kernel",
+          "line": 220,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.336408,
+          "cumulative_ms": 823.473997
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:descriptor",
+          "line": 96,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.037283000000000004,
+          "cumulative_ms": 758.865459
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:identity",
+          "line": 74,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.144778,
+          "cumulative_ms": 758.7454690000001
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:_fingerprint",
+          "line": 38,
+          "calls": 19,
+          "primitive_calls": 19,
+          "self_ms": 0.137632,
+          "cumulative_ms": 738.3478130000001
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:_file_digest",
+          "line": 31,
+          "calls": 19,
+          "primitive_calls": 19,
+          "self_ms": 0.11876800000000001,
+          "cumulative_ms": 736.407594
+        },
+        {
+          "function": "python/tensorcx/_compiler/cpu.py:toolchain",
+          "line": 82,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.074391,
+          "cumulative_ms": 62.95870600000001
+        },
+        {
+          "function": "python/tensorcx/_compiler/cpu.py:_run",
+          "line": 31,
+          "calls": 3,
+          "primitive_calls": 3,
+          "self_ms": 0.025101000000000002,
+          "cumulative_ms": 61.592748
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:_dependencies",
+          "line": 47,
+          "calls": 3,
+          "primitive_calls": 3,
+          "self_ms": 0.07981300000000001,
+          "cumulative_ms": 19.154384999999998
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:<module>",
+          "line": 1,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.018293000000000004,
+          "cumulative_ms": 2.0554740000000002
+        },
+        {
+          "function": "python/tensorcx/_compiler/cpu.py:<module>",
+          "line": 1,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.017912,
+          "cumulative_ms": 1.796704
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:signature",
+          "line": 26,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_ms": 0.046362,
+          "cumulative_ms": 0.782261
+        },
+        {
+          "function": "python/tensorcx/_compiler/cpu.py:_signature",
+          "line": 99,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_ms": 0.055349,
+          "cumulative_ms": 0.698671
+        },
+        {
+          "function": "python/tensorcx/_compiler/emitter.py:<module>",
+          "line": 1,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.013916,
+          "cumulative_ms": 0.6518940000000001
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:<module>",
+          "line": 1,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.013244,
+          "cumulative_ms": 0.631406
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:artifact_cache",
+          "line": 198,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_ms": 0.026639,
+          "cumulative_ms": 0.30988800000000005
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_emit_msl",
+          "line": 1571,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_ms": 0.022532,
+          "cumulative_ms": 0.22557700000000003
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:emit_cuda",
+          "line": 109,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.0029930000000000004,
+          "cumulative_ms": 0.22279800000000002
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:_open_root",
+          "line": 178,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.022776,
+          "cumulative_ms": 0.181788
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:read",
+          "line": 122,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.015646000000000004,
+          "cumulative_ms": 0.155422
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_iter_buffer_references",
+          "line": 1510,
+          "calls": 40,
+          "primitive_calls": 20,
+          "self_ms": 0.019115000000000004,
+          "cumulative_ms": 0.083162
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_emit_msl_statement_block",
+          "line": 1722,
+          "calls": 4,
+          "primitive_calls": 2,
+          "self_ms": 0.007777,
+          "cumulative_ms": 0.08108
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_emit_msl_statement",
+          "line": 1737,
+          "calls": 8,
+          "primitive_calls": 4,
+          "self_ms": 0.016453,
+          "cumulative_ms": 0.07494200000000001
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_iter_expression_buffers",
+          "line": 1525,
+          "calls": 100,
+          "primitive_calls": 32,
+          "self_ms": 0.043014000000000004,
+          "cumulative_ms": 0.061062000000000005
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_validate_msl_parameter_usage",
+          "line": 1700,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_ms": 0.005484,
+          "cumulative_ms": 0.059120000000000006
+        },
+        {
+          "function": "python/tensorcx/experimental.py:<genexpr>",
+          "line": 1706,
+          "calls": 4,
+          "primitive_calls": 4,
+          "self_ms": 0.0045850000000000005,
+          "cumulative_ms": 0.05105200000000001
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_iter_name_references",
+          "line": 1540,
+          "calls": 28,
+          "primitive_calls": 16,
+          "self_ms": 0.011147,
+          "cumulative_ms": 0.046467
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_emit_msl_expression",
+          "line": 1803,
+          "calls": 36,
+          "primitive_calls": 10,
+          "self_ms": 0.027154,
+          "cumulative_ms": 0.037997
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_iter_expression_names",
+          "line": 1555,
+          "calls": 70,
+          "primitive_calls": 24,
+          "self_ms": 0.026607000000000002,
+          "cumulative_ms": 0.034036000000000004
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:emit_expression_cuda",
+          "line": 142,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.005805,
+          "cumulative_ms": 0.030355000000000004
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:digest",
+          "line": 27,
+          "calls": 3,
+          "primitive_calls": 3,
+          "self_ms": 0.005457,
+          "cumulative_ms": 0.026088
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:expression",
+          "line": 40,
+          "calls": 12,
+          "primitive_calls": 4,
+          "self_ms": 0.017413,
+          "cumulative_ms": 0.022012
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:expression",
+          "line": 162,
+          "calls": 6,
+          "primitive_calls": 2,
+          "self_ms": 0.009129,
+          "cumulative_ms": 0.018673000000000002
+        },
+        {
+          "function": "python/tensorcx/_compiler/cpu.py:expression",
+          "line": 138,
+          "calls": 12,
+          "primitive_calls": 4,
+          "self_ms": 0.012362000000000001,
+          "cumulative_ms": 0.017321000000000003
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:cache_enabled",
+          "line": 91,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_ms": 0.008223000000000001,
+          "cumulative_ms": 0.016999
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_infer_msl_type",
+          "line": 1839,
+          "calls": 16,
+          "primitive_calls": 4,
+          "self_ms": 0.010912,
+          "cumulative_ms": 0.015648
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_single_output_parameter",
+          "line": 514,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_ms": 0.003974,
+          "cumulative_ms": 0.01185
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_iter_store_buffers",
+          "line": 1491,
+          "calls": 16,
+          "primitive_calls": 8,
+          "self_ms": 0.007561,
+          "cumulative_ms": 0.010187000000000002
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_emit_msl_parameters",
+          "line": 1670,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_ms": 0.007753,
+          "cumulative_ms": 0.009236000000000001
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:instruction",
+          "line": 155,
+          "calls": 9,
+          "primitive_calls": 9,
+          "self_ms": 0.006932000000000001,
+          "cumulative_ms": 0.008116
+        },
+        {
+          "function": "python/tensorcx/_compiler/emitter.py:_Emitter",
+          "line": 115,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.0026060000000000002,
+          "cumulative_ms": 0.006877
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_iter_assignment_targets",
+          "line": 1499,
+          "calls": 10,
+          "primitive_calls": 6,
+          "self_ms": 0.003947000000000001,
+          "cumulative_ms": 0.0050680000000000005
+        },
+        {
+          "function": "python/tensorcx/experimental.py:parse_ir",
+          "line": 348,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.0014730000000000001,
+          "cumulative_ms": 0.0037110000000000003
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_validate_target",
+          "line": 430,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.0032510000000000004,
+          "cumulative_ms": 0.003537
+        },
+        {
+          "function": "python/tensorcx/experimental.py:_emit_msl_call",
+          "line": 1833,
+          "calls": 6,
+          "primitive_calls": 6,
+          "self_ms": 0.002357,
+          "cumulative_ms": 0.002357
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:<genexpr>",
+          "line": 143,
+          "calls": 5,
+          "primitive_calls": 5,
+          "self_ms": 0.002075,
+          "cumulative_ms": 0.002075
+        },
+        {
+          "function": "python/tensorcx/_compiler/cpu.py:<genexpr>",
+          "line": 168,
+          "calls": 10,
+          "primitive_calls": 10,
+          "self_ms": 0.0016870000000000001,
+          "cumulative_ms": 0.0016870000000000001
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:manifest",
+          "line": 104,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.001176,
+          "cumulative_ms": 0.001176
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:__init__",
+          "line": 119,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.001095,
+          "cumulative_ms": 0.001095
+        },
+        {
+          "function": "python/tensorcx/_compiler/cache.py:_Entry",
+          "line": 118,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.000635,
+          "cumulative_ms": 0.000635
+        },
+        {
+          "function": "python/tensorcx/_compiler/cuda.py:entry_name",
+          "line": 22,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.000518,
+          "cumulative_ms": 0.000518
+        },
+        {
+          "function": "python/tensorcx/_compiler/emitter.py:MlirEmitError",
+          "line": 80,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.000337,
+          "cumulative_ms": 0.000337
+        },
+        {
+          "function": "python/tensorcx/_compiler/__init__.py:<module>",
+          "line": 1,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_ms": 0.00022600000000000002,
+          "cumulative_ms": 0.00022600000000000002
+        }
+      ]
+    }
+  },
+  "cpu_parity": true,
+  "publication": {
+    "format": "cortex-public-report-v1",
+    "scope": "known local identifiers removed; arbitrary text requires review"
+  }
+}

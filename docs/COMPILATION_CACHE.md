@@ -49,7 +49,14 @@ Nonstandard Metal toolchains with implementation libraries outside that tree are
 not covered; use `cache=False` for those. Native Linux executables are required
 for dependency discovery; unknown identity bypasses default caching and rejects
 explicit caching. File hashes are memoized within a process using inode, size,
-mtime and ctime; dependency resolution and tool validation still run on hits. Targets cannot collide. Metadata stores hashes/byte counts,
+mtime and ctime; dependency resolution and tool validation still run on hits.
+CPU linker/startup-file queries run fresh in groups of at most four child
+processes per compile; query results are never memoized. Each group shares a
+60-second output-capture deadline. All live children are killed before their
+contexts close/reap on failures, timeouts or interruption. Compiler version,
+resolved library/input hashing, path validation, cache permissions and native
+module checks are unchanged. Concurrent callers each have their own four-child
+limit. No compiler processes are started by ordinary import/tensor operations. Targets cannot collide. Metadata stores hashes/byte counts,
 not tool paths or environment values. Each entry is one atomic checksummed
 envelope with at most 32 MiB of artifact data. Damaged/truncated records are
 recompiled; failed compiles are not published.
@@ -108,7 +115,11 @@ The version-2 JSON report separates:
 - **Optional profiles:** separate `cProfile` calls for uncached, miss, warm and
   restarted hit. Function call counts, self/cumulative times and `subprocess.run`
   cumulative time help locate validation, hashing, dependency/linker queries
-  and cache I/O. Cumulative times nest and **must not be added**. Subprocess time
+  and cache I/O. `subprocess_popen` counts Python `Popen` constructions, including
+  both `run()` and direct launches; it does not count descendants spawned by
+  those children. Its cumulative time covers process construction, not child
+  work or waiting. `subprocess_run` is now a subset when direct launches occur.
+  Cumulative times nest and **must not be added**. `subprocess_run` cumulative time
   includes process startup/waiting and child work; it is not compiler CPU time.
   Python attribution does not expose native kernel/JIT internals. The profiler
   adds overhead, so these calls never enter the benchmark samples; see
@@ -160,13 +171,13 @@ No Metal measurement or cross-device speedup is claimed.
 
 The separate profiles locate repeated toolchain/dependency/linker subprocess
 queries in warm calls, and substantial first-process file hashing in restart
-calls. CPU requires 15 `subprocess.run` calls per warm profile (including linker
-and startup-object queries); CUDA requires six. These counts explain why a
-small compile can cost less than validating/reloading a cached artifact. The
+calls. CPU required 15 `subprocess.run` calls per warm profile in these original
+runs (including linker and startup-object queries); CUDA required six. These
+counts explain why a small compile can cost less than validating/reloading a cached artifact. The
 function tables include both parent and nested calls; inspect them without
 summing cumulative values. Cache checks, security or runtime behavior were not
-relaxed. Reducing validated identity-query overhead is follow-up optimization
-work, alongside broader runtime tracing/MLIR/fusion.
+relaxed. These observations motivated the bounded-query optimization below;
+broader runtime tracing/MLIR/fusion remain open.
 
 The focused benchmark/cache regression set passed 44 tests with five expected
 Metal skips on this Linux host. It covers clocks and cleanup, mismatched child
@@ -184,3 +195,58 @@ intentional out-of-range `cuFuncGetParamInfo` probe; memory/race exit checks
 remained enabled. Process restart and threaded compilation passed normally;
 recursive/threaded compiler-process instrumentation was excluded after sanitizer
 injection interfered with `ldd` subprocesses. Metal execution requires macOS CI.
+
+
+### CPU linker-query latency optimization — 2026-10-17
+
+Eight independent Clang queries previously ran serially: the linker selection
+and seven startup/runtime-file lookups. They now run in two groups of four using
+`Popen`, with ordered results and bounded waits/ownership. The same eight fresh
+queries and resolved-file checks run on every CPU cache identity calculation;
+no TTL, skipped version check or remembered resolver output is introduced.
+The total warm-compile launch count remains 15, while `run()` calls fall from
+15 to 7 because eight launches use `Popen` directly. The cache key/envelope/ABI
+and artifact permissions are unchanged. An artifact created by the original
+adapter was reused unchanged by the optimized adapter and checked against CPU.
+
+Two sequential runs per target before and after the change use the same
+benchmark file hash, native-extension hash, LLVM 21.1.8 and sampling parameters
+as each other: seven samples, one warmup, three fresh-process samples, and all
+five launch sizes. The baseline CPU adapter is the version in `ae7b633`; the
+optimized adapter adds bounded query execution and explicit interruption cleanup.
+All compile/launch checks passed CPU parity. Milliseconds; all entries below
+are medians (uncached/warm: seven samples; restart: three fresh processes):
+
+| Run | Uncached | Warm hit | Restart hit |
+| --- | ---: | ---: | ---: |
+| [before/cpu-1](../benchmarks/results/link-query-optimization/before/cpu-1.json) | 192.79 | 215.35 | 967.21 |
+| [before/cpu-2](../benchmarks/results/link-query-optimization/before/cpu-2.json) | 194.85 | 215.17 | 971.59 |
+| [before/cuda-1](../benchmarks/results/link-query-optimization/before/cuda-1.json) | 116.92 | 82.27 | 824.75 |
+| [before/cuda-2](../benchmarks/results/link-query-optimization/before/cuda-2.json) | 116.49 | 81.69 | 822.97 |
+| [after/cpu-1](../benchmarks/results/link-query-optimization/after/cpu-1.json) | 194.38 | 122.87 | 881.29 |
+| [after/cpu-2](../benchmarks/results/link-query-optimization/after/cpu-2.json) | 193.34 | 123.24 | 885.24 |
+| [after/cuda-1](../benchmarks/results/link-query-optimization/after/cuda-1.json) | 117.13 | 82.10 | 831.17 |
+| [after/cuda-2](../benchmarks/results/link-query-optimization/after/cuda-2.json) | 117.34 | 82.34 | 838.81 |
+
+On this Linux i7-6700K host the two CPU warm medians fell by about 43%, while
+uncached compile times were similar. First-process hashing still dominated
+restart hits. CUDA warm latencies stayed near their baseline; its compilation
+schedule was not changed. These are observations on one shared desktop, not a
+portable speedup guarantee. Both phases recorded other CUDA compute processes
+and desktop/CPU load; no exclusive-use or device-throughput claim is made.
+Full samples, spread, initial misses, host snapshots, function profiles and
+source/extension identities are retained in the reviewed JSON exports.
+
+Fresh dependency/linker/library checks, cache permission/corruption/locking
+checks and original-key reuse are covered by the cache/query/benchmark tests.
+The query tests include a real four-process barrier (so serial execution would
+fail), deadline and output-order assertions, and kill/reap assertions on spawn
+failure, nonzero status, timeout and `KeyboardInterrupt`.
+
+This change reduces the serial query critical path. It can use four compiler
+processes concurrently per CPU compile, so it trades temporary CPU/memory
+concurrency for latency; it does not reduce total queries or all process work.
+First-process hashing remains and CUDA/Metal compilation schedules are unchanged.
+There is no kernel-execution, MLP or general hardware speedup claim. The
+historical measurements above remain the original result; use the new before/after
+reports for this optimization rather than comparing unrelated runs.

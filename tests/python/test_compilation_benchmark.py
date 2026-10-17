@@ -92,6 +92,7 @@ def test_profiler_has_no_raw_paths_and_excludes_its_validator(monkeypatch):
     profile = bench.profile_compile(measured, validate)
     assert profile["instrumented_wall_ms"] == 2
     assert profile["subprocess_run"]["calls"] == 0
+    assert profile["subprocess_popen"]["calls"] == 0
     assert any(row["function"].endswith(":summary") for row in profile["functions"])
     assert all(row["function"].startswith("benchmarks/") for row in profile["functions"])
     assert not any("validate" in row["function"] for row in profile["functions"])
@@ -185,6 +186,7 @@ def test_real_report(target, tmp_path):
         for mode, row in report["profiles"].items():
             assert row["instrumented_wall_ms"] > 0
             assert row["subprocess_run"]["calls"] > 0
+            assert row["subprocess_popen"]["calls"] >= row["subprocess_run"]["calls"]
             assert any(item["function"].endswith("cache.py:descriptor") for item in row["functions"]) or mode == "uncached"
 
 
@@ -229,3 +231,13 @@ def test_repeated_in_place_noop_cannot_reuse_prior_correct_output():
     validate(artifact)
     with pytest.raises(AssertionError):
         validate(artifact)
+
+
+def test_profiler_counts_direct_and_run_subprocesses():
+    def query():
+        subprocess.run([sys.executable, "-c", "pass"], check=True, capture_output=True)
+        with subprocess.Popen([sys.executable, "-c", "pass"], stdout=subprocess.PIPE) as child:
+            child.communicate(timeout=10)
+    profile = bench.profile_compile(query, lambda value: None)
+    assert profile["subprocess_run"]["calls"] == 1
+    assert profile["subprocess_popen"]["calls"] == 2

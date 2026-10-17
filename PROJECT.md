@@ -76,6 +76,7 @@ Diagnostics increment:  CPU/CUDA capability, installation and memory snapshots;
                         standalone CLI; docs/DIAGNOSTICS.md (Metal memory deferred)
 Cache increment:        persistent experimental CPU/CUDA/Metal code artifacts;
                         compile/launch measurements and compilation profiles implemented;
+                        CPU linker queries overlap while retaining fresh validation;
                         docs/COMPILATION_CACHE.md; broader compiler work remains open
 ```
 

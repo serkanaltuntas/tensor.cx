@@ -261,7 +261,7 @@ jobs:
         env:
           TENSORCX_LLVM_BIN: ${{ runner.temp }}/llvm-bin
           TENSORCX_REQUIRE_MLIR: "1"
-        run: uv run pytest tests/python/test_compilation_cache.py tests/python/test_compilation_benchmark.py -k "not cuda and not metal" -v -rs
+        run: uv run pytest tests/python/test_compilation_cache.py tests/python/test_compilation_benchmark.py tests/python/test_compiler_queries.py -k "not cuda and not metal" -v -rs
 
       - name: Check runtime CUDA emitter without CUDA
         env:

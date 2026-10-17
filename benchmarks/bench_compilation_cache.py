@@ -136,10 +136,14 @@ def profile_compile(call, validate):
     stats = pstats.Stats(profiler).stats
     rows = []
     subprocess_row = {"calls": 0, "cumulative_ms": 0.0}
+    popen_row = {"calls": 0, "cumulative_ms": 0.0}
     for (filename, line, name), (primitive, calls, own, cumulative, _) in stats.items():
         if (filename, line, name) == (subprocess.run.__code__.co_filename,
                                       subprocess.run.__code__.co_firstlineno, "run"):
             subprocess_row = {"calls": calls, "cumulative_ms": cumulative * 1000}
+        if (filename, line, name) == (subprocess.Popen.__init__.__code__.co_filename,
+                                      subprocess.Popen.__init__.__code__.co_firstlineno, "__init__"):
+            popen_row = {"calls": calls, "cumulative_ms": cumulative * 1000}
         path = Path(filename)
         if not path.is_absolute():
             continue
@@ -153,6 +157,7 @@ def profile_compile(call, validate):
                      "calls": calls, "primitive_calls": primitive,
                      "self_ms": own * 1000, "cumulative_ms": cumulative * 1000})
     return {"instrumented_wall_ms": elapsed, "subprocess_run": subprocess_row,
+            "subprocess_popen": popen_row,
             "functions": sorted(rows, key=lambda row: row["cumulative_ms"], reverse=True)}
 
 

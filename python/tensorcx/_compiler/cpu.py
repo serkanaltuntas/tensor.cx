@@ -1,12 +1,14 @@
 """Explicit CPU compiler adapter. LLVM is discovered only when compiling."""
 from __future__ import annotations
 
+from contextlib import ExitStack
 import os
 from pathlib import Path
 import re
 import shutil
 import subprocess
 import tempfile
+import time
 
 from .. import _core
 from ..experimental import (
@@ -19,6 +21,7 @@ from .cache import artifact_cache, cache_enabled, descriptor, _dependencies
 
 LLVM_VERSION = "21.1.8"
 COMMAND_TIMEOUT = 60
+LINK_QUERY_WORKERS = 4
 OPT_FLAGS = ["--convert-scf-to-cf", "--convert-to-llvm", "--reconcile-unrealized-casts"]
 TRANSLATE_FLAGS = ["--mlir-to-llvmir"]
 CLANG_FLAGS = ["-O2", "-fPIC", "-shared", "-ffp-contract=off",
@@ -37,6 +40,43 @@ def _run(command: list[str]) -> str:
             f"{result.stderr[-4000:]}"
         )
     return result.stdout
+
+
+def _run_parallel(commands: list[list[str]]) -> list[str]:
+    """Run read-only identity queries in bounded groups, preserving result order.
+
+    Each group shares one deadline. Kill every live child before closing its
+    context, which then reaps it even on spawn failure, timeout or interruption.
+    """
+    outputs = []
+    for start in range(0, len(commands), LINK_QUERY_WORKERS):
+        batch = commands[start:start + LINK_QUERY_WORKERS]
+        processes = []
+        with ExitStack() as resources:
+            try:
+                deadline = time.monotonic() + COMMAND_TIMEOUT
+                for command in batch:
+                    process = resources.enter_context(subprocess.Popen(
+                        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True))
+                    processes.append(process)
+                for command, process in zip(batch, processes, strict=True):
+                    stdout, stderr = process.communicate(timeout=max(0, deadline - time.monotonic()))
+                    if process.returncode:
+                        raise RuntimeError(
+                            f"MLIR tool failed ({process.returncode}): {command[0]}\n{stderr[-4000:]}"
+                        )
+                    outputs.append(stdout)
+            except (OSError, subprocess.TimeoutExpired) as error:
+                raise RuntimeError(f"MLIR tool failed: {command[0]}: {error}") from error
+            finally:
+                for process in processes:
+                    if process.poll() is None:
+                        process.kill()
+                # Popen.__exit__ only waits briefly on KeyboardInterrupt. Reap
+                # explicitly before propagating it through ExitStack.
+                for process in processes:
+                    process.wait()
+    return outputs
 
 
 def toolchain() -> dict[str, str]:
@@ -149,18 +189,21 @@ void tensorcx_launch_v1(void** args) {{ _mlir_ciface_{ir.name}({", ".join(values
 
 
 def _link_inputs(tools):
-    linker = _run([tools["clang"], "-print-prog-name=ld"]).strip()
+    names = ("crtbeginS.o", "crtendS.o", "crti.o", "crtn.o", "libgcc.a", "libgcc_s.so", "libc.so")
+    commands = [[tools["clang"], "-print-prog-name=ld"],
+                *[[tools["clang"], "-print-file-name=" + name] for name in names]]
+    linker, *paths = (output.strip() for output in _run_parallel(commands))
     if not Path(linker).is_absolute():
         linker = shutil.which(linker)
     if not linker:
         raise RuntimeError("CPU linker identity is unavailable")
     files = [Path(linker), *_dependencies(linker)]
-    for name in ("crtbeginS.o", "crtendS.o", "crti.o", "crtn.o", "libgcc.a", "libgcc_s.so", "libc.so"):
-        path = _run([tools["clang"], "-print-file-name=" + name]).strip()
+    for name, path in zip(names, paths, strict=True):
         if path == name or not Path(path).is_file():
             raise RuntimeError("CPU link input identity is unavailable")
         files.append(Path(path))
     return files
+
 
 def compile_kernel(ir, *, cache=True) -> CompiledCpuKernel:
     signature = _signature(ir)
