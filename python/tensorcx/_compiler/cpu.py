@@ -105,7 +105,7 @@ def _signature(ir):
     def reject():
         raise KernelCompileError(
             "MLIR CPU runtime requires a canonical global index and one guarded "
-            "float32 elementwise body (arithmetic, sqrt/abs, minimum/maximum, comparisons, select and local assignments)"
+            "float32 elementwise body (arithmetic, sqrt/abs/exp, minimum/maximum, comparisons, select and local assignments)"
         )
 
     if not re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*", ir.name) or ir.name.startswith("tensorcx_"):
@@ -160,7 +160,7 @@ def _signature(ir):
             if any(expression(argument) != "float" for argument in value.args):
                 reject()
             return "float"
-        elif isinstance(value, IRCall) and value.name in {"sqrt", "abs"} and len(value.args) == 1:
+        elif isinstance(value, IRCall) and value.name in {"sqrt", "abs", "exp"} and len(value.args) == 1:
             if expression(value.args[0]) != "float":
                 reject()
             return "float"
@@ -208,8 +208,10 @@ void tensorcx_launch_v1(void** args) {{ _mlir_ciface_{ir.name}({", ".join(values
 
 
 
-def _link_inputs(tools):
+def _link_inputs(tools, *, math_library=False):
     names = ("crtbeginS.o", "crtendS.o", "crti.o", "crtn.o", "libgcc.a", "libgcc_s.so", "libc.so")
+    if math_library:
+        names += ("libm.so", "libm.so.6")
     commands = [[tools["clang"], "-print-prog-name=ld"],
                 *[[tools["clang"], "-print-file-name=" + name] for name in names]]
     linker, *paths = (output.strip() for output in _run_parallel(commands))
@@ -232,9 +234,13 @@ def compile_kernel(ir, *, cache=True) -> CompiledCpuKernel:
     source = emit_mlir(ir)
     tools = toolchain()
     adapter_source = _adapter(ir, *signature)
-    options = {"opt": OPT_FLAGS, "translate": TRANSLATE_FLAGS, "clang": CLANG_FLAGS}
+    # math.exp lowers to expf. Link it explicitly instead of relying on libm
+    # already being in the embedding process global symbol table.
+    math_flags = ["-lm"] if "math.exp " in source else []
+    link_inputs = (lambda: _link_inputs(tools, math_library=True)) if math_flags else lambda: _link_inputs(tools)
+    options = {"opt": OPT_FLAGS, "translate": TRANSLATE_FLAGS, "clang": CLANG_FLAGS + math_flags}
     description = descriptor("cpu", source, tools=tools, options=options,
-                             abi=adapter_source, extra_files=lambda: _link_inputs(tools)) if cache_enabled(cache) else {}
+                             abi=adapter_source, extra_files=link_inputs) if cache_enabled(cache) else {}
     with artifact_cache(description, enabled=cache) as entry, tempfile.TemporaryDirectory(prefix="tensorcx-mlir-") as directory:
         root = Path(directory)
         mlir, lowered, llvm, adapter, library = [
@@ -249,7 +255,7 @@ def compile_kernel(ir, *, cache=True) -> CompiledCpuKernel:
             adapter.write_text(adapter_source)
             _run([tools["mlir-opt"], str(mlir), *OPT_FLAGS, "-o", str(lowered)])
             _run([tools["mlir-translate"], *TRANSLATE_FLAGS, str(lowered), "-o", str(llvm)])
-            _run([tools["clang"], *CLANG_FLAGS, str(llvm), str(adapter), "-o", str(library)])
+            _run([tools["clang"], *CLANG_FLAGS, str(llvm), str(adapter), *math_flags, "-o", str(library)])
         module = _core._load_cpu_kernel(str(library), *signature)
         if not hit:
             entry.store(library.read_bytes())

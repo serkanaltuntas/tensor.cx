@@ -9,8 +9,8 @@ require a compiler SDK at runtime. Explicit custom-kernel compilation does.
 | Path | What is implemented | Required environment |
 | --- | --- | --- |
 | Metal / MSL | Restricted Python kernel DSL, float32 elementwise and bounded rowwise reductions | Apple Metal compiler tools and an available Metal device |
-| CPU / MLIR | Guarded float32 arithmetic, division, sqrt/abs, minimum/maximum, comparisons and select; bounded local/nested expressions | Validated on Linux x86_64 with LLVM/MLIR 21.1.8 |
-| CUDA / MLIR | Guarded float32 add/subtract/multiply/divide, sqrt/abs, minimum/maximum, comparisons and select; bounded local/nested expressions | Validated CPU toolchain plus CUDA toolkit 12.4, CUDA Driver API 13.0, and sm_52 hardware |
+| CPU / MLIR | Guarded float32 arithmetic, division, sqrt/abs/exp, minimum/maximum, comparisons and select; bounded local/nested expressions | Validated on Linux x86_64 with LLVM/MLIR 21.1.8 |
+| CUDA / MLIR | Guarded float32 add/subtract/multiply/divide, sqrt/abs/exp, minimum/maximum, comparisons and select; bounded local/nested expressions | Validated CPU toolchain plus CUDA toolkit 12.4, CUDA Driver API 13.0, and sm_52 hardware |
 
 ## Explicit compilation
 
@@ -58,6 +58,15 @@ target; Metal uses bit-order helpers and disables fast-math for kernels that
 contain these operations. CPU/CUDA and standalone Metal numerical checks compare
 non-NaN bits; composed Metal expressions keep their finite-input tolerance. See
 the [minimum/maximum contract and example](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/MLIR_MINMAX.md).
+
+`cx.experimental.exp(value)` accepts one float32 value. CPU explicitly links
+system libm; CUDA uses non-FTZ base-2 exponential lowering without libdevice.
+This is bounded-error arithmetic: CPU uses `rtol=1e-6`, CUDA `rtol=1e-5`, with
+only one/two smallest-subnormal units of absolute allowance. Direct Metal exp
+uses strict compilation and `rtol=1e-6` for normal-output inputs in `[-80, 80]`;
+gradual underflow and the near-overflow boundary are outside Metal acceptance.
+NaN/infinity and zero behavior have explicit checks. See the
+[exp contract and runnable example](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/MLIR_EXP.md).
 
 Compiled CPU/CUDA/Metal code is cached in private local storage by default,
 including across process restarts. Inspect `compiled.cache_hit` for reuse, or

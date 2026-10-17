@@ -447,7 +447,7 @@ def _emit_expression(
             value = emitter.fresh()
             emitter.emit(indent, f"{value} = arith.{expression.name}f {', '.join(name for name, _ in values)} : f32")
             return value, "f32"
-        if expression.name in {"sqrt", "abs"}:
+        if expression.name in {"sqrt", "abs", "exp"}:
             if len(expression.args) != 1:
                 raise MlirEmitError(f"{expression.name} requires one float32 argument")
             operand, kind = _emit_expression(
@@ -455,7 +455,7 @@ def _emit_expression(
             if kind != "f32":
                 raise MlirEmitError(f"{expression.name} requires one float32 argument")
             value = emitter.fresh()
-            operation = "math.absf" if expression.name == "abs" else "math.sqrt"
+            operation = "math.absf" if expression.name == "abs" else f"math.{expression.name}"
             emitter.emit(indent, f"{value} = {operation} {operand} : f32")
             return value, "f32"
         if expression.name == "select":

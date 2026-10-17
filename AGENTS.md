@@ -272,6 +272,8 @@ Guarded float32 abs is implemented; docs/MLIR_ABS.md records sign-bit semantics,
 strict unary types and existing CPU/CUDA/Metal launch boundaries.
 Guarded float32 minimum/maximum are implemented; docs/MLIR_MINMAX.md defines
 NaN propagation, zero ordering, Metal strict compilation and unchanged ABI limits.
+Guarded float32 exp is implemented; docs/MLIR_EXP.md records bounded-error
+CPU/CUDA lowering, explicit CPU libm linkage and narrower Metal numerical scope.
 ```
 
 `docs/CUDA_PHASE9_ENVIRONMENT.md` records the selected host and entry criteria;

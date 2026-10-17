@@ -319,3 +319,6 @@ The follow-up [CUDA ABI/toolchain decision](MLIR_CUDA_INTEGRATION_DECISION.md)
 is now recorded with sm_52 research and runtime evidence. Its bounded add
 compile/launch path has passed the tensor.cx-buffer/context/module gate above.
 Additional generated operations and targets remain separate work.
+
+Guarded float32 `cx.experimental.exp` is also supported; [kernel exp](MLIR_EXP.md)
+defines explicit CPU libm linkage, bounded numerical errors and target limits.

@@ -857,6 +857,43 @@ def test_experimental_minmax_metal_kernel_helper_collision(maximum):
     np.testing.assert_array_equal(result.numpy(), oracle(dsl, a.numpy(), b.numpy()))
 
 
+@pytest.mark.parametrize('shape', [(), (0,), (1,), (257,), (2, 3)])
+def test_experimental_exp_metal_parity(shape):
+    if not _has_metal_compiler() or 'metal' not in cx.devices():
+        pytest.skip('requires Metal compiler and device')
+    from test_mlir_exp import KERNELS, oracle, assert_close
+    count = int(np.prod(shape))
+    a = np.linspace(-1, 1, count, dtype=np.float32).reshape(shape)
+    b = np.full(shape, .75, dtype=np.float32)
+    tensors = [cx.tensor(values, device='metal')
+               for values in (a, b, np.full(shape, -7, dtype=np.float32))]
+    for dsl in KERNELS:
+        result = dsl.compile(target='metal').launch(*tensors, count, block_size=7)
+        assert result is tensors[2]
+        assert_close(result.numpy(), oracle(dsl, a, b), 'metal')
+        np.testing.assert_array_equal(tensors[0].numpy(), a)
+        np.testing.assert_array_equal(tensors[1].numpy(), b)
+
+
+def test_experimental_exp_metal_numerical():
+    if not _has_metal_compiler() or 'metal' not in cx.devices():
+        pytest.skip('requires Metal compiler and device')
+    from test_mlir_exp import exponential_one, numerical_inputs, oracle_exp, assert_close
+    values = numerical_inputs()
+    # Metal does not promise gradual underflow. Validate normal-output inputs,
+    # special inputs and values comfortably beyond the saturation boundaries.
+    with np.errstate(all='ignore'):
+        values = values[np.isnan(values) | np.isinf(values) | (np.abs(values) <= 80) | (np.abs(values) >= 110)]
+    values = np.concatenate([values, np.array([-200, -110, 90, 100, 200], dtype=np.float32)])
+    a = cx.tensor(values, device='metal'); out = cx.zeros(a.shape, device='metal')
+    original = a.numpy().view(np.uint32).copy()
+    native = exponential_one.compile(target='metal')
+    result = native.launch(a, out, values.size, block_size=113)
+    assert result is out
+    assert_close(result.numpy(), oracle_exp(values), 'metal')
+    np.testing.assert_array_equal(a.numpy().view(np.uint32), original)
+
+
 def _program_id_nonzero_axis_kernel():
     @cx.experimental.kernel
     def bad_kernel(out, axis):

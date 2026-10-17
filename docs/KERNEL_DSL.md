@@ -134,6 +134,7 @@ cx.experimental.sqrt(float_value)
 cx.experimental.abs(float_value)
 cx.experimental.minimum(float_value, float_value)
 cx.experimental.maximum(float_value, float_value)
+cx.experimental.exp(float_value)
 if blocks without else
 numeric constants
 for var in range(bound_name) with an assignment-only body (any local
@@ -280,3 +281,7 @@ The [float32 abs extension](MLIR_ABS.md) adds absolute value with strict unary
 typing and target-specific numerical limits; Python builtin `abs` is not an alias.
 [Kernel minimum/maximum](MLIR_MINMAX.md) propagate NaN and order -0 below +0;
 their Metal helper/compiler policy is separate from builtin min/max semantics.
+
+[Kernel exp](MLIR_EXP.md) adds a bounded-error float32 exponential. CPU links
+libm explicitly; CUDA uses non-FTZ ex2 without libdevice. Direct Metal exp uses
+strict compilation and its separately documented normal-output numerical scope.

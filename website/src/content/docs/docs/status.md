@@ -19,7 +19,7 @@ the [support matrix](/docs/backends/) defines backend availability.
 | Inference | Float32 linear, affine RMSNorm/LayerNorm, int32-indexed embedding and scaled dot-product attention with boolean/additive/causal masks | [Inference](/docs/operations/#inference) |
 | Storage exchange | CPU/CUDA device-0 DLPack sharing or explicit copy; optional inference-only PyTorch `linear` custom op | [DLPack & PyTorch](/docs/interoperability/) |
 | Diagnostics | Standalone `tensorcx-doctor`, installation checks, operation/dtype capabilities and CPU/CUDA memory snapshots | [Diagnostics](/docs/diagnostics/) |
-| Explicit kernels | Experimental Metal MSL and guarded float32 CPU/CUDA MLIR compilation; division, sqrt/abs, minimum/maximum, comparisons and value selection in the MLIR subset | [Experimental kernels](/docs/experimental/) |
+| Explicit kernels | Experimental Metal MSL and guarded float32 CPU/CUDA MLIR compilation; division, sqrt/abs/exp, minimum/maximum, comparisons and value selection in the MLIR subset | [Experimental kernels](/docs/experimental/) |
 | Compilation tools | Persistent CPU/CUDA/Metal code cache; compile/launch latency measurements and separate compilation profiles | [Performance](/docs/performance/#compilation-cache-measurements) |
 | Runtime profiling | Opt-in CPU/CUDA native host spans and Chrome trace export, with allocation/copy/execution/wait attribution | [Host profiling](/docs/performance/#native-runtime-profiling) |
 | CUDA allocation | Bounded opt-in exact-size reuse, pool stats/trim, and direct `empty` allocation without CPU staging | [Memory reuse](/docs/performance/#bounded-cuda-memory-reuse) |
@@ -47,12 +47,12 @@ remaining parts; completed pieces above are not reset by this list.
 | Distribution and releases | Portable macOS/CUDA wheels, versioned releases and package-index publication; Linux ARM64 and musl/Alpine wheels are outside the current matrix |
 | CUDA validation and devices | Execution on additional real NVIDIA architectures/toolchains, an isolated automatic GPU CI runner, and device-index selection beyond 0 |
 
-Float32 `sqrt`, `abs` and minimum/maximum are implemented inside guarded
-experimental kernels, including explicit NaN and signed-zero rules for min/max.
-Ordinary tensor operations remain separate. A proposed next compiler increment
-is float32 `exp`, with a separately validated lowering and error-tolerance
-contract. This is a scoped candidate, not a release date or a promise of a full
-compiler.
+Float32 `sqrt`, `abs`, minimum/maximum and bounded-error `exp` are implemented
+inside guarded experimental kernels, with their target-specific numerical
+contracts. Ordinary tensor operations remain separate. A proposed next compiler
+increment is float32 `log`, with explicit domain/special-value rules and a
+separately validated error bound. This is a scoped candidate, not a release
+date or a promise of a full compiler.
 
 ## Validation boundaries
 
