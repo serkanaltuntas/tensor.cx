@@ -23,7 +23,9 @@ test('built search returns a useful result and theme changes persist', async ({ 
   await expect(result).toBeVisible();
   await result.click();
   await expect(page).toHaveURL(/\/docs\/(operations|backends|examples|experimental|performance)\//);
-  await page.getByRole('combobox', { name: 'Select theme' }).selectOption('dark');
+  // Search navigation can expose SSR controls before their listeners attach.
+  await page.locator('starlight-theme-select:defined')
+    .getByRole('combobox', { name: 'Select theme' }).selectOption('dark');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
