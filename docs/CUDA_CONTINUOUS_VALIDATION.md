@@ -74,7 +74,10 @@ leaving a single completed ephemeral registration as a claimed deployment.
 After a manual run passes, verify that the uploaded `result.json` names the
 event SHA, reports `status: passed`, contains at least 595 Python tests and four
 native contracts without skips/errors/failures, and includes both device
-sanitizers and the CUDA MLP. The current suite has 746 Python acceptance tests.
+sanitizers and the CUDA MLP. The current selection also covers the extended
+tensor API, int32 primitives and [native runtime profiling](RUNTIME_PROFILING.md),
+including real generated CPU/CUDA launches. Use each run's report for its exact
+test count; the 746-test runs above are dated historical evidence.
 Enable the automatic-run variable only after the runner lifecycle is ready,
 then verify push and PR runs before closing the continuous-validation ledger.
 This workflow does not provision a machine, register a runner or change branch

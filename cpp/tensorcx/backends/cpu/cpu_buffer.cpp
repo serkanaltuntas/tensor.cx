@@ -5,10 +5,12 @@
 #include <utility>
 
 #include "tensorcx/core/dtype.h"
+#include "tensorcx/core/profiling.h"
 
 namespace tensorcx::cpu {
 
 CpuBuffer::CpuBuffer(DType dtype, std::size_t elements) : dtype_(dtype) {
+  ProfileScope profile(ProfileCategory::kAllocation, "owned_buffer", "cpu");
   switch (dtype_) {
     case DType::kFloat32:
       data_ = std::vector<float>(elements);
@@ -22,6 +24,7 @@ CpuBuffer::CpuBuffer(DType dtype, std::size_t elements) : dtype_(dtype) {
     default:
       throw std::invalid_argument("unknown CPU buffer dtype");
   }
+  if (profile.recording()) profile.set_bytes(nbytes());
 }
 
 CpuBuffer::CpuBuffer(std::vector<float> values)

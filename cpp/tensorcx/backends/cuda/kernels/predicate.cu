@@ -1,3 +1,4 @@
+#include "tensorcx/backends/cuda/cuda_profiling.h"
 #include "tensorcx/backends/cuda/cuda_predicate.h"
 #include <algorithm>
 #include <cuda_runtime.h>
@@ -8,7 +9,7 @@ constexpr unsigned kThreads = 256;
 unsigned blocks(std::size_t count) { return static_cast<unsigned>(std::min<std::size_t>((count - 1) / kThreads + 1, 65535)); }
 cudaError_t finish() {
   const auto error = cudaGetLastError();
-  return error == cudaSuccess ? cudaDeviceSynchronize() : error;
+  return error == cudaSuccess ? profiled_synchronize() : error;
 }
 __device__ Dim mapped(Dim i, const Dim* metadata, std::size_t rank, std::size_t arg) {
   Dim result = 0;
@@ -107,6 +108,7 @@ __global__ void mask_copy(const T* input, const std::uint8_t* mask, const Dim* p
 cudaError_t launch_predicate(const void* a, const void* b, const void* c, void* output,
                             std::size_t count, const Dim* metadata, std::size_t rank,
                             OpKind kind, DType dtype) {
+  ProfileScope profile(ProfileCategory::kCompute, "launch_predicate", "cuda");
   if (!count) return cudaSuccess;
   if (dtype == DType::kFloat32) predicate_kernel<float><<<blocks(count), kThreads>>>(a,b,c,output,count,metadata,rank,kind);
   else if (dtype == DType::kInt32) predicate_kernel<std::int32_t><<<blocks(count), kThreads>>>(a,b,c,output,count,metadata,rank,kind);
@@ -115,27 +117,32 @@ cudaError_t launch_predicate(const void* a, const void* b, const void* c, void* 
 }
 cudaError_t launch_bool_reduce(const std::uint8_t* input, std::uint8_t* output,
                               std::size_t count, Dim reduce, const Dim* metadata, std::size_t rank, bool all) {
+  ProfileScope profile(ProfileCategory::kCompute, "launch_bool_reduce", "cuda");
   if (!count) return cudaSuccess;
   bool_reduce<<<blocks(count), kThreads>>>(input,output,count,reduce,metadata,rank,all);
   return finish();
 }
 cudaError_t launch_bool_cast(const void* input, void* output, std::size_t count, DType source, DType target) {
+  ProfileScope profile(ProfileCategory::kCompute, "launch_bool_cast", "cuda");
   if (!count) return cudaSuccess;
   bool_cast<<<blocks(count), kThreads>>>(input,output,count,source,target);
   return finish();
 }
 cudaError_t launch_mask_prefix(const std::uint8_t* mask, Dim* output, std::size_t count) {
+  ProfileScope profile(ProfileCategory::kCompute, "launch_mask_prefix", "cuda");
   if (!count) return cudaSuccess;
   mask_prefix<<<blocks(count), kThreads>>>(mask,output,count);
   return finish();
 }
 cudaError_t launch_prefix_step(const Dim* input, Dim* output, std::size_t count, Dim step) {
+  ProfileScope profile(ProfileCategory::kCompute, "launch_prefix_step", "cuda");
   if (!count) return cudaSuccess;
   prefix_step<<<blocks(count), kThreads>>>(input,output,count,step);
   return finish();
 }
 cudaError_t launch_mask_copy(const void* input, const std::uint8_t* mask, const Dim* prefix,
                             void* output, std::size_t count, Dim block, DType dtype) {
+  ProfileScope profile(ProfileCategory::kCompute, "launch_mask_copy", "cuda");
   if (!count) return cudaSuccess;
   if (dtype == DType::kBool)
     mask_copy<<<blocks(count), kThreads>>>(static_cast<const std::uint8_t*>(input), mask, prefix,

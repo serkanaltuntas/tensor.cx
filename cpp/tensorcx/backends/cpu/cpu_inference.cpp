@@ -1,3 +1,4 @@
+#include "tensorcx/core/profiling.h"
 #include "tensorcx/backends/cpu/cpu_backend.h"
 #include "tensorcx/core/inference.h"
 #include <algorithm>
@@ -7,6 +8,7 @@
 #include <stdexcept>
 namespace tensorcx::cpu {
 Status execute_inference_primitive(const BackendExecution& e) {
+  ProfileScope profile(ProfileCategory::kCompute, "cpu_inference", "cpu", std::nullopt, e.op.kind);
   if(e.op.kind==OpKind::kEmbedding) {
     const auto p=make_embedding_plan(e.inputs);
     const auto indices=from_core_tensor(e.inputs[0]),weight=from_core_tensor(e.inputs[1]);

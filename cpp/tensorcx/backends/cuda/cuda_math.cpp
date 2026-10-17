@@ -1,3 +1,4 @@
+#include "tensorcx/backends/cuda/cuda_profiling.h"
 #include "tensorcx/backends/cuda/cuda_math.h"
 #include "tensorcx/backends/cuda/cuda_backend.h"
 #include "tensorcx/backends/cuda/cuda_buffer.h"
@@ -17,7 +18,7 @@ Status execute_math(const BackendExecution& e) {
     if(metadata.size()>static_cast<std::size_t>(std::numeric_limits<Dim>::max()/2))
       return {StatusCode::kInvalidArgument,"math metadata size overflow"};
     auto gpu=CudaBuffer::create(DType::kInt32,{static_cast<Dim>(metadata.size()*2)});if(!gpu)return gpu.status();
-    auto status=runtime_status(cudaMemcpy(gpu.value()->data(),metadata.data(),metadata.size()*sizeof(Dim),cudaMemcpyHostToDevice),"math metadata upload");
+    auto status=runtime_status(profiled_memcpy(gpu.value()->data(),metadata.data(),metadata.size()*sizeof(Dim),cudaMemcpyHostToDevice),"math metadata upload");
     if(!status.ok())return status;
     auto ptr=[&](std::size_t i){return std::static_pointer_cast<CudaBuffer>(e.inputs[i<e.inputs.size()?i:0].buffer)->data();};
     status=runtime_status(launch_math(ptr(0),ptr(1),ptr(2),output.value()->data(),indices?indices->data():output.value()->data(),

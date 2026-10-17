@@ -1,3 +1,4 @@
+#include "tensorcx/core/profiling.h"
 #include "tensorcx/backends/cpu/cpu_backend.h"
 #include "tensorcx/core/math.h"
 #include <algorithm>
@@ -24,6 +25,7 @@ Dim mapped(Dim i, const MathPlan& p) {
 }
 }
 Status execute_math(const BackendExecution& e) {
+  ProfileScope profile(ProfileCategory::kCompute, "cpu_math", "cpu", std::nullopt, e.op.kind);
   std::vector<CpuTensor> inputs;
   for (const auto& t : e.inputs) inputs.push_back(from_core_tensor(t));
   const auto p=make_math_plan(e.op,e.inputs); const bool fp=inputs[0].dtype()==DType::kFloat32;

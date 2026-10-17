@@ -388,6 +388,9 @@ print(ln.cpu().numpy().shape)
   zero-thread launches validate the Metal function and return as no-ops. The
   launch path is synchronous, Metal-only, one-output, exact-shape, and still
   under `cx.experimental`.
+- Opt-in `cx.profile()` separates CPU/CUDA native allocation, copy, execution
+  and existing wait regions using host timings; Metal is not instrumented.
+  See [runtime profiling](docs/RUNTIME_PROFILING.md).
 - Execution is synchronous, but native backend calls release the Python GIL, so
   operations issued from multiple Python threads run concurrently in the native
   layer and stay correct (shared caches are mutex-guarded; see

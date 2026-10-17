@@ -1,3 +1,4 @@
+#include "tensorcx/core/profiling.h"
 #include "tensorcx/backends/cpu/cpu_backend.h"
 #include "tensorcx/core/predicate.h"
 #include <cstring>
@@ -20,6 +21,7 @@ bool compare(T a, T b, OpKind op) {
 }
 
 CpuTensor predicate(const OpDesc& op, std::span<const CpuTensor> inputs) {
+  ProfileScope profile(ProfileCategory::kCompute, "cpu_predicate", "cpu", std::nullopt, op.kind);
   std::vector<Tensor> descriptors;
   for (const auto& input : inputs) descriptors.push_back(to_core_tensor(input));
   const auto plan = make_predicate_plan(op, descriptors);
@@ -54,6 +56,7 @@ CpuTensor predicate(const OpDesc& op, std::span<const CpuTensor> inputs) {
 }
 
 CpuTensor reduce_boolean(const OpDesc& op, const CpuTensor& input) {
+  ProfileScope profile(ProfileCategory::kCompute, "cpu_boolean_reduce", "cpu", std::nullopt, op.kind);
   if (input.dtype() != DType::kBool) throw std::invalid_argument("any/all require bool tensors");
   const auto axes = op.reduction_axes.value_or(input.shape().empty() ? Shape{} : Shape{op.axis});
   const auto plan = make_reduction_plan(input.shape(), axes);
@@ -76,6 +79,7 @@ CpuTensor reduce_boolean(const OpDesc& op, const CpuTensor& input) {
 }
 
 CpuTensor masked_select(const CpuTensor& input, const CpuTensor& mask) {
+  ProfileScope profile(ProfileCategory::kCompute, "cpu_masked_select", "cpu", std::nullopt, OpKind::kMaskedSelect);
   const auto plan = make_masked_select_plan(to_core_tensor(input), to_core_tensor(mask));
   Dim selected = 0;
   for (auto value : mask.bool_data()) selected += value != 0;

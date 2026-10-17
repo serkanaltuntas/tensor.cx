@@ -64,6 +64,8 @@ Distribution:           portable Linux CPU manylinux wheels (CPython 3.11–3.13
                         docs/DISTRIBUTION.md (Nightblade host/ABI limits)
 CUDA performance:       long contiguous axis optimization measured on Nightblade;
                         docs/CUDA_PERFORMANCE.md (shared-desktop limits)
+Runtime profiling:      opt-in CPU/CUDA native host spans; Metal uninstrumented;
+                        docs/RUNTIME_PROFILING.md; device-event timing remains open
 Next implementation:    compatibility and repository-wide continuous GPU validation
 Open scope:             other SM/host versions and broader compiler features
 API increment:          arithmetic/scalars, contiguous reshape and keepdims;

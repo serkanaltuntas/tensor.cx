@@ -1,0 +1,2113 @@
+{
+  "schema_version": 1,
+  "metadata": {
+    "started_utc": "2026-10-17T15:21:55.844433+00:00",
+    "benchmark_sha256": "9d76eee831c4ba747ed2629ef392be067a28fbd07922cdb414d1efeb9da4857f",
+    "extension_sha256": "ba5a348108345d08b89d297528018199a8a496243fb2d365aa5686181e9edaa4",
+    "profiler_sha256": "702d55f22072f8a925ef02a620c7c35f4b62ef5cabe94201205ada7f5513450b",
+    "python": "3.12.14",
+    "numpy": "2.4.6",
+    "system": "Linux",
+    "machine": "x86_64",
+    "tensorcx": "0.1.0",
+    "device": "cuda",
+    "device_name": "NVIDIA GeForce GTX 980 Ti",
+    "build": {
+      "cpu": true,
+      "metal": false,
+      "cuda": true
+    },
+    "seed": 701,
+    "cuda": {
+      "name": "NVIDIA GeForce GTX 980 Ti",
+      "architecture": "sm_52",
+      "runtime_version": 12040,
+      "driver_api_version": 13000,
+      "memory": {
+        "scope": "cuda_device",
+        "total_bytes": 6363217920,
+        "available_bytes": 5689704448
+      }
+    },
+    "revision": "90e22307179c611adac72c0766fc15133bb55751",
+    "git_dirty": true,
+    "tracked_diff_sha256": "47efe66f9e4334ca2e8f77fd6137f2d9237ff4a2ce91664c9f662208ab862d33",
+    "gpu_before": {
+      "gpu": "name, compute_cap, driver_version, memory.used [MiB], temperature.gpu, clocks.current.sm [MHz], clocks.current.memory [MHz], power.draw [W], utilization.gpu [%]\nNVIDIA GeForce GTX 980 Ti, 5.2, 580.178.04, 643 MiB, 57, 1139 MHz, 3304 MHz, 72.29 W, 16 %",
+      "other_compute_processes": [
+        {
+          "memory_mib": "84"
+        },
+        {
+          "memory_mib": "21"
+        }
+      ]
+    },
+    "gpu_after": {
+      "gpu": "name, compute_cap, driver_version, memory.used [MiB], temperature.gpu, clocks.current.sm [MHz], clocks.current.memory [MHz], power.draw [W], utilization.gpu [%]\nNVIDIA GeForce GTX 980 Ti, 5.2, 580.178.04, 773 MiB, 58, 1139 MHz, 3304 MHz, 72.05 W, 3 %",
+      "other_compute_processes": [
+        {
+          "memory_mib": "84"
+        },
+        {
+          "memory_mib": "21"
+        }
+      ]
+    },
+    "other_compute_processes_observed": true,
+    "finished_utc": "2026-10-17T15:22:09.183679+00:00"
+  },
+  "config": {
+    "sizes": [
+      1024,
+      16384,
+      262144,
+      1048576,
+      16777216
+    ],
+    "repeats": 7,
+    "warmup": 1,
+    "max_events": 10000,
+    "include_events": false
+  },
+  "measurement": "paired public-call host wall time and native self spans; no device-only kernel timing",
+  "results": [
+    {
+      "case": "expression_resident",
+      "shape": [
+        1024
+      ],
+      "wall": {
+        "unprofiled": {
+          "samples_ms": [
+            0.035024,
+            0.032778,
+            0.033014,
+            0.031706,
+            0.032791,
+            0.033979,
+            0.033088
+          ],
+          "median_ms": 0.033014,
+          "p10_ms": 0.0323492,
+          "p90_ms": 0.034397000000000004
+        },
+        "profiled": {
+          "samples_ms": [
+            0.036446,
+            0.032942,
+            0.034082,
+            0.032633,
+            0.034057,
+            0.032342,
+            0.032972
+          ],
+          "median_ms": 0.032972,
+          "p10_ms": 0.0325166,
+          "p90_ms": 0.0350276
+        }
+      },
+      "self_time_breakdown": [
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "samples_ms": [
+            0.005518,
+            0.004575,
+            0.005047,
+            0.0047,
+            0.005059,
+            0.004421,
+            0.004847
+          ],
+          "median_ms": 0.004847,
+          "p10_ms": 0.0045134,
+          "p90_ms": 0.0052426
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "samples_ms": [
+            0.008274,
+            0.007038,
+            0.007582,
+            0.007038,
+            0.00781,
+            0.007144,
+            0.007321
+          ],
+          "median_ms": 0.007321,
+          "p10_ms": 0.007038,
+          "p90_ms": 0.0079956
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "samples_ms": [
+            0.001879,
+            0.001681,
+            0.001742,
+            0.001751,
+            0.001669,
+            0.001632,
+            0.001763
+          ],
+          "median_ms": 0.001742,
+          "p10_ms": 0.0016542,
+          "p90_ms": 0.0018094
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "samples_ms": [
+            0.003465,
+            0.003248,
+            0.003293,
+            0.003131,
+            0.00335,
+            0.003068,
+            0.003185
+          ],
+          "median_ms": 0.003248,
+          "p10_ms": 0.0031058,
+          "p90_ms": 0.003396
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "samples_ms": [
+            0.008852,
+            0.009313,
+            0.009133,
+            0.009111,
+            0.008883,
+            0.009094,
+            0.009011
+          ],
+          "median_ms": 0.009094,
+          "p10_ms": 0.008870600000000001,
+          "p90_ms": 0.009205
+        }
+      ],
+      "cpu_parity": true,
+      "profile_samples": [
+        {
+          "elapsed_ns": 42355,
+          "unattributed_ns": 14367,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 37903,
+          "unattributed_ns": 12048,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 38539,
+          "unattributed_ns": 11742,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 37319,
+          "unattributed_ns": 11588,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 38210,
+          "unattributed_ns": 11439,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 36869,
+          "unattributed_ns": 11510,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 37288,
+          "unattributed_ns": 11161,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        }
+      ]
+    },
+    {
+      "case": "expression_end_to_end",
+      "shape": [
+        1024
+      ],
+      "wall": {
+        "unprofiled": {
+          "samples_ms": [
+            0.080314,
+            0.076008,
+            0.079098,
+            0.074316,
+            0.080399,
+            0.075084,
+            0.078732
+          ],
+          "median_ms": 0.078732,
+          "p10_ms": 0.07477679999999999,
+          "p90_ms": 0.080348
+        },
+        "profiled": {
+          "samples_ms": [
+            0.081057,
+            0.081858,
+            0.079422,
+            0.075848,
+            0.079601,
+            0.075589,
+            0.079659
+          ],
+          "median_ms": 0.079601,
+          "p10_ms": 0.0757444,
+          "p90_ms": 0.0813774
+        }
+      },
+      "self_time_breakdown": [
+        {
+          "backend": "cpu",
+          "category": "allocation",
+          "samples_ms": [
+            0.000349,
+            0.000323,
+            0.000309,
+            0.000329,
+            0.00032,
+            0.000326,
+            0.000321
+          ],
+          "median_ms": 0.000323,
+          "p10_ms": 0.00031560000000000003,
+          "p90_ms": 0.000337
+        },
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "samples_ms": [
+            0.009806,
+            0.008997,
+            0.009814,
+            0.008423,
+            0.009291,
+            0.008714,
+            0.009951
+          ],
+          "median_ms": 0.009291,
+          "p10_ms": 0.0085976,
+          "p90_ms": 0.0098688
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "samples_ms": [
+            0.006892,
+            0.006747,
+            0.00671,
+            0.006775,
+            0.006801,
+            0.006787,
+            0.006882
+          ],
+          "median_ms": 0.006787,
+          "p10_ms": 0.0067322,
+          "p90_ms": 0.006886
+        },
+        {
+          "backend": "cuda",
+          "category": "copy_api",
+          "samples_ms": [
+            0.016479,
+            0.015419,
+            0.015669,
+            0.01503,
+            0.01564,
+            0.015199,
+            0.015874
+          ],
+          "median_ms": 0.01564,
+          "p10_ms": 0.0151314,
+          "p90_ms": 0.016116
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "samples_ms": [
+            0.007767,
+            0.007052,
+            0.007739,
+            0.006806,
+            0.007595,
+            0.006875,
+            0.007569
+          ],
+          "median_ms": 0.007569,
+          "p10_ms": 0.0068474,
+          "p90_ms": 0.0077502
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "samples_ms": [
+            0.003233,
+            0.003043,
+            0.003173,
+            0.003095,
+            0.003281,
+            0.003151,
+            0.003361
+          ],
+          "median_ms": 0.003173,
+          "p10_ms": 0.0030742,
+          "p90_ms": 0.003313
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "samples_ms": [
+            0.015347,
+            0.019365,
+            0.015557,
+            0.015458,
+            0.015682,
+            0.015297,
+            0.015529
+          ],
+          "median_ms": 0.015529,
+          "p10_ms": 0.015327,
+          "p90_ms": 0.017155200000000002
+        }
+      ],
+      "cpu_parity": true,
+      "profile_samples": [
+        {
+          "elapsed_ns": 86432,
+          "unattributed_ns": 26559,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 86790,
+          "unattributed_ns": 25844,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 84504,
+          "unattributed_ns": 25533,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 80796,
+          "unattributed_ns": 24880,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 84572,
+          "unattributed_ns": 25962,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 80514,
+          "unattributed_ns": 24165,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 84480,
+          "unattributed_ns": 24993,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        }
+      ]
+    },
+    {
+      "case": "expression_resident",
+      "shape": [
+        16384
+      ],
+      "wall": {
+        "unprofiled": {
+          "samples_ms": [
+            0.034062,
+            0.032402,
+            0.032953,
+            0.03264,
+            0.033144,
+            0.032087,
+            0.033852
+          ],
+          "median_ms": 0.032953,
+          "p10_ms": 0.032276,
+          "p90_ms": 0.033936
+        },
+        "profiled": {
+          "samples_ms": [
+            0.034498,
+            0.033123,
+            0.03473,
+            0.032666,
+            0.041586,
+            0.033492,
+            0.039047
+          ],
+          "median_ms": 0.034498,
+          "p10_ms": 0.0329402,
+          "p90_ms": 0.0400626
+        }
+      },
+      "self_time_breakdown": [
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "samples_ms": [
+            0.004965,
+            0.004488,
+            0.00498,
+            0.004375,
+            0.011177,
+            0.004482,
+            0.004984
+          ],
+          "median_ms": 0.004965,
+          "p10_ms": 0.0044392,
+          "p90_ms": 0.007461200000000001
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "samples_ms": [
+            0.007646,
+            0.007186,
+            0.007804,
+            0.00704,
+            0.00768,
+            0.007321,
+            0.007324
+          ],
+          "median_ms": 0.007324,
+          "p10_ms": 0.0071275999999999996,
+          "p90_ms": 0.0077296000000000005
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "samples_ms": [
+            0.001726,
+            0.00151,
+            0.001768,
+            0.001705,
+            0.001824,
+            0.001654,
+            0.001955
+          ],
+          "median_ms": 0.001726,
+          "p10_ms": 0.0015964,
+          "p90_ms": 0.0018764
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "samples_ms": [
+            0.00335,
+            0.003231,
+            0.003538,
+            0.003289,
+            0.003492,
+            0.003347,
+            0.003422
+          ],
+          "median_ms": 0.00335,
+          "p10_ms": 0.0032657999999999997,
+          "p90_ms": 0.0035104
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "samples_ms": [
+            0.009548,
+            0.009914,
+            0.00944,
+            0.009689,
+            0.009645,
+            0.009622,
+            0.013637
+          ],
+          "median_ms": 0.009645,
+          "p10_ms": 0.009504799999999999,
+          "p90_ms": 0.0114032
+        }
+      ],
+      "cpu_parity": true,
+      "profile_samples": [
+        {
+          "elapsed_ns": 39043,
+          "unattributed_ns": 11808,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 37549,
+          "unattributed_ns": 11220,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 38918,
+          "unattributed_ns": 11388,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 37059,
+          "unattributed_ns": 10961,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 45728,
+          "unattributed_ns": 11910,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 37832,
+          "unattributed_ns": 11406,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 43268,
+          "unattributed_ns": 11946,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        }
+      ]
+    },
+    {
+      "case": "expression_end_to_end",
+      "shape": [
+        16384
+      ],
+      "wall": {
+        "unprofiled": {
+          "samples_ms": [
+            0.116874,
+            0.112891,
+            0.118725,
+            0.113121,
+            0.118243,
+            0.114116,
+            0.116162
+          ],
+          "median_ms": 0.116162,
+          "p10_ms": 0.113029,
+          "p90_ms": 0.1184358
+        },
+        "profiled": {
+          "samples_ms": [
+            0.11973,
+            0.115621,
+            0.118544,
+            0.114733,
+            0.118405,
+            0.115787,
+            0.11769
+          ],
+          "median_ms": 0.11769,
+          "p10_ms": 0.1152658,
+          "p90_ms": 0.1190184
+        }
+      },
+      "self_time_breakdown": [
+        {
+          "backend": "cpu",
+          "category": "allocation",
+          "samples_ms": [
+            0.001618,
+            0.001707,
+            0.001561,
+            0.001663,
+            0.001621,
+            0.001884,
+            0.001599
+          ],
+          "median_ms": 0.001621,
+          "p10_ms": 0.0015838,
+          "p90_ms": 0.0017778
+        },
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "samples_ms": [
+            0.010082,
+            0.009127,
+            0.009491,
+            0.009007,
+            0.009836,
+            0.009061,
+            0.009964
+          ],
+          "median_ms": 0.009491,
+          "p10_ms": 0.0090394,
+          "p90_ms": 0.010011200000000001
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "samples_ms": [
+            0.007142,
+            0.006907,
+            0.006888,
+            0.006927,
+            0.006979,
+            0.006716,
+            0.006952
+          ],
+          "median_ms": 0.006927,
+          "p10_ms": 0.0068192,
+          "p90_ms": 0.0070442
+        },
+        {
+          "backend": "cuda",
+          "category": "copy_api",
+          "samples_ms": [
+            0.037152,
+            0.035783,
+            0.03702,
+            0.03563,
+            0.036708,
+            0.036439,
+            0.036184
+          ],
+          "median_ms": 0.036439,
+          "p10_ms": 0.035721800000000005,
+          "p90_ms": 0.037072799999999996
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "samples_ms": [
+            0.00786,
+            0.007254,
+            0.00765,
+            0.007265,
+            0.00791,
+            0.006915,
+            0.007693
+          ],
+          "median_ms": 0.00765,
+          "p10_ms": 0.0071184,
+          "p90_ms": 0.00788
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "samples_ms": [
+            0.003233,
+            0.003171,
+            0.003087,
+            0.003222,
+            0.003269,
+            0.003127,
+            0.003268
+          ],
+          "median_ms": 0.003222,
+          "p10_ms": 0.003111,
+          "p90_ms": 0.0032684000000000003
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "samples_ms": [
+            0.03071,
+            0.030789,
+            0.030981,
+            0.03071,
+            0.030467,
+            0.031196,
+            0.030498
+          ],
+          "median_ms": 0.03071,
+          "p10_ms": 0.0304856,
+          "p90_ms": 0.031067
+        }
+      ],
+      "cpu_parity": true,
+      "profile_samples": [
+        {
+          "elapsed_ns": 124725,
+          "unattributed_ns": 26928,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 120852,
+          "unattributed_ns": 26114,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 123471,
+          "unattributed_ns": 26793,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 119840,
+          "unattributed_ns": 25416,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 123289,
+          "unattributed_ns": 26499,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 121046,
+          "unattributed_ns": 25708,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 122559,
+          "unattributed_ns": 26401,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        }
+      ]
+    },
+    {
+      "case": "expression_resident",
+      "shape": [
+        262144
+      ],
+      "wall": {
+        "unprofiled": {
+          "samples_ms": [
+            0.261568,
+            0.255639,
+            0.274557,
+            0.318966,
+            0.261042,
+            0.267427,
+            0.256554
+          ],
+          "median_ms": 0.261568,
+          "p10_ms": 0.256188,
+          "p90_ms": 0.29232060000000004
+        },
+        "profiled": {
+          "samples_ms": [
+            0.31716,
+            0.263373,
+            0.269219,
+            0.2604,
+            0.25883,
+            0.267463,
+            0.260043
+          ],
+          "median_ms": 0.263373,
+          "p10_ms": 0.2595578,
+          "p90_ms": 0.2883954
+        }
+      },
+      "self_time_breakdown": [
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "samples_ms": [
+            0.145421,
+            0.141467,
+            0.149237,
+            0.14261,
+            0.141437,
+            0.14874,
+            0.142923
+          ],
+          "median_ms": 0.142923,
+          "p10_ms": 0.141455,
+          "p90_ms": 0.1489388
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "samples_ms": [
+            0.022645,
+            0.023284,
+            0.022499,
+            0.022824,
+            0.022658,
+            0.02322,
+            0.022463
+          ],
+          "median_ms": 0.022658,
+          "p10_ms": 0.0224846,
+          "p90_ms": 0.0232456
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "samples_ms": [
+            0.042662,
+            0.043193,
+            0.043384,
+            0.040712,
+            0.041068,
+            0.041142,
+            0.041391
+          ],
+          "median_ms": 0.041391,
+          "p10_ms": 0.0409256,
+          "p90_ms": 0.0432694
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "samples_ms": [
+            0.008488,
+            0.009044,
+            0.008228,
+            0.00859,
+            0.008083,
+            0.008896,
+            0.00851
+          ],
+          "median_ms": 0.00851,
+          "p10_ms": 0.00817,
+          "p90_ms": 0.0089552
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "samples_ms": [
+            0.081442,
+            0.028983,
+            0.029331,
+            0.028804,
+            0.02907,
+            0.028651,
+            0.028136
+          ],
+          "median_ms": 0.028983,
+          "p10_ms": 0.028445,
+          "p90_ms": 0.05017540000000002
+        }
+      ],
+      "cpu_parity": true,
+      "profile_samples": [
+        {
+          "elapsed_ns": 328440,
+          "unattributed_ns": 27782,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 274934,
+          "unattributed_ns": 28963,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 280229,
+          "unattributed_ns": 27550,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 271316,
+          "unattributed_ns": 27776,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 268826,
+          "unattributed_ns": 26510,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 278441,
+          "unattributed_ns": 27792,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 271393,
+          "unattributed_ns": 27970,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        }
+      ]
+    },
+    {
+      "case": "expression_end_to_end",
+      "shape": [
+        262144
+      ],
+      "wall": {
+        "unprofiled": {
+          "samples_ms": [
+            1.327537,
+            1.300839,
+            1.30599,
+            1.312849,
+            1.371478,
+            1.311461,
+            1.372324
+          ],
+          "median_ms": 1.312849,
+          "p10_ms": 1.3039296,
+          "p90_ms": 1.3718164
+        },
+        "profiled": {
+          "samples_ms": [
+            1.30886,
+            2.227995,
+            1.462985,
+            1.347717,
+            1.665691,
+            1.362656,
+            1.314003
+          ],
+          "median_ms": 1.362656,
+          "p10_ms": 1.3119458,
+          "p90_ms": 1.8906126000000003
+        }
+      },
+      "self_time_breakdown": [
+        {
+          "backend": "cpu",
+          "category": "allocation",
+          "samples_ms": [
+            0.030608,
+            0.030738,
+            0.031167,
+            0.032434,
+            0.042077,
+            0.029307,
+            0.03588
+          ],
+          "median_ms": 0.031167,
+          "p10_ms": 0.0300876,
+          "p90_ms": 0.038358800000000005
+        },
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "samples_ms": [
+            0.315031,
+            0.352529,
+            0.325387,
+            0.301529,
+            0.431794,
+            0.314923,
+            0.308674
+          ],
+          "median_ms": 0.315031,
+          "p10_ms": 0.305816,
+          "p90_ms": 0.384235
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "samples_ms": [
+            0.019588,
+            0.019608,
+            0.024887,
+            0.01892,
+            0.025131,
+            0.019897,
+            0.019068
+          ],
+          "median_ms": 0.019608,
+          "p10_ms": 0.0190088,
+          "p90_ms": 0.0249846
+        },
+        {
+          "backend": "cuda",
+          "category": "copy_api",
+          "samples_ms": [
+            0.396422,
+            0.459629,
+            0.449998,
+            0.407302,
+            0.491403,
+            0.438856,
+            0.404852
+          ],
+          "median_ms": 0.438856,
+          "p10_ms": 0.40148,
+          "p90_ms": 0.4723386
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "samples_ms": [
+            0.296963,
+            0.318406,
+            0.318185,
+            0.326672,
+            0.342036,
+            0.3082,
+            0.295846
+          ],
+          "median_ms": 0.318185,
+          "p10_ms": 0.2965162,
+          "p90_ms": 0.33281760000000005
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "samples_ms": [
+            0.008015,
+            0.008578,
+            0.00942,
+            0.007884,
+            0.01059,
+            0.007527,
+            0.007418
+          ],
+          "median_ms": 0.008015,
+          "p10_ms": 0.0074834,
+          "p90_ms": 0.009888000000000001
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "samples_ms": [
+            0.190582,
+            0.976432,
+            0.243885,
+            0.191871,
+            0.24488,
+            0.19098,
+            0.192028
+          ],
+          "median_ms": 0.192028,
+          "p10_ms": 0.1908208,
+          "p90_ms": 0.5375008000000002
+        }
+      ],
+      "cpu_parity": true,
+      "profile_samples": [
+        {
+          "elapsed_ns": 1322670,
+          "unattributed_ns": 65461,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 2246837,
+          "unattributed_ns": 80917,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 1477515,
+          "unattributed_ns": 74586,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 1361263,
+          "unattributed_ns": 74651,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 1685603,
+          "unattributed_ns": 97692,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 1376795,
+          "unattributed_ns": 67105,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 1326973,
+          "unattributed_ns": 63207,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        }
+      ]
+    },
+    {
+      "case": "expression_resident",
+      "shape": [
+        1048576
+      ],
+      "wall": {
+        "unprofiled": {
+          "samples_ms": [
+            0.542966,
+            0.581631,
+            0.528726,
+            0.538058,
+            0.59859,
+            0.531678,
+            1.136676
+          ],
+          "median_ms": 0.542966,
+          "p10_ms": 0.5304972,
+          "p90_ms": 0.8138244000000001
+        },
+        "profiled": {
+          "samples_ms": [
+            0.563451,
+            0.514491,
+            0.56291,
+            0.566471,
+            0.513599,
+            0.564696,
+            0.513114
+          ],
+          "median_ms": 0.56291,
+          "p10_ms": 0.513405,
+          "p90_ms": 0.565406
+        }
+      },
+      "self_time_breakdown": [
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "samples_ms": [
+            0.314797,
+            0.315885,
+            0.313424,
+            0.314167,
+            0.314557,
+            0.312338,
+            0.31405
+          ],
+          "median_ms": 0.314167,
+          "p10_ms": 0.3129896,
+          "p90_ms": 0.3152322
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "samples_ms": [
+            0.023674,
+            0.023664,
+            0.023073,
+            0.024388,
+            0.023212,
+            0.023298,
+            0.023381
+          ],
+          "median_ms": 0.023381,
+          "p10_ms": 0.0231564,
+          "p90_ms": 0.0239596
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "samples_ms": [
+            0.042193,
+            0.042548,
+            0.044066,
+            0.043223,
+            0.043662,
+            0.046135,
+            0.043192
+          ],
+          "median_ms": 0.043223,
+          "p10_ms": 0.042406,
+          "p90_ms": 0.044893600000000006
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "samples_ms": [
+            0.009055,
+            0.008022,
+            0.00864,
+            0.008514,
+            0.00923,
+            0.008331,
+            0.009044
+          ],
+          "median_ms": 0.00864,
+          "p10_ms": 0.0082074,
+          "p90_ms": 0.009125000000000001
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "samples_ms": [
+            0.157507,
+            0.107136,
+            0.156548,
+            0.157705,
+            0.105982,
+            0.15692,
+            0.106444
+          ],
+          "median_ms": 0.156548,
+          "p10_ms": 0.1062592,
+          "p90_ms": 0.1575862
+        }
+      ],
+      "cpu_parity": true,
+      "profile_samples": [
+        {
+          "elapsed_ns": 574731,
+          "unattributed_ns": 27505,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 525820,
+          "unattributed_ns": 28565,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 573643,
+          "unattributed_ns": 27892,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 578947,
+          "unattributed_ns": 30950,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 524195,
+          "unattributed_ns": 27552,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 576964,
+          "unattributed_ns": 29942,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 524365,
+          "unattributed_ns": 28254,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        }
+      ]
+    },
+    {
+      "case": "expression_end_to_end",
+      "shape": [
+        1048576
+      ],
+      "wall": {
+        "unprofiled": {
+          "samples_ms": [
+            3.038059,
+            3.012462,
+            3.064601,
+            4.126347,
+            3.072966,
+            3.22413,
+            3.039538
+          ],
+          "median_ms": 3.064601,
+          "p10_ms": 3.0278202000000003,
+          "p90_ms": 3.5850168000000004
+        },
+        "profiled": {
+          "samples_ms": [
+            2.99376,
+            3.079141,
+            2.980517,
+            3.133599,
+            2.985358,
+            3.080426,
+            3.033383
+          ],
+          "median_ms": 3.033383,
+          "p10_ms": 2.9834216000000002,
+          "p90_ms": 3.1016952
+        }
+      },
+      "self_time_breakdown": [
+        {
+          "backend": "cpu",
+          "category": "allocation",
+          "samples_ms": [
+            0.121627,
+            0.122755,
+            0.121511,
+            0.120765,
+            0.125002,
+            0.121101,
+            0.12114
+          ],
+          "median_ms": 0.121511,
+          "p10_ms": 0.1209666,
+          "p90_ms": 0.12365380000000001
+        },
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "samples_ms": [
+            0.334805,
+            0.339172,
+            0.327006,
+            0.34188,
+            0.328615,
+            0.333465,
+            0.33307
+          ],
+          "median_ms": 0.333465,
+          "p10_ms": 0.3279714,
+          "p90_ms": 0.3402552
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "samples_ms": [
+            0.018465,
+            0.020122,
+            0.018701,
+            0.018461,
+            0.018918,
+            0.019215,
+            0.019285
+          ],
+          "median_ms": 0.018918,
+          "p10_ms": 0.0184634,
+          "p90_ms": 0.0196198
+        },
+        {
+          "backend": "cuda",
+          "category": "copy_api",
+          "samples_ms": [
+            1.43838,
+            1.453465,
+            1.433789,
+            1.5214,
+            1.428762,
+            1.520163,
+            1.425926
+          ],
+          "median_ms": 1.43838,
+          "p10_ms": 1.4276276,
+          "p90_ms": 1.5206578
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "samples_ms": [
+            0.743354,
+            0.745883,
+            0.743362,
+            0.741365,
+            0.746797,
+            0.746724,
+            0.743812
+          ],
+          "median_ms": 0.743812,
+          "p10_ms": 0.7425584,
+          "p90_ms": 0.7467532
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "samples_ms": [
+            0.008472,
+            0.010278,
+            0.007884,
+            0.007525,
+            0.007597,
+            0.007739,
+            0.008304
+          ],
+          "median_ms": 0.007884,
+          "p10_ms": 0.0075682,
+          "p90_ms": 0.009194400000000002
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "samples_ms": [
+            0.272053,
+            0.323023,
+            0.270165,
+            0.322455,
+            0.271348,
+            0.27107,
+            0.321803
+          ],
+          "median_ms": 0.272053,
+          "p10_ms": 0.270708,
+          "p90_ms": 0.3226822
+        }
+      ],
+      "cpu_parity": true,
+      "profile_samples": [
+        {
+          "elapsed_ns": 3009671,
+          "unattributed_ns": 72515,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 3095551,
+          "unattributed_ns": 80853,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 2995204,
+          "unattributed_ns": 72786,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 3150148,
+          "unattributed_ns": 76297,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 3000140,
+          "unattributed_ns": 73101,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 3096151,
+          "unattributed_ns": 76674,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 3048677,
+          "unattributed_ns": 75337,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        }
+      ]
+    },
+    {
+      "case": "expression_resident",
+      "shape": [
+        16777216
+      ],
+      "wall": {
+        "unprofiled": {
+          "samples_ms": [
+            6.056779,
+            6.029478,
+            6.047205,
+            6.052064,
+            6.04722,
+            6.136255,
+            6.038395
+          ],
+          "median_ms": 6.04722,
+          "p10_ms": 6.034828200000001,
+          "p90_ms": 6.0885694
+        },
+        "profiled": {
+          "samples_ms": [
+            6.020105,
+            6.020942,
+            6.015846,
+            6.02279,
+            6.01811,
+            6.034481,
+            6.022082
+          ],
+          "median_ms": 6.020942,
+          "p10_ms": 6.0172044,
+          "p90_ms": 6.0274664
+        }
+      },
+      "self_time_breakdown": [
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "samples_ms": [
+            4.280474,
+            4.282934,
+            4.280699,
+            4.279904,
+            4.280294,
+            4.290519,
+            4.279602
+          ],
+          "median_ms": 4.280474,
+          "p10_ms": 4.2797832,
+          "p90_ms": 4.2859679999999996
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "samples_ms": [
+            0.024385,
+            0.023854,
+            0.024577,
+            0.02351,
+            0.023289,
+            0.024772,
+            0.024874
+          ],
+          "median_ms": 0.024385,
+          "p10_ms": 0.0234216,
+          "p90_ms": 0.0248128
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "samples_ms": [
+            0.069701,
+            0.069539,
+            0.068681,
+            0.069565,
+            0.070113,
+            0.073743,
+            0.070413
+          ],
+          "median_ms": 0.069701,
+          "p10_ms": 0.0691958,
+          "p90_ms": 0.071745
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "samples_ms": [
+            0.010161,
+            0.010135,
+            0.009604,
+            0.015725,
+            0.009071,
+            0.009442,
+            0.009982
+          ],
+          "median_ms": 0.009982,
+          "p10_ms": 0.0092936,
+          "p90_ms": 0.012386600000000001
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "samples_ms": [
+            1.617387,
+            1.615066,
+            1.6145,
+            1.615303,
+            1.616925,
+            1.616885,
+            1.61922
+          ],
+          "median_ms": 1.616885,
+          "p10_ms": 1.6148396,
+          "p90_ms": 1.6181202
+        }
+      ],
+      "cpu_parity": true,
+      "profile_samples": [
+        {
+          "elapsed_ns": 6032541,
+          "unattributed_ns": 30433,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 6033233,
+          "unattributed_ns": 31705,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 6027246,
+          "unattributed_ns": 29185,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 6035055,
+          "unattributed_ns": 31048,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 6030817,
+          "unattributed_ns": 31125,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 6047604,
+          "unattributed_ns": 32243,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 6034473,
+          "unattributed_ns": 30382,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0
+        }
+      ]
+    },
+    {
+      "case": "expression_end_to_end",
+      "shape": [
+        16777216
+      ],
+      "wall": {
+        "unprofiled": {
+          "samples_ms": [
+            64.635273,
+            65.50149,
+            65.373132,
+            64.54435,
+            64.577878,
+            64.477948,
+            65.186189
+          ],
+          "median_ms": 64.635273,
+          "p10_ms": 64.5177892,
+          "p90_ms": 65.4244752
+        },
+        "profiled": {
+          "samples_ms": [
+            65.829499,
+            66.206014,
+            64.518911,
+            65.670342,
+            65.463523,
+            65.026249,
+            64.167496
+          ],
+          "median_ms": 65.463523,
+          "p10_ms": 64.378345,
+          "p90_ms": 65.980105
+        }
+      },
+      "self_time_breakdown": [
+        {
+          "backend": "cpu",
+          "category": "allocation",
+          "samples_ms": [
+            34.438124,
+            34.576716,
+            33.954441,
+            34.558937,
+            34.375347,
+            33.907666,
+            33.905873
+          ],
+          "median_ms": 34.375347,
+          "p10_ms": 33.9069488,
+          "p90_ms": 34.5660486
+        },
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "samples_ms": [
+            0.477261,
+            0.518132,
+            0.514893,
+            0.518248,
+            0.482467,
+            0.522873,
+            0.455307
+          ],
+          "median_ms": 0.514893,
+          "p10_ms": 0.4684794,
+          "p90_ms": 0.5200980000000001
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "samples_ms": [
+            0.020255,
+            0.020242,
+            0.020405,
+            0.024879,
+            0.022493,
+            0.020118,
+            0.019369
+          ],
+          "median_ms": 0.020255,
+          "p10_ms": 0.0198184,
+          "p90_ms": 0.0234474
+        },
+        {
+          "backend": "cuda",
+          "category": "copy_api",
+          "samples_ms": [
+            22.389189,
+            21.740658,
+            21.488091,
+            22.063132,
+            22.024364,
+            22.04289,
+            21.295397
+          ],
+          "median_ms": 22.024364,
+          "p10_ms": 21.4110134,
+          "p90_ms": 22.193554799999998
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "samples_ms": [
+            6.631472,
+            6.633401,
+            6.65654,
+            6.632872,
+            6.639267,
+            6.65684,
+            6.629316
+          ],
+          "median_ms": 6.633401,
+          "p10_ms": 6.6306096,
+          "p90_ms": 6.65666
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "samples_ms": [
+            0.01097,
+            0.011684,
+            0.009499,
+            0.008824,
+            0.010279,
+            0.009624,
+            0.009404
+          ],
+          "median_ms": 0.009624,
+          "p10_ms": 0.009172,
+          "p90_ms": 0.011255600000000001
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "samples_ms": [
+            1.761675,
+            2.601203,
+            1.774087,
+            1.760932,
+            1.813692,
+            1.761586,
+            1.765863
+          ],
+          "median_ms": 1.765863,
+          "p10_ms": 1.7613244000000001,
+          "p90_ms": 2.1286964000000004
+        }
+      ],
+      "cpu_parity": true,
+      "profile_samples": [
+        {
+          "elapsed_ns": 65849768,
+          "unattributed_ns": 120822,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 66225583,
+          "unattributed_ns": 123547,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 64540078,
+          "unattributed_ns": 122122,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 65689921,
+          "unattributed_ns": 122097,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 65484525,
+          "unattributed_ns": 116616,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 65047338,
+          "unattributed_ns": 125741,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 64187631,
+          "unattributed_ns": 107102,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0
+        }
+      ]
+    },
+    {
+      "case": "mlp_resident",
+      "shape": [
+        32,
+        64,
+        128,
+        10
+      ],
+      "wall": {
+        "unprofiled": {
+          "samples_ms": [
+            0.160559,
+            0.157987,
+            0.160435,
+            0.164036,
+            0.166617,
+            0.158084,
+            0.159577
+          ],
+          "median_ms": 0.160435,
+          "p10_ms": 0.1580452,
+          "p90_ms": 0.16506839999999998
+        },
+        "profiled": {
+          "samples_ms": [
+            0.172721,
+            0.158038,
+            0.161949,
+            0.158291,
+            0.162638,
+            0.157713,
+            0.167656
+          ],
+          "median_ms": 0.161949,
+          "p10_ms": 0.157908,
+          "p90_ms": 0.169682
+        }
+      },
+      "self_time_breakdown": [
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "samples_ms": [
+            0.010723,
+            0.009118,
+            0.010084,
+            0.009204,
+            0.010223,
+            0.009296,
+            0.015915
+          ],
+          "median_ms": 0.010084,
+          "p10_ms": 0.0091696,
+          "p90_ms": 0.012799800000000002
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "samples_ms": [
+            0.016971,
+            0.015247,
+            0.016153,
+            0.015204,
+            0.015899,
+            0.015213,
+            0.016405
+          ],
+          "median_ms": 0.015899,
+          "p10_ms": 0.015209400000000001,
+          "p90_ms": 0.0166314
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "samples_ms": [
+            0.014918,
+            0.006825,
+            0.007149,
+            0.006692,
+            0.00721,
+            0.006657,
+            0.007269
+          ],
+          "median_ms": 0.007149,
+          "p10_ms": 0.006678,
+          "p90_ms": 0.010328600000000004
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "samples_ms": [
+            0.008236,
+            0.007379,
+            0.00795,
+            0.007605,
+            0.007943,
+            0.007543,
+            0.008117
+          ],
+          "median_ms": 0.007943,
+          "p10_ms": 0.0074774,
+          "p90_ms": 0.0081646
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "samples_ms": [
+            0.102419,
+            0.102966,
+            0.102813,
+            0.102883,
+            0.102979,
+            0.102876,
+            0.102423
+          ],
+          "median_ms": 0.102876,
+          "p10_ms": 0.1024214,
+          "p90_ms": 0.1029712
+        }
+      ],
+      "cpu_parity": true,
+      "profile_samples": [
+        {
+          "elapsed_ns": 179303,
+          "unattributed_ns": 26036,
+          "event_count": 24,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 163182,
+          "unattributed_ns": 21647,
+          "event_count": 24,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 166998,
+          "unattributed_ns": 22849,
+          "event_count": 24,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 163458,
+          "unattributed_ns": 21870,
+          "event_count": 24,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 167589,
+          "unattributed_ns": 23335,
+          "event_count": 24,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 162779,
+          "unattributed_ns": 21194,
+          "event_count": 24,
+          "complete": true,
+          "dropped_events": 0
+        },
+        {
+          "elapsed_ns": 172623,
+          "unattributed_ns": 22494,
+          "event_count": 24,
+          "complete": true,
+          "dropped_events": 0
+        }
+      ]
+    }
+  ],
+  "publication": {
+    "format": "cortex-public-report-v1",
+    "scope": "known local identifiers removed; arbitrary text requires review"
+  }
+}

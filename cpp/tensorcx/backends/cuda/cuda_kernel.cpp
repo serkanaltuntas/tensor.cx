@@ -1,3 +1,4 @@
+#include "tensorcx/backends/cuda/cuda_profiling.h"
 #include "tensorcx/backends/cuda/cuda_kernel.h"
 #include "tensorcx/backends/cuda/cuda_buffer.h"
 
@@ -192,9 +193,9 @@ Expected<CudaTensor> CudaKernelModule::launch(std::span<const KernelArgument> ar
     auto copied = CudaBuffer::create(DType::kFloat32, output.shape);
     if (!copied) return copied.status();
     if (copied.value()->nbytes()) {
-      if (auto status = runtime_status(cudaMemcpy(copied.value()->data(), out.value().buffer()->data(),
+      if (auto status = runtime_status(profiled_memcpy(copied.value()->data(), out.value().buffer()->data(),
                   copied.value()->nbytes(), cudaMemcpyDeviceToDevice), "CUDA output copy"); !status.ok()) return status;
-      if (auto status = runtime_status(cudaDeviceSynchronize(), "CUDA output copy synchronize"); !status.ok()) return status;
+      if (auto status = runtime_status(profiled_synchronize(), "CUDA output copy synchronize"); !status.ok()) return status;
     }
     std::array<CUdeviceptr, 4> pointers{};
     std::array<std::uint32_t, 4> scalars{};
@@ -211,11 +212,15 @@ Expected<CudaTensor> CudaKernelModule::launch(std::span<const KernelArgument> ar
       }
     }
     if (threads) {
+      ProfileScope compute(ProfileCategory::kCompute, "generated_kernel", "cuda");
       if (auto status = driver_status(cuLaunchKernel(impl_->function, static_cast<unsigned>(blocks),
               1, 1, block, 1, 1, 0, nullptr, slots.data(), nullptr), "CUDA generated kernel launch");
           !status.ok()) return status;
-      if (auto status = driver_status(cuCtxSynchronize(), "CUDA generated kernel synchronize");
-          !status.ok()) return status;
+      {
+        ProfileScope wait(ProfileCategory::kSynchronize, "cuCtxSynchronize", "cuda");
+        if (auto status = driver_status(cuCtxSynchronize(), "CUDA generated kernel synchronize");
+            !status.ok()) return status;
+      }
     }
     return CudaTensor(DType::kFloat32, output.shape, copied.move_value());
   } catch (const std::invalid_argument& error) {

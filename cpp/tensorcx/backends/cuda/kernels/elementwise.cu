@@ -1,3 +1,4 @@
+#include "tensorcx/backends/cuda/cuda_profiling.h"
 #include "tensorcx/backends/cuda/cuda_kernels.h"
 
 #include <algorithm>
@@ -121,11 +122,12 @@ unsigned blocks(std::size_t count) {
 
 cudaError_t finish_launch() {
   const auto error = cudaGetLastError();
-  return error == cudaSuccess ? cudaDeviceSynchronize() : error;
+  return error == cudaSuccess ? profiled_synchronize() : error;
 }
 }  // namespace
 
 cudaError_t launch_fill(void* output, std::size_t count, double value, DType dtype) {
+  ProfileScope profile(ProfileCategory::kCompute, "launch_fill", "cuda");
   if (count == 0) return cudaSuccess;
   if (dtype == DType::kInt32)
     fill_numeric<<<blocks(count), kThreads>>>(static_cast<std::int32_t*>(output), count,
@@ -137,6 +139,7 @@ cudaError_t launch_fill(void* output, std::size_t count, double value, DType dty
 
 cudaError_t launch_binary(const void* lhs, const void* rhs, void* output,
                           std::size_t count, OpKind op, DType dtype) {
+  ProfileScope profile(ProfileCategory::kCompute, "launch_binary", "cuda");
   if (count == 0) return cudaSuccess;
   if (dtype == DType::kInt32)
     binary_numeric<<<blocks(count), kThreads>>>(static_cast<const std::uint32_t*>(lhs),
@@ -149,6 +152,7 @@ cudaError_t launch_binary(const void* lhs, const void* rhs, void* output,
 cudaError_t launch_broadcast_binary(const void* lhs, const void* rhs, void* output,
                                     std::size_t count, OpKind op,
                                     const Dim* metadata, std::size_t rank, DType dtype) {
+  ProfileScope profile(ProfileCategory::kCompute, "launch_broadcast_binary", "cuda");
   if (count == 0) return cudaSuccess;
   if (dtype == DType::kInt32)
     broadcast_binary_numeric<<<blocks(count), kThreads>>>(static_cast<const std::uint32_t*>(lhs),
@@ -161,6 +165,7 @@ cudaError_t launch_broadcast_binary(const void* lhs, const void* rhs, void* outp
 
 cudaError_t launch_transpose(const void* input, void* output, std::size_t count,
                              const Dim* metadata, std::size_t rank, Dim offset, DType dtype) {
+  ProfileScope profile(ProfileCategory::kCompute, "launch_transpose", "cuda");
   if (count == 0) return cudaSuccess;
   if (dtype == DType::kBool) {
     transpose_bits<<<blocks(count), kThreads>>>(static_cast<const std::uint8_t*>(input),
@@ -174,6 +179,7 @@ cudaError_t launch_transpose(const void* input, void* output, std::size_t count,
 
 cudaError_t launch_concat(const void* input, void* output, std::size_t count,
                           Dim block, Dim output_block, Dim offset, DType dtype) {
+  ProfileScope profile(ProfileCategory::kCompute, "launch_concat", "cuda");
   if (count == 0) return cudaSuccess;
   if (dtype == DType::kBool) {
     concat_bits<<<blocks(count), kThreads>>>(static_cast<const std::uint8_t*>(input),
@@ -186,12 +192,14 @@ cudaError_t launch_concat(const void* input, void* output, std::size_t count,
 }
 
 cudaError_t launch_validate_int32_cast(const float* input, std::size_t count, int* invalid) {
+  ProfileScope profile(ProfileCategory::kCompute, "launch_validate_int32_cast", "cuda");
   if (count == 0) return cudaSuccess;
   validate_int32_cast<<<blocks(count), kThreads>>>(input, count, invalid);
   return finish_launch();
 }
 
 cudaError_t launch_cast(const void* input, void* output, std::size_t count, DType input_dtype) {
+  ProfileScope profile(ProfileCategory::kCompute, "launch_cast", "cuda");
   if (count == 0) return cudaSuccess;
   if (input_dtype == DType::kFloat32) {
     cast_f32_i32<<<blocks(count), kThreads>>>(static_cast<const float*>(input),
@@ -204,6 +212,7 @@ cudaError_t launch_cast(const void* input, void* output, std::size_t count, DTyp
 }
 cudaError_t launch_scalar(const void* input, void* output, std::size_t count,
                           OpKind op, double scalar, bool scalar_left, DType dtype) {
+  ProfileScope profile(ProfileCategory::kCompute, "launch_scalar", "cuda");
   if (count == 0) return cudaSuccess;
   if (dtype == DType::kInt32)
     scalar_numeric<<<blocks(count), kThreads>>>(static_cast<const std::uint32_t*>(input),

@@ -1,3 +1,4 @@
+#include "tensorcx/backends/cuda/cuda_profiling.h"
 #include "tensorcx/backends/cuda/cuda_predicate.h"
 #include "tensorcx/backends/cuda/cuda_backend.h"
 #include "tensorcx/backends/cuda/cuda_buffer.h"
@@ -18,7 +19,7 @@ Expected<std::shared_ptr<CudaBuffer>> upload_metadata(const Shape& metadata) {
   auto result = dim_buffer(static_cast<Dim>(metadata.size()));
   if (!result) return result.status();
   if (!metadata.empty()) {
-    auto status = runtime_status(cudaMemcpy(result.value()->data(), metadata.data(),
+    auto status = runtime_status(profiled_memcpy(result.value()->data(), metadata.data(),
         metadata.size() * sizeof(Dim), cudaMemcpyHostToDevice), "predicate metadata upload");
     if (!status.ok()) return status;
   }
@@ -92,7 +93,7 @@ Status execute_predicate(const BackendExecution& execution) {
       if (step > count / 2) break;
       step *= 2;
     }
-    status = runtime_status(cudaMemcpy(&selected, static_cast<const Dim*>(prefix->data()) + count - 1,
+    status = runtime_status(profiled_memcpy(&selected, static_cast<const Dim*>(prefix->data()) + count - 1,
         sizeof(Dim), cudaMemcpyDeviceToHost), "CUDA mask result count");
     if (!status.ok()) return status;
   }

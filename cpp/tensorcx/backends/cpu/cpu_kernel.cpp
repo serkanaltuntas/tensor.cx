@@ -1,3 +1,4 @@
+#include "tensorcx/core/profiling.h"
 #include "tensorcx/backends/cpu/cpu_kernel.h"
 
 #include <array>
@@ -112,7 +113,10 @@ Status validate_arguments(const CpuKernelModule& module,
 CpuTensor run(const CpuKernelModule& module, std::span<const KernelArgument> arguments,
               const Tensor& output, std::uint32_t threads, std::uint32_t block_size) {
   const CpuTensor source = checked_tensor(output);
-  CpuTensor result(source.shape(), std::vector<float>(source.float_data().begin(), source.float_data().end()));  // private output copy
+  CpuTensor result = [&] {
+    ProfileScope copy(ProfileCategory::kCopyAllocate, "output_clone", "cpu", source.buffer()->nbytes());
+    return CpuTensor(source.shape(), std::vector<float>(source.float_data().begin(), source.float_data().end()));
+  }();  // private output copy
   if (threads == 0) return result;
   // Allocate all storage before storing any pointers; no vector may reallocate
   // while generated code holds an argument slot.
@@ -136,7 +140,10 @@ CpuTensor run(const CpuKernelModule& module, std::span<const KernelArgument> arg
   scalars[arguments.size() + 1] = block_size;
   slots[arguments.size()] = &scalars[arguments.size()];
   slots[arguments.size() + 1] = &scalars[arguments.size() + 1];
-  module.invoke(slots.data());
+  {
+    ProfileScope compute(ProfileCategory::kCompute, "generated_kernel", "cpu");
+    module.invoke(slots.data());
+  }
   return result;
 }
 }  // namespace

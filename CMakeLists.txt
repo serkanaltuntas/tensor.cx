@@ -119,6 +119,7 @@ add_library(tensorcx_core STATIC
   cpp/tensorcx/core/backend.cpp
   cpp/tensorcx/core/dtype.cpp
   cpp/tensorcx/core/operation.cpp
+  cpp/tensorcx/core/profiling.cpp
   cpp/tensorcx/core/predicate.cpp
   cpp/tensorcx/core/math.cpp
   cpp/tensorcx/core/inference.cpp

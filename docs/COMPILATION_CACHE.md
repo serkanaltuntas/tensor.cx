@@ -78,6 +78,9 @@ mandatory toolchain checks. Existing failure tests disable persistence so their
 error paths remain exercised. CPU cache CI uses real LLVM; Metal/CUDA execution
 retains the existing hardware gates.
 
+Native operation attribution is available separately through
+[`cx.profile()`](RUNTIME_PROFILING.md); it does not profile compilation.
+
 ### Compile and launch profiling
 
 From a Git source checkout with an installed runtime and the appropriate external

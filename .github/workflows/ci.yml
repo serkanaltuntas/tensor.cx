@@ -249,7 +249,7 @@ jobs:
         env:
           TENSORCX_LLVM_BIN: ${{ runner.temp }}/llvm-bin
           TENSORCX_REQUIRE_MLIR: "1"
-        run: uv run pytest tests/python/test_mlir_lowering.py tests/python/test_mlir_runtime.py tests/python/test_mlir_division.py tests/python/test_mlir_select.py -k "not cuda" -v -rs
+        run: uv run pytest tests/python/test_mlir_lowering.py tests/python/test_mlir_runtime.py tests/python/test_mlir_division.py tests/python/test_mlir_select.py tests/python/test_runtime_profile.py -k "not cuda" -v -rs
 
       - name: Check CUDA device lowering without a CUDA SDK or GPU
         env:

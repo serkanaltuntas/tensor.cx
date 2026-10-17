@@ -26,6 +26,7 @@
 #include "tensorcx/core/dtype.h"
 #include "tensorcx/core/shape.h"
 #include "tensorcx/core/status.h"
+#include "tensorcx/core/profiling.h"
 
 #if TENSORCX_ENABLE_METAL
 #include "tensorcx/backends/metal/metal_backend.h"
@@ -186,6 +187,7 @@ std::uint8_t cast_bool_or_throw(nb::handle value) {
 }
 
 CpuTensor tensor_from_sequence(nb::handle data, nb::handle dtype, const std::string& device) {
+  tensorcx::ProfileScope profile(tensorcx::ProfileCategory::kCopyAllocate, "sequence_import", "cpu");
   validate_cpu_device(device);
 
   std::vector<nb::object> items;
@@ -241,6 +243,7 @@ CpuTensor tensor_from_flat_sequence(
     nb::handle shape,
     nb::handle dtype,
     const std::string& device) {
+  tensorcx::ProfileScope profile(tensorcx::ProfileCategory::kCopyAllocate, "flat_sequence_import", "cpu");
   validate_cpu_device(device);
 
   const Shape parsed_shape = parse_shape(shape);
@@ -333,6 +336,7 @@ nb::object make_bool_numpy(const CpuTensor& tensor) {
 }
 
 nb::object tensor_to_numpy(const CpuTensor& tensor) {
+  tensorcx::ProfileScope profile(tensorcx::ProfileCategory::kCopyAllocate, "numpy_export", "cpu", tensor.buffer()->nbytes());
   switch (tensor.dtype()) {
     case DType::kBool: return make_bool_numpy(tensor);
     case DType::kFloat32:
@@ -1026,6 +1030,30 @@ std::string launch_metal_library_function_via_backend(
 void bind_dlpack(nb::module_& module);
 
 NB_MODULE(_core, module) {
+  module.def("_profile_begin", [](nb::handle limit) {
+    return tensorcx::begin_profile(cast_uint32_or_throw(limit, "max_events must be an integer in [1, 100000]"));
+  });
+  module.def("_profile_end", [](nb::handle token) {
+    if (is_bool_like(token)) throw std::invalid_argument("profile token must be an integer");
+    const auto result = tensorcx::end_profile(nb::cast<std::uint64_t>(token));
+    nb::dict report;
+    report["elapsed_ns"] = result.elapsed_ns;
+    report["dropped_events"] = result.dropped_events;
+    nb::list events;
+    for (const auto& event : result.events) {
+      nb::dict row;
+      row["id"] = event.id; row["parent_id"] = event.parent_id;
+      row["start_ns"] = event.start_ns; row["duration_ns"] = event.duration_ns;
+      row["self_ns"] = event.self_ns;
+      row["category"] = tensorcx::profile_category_name(event.category);
+      row["name"] = event.name; row["backend"] = event.backend;
+      row["bytes"] = event.bytes ? nb::cast(*event.bytes) : nb::none();
+      row["operation"] = event.operation ? nb::cast(tensorcx::profile_operation_name(*event.operation)) : nb::none();
+      events.append(row);
+    }
+    report["events"] = events;
+    return report;
+  });
   module.doc() = "Native extension module for tensor.cx.";
   module.def("_build_info", [] {
     nb::dict result;

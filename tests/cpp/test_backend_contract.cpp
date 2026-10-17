@@ -5,6 +5,7 @@
 #include "inference_contract.h"
 
 #include <array>
+#include <atomic>
 #include <bit>
 #include <cmath>
 #include <iostream>
@@ -14,6 +15,7 @@
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "tensorcx/backends/cpu/cpu_backend.h"
@@ -21,6 +23,7 @@
 #include "tensorcx/core/backend.h"
 #include "tensorcx/core/dtype.h"
 #include "tensorcx/core/operation.h"
+#include "tensorcx/core/profiling.h"
 #include "tensorcx/core/shape.h"
 #include "tensorcx/core/status.h"
 #include "tensorcx/core/tensor.h"
@@ -380,9 +383,59 @@ void multi_axis_contract_tests() {
   }
 }
 
+void profiling_contract_tests() {
+  using namespace tensorcx;
+  auto check = [](bool good, const char* message) {
+    if (!good) { std::cerr << message << '\n'; ++failures; }
+  };
+  ProfileScope inactive(ProfileCategory::kDispatch, "disabled", "test");
+  const auto token = begin_profile(8);
+  {
+    ProfileScope parent(ProfileCategory::kDispatch, "parent", "test");
+    {
+      ProfileScope child(ProfileCategory::kAllocation, "child", "test", 123);
+      bool refused = false;
+      try { (void)end_profile(token); } catch (const std::runtime_error&) { refused = true; }
+      check(refused, "profile ended while native spans still live");
+    }
+  }
+  const auto report = end_profile(token);
+  check(report.events.size() == 2 && report.dropped_events == 0, "native profile event count");
+  check(report.events[1].parent_id == 1 && report.events[1].bytes == 123, "native profile parent/bytes");
+  check(report.events[0].self_ns + report.events[1].duration_ns == report.events[0].duration_ns,
+        "native profile double-counted a child");
+  check(report.events[0].start_ns + report.events[0].duration_ns <= report.elapsed_ns, "native profile clock bounds");
+  const auto clipped = begin_profile(1);
+  {
+    ProfileScope parent(ProfileCategory::kDispatch, "parent", "test");
+    ProfileScope child(ProfileCategory::kAllocation, "dropped", "test");
+  }
+  const auto limited = end_profile(clipped);
+  check(limited.events.size() == 1 && limited.dropped_events == 1, "native profile dropped-event accounting");
+  // The holder is constructed after this TLS object, hence destroyed before
+  // it. Late resource destructors must observe profiling disabled, not freed TLS.
+  std::atomic<bool> late_done{false};
+  struct Late {
+    std::atomic<bool>* done;
+    ~Late() {
+      ProfileScope scope(ProfileCategory::kDeallocation, "late_destructor", "test");
+      done->store(true);
+    }
+  };
+  std::thread worker([&] {
+    static thread_local Late late{&late_done};
+    (void)&late;
+    (void)begin_profile(2);  // Deliberately abandoned; native TLS owns cleanup.
+    ProfileScope child(ProfileCategory::kAllocation, "worker", "test");
+  });
+  worker.join();
+  check(late_done.load(), "native profile TLS cleanup did not finish");
+}
+
 }  // namespace
 
 int main() {
+  profiling_contract_tests();
   {
     using namespace tensorcx;
     auto check = [](bool ok, const char* message) {

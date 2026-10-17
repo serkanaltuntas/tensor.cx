@@ -29,6 +29,10 @@ stored in milliseconds. The script alternates provider order each iteration.
 This reduces ordering bias but does not make the experiment immune to thermal,
 clock, memory allocator, cache or concurrent workload effects.
 
+For allocation/copy/launch/wait attribution without adding synchronization, use
+the separate [native host profiler and paired benchmark](RUNTIME_PROFILING.md).
+Its spans are not device-only timings.
+
 ## Measurement boundaries
 
 | Case | Included |

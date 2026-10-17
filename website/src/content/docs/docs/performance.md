@@ -62,8 +62,52 @@ on another host, workload or GPU. Metal was not measured in that Linux run.
 
 See [cache controls](/docs/experimental/) and the
 [detailed method and results](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/COMPILATION_CACHE.md#compile-and-launch-profiling).
-The existing CUDA benchmark keeps compilation cold. Broader runtime tracing
-and automated kernel fusion remain separate work.
+The existing CUDA benchmark keeps compilation cold. Automated kernel fusion
+remains separate work.
+
+## Native runtime profiling
+
+Use opt-in host profiling around a CPU or CUDA workload:
+
+```python
+import tensorcx as cx
+
+x = cx.ones((1024,), device="cpu")
+with cx.profile() as p:
+    result = (x + x) * x
+print(p.summary())
+p.export_chrome_trace("runtime-trace.json")
+```
+
+Spans distinguish allocation, copy API calls, native execution and existing
+waits. Add `self_ns` only: inclusive times overlap. CUDA launch self time excludes
+nested waits and is host overhead; neither value is device-only kernel timing.
+Copies and memset can return before device work completes. No synchronization
+is added. CPU imports, clones and NumPy exports combine allocation and copy.
+Metal is not instrumented, and reports explicitly declare that limitation.
+
+Contexts are current-thread, single-use and cannot nest on the same thread.
+The default cap is 10,000 spans; `report()["complete"]` means no spans were
+dropped, not full backend coverage. Export is explicit and local, with synthetic
+process/thread IDs and no tensor values. See the
+[complete contract](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/RUNTIME_PROFILING.md).
+
+For alternating profiled/unprofiled calls and CPU parity outside timing:
+
+```bash
+mkdir -p build/runtime-profile
+uv run --no-sync python benchmarks/bench_runtime_profile.py --device cpu --output build/runtime-profile/cpu.json
+```
+
+Choose `cuda` on a supported host with `nvidia-smi` for benchmark telemetry;
+no LLVM toolchain is needed. The profiler itself does not require `nvidia-smi`.
+Defaults cover
+five sizes from 1K to 16M and a resident MLP. Profile setup, validation and
+returned-result cleanup are outside the call timer; intermediate allocation,
+existing waits and temporary cleanup inside the workload remain included.
+Instrumented runs include profiler overhead; use the paired unprofiled samples
+for ordinary latency. Device-event timing, Metal spans and memory pooling remain
+open work.
 
 ## A useful report includes
 

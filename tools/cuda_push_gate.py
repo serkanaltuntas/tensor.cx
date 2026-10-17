@@ -23,7 +23,7 @@ finally:
     sys.path.pop(0)
 TEST_FILES = ('test_cuda.py', 'test_cuda_primitives.py', 'test_mlir_cuda_runtime.py',
               'test_mlir_cuda_expressions.py', 'test_mlir_division.py', 'test_mlir_select.py',
-              'test_int32_primitives.py', 'test_tensor_api.py', 'test_cast_broadcast.py',
+              'test_int32_primitives.py', 'test_runtime_profile.py', 'test_tensor_api.py', 'test_cast_broadcast.py',
               'test_shape_ops.py', 'test_multi_axis_reductions.py', 'test_indexing_joining.py', 'test_boolean_masks.py', 'test_batched_matmul.py', 'test_math_ops.py', 'test_inference_ops.py', 'test_dlpack.py')
 
 
@@ -135,6 +135,9 @@ def validate(revision, llvm_bin):
                  'test_gpu_emitter_select_predicates',
                  'test_int32_binary_exact_wrap', 'test_int32_scalar_precision_and_order',
                  'test_int32_reductions_exact_wrap', 'test_int32_grid_stride_tail',
+                 'test_profile_primitive_parity_and_accounting',
+                 'test_profile_transfer_and_temporary_cleanup',
+                 'test_profile_generated_kernel',
                  'test_keepdims_matches_numpy_and_methods',
                  'test_astype_values_shape_device_and_storage',
                  'test_broadcast_float32_numpy_and_cpu_parity',

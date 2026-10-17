@@ -1,3 +1,4 @@
+#include "tensorcx/backends/cuda/cuda_profiling.h"
 #include "tensorcx/backends/cuda/cuda_kernels.h"
 #include <algorithm>
 #include <climits>
@@ -12,7 +13,7 @@ unsigned blocks(std::size_t n) {
 }
 cudaError_t finish() {
   const auto error = cudaGetLastError();
-  return error == cudaSuccess ? cudaDeviceSynchronize() : error;
+  return error == cudaSuccess ? profiled_synchronize() : error;
 }
 __global__ void unary(const float* x, float* out, std::size_t n, OpKind op) {
   for (std::size_t i = std::size_t(blockIdx.x)*blockDim.x+threadIdx.x;
@@ -281,6 +282,7 @@ __global__ void matmul(const float* a,const float* b,float* out,
 }
 }
 cudaError_t launch_unary(const void* x,void* out,std::size_t n,OpKind op,DType dtype) {
+  ProfileScope profile(ProfileCategory::kCompute, "launch_unary", "cuda");
   if(!n)return cudaSuccess;
   if (dtype == DType::kInt32)
     negate_i32<<<blocks(n),threads>>>(static_cast<const std::uint32_t*>(x), static_cast<std::uint32_t*>(out), n);
@@ -290,6 +292,7 @@ cudaError_t launch_unary(const void* x,void* out,std::size_t n,OpKind op,DType d
 }
 cudaError_t launch_axis(const void* x,void* out,std::size_t groups,std::size_t reduce,
     std::size_t inner,OpKind op,float eps,DType dtype) {
+  ProfileScope profile(ProfileCategory::kCompute, "launch_axis", "cuda");
   if(!groups || (!reduce && (op==OpKind::kSoftmax || op==OpKind::kRmsNorm || op==OpKind::kLayerNorm)))return cudaSuccess;
   if (dtype == DType::kInt32) {
     axis_i32<<<blocks(groups),threads>>>(static_cast<const std::int32_t*>(x),
@@ -306,6 +309,7 @@ cudaError_t launch_axis(const void* x,void* out,std::size_t groups,std::size_t r
 cudaError_t launch_reduce_axes(const void* input, void* output, std::size_t groups,
                                std::size_t reduce, const Dim* metadata,
                                std::size_t output_rank, std::size_t rank, OpKind op, DType dtype) {
+  ProfileScope profile(ProfileCategory::kCompute, "launch_reduce_axes", "cuda");
   if (!groups) return cudaSuccess;
   if (dtype == DType::kInt32)
     reduce_axes_i32<<<blocks(groups), threads>>>(static_cast<const std::int32_t*>(input),
@@ -319,6 +323,7 @@ cudaError_t launch_reduce_axes(const void* input, void* output, std::size_t grou
 cudaError_t launch_matmul(const float* a, const float* b, float* out,
     std::size_t m, std::size_t n, std::size_t k, std::size_t batches,
     const Dim* metadata, std::size_t batch_rank) {
+  ProfileScope profile(ProfileCategory::kCompute, "launch_matmul", "cuda");
   if (!batches || !m || !n) return cudaSuccess;
   const auto tiles_per_matrix = ((m + 15) / 16) * ((n + 15) / 16);
   const auto tiles = tiles_per_matrix * batches; // Bounded by validated output elements.

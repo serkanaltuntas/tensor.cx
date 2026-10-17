@@ -1,3 +1,4 @@
+#include "tensorcx/core/profiling.h"
 #include "tensorcx/backends/cpu/cpu_backend.h"
 #include "tensorcx/backends/cpu/cpu_kernel.h"
 
@@ -243,6 +244,8 @@ void compute_layernorm(
 std::string CpuBackend::name() const { return "cpu"; }
 
 Status CpuBackend::execute(const BackendExecution& execution) {
+  ProfileScope profile(ProfileCategory::kDispatch, "execute", "cpu", std::nullopt,
+                       execution.op_class == BackendOpClass::kPrimitive ? std::optional{execution.op.kind} : std::nullopt);
   if (execution.op_class == BackendOpClass::kKernel) return execute_compiled_kernel(execution);
   try {
     const Status contract = validate_primitive_execution_contract(execution, "cpu");
@@ -313,6 +316,7 @@ Status CpuBackend::execute(const BackendExecution& execution) {
         return Status::Ok();
       }
       case OpKind::kConcat: {
+        ProfileScope copy(ProfileCategory::kCopy, "cpu_concat", "cpu", std::nullopt, OpKind::kConcat);
         std::vector<CpuTensor> inputs;
         std::vector<Shape> shapes;
         const auto dtype = execution.inputs[0].dtype;
@@ -766,6 +770,7 @@ CpuTensor empty(Shape shape, DType dtype) {
 }
 
 CpuTensor fill(Shape shape, DType dtype, double value) {
+  ProfileScope profile(ProfileCategory::kCompute, "cpu_executor", "cpu", std::nullopt, OpKind::kFill);
   if (dtype == DType::kInt32 && !is_int32_representable(value)) {
     throw std::invalid_argument("fill value is out of range for int32");
   }
@@ -792,6 +797,9 @@ CpuTensor fill(Shape shape, DType dtype, double value) {
 }
 
 CpuTensor execute_unary(const OpDesc& op, const CpuTensor& input) {
+  ProfileScope profile(op.kind == OpKind::kCast && op.target_dtype == input.dtype()
+                           ? ProfileCategory::kCopyAllocate : ProfileCategory::kCompute,
+                       "cpu_executor", "cpu", std::nullopt, op.kind);
   if (input.device().type != "cpu") {
     throw std::invalid_argument("CPU operations require CPU tensors");
   }
@@ -1002,6 +1010,7 @@ CpuTensor execute_unary(const OpDesc& op, const CpuTensor& input) {
 }
 
 CpuTensor execute_binary(const OpDesc& op, const CpuTensor& lhs, const CpuTensor& rhs) {
+  ProfileScope profile(ProfileCategory::kCompute, "cpu_executor", "cpu", std::nullopt, op.kind);
   if (lhs.dtype() == DType::kBool || rhs.dtype() == DType::kBool)
     throw std::invalid_argument("arithmetic does not support bool tensors");
   validate_binary_inputs(lhs, rhs);
@@ -1086,6 +1095,7 @@ CpuTensor execute_binary(const OpDesc& op, const CpuTensor& lhs, const CpuTensor
 }
 
 CpuTensor reduce(const OpDesc& op, const CpuTensor& input) {
+  ProfileScope profile(ProfileCategory::kCompute, "cpu_executor", "cpu", std::nullopt, op.kind);
   if (input.dtype() == DType::kBool) throw std::invalid_argument("numeric reductions do not support bool tensors");
   if (op.reduction_axes) {
     if (op.kind != OpKind::kSum && op.kind != OpKind::kMax && op.kind != OpKind::kMean)
@@ -1237,6 +1247,7 @@ CpuTensor reduce(const OpDesc& op, const CpuTensor& input) {
 }
 
 CpuTensor matmul(const CpuTensor& lhs, const CpuTensor& rhs) {
+  ProfileScope profile(ProfileCategory::kCompute, "cpu_executor", "cpu", std::nullopt, OpKind::kMatmul);
   if (lhs.device().type != "cpu" || rhs.device().type != "cpu") {
     throw std::invalid_argument("CPU matmul requires CPU tensors");
   }

@@ -1,3 +1,4 @@
+#include "tensorcx/backends/cuda/cuda_profiling.h"
 #include "tensorcx/backends/cuda/cuda_backend.h"
 
 #include <cuda_runtime_api.h>
@@ -47,7 +48,7 @@ Expected<std::size_t> byte_size(DType dtype, const Shape& shape) {
 void DeviceDeleter::operator()(void* pointer) const noexcept {
   if (!pointer) return;
   ContextScope context(owner);
-  if (context.ready()) (void)cudaFree(pointer);
+  if (context.ready()) (void)profiled_free(pointer);
 }
 
 Expected<std::shared_ptr<CudaBuffer>> CudaBuffer::create(DType dtype, const Shape& shape) {
@@ -61,7 +62,7 @@ Expected<std::shared_ptr<CudaBuffer>> CudaBuffer::create(DType dtype, const Shap
   buffer->data_.get_deleter().owner = context.owner();
   if (buffer->bytes_) {
     void* pointer = nullptr;
-    auto status = runtime_status(cudaMalloc(&pointer, buffer->bytes_), "CUDA allocation");
+    auto status = runtime_status(profiled_malloc(&pointer, buffer->bytes_), "CUDA allocation");
     if (!status.ok()) return status;
     buffer->data_.reset(pointer);
   }
@@ -103,7 +104,7 @@ Expected<std::shared_ptr<CudaBuffer>> CudaBuffer::borrow(
   }
   // The runtime is synchronous. Complete producer work before accessing shared
   // memory, including callers supplying a legacy capsule without stream exchange.
-  auto status = runtime_status(cudaDeviceSynchronize(), "borrowed CUDA readiness");
+  auto status = runtime_status(profiled_synchronize(), "borrowed CUDA readiness");
   if (!status.ok()) return status;
   auto buffer = std::make_shared<CudaBuffer>();
   buffer->dtype_ = dtype;
@@ -167,11 +168,11 @@ Expected<CudaTensor> from_cpu(const cpu::CpuTensor& tensor) {
     if (!buffer) return buffer.status();
     if (buffer.value()->nbytes()) {
       const void* source = tensor.data();
-      const auto error = cudaMemcpy(buffer.value()->data(), source,
+      const auto error = profiled_memcpy(buffer.value()->data(), source,
                                     buffer.value()->nbytes(), cudaMemcpyHostToDevice);
       if (error != cudaSuccess) return runtime_status(error, "CPU to CUDA copy");
       // Host-to-device pageable copies may return before the DMA completes.
-      if (auto status = runtime_status(cudaDeviceSynchronize(), "CPU to CUDA synchronize");
+      if (auto status = runtime_status(profiled_synchronize(), "CPU to CUDA synchronize");
           !status.ok()) return status;
     }
     return CudaTensor(tensor.dtype(), tensor.shape(), buffer.move_value());
@@ -189,7 +190,7 @@ Expected<cpu::CpuTensor> to_cpu(const CudaTensor& tensor) {
     cpu::CpuTensor result(tensor.dtype(), tensor.shape());
     if (tensor.nbytes()) {
       void* destination = result.mutable_data();
-      const auto error = cudaMemcpy(destination, tensor.buffer()->data(), tensor.nbytes(),
+      const auto error = profiled_memcpy(destination, tensor.buffer()->data(), tensor.nbytes(),
                                     cudaMemcpyDeviceToHost);
       if (error != cudaSuccess) return runtime_status(error, "CUDA to CPU copy");
     }
@@ -224,6 +225,8 @@ Expected<CudaTensor> from_core_tensor(const Tensor& tensor) {
 }
 
 Status CudaBackend::execute(const BackendExecution& execution) {
+  ProfileScope profile(ProfileCategory::kDispatch, "execute", "cuda", std::nullopt,
+                       execution.op_class == BackendOpClass::kPrimitive ? std::optional{execution.op.kind} : std::nullopt);
   try {
     if (execution.op_class == BackendOpClass::kKernel) {
       return execute_compiled_kernel(execution);
@@ -250,10 +253,10 @@ Status CudaBackend::execute(const BackendExecution& execution) {
       auto buffer = CudaBuffer::create(DType::kBool, shape);
       if (!buffer) return buffer.status();
       if (buffer.value()->nbytes()) {
-        auto status = runtime_status(cudaMemset(buffer.value()->data(), execution.op.scalar_value != 0,
+        auto status = runtime_status(profiled_memset(buffer.value()->data(), execution.op.scalar_value != 0,
                                                buffer.value()->nbytes()), "CUDA bool fill");
         if (!status.ok()) return status;
-        status = runtime_status(cudaDeviceSynchronize(), "CUDA bool fill synchronize");
+        status = runtime_status(profiled_synchronize(), "CUDA bool fill synchronize");
         if (!status.ok()) return status;
       }
       execution.outputs[0] = to_core_tensor(CudaTensor(DType::kBool, shape, buffer.move_value()));
@@ -280,11 +283,11 @@ Status CudaBackend::execute(const BackendExecution& execution) {
           Shape metadata = plan.output_shape;
           metadata.insert(metadata.end(), plan.input_strides.begin(), plan.input_strides.end());
           void* allocation = nullptr;
-          auto status = runtime_status(cudaMalloc(&allocation, metadata.size() * sizeof(Dim)),
+          auto status = runtime_status(profiled_malloc(&allocation, metadata.size() * sizeof(Dim)),
                                        "CUDA transpose metadata allocation");
           if (!status.ok()) return status;
           device_metadata.reset(allocation);
-          status = runtime_status(cudaMemcpy(allocation, metadata.data(), metadata.size() * sizeof(Dim),
+          status = runtime_status(profiled_memcpy(allocation, metadata.data(), metadata.size() * sizeof(Dim),
                                              cudaMemcpyHostToDevice), "CUDA transpose metadata copy");
           if (!status.ok()) return status;
         }
@@ -336,13 +339,13 @@ Status CudaBackend::execute(const BackendExecution& execution) {
         auto flag = CudaBuffer::create(DType::kInt32, {1});
         if (!flag) return flag.status();
         auto* invalid_flag = static_cast<int*>(flag.value()->data());
-        auto status = runtime_status(cudaMemset(invalid_flag, 0, sizeof(int)), "CUDA cast validation flag");
+        auto status = runtime_status(profiled_memset(invalid_flag, 0, sizeof(int)), "CUDA cast validation flag");
         if (!status.ok()) return status;
         status = runtime_status(launch_validate_int32_cast(
             static_cast<const float*>(source->data()), count, invalid_flag), "CUDA cast validation");
         if (!status.ok()) return status;
         int invalid_value = 0;
-        status = runtime_status(cudaMemcpy(&invalid_value, invalid_flag, sizeof(int), cudaMemcpyDeviceToHost),
+        status = runtime_status(profiled_memcpy(&invalid_value, invalid_flag, sizeof(int), cudaMemcpyDeviceToHost),
                                 "CUDA cast validation readback");
         if (!status.ok()) return status;
         if (invalid_value)
@@ -352,7 +355,7 @@ Status CudaBackend::execute(const BackendExecution& execution) {
       if (!result) return result.status();
       if (count) {
         const auto error = input.dtype == target
-            ? cudaMemcpy(result.value()->data(), source->data(), source->nbytes(), cudaMemcpyDeviceToDevice)
+            ? profiled_memcpy(result.value()->data(), source->data(), source->nbytes(), cudaMemcpyDeviceToDevice)
             : input.dtype == DType::kBool || target == DType::kBool
                 ? launch_bool_cast(source->data(), result.value()->data(), count, input.dtype, target)
                 : launch_cast(source->data(), result.value()->data(), count, input.dtype);
@@ -361,7 +364,7 @@ Status CudaBackend::execute(const BackendExecution& execution) {
         // Device-to-device copies can return before completion. Cast kernels
         // synchronize inside launch_cast; same-dtype copies have the same API.
         if (input.dtype == target) {
-          status = runtime_status(cudaDeviceSynchronize(), "CUDA tensor cast synchronize");
+          status = runtime_status(profiled_synchronize(), "CUDA tensor cast synchronize");
           if (!status.ok()) return status;
         }
       }
@@ -404,10 +407,10 @@ Status CudaBackend::execute(const BackendExecution& execution) {
       if (count) {
         void* allocation = nullptr;
         const auto bytes = plan.index_metadata.size() * sizeof(Dim);
-        auto status = runtime_status(cudaMalloc(&allocation, bytes), "CUDA reduction metadata allocation");
+        auto status = runtime_status(profiled_malloc(&allocation, bytes), "CUDA reduction metadata allocation");
         if (!status.ok()) return status;
         std::unique_ptr<void, DeviceDeleter> metadata(allocation, DeviceDeleter{device.owner()});
-        status = runtime_status(cudaMemcpy(allocation, plan.index_metadata.data(), bytes, cudaMemcpyHostToDevice),
+        status = runtime_status(profiled_memcpy(allocation, plan.index_metadata.data(), bytes, cudaMemcpyHostToDevice),
                                 "CUDA reduction metadata copy");
         if (!status.ok()) return status;
         const auto source = std::static_pointer_cast<CudaBuffer>(input.buffer);
@@ -486,11 +489,11 @@ Status CudaBackend::execute(const BackendExecution& execution) {
         metadata.insert(metadata.end(), broadcast->lhs_strides.begin(), broadcast->lhs_strides.end());
         metadata.insert(metadata.end(), broadcast->rhs_strides.begin(), broadcast->rhs_strides.end());
         void* allocation = nullptr;
-        auto status = runtime_status(cudaMalloc(&allocation, metadata.size() * sizeof(Dim)),
+        auto status = runtime_status(profiled_malloc(&allocation, metadata.size() * sizeof(Dim)),
                                      "CUDA broadcast metadata allocation");
         if (!status.ok()) return status;
         std::unique_ptr<void, DeviceDeleter> device_metadata(allocation, DeviceDeleter{device.owner()});
-        status = runtime_status(cudaMemcpy(device_metadata.get(), metadata.data(),
+        status = runtime_status(profiled_memcpy(device_metadata.get(), metadata.data(),
                                            metadata.size() * sizeof(Dim), cudaMemcpyHostToDevice),
                                 "CUDA broadcast metadata copy");
         if (!status.ok()) return status;
@@ -510,10 +513,10 @@ Status CudaBackend::execute(const BackendExecution& execution) {
       void* allocation = nullptr;
       std::unique_ptr<void, DeviceDeleter> gpu_metadata(nullptr, DeviceDeleter{device.owner()});
       if (count && !metadata.empty()) {
-        auto status = runtime_status(cudaMalloc(&allocation, metadata.size() * sizeof(Dim)), "CUDA matmul metadata allocation");
+        auto status = runtime_status(profiled_malloc(&allocation, metadata.size() * sizeof(Dim)), "CUDA matmul metadata allocation");
         if (!status.ok()) return status;
         gpu_metadata.reset(allocation);
-        status = runtime_status(cudaMemcpy(allocation, metadata.data(), metadata.size() * sizeof(Dim),
+        status = runtime_status(profiled_memcpy(allocation, metadata.data(), metadata.size() * sizeof(Dim),
                                            cudaMemcpyHostToDevice), "CUDA matmul metadata copy");
         if (!status.ok()) return status;
       }
