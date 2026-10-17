@@ -6,6 +6,7 @@ description: Runnable tensor operations and a deterministic inference pipeline w
 import { Code } from '@astrojs/starlight/components';
 import operations from '../../../snippets/operations.py?raw';
 import inference from '../../../snippets/inference.py?raw';
+import runtimeTools from '../../../snippets/runtime-tools.py?raw';
 
 ## Matmul and reduction
 
@@ -58,3 +59,22 @@ compares the selected backend with CPU and reports shape `[2, 3, 8]`.
 Weights are deterministic random values; this demonstrates execution and
 ownership, not model quality or performance. Attention uses a synchronous
 score-buffer implementation. See [inference semantics](/docs/operations/#inference).
+
+## Inspect and reuse storage
+
+This example uses native host profiling on CPU or CUDA and enables the bounded
+memory pool only on CUDA. Save it as `runtime_tools.py` and run
+`uv run --no-sync python runtime_tools.py` for CPU, or add `--device cuda` with
+a supported CUDA build. An unavailable selected device is an error.
+
+<Code code={runtimeTools.trim()} lang="python" title="runtime_tools.py" />
+
+The JSON contains `cpu_parity: true`, native host-region counts/times and, for
+CUDA, pool snapshots before and after exit. Its scratch `empty` tensor is checked
+only for metadata and never read. Exit frees idle blocks; this example deletes
+its participating results first, so checked-out bytes also reach zero. CPU uses
+no pool. Metal host profiling and pools are not implemented.
+
+This is a functional example, not a latency benchmark. Profiled calls include
+instrumentation overhead. See [profiling and memory reuse](/docs/performance/)
+for timing boundaries, DLPack exclusions and cache limits.

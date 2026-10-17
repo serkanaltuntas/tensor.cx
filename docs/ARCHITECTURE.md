@@ -129,6 +129,9 @@ CPU/Metal/CUDA index the original buffer directly, with one accumulation and
 one final division for mean. An empty selection copies under the same dtype
 rules. Python implements `None` and `keepdims` ergonomics.
 Constructor-style `empty` allocation remains outside `Backend::execute` for now.
+Its Python registry has an optional factory route: CUDA uses direct device
+storage with no CPU staging, while CPU/Metal retain their existing typed
+factory/copy paths. See [the allocation contract](CUDA_EMPTY.md).
 
 This is a deliberate, documented transition kept small per the "avoid unrelated
 refactors" rule: Phase 8 hardened the ABI first; public device routing now uses

@@ -119,9 +119,10 @@ it does not add LLVM/MLIR to the C++ core or backend build. See PROJECT.md §16 
 - **CUDA scope after Phase 9.** The prototype is complete on the selected
   [Nightblade environment](CUDA_PHASE9_ENVIRONMENT.md). Broader CUDA operations
   and generated kernels require separate implementation and CPU parity tests.
-- **Remaining allocation routing.** Constructor-style `empty` allocation still
-  uses typed backend paths because it must choose backend-specific native tensor
-  objects. See [`ARCHITECTURE.md`](ARCHITECTURE.md) → "Dispatch after Phase 8".
+- **Allocation routing boundary.** Constructor-style `empty` remains outside
+  `Backend::execute` and returns typed native tensors through the Python backend
+  registry. CUDA now [allocates directly](CUDA_EMPTY.md); CPU/Metal keep their
+  existing paths. See [`ARCHITECTURE.md`](ARCHITECTURE.md) → "Dispatch after Phase 8".
 - **Async submission and streams.** GIL release and native-layer thread-safety
   are done: the binding releases the GIL around every backend call and the
   pipeline caches are mutex-guarded, so multi-threaded use is supported. What

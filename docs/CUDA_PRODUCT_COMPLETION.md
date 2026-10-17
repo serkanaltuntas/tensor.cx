@@ -32,3 +32,10 @@ The explicitly deferred separate product tracks (a full PyTorch backend,
 autograd, multi-GPU training and async/stream APIs) were not items in the
 completion list. They remain separate from this objective. Source changes must
 still follow review, QA, signed commit and push rules in AGENTS.md.
+
+Additional completed allocation increments are bounded opt-in synchronous
+[CUDA memory reuse](CUDA_MEMORY_POOL.md) and
+[direct CUDA empty allocation](CUDA_EMPTY.md). These preserve the existing
+device-0 scope; CPU/Metal pools, asynchronous execution and broader device
+validation remain open. The [product feature backlog](ROADMAP.md#product-feature-backlog)
+tracks these alongside diagnostics, compiler, dtype and distribution work.

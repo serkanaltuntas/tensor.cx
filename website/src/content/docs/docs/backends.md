@@ -34,6 +34,18 @@ only device index 0 is exposed.
 | Float32 exp, GELU, SiLU | Yes | Yes | Yes |
 | Float32 softmax, RMSNorm, LayerNorm | Yes | Yes | Yes |
 | Generated kernels | Optional MLIR subset | Experimental MSL subset | Optional MLIR subset |
+| `empty` allocation | CPU storage | Existing CPU staging/copy | Direct device allocation |
+| DLPack exchange (contiguous float32/int32/bool) | Yes | Not implemented | Device 0 |
+| Installation and operation/dtype diagnostics | Yes | Availability/capabilities | Yes |
+| Memory snapshots | System physical memory | Not implemented | Device-wide free/total |
+| Native host profiling | Bounded spans | Not instrumented | Bounded spans |
+| Persistent compiled-code cache | Optional MLIR | Experimental MSL | Optional MLIR |
+| Bounded buffer pool | Not implemented | Not implemented | Explicit opt-in scope |
+
+`empty` has unspecified contents on every backend. CUDA skips CPU payload
+allocation/upload and can reuse idle storage in an explicit pool. See
+[memory reuse and profiling](/docs/performance/) and the
+[feature overview](/docs/status/) for the remaining scope.
 
 ## CPU
 
@@ -63,7 +75,7 @@ own validation. The hosted CUDA build job tests compilation and no-device
 behavior; it does not run on an NVIDIA GPU. A local push gate exercises the
 validated GPU. Repository-wide GPU acceptance still needs an isolated runner.
 
-The CUDA backend supports `int32` copies/casts, zeros/ones, wrapping
+The CUDA backend supports `int32` copies/casts, empty/zeros/ones, wrapping
 add/subtract/multiply/negate, integer scalars and sum/max reductions. Division
 and mean require float32. The math extension also supports int32
 abs, min, argmax, clip and topk. Float32 matmul supports `auto` and `custom`, not `optimized`.

@@ -16,17 +16,22 @@ backend contracts, and testing small tensor workloads. APIs may change.
 2. [Run your first tensor operation](/docs/first-tensor/).
 3. Read the [backend support matrix](/docs/backends/) before enabling a GPU.
 4. Try [matmul and a small inference pipeline](/docs/examples/).
+5. Explore the [feature overview and remaining work](/docs/status/).
 
 ## A deliberately compact runtime
 
 - Contiguous row-major tensors, with `float32`, a smaller `int32` operation set, and boolean masks.
 - Explicit device transfers and synchronous execution.
-- Elementwise add/multiply, batched/vector matmul, axis reductions, and selected activations
-  and normalization operations.
+- Tensor/scalar arithmetic and broadcasting, batched/vector matmul, all/multi-axis
+  reductions, log/sqrt/abs and selection operations including topk.
+- Basic slicing/indexing, concat/stack/split, comparisons, `where` and boolean masks.
+- Linear, affine normalization, embedding and scaled dot-product attention.
 - CPU references for accelerator correctness checks.
 - A separate [experimental kernel API](/docs/experimental/) with persistent compilation caching.
 - [Installation, operation support and memory diagnostics](/docs/diagnostics/).
 - [DLPack storage sharing and an optional PyTorch inference custom op](/docs/interoperability/).
+- [CPU/CUDA host profiling, compilation measurements and bounded CUDA memory reuse](/docs/performance/),
+  with direct CUDA `empty` allocation and unspecified initial contents.
 
 Autograd, model training, asynchronous streams, distributed
 execution, and broad dtype coverage are outside the current runtime. There is

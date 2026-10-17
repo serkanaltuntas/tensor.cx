@@ -22,7 +22,8 @@ test('built search returns a useful result and theme changes persist', async ({ 
   const result = page.locator('.pagefind-ui__result-link').first();
   await expect(result).toBeVisible();
   await result.click();
-  await expect(page).toHaveURL(/\/docs\/(operations|backends|examples|experimental|performance)\//);
+  await expect(page).toHaveURL(/\/docs\//);
+  await expect(page.locator('main')).toContainText(/RMSNorm/i);
   // Search navigation can expose SSR controls before their listeners attach.
   await page.locator('starlight-theme-select:defined')
     .getByRole('combobox', { name: 'Select theme' }).selectOption('dark');
@@ -76,9 +77,23 @@ test('all local navigation targets and fragments resolve', async ({ page, reques
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Page not found');
 });
 
+test('features are discoverable from the homepage and link to usage boundaries', async ({ page }) => {
+  await page.goto('/');
+  const features = page.getByRole('region', { name: 'From tensor operations to runtime tools.' });
+  await expect(features.getByRole('heading', { level: 3 })).toHaveCount(6);
+  await features.getByRole('link', { name: 'Features & roadmap' }).click();
+  await expect(page).toHaveURL('/docs/status/');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Features & roadmap');
+  await expect(page.getByRole('heading', { name: 'Remaining work', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Host profiling', exact: true }).click();
+  await expect(page).toHaveURL('/docs/performance/#native-runtime-profiling');
+  await expect(page.getByRole('heading', { name: 'Native runtime profiling', exact: true })).toBeVisible();
+});
+
 test('mobile pages fit and the documentation menu works', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
-  for (const path of ['/', '/docs/installation/', '/docs/backends/', '/docs/first-tensor/']) {
+  for (const path of ['/', '/docs/installation/', '/docs/backends/', '/docs/first-tensor/',
+    '/docs/status/', '/docs/examples/', '/docs/performance/']) {
     await page.goto(path);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), path).toBe(true);
   }

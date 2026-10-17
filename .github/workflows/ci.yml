@@ -126,6 +126,7 @@ jobs:
           uv run --no-sync python website/src/snippets/first-tensor.py
           uv run --no-sync python website/src/snippets/operations.py
           uv run --no-sync python website/src/snippets/inference.py
+          uv run --no-sync python website/src/snippets/runtime-tools.py
 
       - name: Configure C++ tests
         run: |

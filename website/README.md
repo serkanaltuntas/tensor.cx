@@ -39,6 +39,7 @@ From the repository root, with the runtime already installed:
 uv run --no-sync python website/src/snippets/first-tensor.py
 uv run --no-sync python website/src/snippets/operations.py
 uv run --no-sync python website/src/snippets/inference.py
+uv run --no-sync python website/src/snippets/runtime-tools.py
 ```
 
 CI runs website checks separately from native builds and executes the shared
@@ -49,6 +50,7 @@ committed. Build output, dependencies, and browser reports stay ignored.
 
 - `src/pages/index.astro`: product homepage.
 - `src/content/docs/docs/`: curated user guides, served under `/docs/`.
+  `status.md` summarizes shipped features and links to the canonical source roadmap.
 - `src/snippets/`: runnable Python examples imported into pages as source text.
 - `src/styles/docs.css`: Starlight theme adjustments.
 - `public/`: explicitly reviewed public assets only.

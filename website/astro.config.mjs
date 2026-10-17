@@ -27,6 +27,7 @@ export default defineConfig({
           { label: 'Experimental kernels', slug: 'docs/experimental' },
         ] },
         { label: 'Project', items: [
+          { label: 'Features & roadmap', slug: 'docs/status' },
           { label: 'Performance', slug: 'docs/performance' },
           { label: 'Contributing', slug: 'docs/contributing' },
         ] },
