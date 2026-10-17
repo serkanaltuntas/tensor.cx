@@ -45,7 +45,10 @@ sm_80-only `min.NaN`/`max.NaN` instruction is required. See
 MSL uses generated helpers with integer NaN classification and ordered float32
 bit keys. Each operand is evaluated once at the helper call; qualified helper
 names avoid parameter/local/kernel-name collisions. This preserves zero signs
-and subnormal bits without floating-point min/max assumptions. Kernels containing
+and subnormal bits without floating-point min/max assumptions. Bit conversion
+uses MSL's unqualified `as_type<T>` language operator, as specified in the
+[Metal language reference](https://developer.apple.com/metal/Metal-Shading-Language-Specification.pdf).
+Kernels containing
 minimum/maximum also compile with `-fno-fast-math`; the option participates in
 the Metal artifact cache key. Kernels without these operations keep their
 existing command/options/cache identity. Direct Metal results for standalone

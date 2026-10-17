@@ -286,6 +286,9 @@ def test_minmax_cache_separation(target, monkeypatch, tmp_path):
 def test_minmax_msl_helper_names():
     source = helper_collision.emit_msl()
     assert '::tensorcx_minimum_f32_2(' in source and '::tensorcx_maximum_f32_1(' in source
+    # as_type is an MSL language operator, not a metal namespace function.
+    assert 'as_type<uint>(a)' in source and 'as_type<float>(' in source
+    assert '::as_type<' not in source
     ir = replace(lower.parse_ir(), name='tensorcx_minimum_f32')
     source = _emit_msl(ir)
     assert 'inline float tensorcx_minimum_f32_1(' in source

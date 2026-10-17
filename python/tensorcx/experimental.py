@@ -1636,15 +1636,16 @@ def _iter_call_names(statements):
 def _msl_minmax_helper(name, symbol):
     # Integer ordering handles NaN, zero signs and subnormals without depending
     # on Metal's floating-point min/max or default fast-math behavior.
+    # as_type is an MSL language operator and cannot be namespace-qualified.
     predicate = "<" if name == "minimum" else ">"
     return f"""inline float {symbol}(float a, float b) {{
-    uint ua = ::metal::as_type<uint>(a);
-    uint ub = ::metal::as_type<uint>(b);
+    uint ua = as_type<uint>(a);
+    uint ub = as_type<uint>(b);
     if ((ua & 0x7fffffffU) > 0x7f800000U) return a;
     if ((ub & 0x7fffffffU) > 0x7f800000U) return b;
     uint ka = (ua & 0x80000000U) ? ~ua : (ua | 0x80000000U);
     uint kb = (ub & 0x80000000U) ? ~ub : (ub | 0x80000000U);
-    return ::metal::as_type<float>(ka {predicate} kb ? ua : ub);
+    return as_type<float>(ka {predicate} kb ? ua : ub);
 }}
 """
 
