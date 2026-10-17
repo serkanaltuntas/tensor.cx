@@ -83,7 +83,7 @@ x86_64 with external LLVM 21.1.8 tools. See the
 - [`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md): `tensorcx-doctor`, declared
   operation/dtype capabilities, installation and CPU/CUDA memory snapshots.
 - [`docs/COMPILATION_CACHE.md`](docs/COMPILATION_CACHE.md): persistent experimental
-  CPU/CUDA/Metal artifacts, compatibility keys and private storage.
+  CPU/CUDA/Metal artifacts, compatibility keys, private storage and compile/launch profiling.
 - [`docs/CUDA_CONTINUOUS_VALIDATION.md`](docs/CUDA_CONTINUOUS_VALIDATION.md):
   exact-commit CUDA acceptance and Nightblade's opt-in local push gate.
 - [`docs/CUDA_PRIMITIVES_VALIDATION.md`](docs/CUDA_PRIMITIVES_VALIDATION.md):

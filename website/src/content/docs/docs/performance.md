@@ -37,17 +37,31 @@ measurement boundaries, medians, variation, and regressions together.
 ## Compilation cache measurements
 
 Experimental CPU/CUDA/Metal compilation reuses private local code artifacts,
-including across process restarts. Compare uncached and warm public compile calls:
+including across process restarts. Measure public compile and launch latency,
+with optional separate compilation profiles:
 
 ```bash
-uv run --no-sync python benchmarks/bench_compilation_cache.py --target cpu
+mkdir -p build/compilation-profile
+uv run --no-sync python benchmarks/bench_compilation_cache.py --target cpu --profile --output build/compilation-profile/cpu.json
 ```
 
-Select `cuda` or `metal` only on the corresponding supported host. Timings include
-toolchain identity checks and module loading; a cache hit does not guarantee a
-speedup for a small kernel. The existing CUDA benchmark keeps compilation cold.
+Select `cuda` or `metal` only on the corresponding supported host. The report
+separates the initial miss, alternating uncached/warm calls, first hits in fresh
+processes, and resident public launches from 1K to 16M elements. Every artifact
+and launch is checked against CPU outside timing. The profiler runs separately;
+its nested cumulative times overlap and cannot be added or used as benchmark
+samples. These are synchronous public API timings, not device-only kernel time.
+
+A cache hit still checks toolchain identity and loads CPU/CUDA modules. On the
+measured Linux host, small-kernel CPU warm calls were slower than uncached calls;
+first hits in new processes paid for dependency hashing again. CUDA warm calls
+were faster in those local runs. These observations do not establish a speedup
+on another host, workload or GPU. Metal was not measured in that Linux run.
+
 See [cache controls](/docs/experimental/) and the
-[detailed measurement boundary](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/COMPILATION_CACHE.md).
+[detailed method and results](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/COMPILATION_CACHE.md#compile-and-launch-profiling).
+The existing CUDA benchmark keeps compilation cold. Broader runtime tracing
+and automated kernel fusion remain separate work.
 
 ## A useful report includes
 

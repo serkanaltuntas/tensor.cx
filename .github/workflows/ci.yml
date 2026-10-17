@@ -257,11 +257,11 @@ jobs:
           TENSORCX_REQUIRE_MLIR: "1"
         run: uv run pytest tests/python/test_mlir_cuda_probe.py -k "not driver_runtime_probe" -v -rs
 
-      - name: Check persistent CPU compilation cache with real LLVM
+      - name: Check CPU compilation cache and profiling benchmark with real LLVM
         env:
           TENSORCX_LLVM_BIN: ${{ runner.temp }}/llvm-bin
           TENSORCX_REQUIRE_MLIR: "1"
-        run: uv run pytest tests/python/test_compilation_cache.py -k "not cuda and not metal" -v -rs
+        run: uv run pytest tests/python/test_compilation_cache.py tests/python/test_compilation_benchmark.py -k "not cuda and not metal" -v -rs
 
       - name: Check runtime CUDA emitter without CUDA
         env:
