@@ -72,6 +72,7 @@ x86_64 with external LLVM 21.1.8 tools. See the
   CUDA add/subtract/multiply compile/launch usage, ABI/toolchain scope and sm_52 validation.
 - [`docs/MLIR_CUDA_EXPRESSIONS_DECISION.md`](docs/MLIR_CUDA_EXPRESSIONS_DECISION.md):
   bounded local/nested expression support and its numerical/ownership contract.
+- [`docs/MLIR_DIVISION.md`](docs/MLIR_DIVISION.md): float32 kernel division, CPU/CUDA IEEE checks and direct MSL limits.
 - [`docs/CUDA_PRODUCT_COMPLETION.md`](docs/CUDA_PRODUCT_COMPLETION.md):
   active CUDA product completion work and remaining evidence.
 - [`docs/CUDA_PERFORMANCE.md`](docs/CUDA_PERFORMANCE.md): reproducible CUDA/MLIR
@@ -169,7 +170,7 @@ softmax, RMSNorm and LayerNorm are implemented; see [semantics and validation](d
 Transpose supports float32/int32/bool and returns a contiguous device copy; squeeze
 and expand_dims share storage without copying, like reshape.
 Int32 fill/arithmetic/reductions and broad generated CUDA kernels remain unsupported. A separate
-explicit MLIR compiler supports guarded float32 add/subtract/multiply on the validated sm_52
+explicit MLIR compiler supports guarded float32 add/subtract/multiply/divide on the validated sm_52
 host; see [usage and requirements](docs/MLIR_CUDA_INTEGRATION_DECISION.md#runtime-usage-and-verification--2026-09-28). Operations are
 synchronous and release the Python GIL during execution. CUDA is registered
 only when its compiled backend and a usable device are available. CPU remains

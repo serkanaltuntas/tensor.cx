@@ -721,14 +721,32 @@ def test_experimental_kernel_parse_rejects_unknown_calls():
         bad_kernel.parse_ir()
 
 
-def test_experimental_kernel_parse_rejects_true_division():
+def test_experimental_kernel_rejects_integer_division():
     @cx.experimental.kernel
     def bad_kernel(out):
         i = cx.experimental.thread_id() / 2
         out[i] = 1
 
-    with pytest.raises(cx.experimental.KernelCompileError, match="Div"):
-        bad_kernel.parse_ir()
+    with pytest.raises(cx.experimental.KernelCompileError, match="two float32 operands"):
+        bad_kernel.emit_msl()
+
+
+@pytest.mark.parametrize('shape', [(), (0,), (1,), (257,), (2, 3)])
+def test_experimental_float_division_metal_parity(shape):
+    if not _has_metal_compiler() or 'metal' not in cx.devices():
+        pytest.skip('requires Metal compiler and device')
+    from test_mlir_division import divide, quotient_chain, nested_divide, oracle
+    count = int(np.prod(shape))
+    a = np.arange(count, dtype=np.float32).reshape(shape) * np.float32(.125) - np.float32(3)
+    b = np.full(shape, np.float32(.75))
+    inputs = [cx.tensor(values, device='metal') for values in (a, b, np.full(shape, -7, dtype=np.float32))]
+    for dsl in (divide, quotient_chain, nested_divide):
+        native = dsl.compile(target='metal')
+        result = native.launch(*inputs, count, block_size=7)
+        assert result is inputs[2]  # Direct Metal kernels write their output.
+        np.testing.assert_allclose(result.numpy(), oracle(dsl, a, b), rtol=1e-6, atol=1e-6)
+        np.testing.assert_array_equal(inputs[0].numpy(), a)
+        np.testing.assert_array_equal(inputs[1].numpy(), b)
 
 
 def _program_id_nonzero_axis_kernel():

@@ -127,7 +127,7 @@ def body_ir(body):
     return replace(ir,body=(ir.body[0],replace(ir.body[1],body=tuple(body))))
 
 
-@pytest.mark.parametrize('case', ['int','bool','nan','inf','overflow','output_read','undefined','reassign','shadow','extra_store','after_store','loop','offset','div','one_input'])
+@pytest.mark.parametrize('case', ['int','bool','nan','inf','overflow','output_read','undefined','reassign','shadow','extra_store','after_store','loop','offset','floordiv','one_input'])
 def test_expression_invalid_before_tools(monkeypatch,case):
     ir = blend.parse_ir()
     body = list(ir.body[1].body)
@@ -141,7 +141,7 @@ def test_expression_invalid_before_tools(monkeypatch,case):
     elif case=='after_store': body.append(body[0])
     elif case=='loop': body.insert(0,ir.body[1])
     elif case=='offset': body[0]=replace(body[0],value=IRLoad('a',IRBinaryOp('add',IRName('i'),IRConstant(1))))
-    elif case=='div': body[0]=replace(body[0],value=replace(body[0].value,op='div'))
+    elif case=='floordiv': body[0]=replace(body[0],value=replace(body[0].value,op='floordiv'))
     elif case=='one_input': body[0]=replace(body[0],value=IRLoad('b',IRName('i')))
     monkeypatch.setattr(cuda,'toolchain',lambda:pytest.fail('invalid IR reached tools'))
     with pytest.raises(KernelCompileError): cuda.compile_kernel(body_ir(body))

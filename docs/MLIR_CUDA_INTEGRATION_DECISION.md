@@ -30,6 +30,9 @@ reductions, offset/strided access, unused parameters, mixed arithmetic,
 comparisons over floats and broader expression bodies before invoking tools.
 The original single-operation path is preserved. Bounded local/nested
 expressions are now supported by the [expression extension](MLIR_CUDA_EXPRESSIONS_DECISION.md).
+Float32 division was added on 2026-10-17 through the same expression ABI;
+see its [contract and validation](MLIR_DIVISION.md). The original dated
+add/subtract/multiply evidence below is preserved.
 
 The returned CUDA tensor is a new value, matching the compiled CPU/reference
 ownership contract: privately copy the original output including its unwritten

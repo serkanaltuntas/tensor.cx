@@ -218,12 +218,12 @@ def test_default_cuda_compile_not_silent_fallback():
         add.compile(target="cuda")
 
 
-@pytest.mark.parametrize("change", ["div", "mixed", "index", "output_read", "extra_store"])
+@pytest.mark.parametrize("change", ["floordiv", "mixed", "index", "output_read", "extra_store"])
 def test_unsupported_before_tools(monkeypatch, change):
     ir = add.parse_ir()
     statement = ir.body[1].body[0]
     value = statement.value
-    if change == "div":
+    if change == "floordiv":
         value = replace(value, op=change)
     if change == "nested":
         value = replace(value, rhs=value)

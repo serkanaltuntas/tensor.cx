@@ -10,7 +10,7 @@ require a compiler SDK at runtime. Explicit custom-kernel compilation does.
 | --- | --- | --- |
 | Metal / MSL | Restricted Python kernel DSL, float32 elementwise and bounded rowwise reductions | Apple Metal compiler tools and an available Metal device |
 | CPU / MLIR | Guarded float32 elementwise compile and launch | Validated on Linux x86_64 with LLVM/MLIR 21.1.8 |
-| CUDA / MLIR | Guarded float32 add/subtract/multiply and bounded local/nested expressions | Validated CPU toolchain plus CUDA toolkit 12.4, CUDA Driver API 13.0, and sm_52 hardware |
+| CUDA / MLIR | Guarded float32 add/subtract/multiply/divide and bounded local/nested expressions | Validated CPU toolchain plus CUDA toolkit 12.4, CUDA Driver API 13.0, and sm_52 hardware |
 
 ## Explicit compilation
 
@@ -18,6 +18,14 @@ The MLIR path is selected using `kernel.compile(target="cpu", compiler="mlir")`
 or `kernel.compile(target="cuda", compiler="mlir")` on a supported experimental
 kernel. External LLVM tools must be discoverable through the documented
 toolchain setup. A missing toolchain or unsupported kernel fails explicitly.
+
+Float32 `/` works in guarded CPU/CUDA bodies, including local and nested
+expressions. Both operands must be float32; use `2.0` instead of `2`. The
+tests compare CPU/CUDA division with the CPU reference for signed zero, NaN,
+infinity and subnormals. Direct Metal kernels also accept float32 division, with
+finite-input parity at the existing tolerances. See the
+[division contract and example](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/MLIR_DIVISION.md)
+for numerical limits and unchanged launch/alias rules.
 
 Compiled CPU/CUDA/Metal code is cached in private local storage by default,
 including across process restarts. Inspect `compiled.cache_hit` for reuse, or

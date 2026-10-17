@@ -16,7 +16,7 @@ LOWER_FLAGS = ["--convert-scf-to-cf", "--convert-gpu-to-nvvm=index-bitwidth=64",
                "--reconcile-unrealized-casts"]
 SERIALIZE_FLAGS = ["--nvvm-attach-target=chip=sm_52 features=+ptx78 O=2",
                    "--gpu-module-to-binary=format=assembly"]
-OPERATIONS = {"add": "arith.addf", "sub": "arith.subf", "mul": "arith.mulf"}
+OPERATIONS = {"add": "arith.addf", "sub": "arith.subf", "mul": "arith.mulf", "div": "arith.divf"}
 
 
 def entry_name(operation):
@@ -95,6 +95,7 @@ def signature(ir):
         reject("requires three tensors and one uint32 bound")
     value = body[-1].value
     if (len(body) == 1 and isinstance(value, IRBinaryOp)
+            and value.op in {"add", "sub", "mul"}
             and isinstance(value.lhs, IRLoad) and isinstance(value.rhs, IRLoad)):
         return (kinds, output_index, guard, ir.parameters.index(value.lhs.buffer),
                 ir.parameters.index(value.rhs.buffer), value.op)

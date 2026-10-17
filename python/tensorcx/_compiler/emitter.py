@@ -63,7 +63,7 @@ _INT_TYPES = ("u32", "s32")
 # Keyed by the IR's operator names (see _SUPPORTED_BINARY_OPS/_SUPPORTED_
 # COMPARE_OPS in tensorcx.experimental), not by Python symbols.
 _INT_BINARY_OPS = {"add": "arith.addi", "sub": "arith.subi", "mul": "arith.muli"}
-_FLOAT_BINARY_OPS = {"add": "arith.addf", "sub": "arith.subf", "mul": "arith.mulf"}
+_FLOAT_BINARY_OPS = {"add": "arith.addf", "sub": "arith.subf", "mul": "arith.mulf", "div": "arith.divf"}
 _UNSIGNED_ORDERED_PREDICATES = {"lt": "ult", "lte": "ule", "gt": "ugt", "gte": "uge"}
 _SIGNED_ORDERED_PREDICATES = {"lt": "slt", "lte": "sle", "gt": "sgt", "gte": "sge"}
 _EQUALITY_PREDICATES = {"eq": "eq", "neq": "ne"}

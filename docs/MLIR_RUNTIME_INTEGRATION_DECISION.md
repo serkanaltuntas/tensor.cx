@@ -223,7 +223,9 @@ assert out.numpy()[0] == 0.0
 The runtime subset requires the canonical global-index assignment shown above,
 followed by one `if index < bound` body. Every load/store uses that same index;
 body expressions use float32 loads, floating constants, local values and
-`+`/`-`/`*`. Local assignments follow existing DSL rules (no reassignment).
+`+`/`-`/`*`/`/`. Division was added on 2026-10-17; its float-only typing and
+numerical contract are in [MLIR_DIVISION.md](MLIR_DIVISION.md).
+Local assignments follow existing DSL rules (no reassignment).
 All parameters must be used as buffers or the uint32 bound. This structural
 restriction proves bounds safety before compilation; it is narrower than the
 research emitter. Public multidimensional shapes remain exact-match metadata,
@@ -244,7 +246,7 @@ Tool failures, version mismatches and per-command 60-second timeouts raise
 `KernelCompileError`/`ValueError`/`TypeError`. No interpreter fallback occurs.
 The CPU runtime supports Linux x86_64 only; the existing MSL/Metal API remains
 the default. Rowsum/reductions and generated Metal via MLIR remain deferred;
-the narrow CUDA add/subtract/multiply extension is documented in the [CUDA record](MLIR_CUDA_INTEGRATION_DECISION.md).
+the narrow CUDA arithmetic extension is documented in the [CUDA record](MLIR_CUDA_INTEGRATION_DECISION.md).
 
 ## Implementation validation — 2026-09-28
 

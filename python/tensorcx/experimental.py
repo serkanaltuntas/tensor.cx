@@ -25,6 +25,7 @@ _SUPPORTED_BINARY_OPS = {
     ast.Add: "add",
     ast.Sub: "sub",
     ast.Mult: "mul",
+    ast.Div: "div",
 }
 _SUPPORTED_COMPARE_OPS = {
     ast.Lt: "lt",
@@ -43,6 +44,7 @@ _MSL_BINARY_OPS = {
     "add": "+",
     "sub": "-",
     "mul": "*",
+    "div": "/",
 }
 _MSL_COMPARE_OPS = {
     "lt": "<",
@@ -1016,6 +1018,11 @@ def _reference_execute(kernel_ir, arrays, scalars, thread_count, block_size):
                     return ("float", np.float32(lhs_f + rhs_f))
                 if expression.op == "sub":
                     return ("float", np.float32(lhs_f - rhs_f))
+                if expression.op == "div":
+                    # Hardware division returns IEEE values rather than Python
+                    # exceptions, including when callers set NumPy to raise.
+                    with np.errstate(all="ignore"):
+                        return ("float", np.divide(lhs_f, rhs_f, dtype=np.float32))
                 return ("float", np.float32(lhs_f * rhs_f))
             tag = "uint" if "uint" in (lhs_tag, rhs_tag) else "int"
             if expression.op == "add":
@@ -1763,11 +1770,14 @@ def _emit_msl_statement(
             f"{_emit_msl_expression(statement.value, builtin_names)};"
         ]
     if isinstance(statement, IRStore):
+        _infer_msl_type(statement.index, context)
+        _infer_msl_type(statement.value, context)
         return [
             f"{prefix}{statement.buffer}[{_emit_msl_expression(statement.index, builtin_names)}] = "
             f"{_emit_msl_expression(statement.value, builtin_names)};"
         ]
     if isinstance(statement, IRIf):
+        _infer_msl_type(statement.condition, context)
         nested_context = dict(context)
         lines = [f"{prefix}if ({_emit_msl_expression(statement.condition, builtin_names)}) {{"]
         lines.extend(
@@ -1844,14 +1854,19 @@ def _infer_msl_type(expression: IRExpression, context: dict[str, str]) -> str:
     if isinstance(expression, IRCall):
         return "uint"
     if isinstance(expression, IRLoad):
+        _infer_msl_type(expression.index, context)
         return "float"
     if isinstance(expression, IRName):
         return context.get(expression.name, "uint")
     if isinstance(expression, IRCompare):
+        _infer_msl_type(expression.lhs, context)
+        _infer_msl_type(expression.rhs, context)
         return "bool"
     if isinstance(expression, IRBinaryOp):
         lhs_type = _infer_msl_type(expression.lhs, context)
         rhs_type = _infer_msl_type(expression.rhs, context)
+        if expression.op == "div" and (lhs_type != "float" or rhs_type != "float"):
+            raise KernelCompileError("division requires two float32 operands")
         if "float" in {lhs_type, rhs_type}:
             return "float"
         if "int" in {lhs_type, rhs_type}:

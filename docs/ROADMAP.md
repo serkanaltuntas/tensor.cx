@@ -105,7 +105,7 @@ it does not add LLVM/MLIR to the C++ core or backend build. See PROJECT.md §16 
 
 - **MLIR CUDA integration.** The [CPU-first runtime slice](MLIR_RUNTIME_INTEGRATION_DECISION.md)
   is implemented. The [CUDA ABI/toolchain decision](MLIR_CUDA_INTEGRATION_DECISION.md)
-  and guarded add/subtract/multiply runtime are implemented on sm_52 with primary-context and
+  and guarded add/subtract/multiply/divide runtime are implemented on sm_52 with primary-context and
   native module ownership through tensor.cx buffers. The [guarded local-expression
   scope](MLIR_CUDA_EXPRESSIONS_DECISION.md) is implemented with bounded local/nested
   arithmetic. The [CUDA product completion goal](CUDA_PRODUCT_COMPLETION.md)
@@ -154,7 +154,8 @@ documentation. This order does not claim that later packages are implemented.
    Metal memory reporting remains open. See [DIAGNOSTICS.md](DIAGNOSTICS.md).
 8. **Compiler/performance:** persistent CPU/CUDA/Metal cache, public compile/launch
    latency measurements and separate compilation profiles implemented;
-   [contract](COMPILATION_CACHE.md). Broader runtime profiling, MLIR operations
+   [contract](COMPILATION_CACHE.md). [Float32 kernel division](MLIR_DIVISION.md)
+   is implemented. Broader runtime profiling, MLIR operations
    and measured kernel fusion remain open.
 9. **Dtypes:** CUDA int32 arithmetic gaps; FP16/BF16 on suitable hardware.
 10. **Memory pool and asynchronous execution:** reduce allocation and waiting costs.

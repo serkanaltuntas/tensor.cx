@@ -46,10 +46,11 @@ v0.1 target:            achieved at end of Phase 3
 Binding decided:        nanobind (see §5.6)
 MLIR decided:           optional CPU-first runtime integration implemented; see
                         docs/MLIR_RUNTIME_INTEGRATION_DECISION.md (2026-09-28)
-CUDA MLIR:              guarded float32 add/subtract/multiply implemented on sm_52;
+CUDA MLIR:              guarded float32 add/subtract/multiply/divide implemented on sm_52;
                         docs/MLIR_CUDA_INTEGRATION_DECISION.md (updated 2026-09-29)
 Expressions:            bounded CUDA local/nested expressions implemented
                         docs/MLIR_CUDA_EXPRESSIONS_DECISION.md (2026-09-29)
+Division increment:     float32 DSL/MLIR division; docs/MLIR_DIVISION.md (2026-10-17)
 Active user goal:       complete CUDA product list; docs/CUDA_PRODUCT_COMPLETION.md
 CUDA primitives:        float32 matmul, reductions, activations and normalization
                         implemented; docs/CUDA_PRIMITIVES_VALIDATION.md

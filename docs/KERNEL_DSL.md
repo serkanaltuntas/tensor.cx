@@ -127,7 +127,7 @@ one-dimensional tensor load syntax
 cx.experimental.program_id(0)
 cx.experimental.thread_id()
 cx.experimental.block_size()
-+, -, *
++, -, *, / (division requires two float32 operands)
 single comparisons: <, <=, >, >=, ==, !=
 if blocks without else
 numeric constants
@@ -255,10 +255,13 @@ ownership, toolchain errors, and validation are maintained in the
 ## Optional MLIR CUDA elementwise compilation
 
 `kernel.compile(target="cuda", compiler="mlir").launch(...)` executes the narrow
-guarded float32 add/subtract/multiply subset and returns a new CUDA tensor without mutating the
+guarded float32 add/subtract/multiply/divide subset and returns a new CUDA tensor without mutating the
 supplied output. The canonical index/guard and exact shapes are required; the
 two input parameter names must differ, but tensor arguments may alias.
 Supported host/toolchain, block limits, context/module ownership and verification
 are maintained in the [CUDA integration record](MLIR_CUDA_INTEGRATION_DECISION.md).
 Bounded locals and nested arithmetic are supported by the
 [expression extension](MLIR_CUDA_EXPRESSIONS_DECISION.md), with separate float32 rounding.
+
+The [float32 division extension](MLIR_DIVISION.md) specifies operand types,
+CPU/CUDA numerical edges and the direct MSL validation limits.

@@ -24,13 +24,14 @@ canonical global index and the single outer `if i < n` guard. Inside that guard:
   `out[i] = expression` store. Locals are assigned once, cannot shadow parameters
   or the index, and may reference only earlier locals.
 - Expressions contain canonical `a[i]`/`b[i]` loads, earlier float32 locals,
-  finite float literals, and nested `+`, `-`, `*`. Both input parameters must
+  finite float literals, and nested `+`, `-`, `*`, `/`. Float-only division was
+  added on 2026-10-17; see [MLIR_DIVISION.md](MLIR_DIVISION.md). Both input parameters must
   occur in loads. Repeated loads and reuse of a local are allowed.
 - Reject reads from the output parameter, multiple stores, statements after
   the store, undefined/reassigned locals, and locals outside the guard. Actual
   tensor objects may still alias, including input/output aliases.
 - Reject integer/bool literals in arithmetic, runtime float scalar arguments,
-  division, comparisons in the body, branches, loops, reductions, indexing
+  integer/mixed division, comparisons in the body, branches, loops, reductions, indexing
   other than `i`, extra parameters, broadcasting and non-contiguous views.
 - Bound this first compiler slice to 32 local assignments, 64 binary arithmetic
   nodes in the guarded body and expression-tree depth 16. A leaf has depth 1;
