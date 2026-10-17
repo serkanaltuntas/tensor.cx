@@ -3,6 +3,7 @@
 #include "batched_matmul_contract.h"
 #include "math_contract.h"
 #include "inference_contract.h"
+#include "int32_contract.h"
 
 #include <array>
 #include <bit>
@@ -155,8 +156,7 @@ void arithmetic_contract(cuda::CudaBackend& backend) {
     inputs[1] = cuda::to_core_tensor(smaller);
   }
   inputs[0] = cuda::to_core_tensor(i32);
-  for (const auto kind : {OpKind::kNegate, OpKind::kAddScalar, OpKind::kSubtractScalar,
-                         OpKind::kMultiplyScalar, OpKind::kDivideScalar}) {
+  for (const auto kind : {OpKind::kDivideScalar}) {
     BackendExecution execution{BackendOpClass::kPrimitive, OpDesc{kind}, std::span(inputs).first(1), outputs};
     invalid(backend.execute(execution));
     require(outputs[0].buffer == previous, "unary dtype failure changed output");
@@ -371,7 +371,7 @@ int main() {
         case 1: outputs[0].device.index = 1; break;
         case 2: outputs[0].offset = 1; break;
         case 3: outputs[0].strides = {2}; break;
-        case 4: outputs[0].dtype = DType::kInt32; break;
+        case 4: outputs[0].dtype = static_cast<DType>(255); break;
         case 5: outputs[0].buffer = cpu::CpuTensor(DType::kFloat32, {3}).buffer(); break;
       }
       invalid(backend.execute(fill));
@@ -470,6 +470,9 @@ int main() {
       [](const cpu::CpuTensor& value) { return cuda::to_core_tensor(cuda::from_cpu(value).value()); },
       [](const Tensor& value) { return cuda::to_cpu(cuda::from_core_tensor(value).value()).value(); });
     arithmetic_contract(backend);
+    int32_contract(backend,
+      [](const cpu::CpuTensor& value) { return cuda::to_core_tensor(cuda::from_cpu(value).value()); },
+      [](const Tensor& value) { return cuda::to_cpu(cuda::from_core_tensor(value).value()).value(); });
     cast_contract(backend);
     broadcast_contract(backend);
     transpose_contract(backend);

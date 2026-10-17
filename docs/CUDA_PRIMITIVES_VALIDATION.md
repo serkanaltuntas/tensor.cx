@@ -14,15 +14,15 @@ not completion of compatibility, performance, GPU CI or distribution work.
 All operations compute on CUDA device 0, use `CudaBackend::execute`, retain
 primary-context ownership, run synchronously and publish a new output only on
 success. Input tensors remain unchanged. Arithmetic inputs must be contiguous
-float32 tensor.cx CUDA tensors; explicit casts also support int32 and bool. No implicit
+float32 or supported int32 tensor.cx CUDA tensors; explicit casts also support bool. No implicit
 CPU fallback or dtype conversion is introduced.
 
 | Operation | Contract |
 | --- | --- |
-| `+`, `-`, `*`, `/`, unary `-` | Float32; broadcast-compatible binary shapes; real scalars in either position; [API contract](TENSOR_API.md) |
+| `+`, `-`, `*`, `/`, unary `-` | Float32/int32, except float32-only division; broadcast-compatible binary shapes and scalars in either position; [API contract](TENSOR_API.md) |
 | `astype` | Explicit float32/int32/bool conversion on the same device; checked float-to-int truncation; [API contract](TENSOR_API.md#explicit-dtype-conversion) |
 | `matmul` / `@` | Rank >= 1, vector promotion and broadcasted batch axes; [matmul contract](TENSOR_API.md#batched-matrix-multiplication); `auto` and `custom` use the tiled CUDA kernel; `optimized` and unknown preferences fail explicitly |
-| `sum`, `max`, `mean` | `axis=None` (all axes), integer or axis sequence; `keepdims` retains selected dimensions; `()` copies; [reduction semantics](TENSOR_API.md#reduction-dimensions) |
+| `sum`, `max`, `mean` | Float32/int32 sum/max, float32 mean; `axis=None` (all axes), integer or axis sequence; `keepdims` retains selected dimensions; `()` copies; [reduction semantics](TENSOR_API.md#reduction-dimensions) |
 | `log`, `sqrt` | Float32; IEEE domain results; [math contract](TENSOR_API.md#math-and-selection) |
 | `abs`, `min`, `argmax`, `clip`, `topk` | Float32/int32; native math and deterministic selection, int32 indices; [math contract](TENSOR_API.md#math-and-selection) |
 | `exp`, `gelu`, `silu` | Shape-preserving; GELU uses the same tanh approximation as CPU |
@@ -31,8 +31,9 @@ CPU fallback or dtype conversion is introduced.
 
 Zero-size matmul outputs do not launch; `k=0` produces zeros. Empty normalization
 outputs do not launch. Int32 supports copies, shape operations, explicit casts,
-comparisons/selection and the math extension above. Int32 add/subtract/multiply/negate,
-sum and max remain explicitly unsupported on CUDA. Existing static fill/add/multiply
+comparisons/selection and the math extension above. The 2026-10-17
+[int32 extension](CUDA_INT32.md) adds native fill/add/subtract/multiply/negate,
+scalar arithmetic and sum/max. Existing static float32 fill/add/multiply
 and generated MLIR paths are preserved. The strict sm_52 MLIR toolchain gate
 is unchanged; these primitive kernels are ordinary build-time CUDA kernels.
 

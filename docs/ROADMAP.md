@@ -51,6 +51,7 @@ for discovery and copies. See [validation evidence](CUDA_PHASE9_VALIDATION.md).
 
 - Optional CUDA backend: device 0 discovery, float32/int32 CPU↔CUDA copies,
   float32 fill/add/multiply, matmul, sum/max/mean, exp/GELU/SiLU, softmax/RMSNorm/LayerNorm;
+  [int32 fill, arithmetic and sum/max](CUDA_INT32.md);
   synchronous execution through the shared ABI. [Extended primitive validation](CUDA_PRIMITIVES_VALIDATION.md).
 - CPU reference backend: `float32`/`int32`, contiguous 1-D/2-D, add / multiply /
   fill / zeros / ones / empty, exact NumPy round-trip.
@@ -61,7 +62,7 @@ for discovery and copies. See [validation evidence](CUDA_PHASE9_VALIDATION.md).
 - Matmul: a naive custom MSL `matmul_f32` (correctness-first) **and** an MPSGraph
   optimized path. Removing the MPSGraph path leaves a working slow matmul — the
   project is not an MPSGraph wrapper (PROJECT.md §9.2).
-- Reductions: `sum` and `max` on CPU and Metal for `float32` and `int32`, plus
+- Reductions: `sum` and `max` on CPU, Metal and CUDA for `float32` and `int32`, plus
   `mean` for `float32`, with all-axis, single-axis and multi-axis selection, and
   CPU-vs-Metal tests on non-trivial axes.
 - Unary float32 activations: `exp`, `gelu` (tanh approximation), and `silu` on
@@ -157,7 +158,8 @@ documentation. This order does not claim that later packages are implemented.
    [contract](COMPILATION_CACHE.md). [Float32 kernel division](MLIR_DIVISION.md)
    and [comparison/select](MLIR_SELECT.md) are implemented. Broader runtime profiling, MLIR operations
    and measured kernel fusion remain open.
-9. **Dtypes:** CUDA int32 arithmetic gaps; FP16/BF16 on suitable hardware.
+9. **Dtypes:** CUDA int32 fill/arithmetic/sum/max implemented;
+   [contract and verification](CUDA_INT32.md). FP16/BF16 remain open on suitable hardware.
 10. **Memory pool and asynchronous execution:** reduce allocation and waiting costs.
 11. **Portable distribution:** Linux x86_64 CPU manylinux wheel pipeline implemented
     for CPython 3.11–3.13; [contract](PORTABLE_WHEELS.md). macOS/CUDA portable

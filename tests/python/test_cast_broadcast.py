@@ -117,13 +117,9 @@ def test_broadcast_int32_contract(device_name, lhs_shape, rhs_shape):
     b = np.resize(np.array([2, -1, 0, 3], dtype=np.int32), rhs_shape)
     x, y = cx.tensor(a, device=device_name), cx.tensor(b, device=device_name)
     for op in (operator.add, operator.sub, operator.mul):
-        if device_name == "cuda":
-            with pytest.raises(ValueError, match="float32"):
-                op(x, y)
-        else:
-            with np.errstate(over="ignore"):
-                expected = op(a, b)
-            np.testing.assert_array_equal(op(x, y).numpy(), expected)
+        with np.errstate(over="ignore"):
+            expected = op(a, b)
+        np.testing.assert_array_equal(op(x, y).numpy(), expected)
     with pytest.raises(ValueError, match="float32"):
         x / y
 

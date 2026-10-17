@@ -22,7 +22,8 @@ try:
 finally:
     sys.path.pop(0)
 TEST_FILES = ('test_cuda.py', 'test_cuda_primitives.py', 'test_mlir_cuda_runtime.py',
-              'test_mlir_cuda_expressions.py', 'test_mlir_division.py', 'test_mlir_select.py', 'test_tensor_api.py', 'test_cast_broadcast.py',
+              'test_mlir_cuda_expressions.py', 'test_mlir_division.py', 'test_mlir_select.py',
+              'test_int32_primitives.py', 'test_tensor_api.py', 'test_cast_broadcast.py',
               'test_shape_ops.py', 'test_multi_axis_reductions.py', 'test_indexing_joining.py', 'test_boolean_masks.py', 'test_batched_matmul.py', 'test_math_ops.py', 'test_inference_ops.py', 'test_dlpack.py')
 
 
@@ -84,7 +85,8 @@ def validate(revision, llvm_bin):
                TENSORCX_REQUIRE_BACKENDS='cuda', TENSORCX_REQUIRE_CUDA='1',
                TENSORCX_REQUIRE_MLIR='1', TENSORCX_REQUIRE_MLIR_CUDA='1',
                TENSORCX_REQUIRE_BACKEND_CAPABILITIES='cuda:copy,cuda:tensor_factories_float32,'
-               'cuda:binary_ops_float32,cuda:unary_float32,cuda:reductions_float32,cuda:normalization_float32')
+               'cuda:binary_ops_float32,cuda:unary_float32,cuda:reductions_float32,cuda:normalization_float32,'
+               'cuda:tensor_factories_int32,cuda:binary_ops_int32,cuda:binary_ops_dtype_mismatch,cuda:reductions_int32')
     resolved = subprocess.check_output(['git', 'rev-parse', '--verify', '--end-of-options', revision + '^{commit}'],
                                        cwd=ROOT, text=True).strip()
     stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')
@@ -131,6 +133,8 @@ def validate(revision, llvm_bin):
                  'test_gpu_emitter_division_rounding',
                  'test_select_parity', 'test_select_ieee_predicates_and_value_bits',
                  'test_gpu_emitter_select_predicates',
+                 'test_int32_binary_exact_wrap', 'test_int32_scalar_precision_and_order',
+                 'test_int32_reductions_exact_wrap', 'test_int32_grid_stride_tail',
                  'test_keepdims_matches_numpy_and_methods',
                  'test_astype_values_shape_device_and_storage',
                  'test_broadcast_float32_numpy_and_cpu_parity',

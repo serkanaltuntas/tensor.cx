@@ -7,7 +7,8 @@ namespace tensorcx::cuda {
 namespace {
 constexpr unsigned kThreads = 256;
 
-__global__ void fill_f32(float* output, std::size_t count, float value) {
+template<typename T>
+__global__ void fill_numeric(T* output, std::size_t count, T value) {
   for (std::size_t i = std::size_t(blockIdx.x) * blockDim.x + threadIdx.x;
        i < count; i += std::size_t(blockDim.x) * gridDim.x) {
     output[i] = value;
@@ -21,7 +22,16 @@ __device__ float arithmetic(float lhs, float rhs, OpKind op) {
   return __fdiv_rn(lhs, rhs);
 }
 
-__global__ void binary_f32(const float* lhs, const float* rhs, float* output,
+// Read/store int32 through the corresponding unsigned type. Every operation
+// is modulo 2^32, including INT_MIN negation, with no signed-overflow UB.
+__device__ std::uint32_t arithmetic(std::uint32_t lhs, std::uint32_t rhs, OpKind op) {
+  if (op == OpKind::kAdd || op == OpKind::kAddScalar) return lhs + rhs;
+  if (op == OpKind::kSubtract || op == OpKind::kSubtractScalar) return lhs - rhs;
+  return lhs * rhs;
+}
+
+template<typename T>
+__global__ void binary_numeric(const T* lhs, const T* rhs, T* output,
                            std::size_t count, OpKind op) {
   for (std::size_t i = std::size_t(blockIdx.x) * blockDim.x + threadIdx.x;
        i < count; i += std::size_t(blockDim.x) * gridDim.x) {
@@ -29,7 +39,8 @@ __global__ void binary_f32(const float* lhs, const float* rhs, float* output,
   }
 }
 
-__global__ void broadcast_binary_f32(const float* lhs, const float* rhs, float* output,
+template<typename T>
+__global__ void broadcast_binary_numeric(const T* lhs, const T* rhs, T* output,
                                      std::size_t count, OpKind op,
                                      const Dim* metadata, std::size_t rank) {
   for (std::size_t i = std::size_t(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -94,11 +105,12 @@ __global__ void cast_i32_f32(const std::int32_t* input, float* output, std::size
   }
 }
 
-__global__ void scalar_f32(const float* input, float* output, std::size_t count,
-                           OpKind op, float scalar, bool scalar_left) {
+template<typename T>
+__global__ void scalar_numeric(const T* input, T* output, std::size_t count,
+                               OpKind op, T scalar, bool scalar_left) {
   for (std::size_t i = std::size_t(blockIdx.x) * blockDim.x + threadIdx.x;
        i < count; i += std::size_t(blockDim.x) * gridDim.x) {
-    const float value = input[i];
+    const T value = input[i];
     output[i] = scalar_left ? arithmetic(scalar, value, op) : arithmetic(value, scalar, op);
   }
 }
@@ -113,23 +125,37 @@ cudaError_t finish_launch() {
 }
 }  // namespace
 
-cudaError_t launch_fill(float* output, std::size_t count, float value) {
+cudaError_t launch_fill(void* output, std::size_t count, double value, DType dtype) {
   if (count == 0) return cudaSuccess;
-  fill_f32<<<blocks(count), kThreads>>>(output, count, value);
+  if (dtype == DType::kInt32)
+    fill_numeric<<<blocks(count), kThreads>>>(static_cast<std::int32_t*>(output), count,
+                                             static_cast<std::int32_t>(value));
+  else
+    fill_numeric<<<blocks(count), kThreads>>>(static_cast<float*>(output), count, static_cast<float>(value));
   return finish_launch();
 }
 
-cudaError_t launch_binary(const float* lhs, const float* rhs, float* output,
-                          std::size_t count, OpKind op) {
+cudaError_t launch_binary(const void* lhs, const void* rhs, void* output,
+                          std::size_t count, OpKind op, DType dtype) {
   if (count == 0) return cudaSuccess;
-  binary_f32<<<blocks(count), kThreads>>>(lhs, rhs, output, count, op);
+  if (dtype == DType::kInt32)
+    binary_numeric<<<blocks(count), kThreads>>>(static_cast<const std::uint32_t*>(lhs),
+        static_cast<const std::uint32_t*>(rhs), static_cast<std::uint32_t*>(output), count, op);
+  else
+    binary_numeric<<<blocks(count), kThreads>>>(static_cast<const float*>(lhs),
+        static_cast<const float*>(rhs), static_cast<float*>(output), count, op);
   return finish_launch();
 }
-cudaError_t launch_broadcast_binary(const float* lhs, const float* rhs, float* output,
+cudaError_t launch_broadcast_binary(const void* lhs, const void* rhs, void* output,
                                     std::size_t count, OpKind op,
-                                    const Dim* metadata, std::size_t rank) {
+                                    const Dim* metadata, std::size_t rank, DType dtype) {
   if (count == 0) return cudaSuccess;
-  broadcast_binary_f32<<<blocks(count), kThreads>>>(lhs, rhs, output, count, op, metadata, rank);
+  if (dtype == DType::kInt32)
+    broadcast_binary_numeric<<<blocks(count), kThreads>>>(static_cast<const std::uint32_t*>(lhs),
+        static_cast<const std::uint32_t*>(rhs), static_cast<std::uint32_t*>(output), count, op, metadata, rank);
+  else
+    broadcast_binary_numeric<<<blocks(count), kThreads>>>(static_cast<const float*>(lhs),
+        static_cast<const float*>(rhs), static_cast<float*>(output), count, op, metadata, rank);
   return finish_launch();
 }
 
@@ -176,10 +202,16 @@ cudaError_t launch_cast(const void* input, void* output, std::size_t count, DTyp
   }
   return finish_launch();
 }
-cudaError_t launch_scalar(const float* input, float* output, std::size_t count,
-                          OpKind op, float scalar, bool scalar_left) {
+cudaError_t launch_scalar(const void* input, void* output, std::size_t count,
+                          OpKind op, double scalar, bool scalar_left, DType dtype) {
   if (count == 0) return cudaSuccess;
-  scalar_f32<<<blocks(count), kThreads>>>(input, output, count, op, scalar, scalar_left);
+  if (dtype == DType::kInt32)
+    scalar_numeric<<<blocks(count), kThreads>>>(static_cast<const std::uint32_t*>(input),
+        static_cast<std::uint32_t*>(output), count, op,
+        static_cast<std::uint32_t>(static_cast<std::int32_t>(scalar)), scalar_left);
+  else
+    scalar_numeric<<<blocks(count), kThreads>>>(static_cast<const float*>(input),
+        static_cast<float*>(output), count, op, static_cast<float>(scalar), scalar_left);
   return finish_launch();
 }
 }  // namespace tensorcx::cuda

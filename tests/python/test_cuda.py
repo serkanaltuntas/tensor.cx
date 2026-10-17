@@ -47,14 +47,13 @@ def test_cuda_registry_discovery(cuda):
         cx.ones((1,), device="cuda:1")
 
 
-def test_cuda_int32_copy_but_no_arithmetic(cuda):
+def test_cuda_int32_copy_and_arithmetic(cuda):
     a = cx.tensor([1, -2147483648, 2147483647], dtype=cx.int32, device=cuda)
     assert a.numpy().tolist() == [1, -2147483648, 2147483647]
-    for operation in (lambda: a + a, lambda: a * a,
-                      lambda: cx.zeros((1,), dtype=cx.int32, device=cuda),
-                      lambda: cx.ones((0,), dtype=cx.int32, device=cuda)):
-        with pytest.raises(ValueError, match="only support.*float32"):
-            operation()
+    assert (a + a).numpy().tolist() == [2, 0, -2]
+    assert (a * a).numpy().tolist() == [1, 0, 1]
+    assert cx.zeros((1,), dtype=cx.int32, device=cuda).numpy().tolist() == [0]
+    assert cx.ones((0,), dtype=cx.int32, device=cuda).shape == (0,)
 
 
 @pytest.mark.parametrize("operation", [

@@ -43,8 +43,10 @@ For `where`/masked selection these describe the selected data; the mask still
 requires bool. Output dtype, other operands, shapes, axis/scalar restrictions,
 and matmul algorithm choices remain governed by [TENSOR_API.md](TENSOR_API.md).
 Capability metadata is declared support, not a kernel execution probe. CUDA
-int32 storage/copies, casts, predicates, indexing and selected math operations
-do not imply int32 fill/arithmetic/sum/max support. Reports expose those gaps.
+int32 fill, add/subtract/multiply/negate and sum/max are included alongside
+storage/copies, casts, predicates, indexing and selected math operations.
+Division, mean, matmul and floating activations still declare float32 only;
+see [the int32 validation record](CUDA_INT32.md).
 
 `memory_info(device)` returns `scope`, `total_bytes` and `available_bytes`:
 
@@ -74,7 +76,7 @@ tool output. It is local-only and is never uploaded automatically.
 ## Verification
 
 `tests/python/test_diagnostics.py` executes every declared built-in
-operation/dtype pair on available backends, checks unsupported CUDA int32 gaps,
+operation/dtype pair on available backends, checks CUDA int32 support and remaining float32-only operations,
 report isolation, unavailable/hidden devices, bounded opt-in tool checks,
 standalone CLI import failure and CUDA foreign-context preservation. Fresh
 CPU/CUDA wheel checks must also verify the packaged standalone module and CLI.

@@ -45,12 +45,6 @@ def test_arithmetic_int32_contract(device_name, shape):
     a = np.resize(np.array([-2**31, 2**31 - 1, -1, 0], dtype=np.int32), shape)
     b = np.full(shape, 2, dtype=np.int32)
     x, y = cx.tensor(a, device=device_name), cx.tensor(b, device=device_name)
-    if device_name == "cuda":
-        for fn in (lambda: x - y, lambda: -x, lambda: x + 2,
-                   lambda: 2 - x, lambda: x * 2, lambda: 2 / x):
-            with pytest.raises(ValueError, match="float32"):
-                fn()
-        return
     for op in (operator.add, operator.sub, operator.mul):
         for rhs in (y, 2, -(2**31), np.int64(2**31 - 1)):
             ref = b if rhs is y else np.int32(rhs)
@@ -175,11 +169,10 @@ def test_keepdims_empty_and_int32_contract(device_name):
     assert np.isnan(empty.mean(1, keepdims=True).numpy()).all()
     with pytest.raises(ValueError):
         empty.max(1, keepdims=True)
-    if device_name != "cuda":
-        x = cx.tensor([[1, 2], [3, 4]], device=device_name)
-        np.testing.assert_array_equal(x.sum(-1, keepdims=True).numpy(), [[3], [7]])
-        np.testing.assert_array_equal(x.max(0, keepdims=True).numpy(), [[3, 4]])
-        assert x.sum(0, keepdims=True).dtype == cx.int32
+    x = cx.tensor([[1, 2], [3, 4]], device=device_name)
+    np.testing.assert_array_equal(x.sum(-1, keepdims=True).numpy(), [[3], [7]])
+    np.testing.assert_array_equal(x.max(0, keepdims=True).numpy(), [[3, 4]])
+    assert x.sum(0, keepdims=True).dtype == cx.int32
 
 
 def test_keepdims_validates_before_execution(device_name):

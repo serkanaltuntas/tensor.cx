@@ -1,5 +1,6 @@
 #include "tensorcx/backends/cuda/cuda_kernels.h"
 #include <algorithm>
+#include <climits>
 #include <cuda_runtime.h>
 #include <math_constants.h>
 
@@ -27,6 +28,29 @@ __global__ void unary(const float* x, float* out, std::size_t n, OpKind op) {
     }
   }
 }
+__global__ void negate_i32(const std::uint32_t* input, std::uint32_t* output, std::size_t n) {
+  for (std::size_t i = std::size_t(blockIdx.x) * blockDim.x + threadIdx.x;
+       i < n; i += std::size_t(blockDim.x) * gridDim.x)
+    output[i] = 0U - input[i];
+}
+
+__global__ void axis_i32(const std::int32_t* input, std::int32_t* output,
+                         std::size_t groups, std::size_t reduce, std::size_t inner, OpKind op) {
+  for (std::size_t group = std::size_t(blockIdx.x) * blockDim.x + threadIdx.x;
+       group < groups; group += std::size_t(blockDim.x) * gridDim.x) {
+    const auto base = (group / inner) * reduce * inner + group % inner;
+    std::uint32_t sum = 0;
+    std::int32_t maximum = INT_MIN;
+    for (std::size_t r = 0; r < reduce; ++r) {
+      const auto item = input[base + r * inner];
+      if (op == OpKind::kMax) { if (maximum < item) maximum = item; }
+      else sum += static_cast<std::uint32_t>(item);
+    }
+    if (op == OpKind::kMax) output[group] = maximum;
+    else reinterpret_cast<std::uint32_t*>(output)[group] = sum;
+  }
+}
+
 // One lane per independent slice preserves the CPU accumulation order. Keep
 // this path for short rows and strided axes, where neighboring lanes coalesce.
 __global__ void axis_kernel(const float* x,float* out,std::size_t groups,
@@ -190,6 +214,24 @@ __device__ std::size_t reduction_offset(std::size_t index, const Dim* metadata,
   return offset;
 }
 
+__global__ void reduce_axes_i32(const std::int32_t* input, std::int32_t* output,
+                                std::size_t groups, std::size_t reduce, const Dim* metadata,
+                                std::size_t output_rank, std::size_t rank, OpKind op) {
+  for (std::size_t group = std::size_t(blockIdx.x) * blockDim.x + threadIdx.x;
+       group < groups; group += std::size_t(blockDim.x) * gridDim.x) {
+    const auto base = reduction_offset(group, metadata, 0, output_rank);
+    std::uint32_t sum = 0;
+    std::int32_t maximum = INT_MIN;
+    for (std::size_t r = 0; r < reduce; ++r) {
+      const auto item = input[base + reduction_offset(r, metadata, output_rank, rank)];
+      if (op == OpKind::kMax) { if (maximum < item) maximum = item; }
+      else sum += static_cast<std::uint32_t>(item);
+    }
+    if (op == OpKind::kMax) output[group] = maximum;
+    else reinterpret_cast<std::uint32_t*>(output)[group] = sum;
+  }
+}
+
 __global__ void reduce_axes(const float* input, float* output, std::size_t groups,
                             std::size_t reduce, const Dim* metadata,
                             std::size_t output_rank, std::size_t rank, OpKind op) {
@@ -238,24 +280,39 @@ __global__ void matmul(const float* a,const float* b,float* out,
   }
 }
 }
-cudaError_t launch_unary(const float* x,float* out,std::size_t n,OpKind op) {
+cudaError_t launch_unary(const void* x,void* out,std::size_t n,OpKind op,DType dtype) {
   if(!n)return cudaSuccess;
-  unary<<<blocks(n),threads>>>(x,out,n,op);return finish();
+  if (dtype == DType::kInt32)
+    negate_i32<<<blocks(n),threads>>>(static_cast<const std::uint32_t*>(x), static_cast<std::uint32_t*>(out), n);
+  else
+    unary<<<blocks(n),threads>>>(static_cast<const float*>(x), static_cast<float*>(out), n, op);
+  return finish();
 }
-cudaError_t launch_axis(const float* x,float* out,std::size_t groups,std::size_t reduce,
-    std::size_t inner,OpKind op,float eps) {
+cudaError_t launch_axis(const void* x,void* out,std::size_t groups,std::size_t reduce,
+    std::size_t inner,OpKind op,float eps,DType dtype) {
   if(!groups || (!reduce && (op==OpKind::kSoftmax || op==OpKind::kRmsNorm || op==OpKind::kLayerNorm)))return cudaSuccess;
-  if (inner == 1 && reduce >= threads) {
-    staged_axis<<<static_cast<unsigned>(std::min<std::size_t>(groups,65535)),threads>>>(x,out,groups,reduce,op,eps);
+  if (dtype == DType::kInt32) {
+    axis_i32<<<blocks(groups),threads>>>(static_cast<const std::int32_t*>(x),
+        static_cast<std::int32_t*>(out), groups, reduce, inner, op);
     return finish();
   }
-  axis_kernel<<<blocks(groups),threads>>>(x,out,groups,reduce,inner,op,eps);return finish();
+  if (inner == 1 && reduce >= threads) {
+    staged_axis<<<static_cast<unsigned>(std::min<std::size_t>(groups,65535)),threads>>>(
+        static_cast<const float*>(x), static_cast<float*>(out), groups, reduce, op, eps);
+    return finish();
+  }
+  axis_kernel<<<blocks(groups),threads>>>(static_cast<const float*>(x), static_cast<float*>(out), groups, reduce, inner, op, eps);return finish();
 }
-cudaError_t launch_reduce_axes(const float* input, float* output, std::size_t groups,
+cudaError_t launch_reduce_axes(const void* input, void* output, std::size_t groups,
                                std::size_t reduce, const Dim* metadata,
-                               std::size_t output_rank, std::size_t rank, OpKind op) {
+                               std::size_t output_rank, std::size_t rank, OpKind op, DType dtype) {
   if (!groups) return cudaSuccess;
-  reduce_axes<<<blocks(groups), threads>>>(input, output, groups, reduce, metadata, output_rank, rank, op);
+  if (dtype == DType::kInt32)
+    reduce_axes_i32<<<blocks(groups), threads>>>(static_cast<const std::int32_t*>(input),
+        static_cast<std::int32_t*>(output), groups, reduce, metadata, output_rank, rank, op);
+  else
+    reduce_axes<<<blocks(groups), threads>>>(static_cast<const float*>(input),
+        static_cast<float*>(output), groups, reduce, metadata, output_rank, rank, op);
   return finish();
 }
 

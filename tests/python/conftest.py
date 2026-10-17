@@ -76,8 +76,9 @@ BACKEND_CAPABILITIES = {
             "normalization_float32",
         }
     ),
-    "cuda": frozenset({"copy", "tensor_factories_float32", "binary_ops_float32",
-                       "unary_float32", "reductions_float32", "normalization_float32"}),
+    "cuda": frozenset({"copy", "tensor_factories_float32", "tensor_factories_int32",
+                       "binary_ops_float32", "binary_ops_int32", "binary_ops_dtype_mismatch",
+                       "unary_float32", "reductions_float32", "reductions_int32", "normalization_float32"}),
 }
 
 

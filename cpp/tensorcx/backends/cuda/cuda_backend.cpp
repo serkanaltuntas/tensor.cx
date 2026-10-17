@@ -370,9 +370,20 @@ Status CudaBackend::execute(const BackendExecution& execution) {
     }
     if (is_binary_arithmetic(kind) &&
         execution.inputs[0].dtype!=execution.inputs[1].dtype) return invalid("dtype mismatch for binary operation");
+    const auto dtype = kind == OpKind::kFill ? execution.outputs[0].dtype : execution.inputs[0].dtype;
+    const bool integer_op = kind == OpKind::kFill || kind == OpKind::kNegate ||
+        kind == OpKind::kSum || kind == OpKind::kMax ||
+        (is_binary_arithmetic(kind) && kind != OpKind::kDivide) ||
+        (is_scalar_arithmetic(kind) && kind != OpKind::kDivideScalar);
+    if (dtype != DType::kFloat32 && !(dtype == DType::kInt32 && integer_op))
+      return invalid("CUDA operation only supports float32 for this dtype");
     for (const auto& input : execution.inputs) {
-      if (input.dtype!=DType::kFloat32) return invalid("CUDA operations only support float32");
+      if (input.dtype != DType::kFloat32 && !(input.dtype == DType::kInt32 && integer_op))
+        return invalid("CUDA operations only support float32");
     }
+    if (dtype == DType::kInt32 && (kind == OpKind::kFill || is_scalar_arithmetic(kind)) &&
+        !is_int32_representable(execution.op.scalar_value))
+      return invalid("fill/arithmetic scalar must be an integer in int32 range");
     if ((kind == OpKind::kSum || kind == OpKind::kMax || kind == OpKind::kMean) &&
         execution.op.reduction_axes) {
       const auto& input = execution.inputs[0];
@@ -400,9 +411,9 @@ Status CudaBackend::execute(const BackendExecution& execution) {
                                 "CUDA reduction metadata copy");
         if (!status.ok()) return status;
         const auto source = std::static_pointer_cast<CudaBuffer>(input.buffer);
-        status = runtime_status(launch_reduce_axes(static_cast<const float*>(source->data()),
-            static_cast<float*>(result.value()->data()), count, static_cast<std::size_t>(plan.reduction_size),
-            static_cast<const Dim*>(metadata.get()), plan.output_shape.size(), input.shape.size(), kind),
+        status = runtime_status(launch_reduce_axes(source->data(),
+            result.value()->data(), count, static_cast<std::size_t>(plan.reduction_size),
+            static_cast<const Dim*>(metadata.get()), plan.output_shape.size(), input.shape.size(), kind, dtype),
             "CUDA multi-axis reduction");
         if (!status.ok()) return status;
       }
@@ -412,7 +423,6 @@ Status CudaBackend::execute(const BackendExecution& execution) {
     std::optional<BroadcastPlan> broadcast;
     std::optional<MatmulPlan> matmul_plan;
     if (kind==OpKind::kFill) {
-      if(execution.outputs[0].dtype!=DType::kFloat32) return invalid("CUDA fill only supports float32");
       shape=execution.outputs[0].shape;
     } else {
       shape=execution.inputs[0].shape;
@@ -453,16 +463,16 @@ Status CudaBackend::execute(const BackendExecution& execution) {
     // Validate all metadata before touching CUDA or allocating output memory.
     ContextScope device;
     if (auto status = device.status(); !status.ok()) return status;
-    auto buffer = CudaBuffer::create(DType::kFloat32, shape);
+    auto buffer = CudaBuffer::create(dtype, shape);
     if (!buffer) return buffer.status();
-    auto* output = static_cast<float*>(buffer.value()->data());
+    auto* output = buffer.value()->data();
     const auto count = static_cast<std::size_t>(numel(shape));
     auto data=[&](std::size_t index) {
-      return static_cast<const float*>(std::static_pointer_cast<CudaBuffer>(execution.inputs[index].buffer)->data());
+      return std::static_pointer_cast<CudaBuffer>(execution.inputs[index].buffer)->data();
     };
     cudaError_t error;
     if (kind==OpKind::kFill) {
-      error=launch_fill(output,count,static_cast<float>(execution.op.scalar_value));
+      error=launch_fill(output,count,execution.op.scalar_value,dtype);
     } else if(is_binary_arithmetic(kind)) {
       if (broadcast && count) {
         // Transfer only O(rank) metadata. Inputs remain in their original
@@ -485,13 +495,13 @@ Status CudaBackend::execute(const BackendExecution& execution) {
                                 "CUDA broadcast metadata copy");
         if (!status.ok()) return status;
         error = launch_broadcast_binary(data(0), data(1), output, count, kind,
-                                        static_cast<const Dim*>(device_metadata.get()), rank);
+                                        static_cast<const Dim*>(device_metadata.get()), rank, dtype);
       } else {
-        error=launch_binary(data(0),data(1),output,count,kind);
+        error=launch_binary(data(0),data(1),output,count,kind,dtype);
       }
     } else if(is_scalar_arithmetic(kind)) {
       error=launch_scalar(data(0),output,count,kind,
-                          static_cast<float>(execution.op.scalar_value),execution.op.scalar_left);
+                          execution.op.scalar_value,execution.op.scalar_left,dtype);
     } else if(kind==OpKind::kMatmul) {
       const auto& plan = *matmul_plan;
       Shape metadata = plan.batch_shape;
@@ -508,18 +518,19 @@ Status CudaBackend::execute(const BackendExecution& execution) {
         if (!status.ok()) return status;
       }
       const auto batches = count ? count / plan.n / plan.m : 0;
-      error = launch_matmul(data(0), data(1), output, plan.m, plan.n, plan.k,
+      error = launch_matmul(static_cast<const float*>(data(0)), static_cast<const float*>(data(1)),
+                            static_cast<float*>(output), plan.m, plan.n, plan.k,
                             batches, static_cast<const Dim*>(gpu_metadata.get()), plan.batch_shape.size());
     } else if(is_elementwise_unary(kind)) {
-      error=launch_unary(data(0),output,count,kind);
+      error=launch_unary(data(0),output,count,kind,dtype);
     } else {
       // Output allocation and validated input shapes bound the nonempty product.
       if (outer && inner>std::numeric_limits<std::size_t>::max()/outer)return invalid("CUDA axis size overflow");
-      error=launch_axis(data(0),output,outer*inner,reduce,inner,kind,epsilon);
+      error=launch_axis(data(0),output,outer*inner,reduce,inner,kind,epsilon,dtype);
     }
     if (auto status = runtime_status(error, "CUDA kernel execution"); !status.ok()) return status;
     // Publish only on success; failed execution must leave result slots intact.
-    execution.outputs[0] = to_core_tensor(CudaTensor(DType::kFloat32, std::move(shape), buffer.move_value()));
+    execution.outputs[0] = to_core_tensor(CudaTensor(dtype, std::move(shape), buffer.move_value()));
     return Status::Ok();
   } catch (const std::invalid_argument& error) {
     return invalid(error.what());

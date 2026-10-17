@@ -35,7 +35,8 @@ an experimental Metal kernel DSL, a hardened backend execution ABI, and a
 completed Phase 10 MLIR decision prototype. Phase 9 CUDA is complete: the
 optional backend supports discovery, float32/int32 copies, and float32
 elementwise operations, matmul, reductions and normalization on a validated
-NVIDIA host. Explicit experimental MLIR CPU
+NVIDIA host. Native int32 fill, arithmetic and sum/max are also supported.
+Explicit experimental MLIR CPU
 compile/launch is available for guarded float32 elementwise kernels on Linux
 x86_64 with external LLVM 21.1.8 tools. See the
 [usage and limitations](docs/MLIR_RUNTIME_INTEGRATION_DECISION.md#using-the-cpu-runtime).
@@ -74,6 +75,7 @@ x86_64 with external LLVM 21.1.8 tools. See the
   bounded local/nested expression support and its numerical/ownership contract.
 - [`docs/MLIR_DIVISION.md`](docs/MLIR_DIVISION.md): float32 kernel division, CPU/CUDA IEEE checks and direct MSL limits.
 - [`docs/MLIR_SELECT.md`](docs/MLIR_SELECT.md): float32 kernel comparisons, internal boolean locals and explicit value selection.
+- [`docs/CUDA_INT32.md`](docs/CUDA_INT32.md): native int32 factories, wrapping arithmetic and signed sum/max validation.
 - [`docs/CUDA_PRODUCT_COMPLETION.md`](docs/CUDA_PRODUCT_COMPLETION.md):
   active CUDA product completion work and remaining evidence.
 - [`docs/CUDA_PERFORMANCE.md`](docs/CUDA_PERFORMANCE.md): reproducible CUDA/MLIR
@@ -170,7 +172,9 @@ Float32 matmul (`auto`/`custom`), sum/max/mean, exp/GELU/SiLU,
 softmax, RMSNorm and LayerNorm are implemented; see [semantics and validation](docs/CUDA_PRIMITIVES_VALIDATION.md).
 Transpose supports float32/int32/bool and returns a contiguous device copy; squeeze
 and expand_dims share storage without copying, like reshape.
-Int32 fill/arithmetic/reductions and broad generated CUDA kernels remain unsupported. A separate
+Int32 fill, wrapping add/subtract/multiply/scalars/negate and sum/max are also
+implemented; division and mean require float32. See [the int32 contract](docs/CUDA_INT32.md).
+Broad generated CUDA kernels remain outside the supported subset. A separate
 explicit MLIR compiler supports guarded float32 add/subtract/multiply/divide on the validated sm_52
 host; see [usage and requirements](docs/MLIR_CUDA_INTEGRATION_DECISION.md#runtime-usage-and-verification--2026-09-28). Operations are
 synchronous and release the Python GIL during execution. CUDA is registered

@@ -10,7 +10,7 @@ _FLOAT = ("float32",)
 _BOOL = ("bool",)
 
 
-def _profile(*, cuda=False, dlpack=False):
+def _profile(*, dlpack=False):
     result = {}
     for name in ("tensor", "empty", "copy", "astype", "reshape", "transpose",
                  "squeeze", "expand_dims", "indexing", "concat", "stack", "split",
@@ -18,9 +18,9 @@ def _profile(*, cuda=False, dlpack=False):
                  "where", "masked_select"):
         result[name] = _ALL
     for name in ("zeros", "ones"):
-        result[name] = ("float32", "bool") if cuda else _ALL
+        result[name] = _ALL
     for name in ("add", "subtract", "multiply", "negative", "sum", "max"):
-        result[name] = _FLOAT if cuda else _NUMERIC
+        result[name] = _NUMERIC
     for name in ("divide", "randn", "matmul", "mean", "exp", "gelu", "silu", "softmax",
                  "rmsnorm", "layernorm", "log", "sqrt", "linear", "embedding",
                  "scaled_dot_product_attention", "attention"):
@@ -37,4 +37,4 @@ def _profile(*, cuda=False, dlpack=False):
 
 CPU_OPERATIONS = _profile(dlpack=True)
 METAL_OPERATIONS = _profile()
-CUDA_OPERATIONS = _profile(cuda=True, dlpack=True)
+CUDA_OPERATIONS = _profile(dlpack=True)

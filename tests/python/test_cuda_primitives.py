@@ -68,8 +68,12 @@ def test_bad_axis_dtype(op):
     a=cx.ones((2,3),device='cuda')
     for axis in [-3,2]:
         with pytest.raises(ValueError,match='axis'):op(a,axis=axis)
-    with pytest.raises(ValueError,match='float32'):
-        op(cx.tensor(np.ones((2,3),dtype=np.int32),device='cuda'),axis=0)
+    integers = cx.tensor(np.ones((2,3),dtype=np.int32),device='cuda')
+    if op in (cx.sum, cx.max):
+        np.testing.assert_array_equal(op(integers,axis=0).numpy(), op(cx.tensor(np.ones((2,3),dtype=np.int32)),axis=0).numpy())
+    else:
+        with pytest.raises(ValueError,match='float32'):
+            op(integers,axis=0)
 
 
 def test_matmul_errors():

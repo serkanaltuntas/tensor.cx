@@ -271,6 +271,8 @@ defines internal boolean values, eager value selection and target-specific limit
 `docs/CUDA_PHASE9_ENVIRONMENT.md` records the selected host and entry criteria;
 `docs/CUDA_PHASE9_VALIDATION.md` records acceptance evidence. CUDA remains a
 small optional backend: discovery, allocation/copy and float32 primitives.
+Native int32 fill, wrapping arithmetic/scalars/negate and sum/max are also
+implemented; docs/CUDA_INT32.md records the contract and validation limits.
 The user-authorized product extension adds matmul, reductions, activations and
 normalization; see docs/CUDA_PRIMITIVES_VALIDATION.md and the full goal ledger.
 Do not enable broader CUDA capabilities without implementation and CPU parity

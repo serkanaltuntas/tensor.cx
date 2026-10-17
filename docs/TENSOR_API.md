@@ -27,10 +27,10 @@ Equal-shape arithmetic retains its direct indexing path. This applies only to
 ordinary binary arithmetic. Matmul has separate batch broadcasting rules below;
 experimental generated kernels retain their exact-shape contract.
 
-CPU and Metal support float32 for all operations; int32 supports add, subtract,
+CPU, Metal and CUDA support float32 for all operations; int32 supports add, subtract,
 multiply and negate with defined two's-complement wraparound. Division requires
-float32, including empty inputs. CUDA arithmetic remains float32-only; CUDA
-int32 copies, explicit casts and reshape are supported.
+float32, including empty inputs. CUDA int32 factories, arithmetic and reductions
+have the same contract; see [implementation and verification](CUDA_INT32.md).
 
 A Python or NumPy integer/float scalar may be on either side: `x + 2`, `2 - x`,
 `x * 0.5`, `2 / x`. Scalars preserve the tensor's dtype, shape and device. Int32
@@ -66,8 +66,8 @@ dtype still allocates. Reshape views and inputs are never mutated.
 - Same-dtype copies preserve the stored bits, including signed zero and NaN.
 
 Conversion executes natively on the selected device. Checked GPU float-to-int
-conversion reads back only a validation flag, not the tensor. CUDA int32
-arithmetic remains unsupported; explicitly cast to float32 before arithmetic.
+conversion reads back only a validation flag, not the tensor. Division and mean
+still require an explicit cast to float32.
 
 ```python
 values = cx.tensor([[1, 2, 3], [4, 5, 6]])
@@ -193,8 +193,8 @@ use the existing scalar reduction; `()` copies, and non-empty sequences fail.
 `keepdims=True` replaces every selected axis with size 1, using a metadata view
 of the independent result. Otherwise those axes are removed. The flag must be
 a Python or NumPy boolean. Results retain the input dtype and device. Sum/max
-support float32/int32 on CPU/Metal; CUDA sum/max and all means require
-float32. Int32 sums wrap in two's-complement, with no implicit promotion.
+support float32/int32 on CPU/Metal/CUDA; all means require float32. Int32 sums
+wrap in two's-complement, with no implicit promotion.
 
 Selected axes are traversed in their original input order, independent of the
 order in the axis argument. Multiple-axis mean sums each group once in float32

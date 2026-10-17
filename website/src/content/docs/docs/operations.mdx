@@ -49,8 +49,8 @@ Support varies by backend, particularly for `int32`. See the
 - `astype` truncates float-to-int toward zero and rejects NaN, infinity and
   out-of-range values. Int-to-float can lose precision. `copy=False` returns
   the input only when the dtype is unchanged; conversion still allocates.
-- CPU and Metal `int32` add/subtract/multiply/negate wrap on overflow. CUDA int32 arithmetic is
-  unsupported.
+- CPU, Metal and CUDA `int32` add/subtract/multiply/negate and sum wrap on
+  overflow. Max compares signed integers. Division and mean require float32.
 - Scalars preserve the tensor dtype. Int32 requires an integer scalar within
   int32 bounds; float32 narrows real scalars before arithmetic. Booleans and
   complex scalars are rejected. Float division follows IEEE infinity/NaN rules.

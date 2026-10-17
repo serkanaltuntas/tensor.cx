@@ -31,7 +31,7 @@ CASES = [
 def test_multi_axis_numpy_cpu_parity(device_name, name, dtype, shape, axis):
     values = np.resize(np.array([-5, -1, 0, 2, 7], dtype=dtype), shape)
     x = cx.tensor(values, device=device_name)
-    if dtype == cx.int32 and (device_name == "cuda" or name == "mean"):
+    if dtype == cx.int32 and name == "mean":
         for keepdims in (False, True):
             with pytest.raises(ValueError, match="float32"):
                 getattr(x, name)(axis, keepdims=keepdims)
@@ -132,13 +132,8 @@ def test_multi_axis_int32_wrap_and_dtype_rejection(device_name):
     data = np.array([[2**31-1, 2**31-1], [-2**31, -17]], dtype=np.int32)
     x = cx.tensor(data, device=device_name)
     for axes in (None, (), (0, 1)):
-        if device_name == "cuda":
-            for name in ("sum", "max"):
-                with pytest.raises(ValueError, match="float32"):
-                    getattr(x, name)(axes)
-        else:
-            np.testing.assert_array_equal(x.sum(axes).numpy(), data.sum(axis=axes, dtype=np.int32))
-            np.testing.assert_array_equal(x.max(axes).numpy(), data.max(axis=axes))
+        np.testing.assert_array_equal(x.sum(axes).numpy(), data.sum(axis=axes, dtype=np.int32))
+        np.testing.assert_array_equal(x.max(axes).numpy(), data.max(axis=axes))
         with pytest.raises(ValueError, match="float32"):
             x.mean(axes)
 

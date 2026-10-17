@@ -180,7 +180,9 @@ Device selection is scoped per calling thread and restored afterward. Each
 operation waits for completion before returning and publishes output metadata
 only after success. Copies and explicit casts support float32/int32/bool; comparisons and selection
 support all three dtypes, and boolean logic/any/all run on-device. Arithmetic
-is float32-only and accepts broadcast-compatible shapes. Checked float-to-int
+supports float32/int32 and broadcast-compatible shapes; division requires float32.
+Int32 fill, scalar arithmetic, negate and sum/max also execute natively;
+see [the int32 validation record](CUDA_INT32.md). Checked float-to-int
 casts validate on the device and read back only a status flag. See the
 [tensor API contract](TENSOR_API.md).
 See [`CUDA_PHASE9_VALIDATION.md`](CUDA_PHASE9_VALIDATION.md).
@@ -192,7 +194,7 @@ the backend ABI, runtime core, or backend build.
 The [math and selection extension](TENSOR_API.md#math-and-selection) adds native
 float32 log/sqrt and float32/int32 abs/min/argmax/clip/topk on CPU, Metal and CUDA.
 It uses shared core validation and the existing execution ABI; topk has two
-outputs. It does not expand MLIR/generated-kernel or general CUDA int32 arithmetic.
+outputs. It does not expand MLIR/generated-kernel support.
 
 The [inference extension](TENSOR_API.md#inference-operations) adds native
 linear, affine RMSNorm/LayerNorm, embedding and scaled dot-product attention

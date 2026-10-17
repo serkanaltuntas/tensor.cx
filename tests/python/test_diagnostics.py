@@ -94,13 +94,16 @@ def test_declared_operations_execute(device, name, dtype):
     _exercise(name, dtype, device)
 
 
-def test_cuda_int32_gaps_are_reported_honestly():
+def test_cuda_int32_capabilities_are_reported_honestly():
     if not cx.is_available("cuda"):
         pytest.skip("CUDA unavailable")
     caps = cx.capabilities("cuda")
     x = cx.tensor([1, 2], dtype="int32", device="cuda")
     for name, action in (("zeros", lambda: cx.zeros((2,), dtype="int32", device="cuda")),
                          ("add", lambda: x + x), ("sum", lambda: cx.sum(x))):
+        assert "int32" in caps[name]
+        assert action().dtype == cx.int32
+    for name, action in (("divide", lambda: x / x), ("mean", lambda: x.mean())):
         assert "int32" not in caps[name]
         with pytest.raises(ValueError, match="float32"):
             action()

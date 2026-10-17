@@ -11,9 +11,9 @@ only device index 0 is exposed.
 | --- | --- | --- | --- |
 | Float32/int32/bool tensor copy | Yes | Yes | Yes |
 | Float32 fill, add, multiply | Yes | Yes | Yes |
-| Int32 fill, add, multiply | Yes | Yes | No |
+| Int32 fill, add, multiply | Yes | Yes | Yes |
 | Float32 subtract, divide, negate and scalar arithmetic | Yes | Yes | Yes |
-| Int32 subtract, negate and scalar add/subtract/multiply | Yes | Yes | No |
+| Int32 subtract, negate and scalar add/subtract/multiply | Yes | Yes | Yes |
 | Contiguous reshape (float32/int32/bool) | Yes | Yes | Yes |
 | Transpose to contiguous copy (float32/int32/bool) | Yes | Yes | Yes |
 | Squeeze / expand dims views (float32/int32/bool) | Yes | Yes | Yes |
@@ -22,12 +22,12 @@ only device index 0 is exposed.
 | Explicit float32/int32/bool conversion | Yes | Yes | Yes |
 | Comparisons and `where` (float32/int32/bool) | Yes | Yes | Yes |
 | Bool fill, logic, any/all and mask selection | Yes | Yes | Yes |
-| Binary arithmetic broadcasting | Yes | Yes | Yes, float32 |
+| Binary arithmetic broadcasting | Yes | Yes | Yes |
 | Float32 batched/vector matmul | Yes | Custom + optional optimized path | Custom path |
 | Float32 sum, max, mean | Yes | Yes | Yes |
-| Int32 sum, max | Yes | Yes | No |
-| Sum/max/mean `keepdims` | Yes | Yes | Yes, float32 |
-| All-axis / multi-axis sum, max, mean | Yes | Yes | Yes, float32 |
+| Int32 sum, max | Yes | Yes | Yes |
+| Sum/max/mean `keepdims` | Yes | Yes | Yes |
+| All-axis / multi-axis sum, max, mean | Yes | Yes | Yes |
 | Float32 log, sqrt | Yes | Yes | Yes |
 | Float32/int32 abs, min, argmax, clip, topk | Yes | Yes | Yes |
 | Float32 linear, affine norms, embedding, attention | Yes | Yes | Yes |
@@ -63,8 +63,9 @@ own validation. The hosted CUDA build job tests compilation and no-device
 behavior; it does not run on an NVIDIA GPU. A local push gate exercises the
 validated GPU. Repository-wide GPU acceptance still needs an isolated runner.
 
-The CUDA backend copies and explicitly casts `int32` tensors but rejects int32 factories and
-add/subtract/multiply/negate and sum/max. The math extension supports int32
+The CUDA backend supports `int32` copies/casts, zeros/ones, wrapping
+add/subtract/multiply/negate, integer scalars and sum/max reductions. Division
+and mean require float32. The math extension also supports int32
 abs, min, argmax, clip and topk. Float32 matmul supports `auto` and `custom`, not `optimized`.
 
 ## Compiler boundary

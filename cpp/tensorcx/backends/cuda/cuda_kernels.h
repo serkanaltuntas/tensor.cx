@@ -9,14 +9,16 @@
 namespace tensorcx::cuda {
 
 // Called with device 0 current. Returns only after the kernel has completed.
-cudaError_t launch_fill(float* output, std::size_t count, float value);
-cudaError_t launch_binary(const float* lhs, const float* rhs, float* output,
-                          std::size_t count, OpKind op);
+cudaError_t launch_fill(void* output, std::size_t count, double value,
+                        DType dtype = DType::kFloat32);
+cudaError_t launch_binary(const void* lhs, const void* rhs, void* output,
+                          std::size_t count, OpKind op, DType dtype = DType::kFloat32);
 // Metadata contains output dimensions, then lhs/rhs element strides; expanded
 // and padded dimensions have stride zero. Metadata is already on the device.
-cudaError_t launch_broadcast_binary(const float* lhs, const float* rhs, float* output,
+cudaError_t launch_broadcast_binary(const void* lhs, const void* rhs, void* output,
                                     std::size_t count, OpKind op,
-                                    const Dim* metadata, std::size_t rank);
+                                    const Dim* metadata, std::size_t rank,
+                                    DType dtype = DType::kFloat32);
 cudaError_t launch_validate_int32_cast(const float* input, std::size_t count, int* invalid);
 cudaError_t launch_cast(const void* input, void* output, std::size_t count, DType input_dtype);
 // Metadata holds output dimensions followed by mapped input element strides.
@@ -25,15 +27,19 @@ cudaError_t launch_transpose(const void* input, void* output, std::size_t count,
                              const Dim* metadata, std::size_t rank, Dim offset, DType dtype);
 cudaError_t launch_concat(const void* input, void* output, std::size_t count,
                           Dim block, Dim output_block, Dim offset, DType dtype);
-cudaError_t launch_scalar(const float* input, float* output, std::size_t count,
-                          OpKind op, float scalar, bool scalar_left);
+cudaError_t launch_scalar(const void* input, void* output, std::size_t count,
+                          OpKind op, double scalar, bool scalar_left,
+                          DType dtype = DType::kFloat32);
 
-cudaError_t launch_unary(const float* input, float* output, std::size_t count, OpKind op);
-cudaError_t launch_axis(const float* input, float* output, std::size_t groups,
-                        std::size_t reduce, std::size_t inner, OpKind op, float epsilon);
-cudaError_t launch_reduce_axes(const float* input, float* output, std::size_t groups,
+cudaError_t launch_unary(const void* input, void* output, std::size_t count, OpKind op,
+                         DType dtype = DType::kFloat32);
+cudaError_t launch_axis(const void* input, void* output, std::size_t groups,
+                        std::size_t reduce, std::size_t inner, OpKind op, float epsilon,
+                        DType dtype = DType::kFloat32);
+cudaError_t launch_reduce_axes(const void* input, void* output, std::size_t groups,
                                std::size_t reduce, const Dim* metadata,
-                               std::size_t output_rank, std::size_t rank, OpKind op);
+                               std::size_t output_rank, std::size_t rank, OpKind op,
+                               DType dtype = DType::kFloat32);
 cudaError_t launch_matmul(const float* lhs, const float* rhs, float* output,
                           std::size_t m, std::size_t n, std::size_t k, std::size_t batches,
                           const Dim* metadata, std::size_t batch_rank);
