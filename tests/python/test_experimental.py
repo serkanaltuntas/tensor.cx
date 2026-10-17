@@ -785,6 +785,27 @@ def test_experimental_sqrt_metal_parity(shape):
         np.testing.assert_array_equal(tensors[1].numpy(), b)
 
 
+@pytest.mark.parametrize('shape', [(), (0,), (1,), (257,), (2, 3)])
+def test_experimental_abs_metal_parity(shape):
+    if not _has_metal_compiler() or 'metal' not in cx.devices():
+        pytest.skip('requires Metal compiler and device')
+    from test_mlir_abs import KERNELS, absolute_one, oracle, signless
+    count = int(np.prod(shape))
+    a = (np.arange(count, dtype=np.float32).reshape(shape) + np.float32(1)) * np.float32(-.25)
+    b = np.full(shape, .75, dtype=np.float32)
+    tensors = [cx.tensor(values, device='metal')
+               for values in (a, b, np.full(shape, -7, dtype=np.float32))]
+    for dsl in KERNELS:
+        result = dsl.compile(target='metal').launch(*tensors, count, block_size=7)
+        assert result is tensors[2]
+        np.testing.assert_allclose(result.numpy(), oracle(dsl, a, b), rtol=1e-6, atol=1e-6)
+        np.testing.assert_array_equal(tensors[0].numpy(), a)
+        np.testing.assert_array_equal(tensors[1].numpy(), b)
+    result = absolute_one.compile(target='metal').launch(tensors[0], tensors[2], count)
+    assert result is tensors[2]
+    np.testing.assert_allclose(result.numpy(), signless(a), rtol=1e-6, atol=1e-6)
+
+
 def _program_id_nonzero_axis_kernel():
     @cx.experimental.kernel
     def bad_kernel(out, axis):

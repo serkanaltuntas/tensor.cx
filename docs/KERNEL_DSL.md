@@ -131,6 +131,7 @@ cx.experimental.block_size()
 single comparisons: <, <=, >, >=, ==, !=
 cx.experimental.select(boolean_condition, float_value, float_value)
 cx.experimental.sqrt(float_value)
+cx.experimental.abs(float_value)
 if blocks without else
 numeric constants
 for var in range(bound_name) with an assignment-only body (any local
@@ -273,3 +274,5 @@ locals and explicit float32 value selection in guarded MLIR bodies. It does
 not add general runtime branches, lazy selection or boolean output buffers.
 The [float32 sqrt extension](MLIR_SQRT.md) adds one strictly typed unary
 intrinsic; CPU/CUDA rounding checks and direct MSL limits are recorded there.
+The [float32 abs extension](MLIR_ABS.md) adds absolute value with strict unary
+typing and target-specific numerical limits; Python builtin `abs` is not an alias.

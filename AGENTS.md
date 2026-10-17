@@ -268,6 +268,8 @@ Guarded float32 comparisons and select are implemented; docs/MLIR_SELECT.md
 defines internal boolean values, eager value selection and target-specific limits.
 Guarded float32 sqrt is implemented; docs/MLIR_SQRT.md defines strict CPU/CUDA
 lowering, unchanged signature/complexity limits and direct MSL numerical scope.
+Guarded float32 abs is implemented; docs/MLIR_ABS.md records sign-bit semantics,
+strict unary types and existing CPU/CUDA/Metal launch boundaries.
 ```
 
 `docs/CUDA_PHASE9_ENVIRONMENT.md` records the selected host and entry criteria;

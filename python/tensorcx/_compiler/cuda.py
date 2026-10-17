@@ -60,7 +60,7 @@ def signature(ir):
               or (isinstance(value, IRCompare) and value.op in PREDICATES)
               or (isinstance(value, IRCall)
                   and ((value.name == "select" and len(value.args) == 3)
-                       or (value.name == "sqrt" and len(value.args) == 1)))):
+                       or (value.name in {"sqrt", "abs"} and len(value.args) == 1)))):
             operators += 1
             if operators > 64:
                 reject("expression operation count exceeds 64")
@@ -179,6 +179,10 @@ def emit_expression_cuda(ir, kinds, output, guard):
             return instruction(f"llvm.load {ptr} : !llvm.ptr -> f32")
         if isinstance(value, IRCall):
             values = [expression(argument) for argument in value.args]
+            if value.name == "abs":
+                # Bypass GPUToNVVM's external libdevice math.absf lowering.
+                return instruction('llvm.call_intrinsic "llvm.fabs.f32"'
+                                   f'({values[0]}) : (f32) -> f32')
             if value.name == "sqrt":
                 # LLVM 21's GPU math.sqrt lowering calls external libdevice.
                 # Pin the native RN intrinsic instead: no approximation/FTZ,

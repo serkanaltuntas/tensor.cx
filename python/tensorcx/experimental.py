@@ -41,6 +41,7 @@ _SUPPORTED_INTRINSICS = {
     "cx.experimental.block_size": 0,
     "cx.experimental.select": 3,
     "cx.experimental.sqrt": 1,
+    "cx.experimental.abs": 1,
 }
 _MSL_BINARY_OPS = {
     "add": "+",
@@ -990,6 +991,10 @@ def _reference_execute(kernel_ir, arrays, scalars, thread_count, block_size):
             # integer literal is always C-typed int.
             return ("int", expression.value & _UINT32_MASK)
         if isinstance(expression, IRCall):
+            if expression.name == "abs":
+                _, value = eval_expression(expression.args[0], env, intrinsics)
+                with np.errstate(all="ignore"):
+                    return ("float", np.absolute(value, dtype=np.float32))
             if expression.name == "sqrt":
                 _, value = eval_expression(expression.args[0], env, intrinsics)
                 with np.errstate(all="ignore"):
@@ -1853,10 +1858,11 @@ def _emit_msl_constant(value: int | float) -> str:
 
 
 def _emit_msl_call(call: IRCall, builtin_names: dict[str, str]) -> str:
-    if call.name == "sqrt":
+    if call.name in {"sqrt", "abs"}:
         if len(call.args) != 1:
-            raise KernelCompileError("sqrt requires one float32 argument")
-        return f"::metal::sqrt({_emit_msl_expression(call.args[0], builtin_names)})"
+            raise KernelCompileError(f"{call.name} requires one float32 argument")
+        builtin = "fabs" if call.name == "abs" else "sqrt"
+        return f"::metal::{builtin}({_emit_msl_expression(call.args[0], builtin_names)})"
     if call.name == "select":
         if len(call.args) != 3:
             raise KernelCompileError("select requires three arguments")
@@ -1876,10 +1882,10 @@ def _infer_msl_type(expression: IRExpression, context: dict[str, str]) -> str:
             return "float"
         return "int" if expression.value < 0 else "uint"
     if isinstance(expression, IRCall):
-        if expression.name == "sqrt":
+        if expression.name in {"sqrt", "abs"}:
             if (len(expression.args) != 1
                     or _infer_msl_type(expression.args[0], context) != "float"):
-                raise KernelCompileError("sqrt requires one float32 argument")
+                raise KernelCompileError(f"{expression.name} requires one float32 argument")
             return "float"
         if expression.name == "select":
             if len(expression.args) != 3:
@@ -1957,6 +1963,11 @@ def sqrt(value):
     raise NotImplementedError("sqrt is only valid inside compiled experimental kernels")
 
 
+def abs(value):
+    """Take a float32 absolute value inside an experimental kernel."""
+    raise NotImplementedError("abs is only valid inside compiled experimental kernels")
+
+
 __all__ = [
     "CompiledKernel",
     "IRAssign",
@@ -1972,6 +1983,7 @@ __all__ = [
     "IRStore",
     "Kernel",
     "KernelCompileError",
+    "abs",
     "block_size",
     "kernel",
     "program_id",

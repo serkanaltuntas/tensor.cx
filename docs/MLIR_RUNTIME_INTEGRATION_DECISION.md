@@ -229,6 +229,8 @@ numerical contract are in [MLIR_DIVISION.md](MLIR_DIVISION.md).
 Local assignments follow existing DSL rules (no reassignment).
 Float32 `cx.experimental.sqrt` is also supported inside guarded expressions;
 see [MLIR_SQRT.md](MLIR_SQRT.md) for operand types and numerical limits.
+Float32 `cx.experimental.abs` follows the same unary typing and guard rules;
+[MLIR_ABS.md](MLIR_ABS.md) defines sign-bit semantics and target-specific scope.
 
 Float comparisons and boolean locals may feed the explicit selector described
 in [MLIR_SELECT.md](MLIR_SELECT.md); general branch bodies remain outside the runtime slice.

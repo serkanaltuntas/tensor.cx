@@ -157,7 +157,8 @@ documentation. This order does not claim that later packages are implemented.
 8. **Compiler/performance:** persistent CPU/CUDA/Metal cache, public compile/launch
    latency measurements and separate compilation profiles implemented;
    [contract](COMPILATION_CACHE.md). [Float32 kernel division](MLIR_DIVISION.md),
-   [comparison/select](MLIR_SELECT.md) and [kernel sqrt](MLIR_SQRT.md)
+   [comparison/select](MLIR_SELECT.md), [kernel sqrt](MLIR_SQRT.md) and
+   [kernel abs](MLIR_ABS.md)
    are implemented. Opt-in CPU/CUDA
    [runtime host profiling](RUNTIME_PROFILING.md) separates allocation/copy,
    native execution and existing waits. Device-event/Metal profiling, broader

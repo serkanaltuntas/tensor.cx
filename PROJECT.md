@@ -54,6 +54,7 @@ Division increment:     float32 DSL/MLIR division; docs/MLIR_DIVISION.md (2026-1
 Selection increment:    float32 comparisons and value selection in guarded kernels;
                         docs/MLIR_SELECT.md (2026-10-17); general branches remain open
 Sqrt increment:         guarded float32 kernel sqrt; docs/MLIR_SQRT.md (2026-10-17)
+Abs increment:          guarded float32 kernel abs; docs/MLIR_ABS.md (2026-10-17)
 Active user goal:       complete CUDA product list; docs/CUDA_PRODUCT_COMPLETION.md
 CUDA primitives:        float32 matmul, reductions, activations and normalization
                         implemented; docs/CUDA_PRIMITIVES_VALIDATION.md

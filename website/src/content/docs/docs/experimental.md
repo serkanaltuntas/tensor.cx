@@ -9,8 +9,8 @@ require a compiler SDK at runtime. Explicit custom-kernel compilation does.
 | Path | What is implemented | Required environment |
 | --- | --- | --- |
 | Metal / MSL | Restricted Python kernel DSL, float32 elementwise and bounded rowwise reductions | Apple Metal compiler tools and an available Metal device |
-| CPU / MLIR | Guarded float32 arithmetic, division, sqrt, comparisons and select; bounded local/nested expressions | Validated on Linux x86_64 with LLVM/MLIR 21.1.8 |
-| CUDA / MLIR | Guarded float32 add/subtract/multiply/divide, sqrt, comparisons and select; bounded local/nested expressions | Validated CPU toolchain plus CUDA toolkit 12.4, CUDA Driver API 13.0, and sm_52 hardware |
+| CPU / MLIR | Guarded float32 arithmetic, division, sqrt/abs, comparisons and select; bounded local/nested expressions | Validated on Linux x86_64 with LLVM/MLIR 21.1.8 |
+| CUDA / MLIR | Guarded float32 add/subtract/multiply/divide, sqrt/abs, comparisons and select; bounded local/nested expressions | Validated CPU toolchain plus CUDA toolkit 12.4, CUDA Driver API 13.0, and sm_52 hardware |
 
 ## Explicit compilation
 
@@ -42,6 +42,14 @@ qualified Metal builtin and its existing finite-input tolerance. CUDA retains
 its two-input/one-output signature. See the
 [square-root contract and runnable example](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/MLIR_SQRT.md).
 
+`cx.experimental.abs(value)` also accepts one float32 operand, including
+locals and selected/nested values. CPU/CUDA tests verify non-NaN sign-bit
+behavior (`-0` becomes `+0`, subnormal magnitudes are preserved) and NaN masks.
+CUDA emits `abs.f32` without an external math library; direct Metal emits
+qualified `fabs` with finite-input tolerance. The CUDA two-input signature
+remains unchanged. See the
+[absolute-value contract and example](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/MLIR_ABS.md).
+
 Compiled CPU/CUDA/Metal code is cached in private local storage by default,
 including across process restarts. Inspect `compiled.cache_hit` for reuse, or
 use `kernel.compile(..., cache=False)` to bypass storage.
@@ -64,8 +72,8 @@ corresponding integration guide:
 This is not general Python compilation or a full graph compiler. Ordinary
 tensor expressions are not automatically fused. Broader generated operations,
 targets, and reduction support require separate validation.
-Ordinary tensor `cx.sqrt` and the explicit `cx.experimental.sqrt` kernel
-intrinsic are implemented within their documented subsets. See [remaining compiler work](/docs/status/#remaining-work).
+Ordinary tensor `cx.sqrt`/`cx.abs` and the explicit experimental kernel
+intrinsics are implemented within their documented subsets. See [remaining compiler work](/docs/status/#remaining-work).
 
 Generated native libraries and PTX are executable code, not a sandbox. Compile
 and load only artifacts you trust; see the repository

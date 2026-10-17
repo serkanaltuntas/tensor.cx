@@ -437,15 +437,16 @@ def _emit_expression(
         )
         return value, "f32"
     if isinstance(expression, IRCall):
-        if expression.name == "sqrt":
+        if expression.name in {"sqrt", "abs"}:
             if len(expression.args) != 1:
-                raise MlirEmitError("sqrt requires one float32 argument")
+                raise MlirEmitError(f"{expression.name} requires one float32 argument")
             operand, kind = _emit_expression(
                 emitter, expression.args[0], indent=indent, context=context)
             if kind != "f32":
-                raise MlirEmitError("sqrt requires one float32 argument")
+                raise MlirEmitError(f"{expression.name} requires one float32 argument")
             value = emitter.fresh()
-            emitter.emit(indent, f"{value} = math.sqrt {operand} : f32")
+            operation = "math.absf" if expression.name == "abs" else "math.sqrt"
+            emitter.emit(indent, f"{value} = {operation} {operand} : f32")
             return value, "f32"
         if expression.name == "select":
             if len(expression.args) != 3:
