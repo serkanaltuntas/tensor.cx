@@ -358,6 +358,11 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Trust this workspace for Git subprocesses in the container
+        # The container user differs from the mounted checkout's owner. Benchmark
+        # metadata uses Git in child processes; trust only this job's checkout.
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
