@@ -3,9 +3,31 @@ title: Installation
 description: Build tensor.cx from source with uv, beginning with the CPU reference backend.
 ---
 
-tensor.cx is installed from source. There is no published PyPI release or
-general-purpose binary wheel to install. The source is available on
+The public getting-started path is a source build. There is no published PyPI
+release. A portable Linux CPU wheel build is available for reviewed local/manual
+CI artifacts; it is separate from the Metal and CUDA source builds below. The source is available on
 [GitHub](https://github.com/serkanaltuntas/tensor.cx) under Apache-2.0.
+
+## Portable Linux CPU artifacts
+
+The repository can build CPU-only wheels for **CPython 3.11–3.13, Linux x86_64
+and glibc 2.28+**, using the pinned manylinux/auditwheel pipeline. These wheels
+require no GPU, C++ compiler or LLVM for ordinary tensor operations. They do not
+include Metal or CUDA, and are not published to a package index yet.
+
+When you have the reviewed wheel matching your interpreter, compare its SHA-256
+with its completion manifest and install the exact file:
+
+```bash
+uv venv --python 3.12
+uv pip install --python .venv/bin/python /path/to/tensorcx-0.1.0-cp312-cp312-manylinux_2_28_x86_64.whl
+.venv/bin/tensorcx-doctor --json
+```
+
+See the [portable build and validation contract](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/PORTABLE_WHEELS.md)
+for local generation and the manual Actions workflow. There is no macOS, CUDA,
+Linux ARM64 or musl/Alpine portable wheel in this matrix. Build from source for
+the accelerator backends.
 
 ## Prerequisites
 

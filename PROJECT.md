@@ -53,7 +53,9 @@ Expressions:            bounded CUDA local/nested expressions implemented
 Active user goal:       complete CUDA product list; docs/CUDA_PRODUCT_COMPLETION.md
 CUDA primitives:        float32 matmul, reductions, activations and normalization
                         implemented; docs/CUDA_PRIMITIVES_VALIDATION.md
-Distribution:           CPU/CUDA sdist and wheel installs locally verified;
+Distribution:           portable Linux CPU manylinux wheels (CPython 3.11–3.13);
+                        docs/PORTABLE_WHEELS.md; macOS/releases remain open
+                        CPU/CUDA host-specific sdist and wheel installs verified;
                         docs/DISTRIBUTION.md (Nightblade host/ABI limits)
 CUDA performance:       long contiguous axis optimization measured on Nightblade;
                         docs/CUDA_PERFORMANCE.md (shared-desktop limits)

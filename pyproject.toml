@@ -79,3 +79,23 @@ addopts = ["-ra"]
 markers = [
   "backend_capability(capability, include_cpu=True): parametrize a test over backends that declare a runtime capability",
 ]
+
+# Linux CPU artifacts only; ordinary source/CUDA/Metal builds are unaffected.
+[tool.cibuildwheel]
+build = ["cp311-manylinux_x86_64", "cp312-manylinux_x86_64", "cp313-manylinux_x86_64"]
+archs = ["x86_64"]
+build-frontend = "uv"
+test-requires = ["pytest>=8"]
+test-command = [
+  "python -I {project}/tools/distribution_probe.py --variant cpu",
+  "python -I -m tensorcx_doctor --json",
+  "tensorcx-doctor --json",
+  "python -I {project}/examples/cuda_mlp.py --device cpu --repeats 2",
+  "python -I -m pytest {project}/tests/python -q -o cache_dir=/tmp/tensorcx-pytest-cache",
+]
+
+[tool.cibuildwheel.linux]
+manylinux-x86_64-image = "quay.io/pypa/manylinux_2_28_x86_64@sha256:1e7b8460ad8fb3fb0fbe1cd818845159ac896b4fd17452d56e892c291f3b97a8"
+container-engine = { name = "docker", disable-host-mount = true }
+environment = { CMAKE_ARGS = "-DTENSORCX_ENABLE_METAL=OFF -DTENSORCX_ENABLE_CUDA=OFF", CMAKE_BUILD_PARALLEL_LEVEL = "2", CFLAGS = "-O2 -march=x86-64 -mtune=generic", CXXFLAGS = "-O2 -march=x86-64 -mtune=generic", TENSORCX_LLVM_BIN = "/nonexistent-tensorcx-llvm" }
+repair-wheel-command = "auditwheel repair --only-plat --plat manylinux_2_28_x86_64 -w {dest_dir} {wheel}"

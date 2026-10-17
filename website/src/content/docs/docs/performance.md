@@ -34,6 +34,21 @@ sm_52 GPU shared with a desktop. They do not establish a speedup for other GPUs
 or an overall workload improvement. The engineering report keeps the raw
 measurement boundaries, medians, variation, and regressions together.
 
+## Compilation cache measurements
+
+Experimental CPU/CUDA/Metal compilation reuses private local code artifacts,
+including across process restarts. Compare uncached and warm public compile calls:
+
+```bash
+uv run --no-sync python benchmarks/bench_compilation_cache.py --target cpu
+```
+
+Select `cuda` or `metal` only on the corresponding supported host. Timings include
+toolchain identity checks and module loading; a cache hit does not guarantee a
+speedup for a small kernel. The existing CUDA benchmark keeps compilation cold.
+See [cache controls](/docs/experimental/) and the
+[detailed measurement boundary](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/COMPILATION_CACHE.md).
+
 ## A useful report includes
 
 - Exact source revision and the build actually loaded.

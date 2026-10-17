@@ -157,7 +157,9 @@ documentation. This order does not claim that later packages are implemented.
    measured kernel fusion remain open.
 9. **Dtypes:** CUDA int32 arithmetic gaps; FP16/BF16 on suitable hardware.
 10. **Memory pool and asynchronous execution:** reduce allocation and waiting costs.
-11. **Portable distribution:** Linux/macOS wheels, versioned releases and installation.
+11. **Portable distribution:** Linux x86_64 CPU manylinux wheel pipeline implemented
+    for CPython 3.11–3.13; [contract](PORTABLE_WHEELS.md). macOS/CUDA portable
+    wheels, versioned releases and package-index publication remain open.
 
 Parallel CUDA work remains additional real NVIDIA architectures, an isolated
 remote GPU CI runner, and device-index selection. Validation on one GPU cannot

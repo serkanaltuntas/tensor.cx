@@ -1,0 +1,30 @@
+name: Portable CPU wheels
+
+# Explicit build only; never publishes to PyPI or creates a release/tag.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  manylinux:
+    name: manylinux CPU (CPython 3.11–3.13)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v5
+      - name: Build from sdist, repair and test installed wheels
+        run: uv run --no-project --python 3.12 python tools/build_portable_wheels.py --output build/portable-cpu
+      - name: Retain only validated wheels, source and public manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: tensorcx-manylinux-cpu
+          path: |
+            build/portable-cpu/manifest.json
+            build/portable-cpu/source/*.tar.gz
+            build/portable-cpu/wheels/*.whl
+          retention-days: 14

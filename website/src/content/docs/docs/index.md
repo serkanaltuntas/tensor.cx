@@ -12,7 +12,7 @@ backend contracts, and testing small tensor workloads. APIs may change.
 
 ## Start here
 
-1. [Build from source](/docs/installation/) with a CPU-only environment.
+1. [Install a CPU environment](/docs/installation/) from source or a reviewed wheel artifact.
 2. [Run your first tensor operation](/docs/first-tensor/).
 3. Read the [backend support matrix](/docs/backends/) before enabling a GPU.
 4. Try [matmul and a small inference pipeline](/docs/examples/).
@@ -24,7 +24,8 @@ backend contracts, and testing small tensor workloads. APIs may change.
 - Elementwise add/multiply, batched/vector matmul, axis reductions, and selected activations
   and normalization operations.
 - CPU references for accelerator correctness checks.
-- A separate [experimental kernel API](/docs/experimental/).
+- A separate [experimental kernel API](/docs/experimental/) with persistent compilation caching.
+- [Installation, operation support and memory diagnostics](/docs/diagnostics/).
 - [DLPack storage sharing and an optional PyTorch inference custom op](/docs/interoperability/).
 
 Autograd, model training, asynchronous streams, distributed

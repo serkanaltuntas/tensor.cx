@@ -12,9 +12,13 @@ extension paths, rejects editable installs or the wrong backend variant, and
 checks runtime dependencies. This complements the operation/ABI test suites;
 it does not replace them.
 
-## Validated package scope
+A separate [portable Linux CPU wheel pipeline](PORTABLE_WHEELS.md) now builds
+CPython 3.11–3.13 manylinux artifacts. The host-specific scope below describes
+`validate_distribution.py`; it is still required for CUDA/MLIR validation.
 
-Current artifacts are local Linux x86_64 wheels for the exact CPython ABI used
+## Validated host-specific package scope
+
+This validator produces local Linux x86_64 wheels for the exact CPython ABI used
 to build them. Nightblade validation uses CPython 3.12, GCC 13 and CUDA 12.4,
 targeting GTX 980 Ti (`sm_52`). These are `linux_x86_64` wheels, **not manylinux
 wheels**. Do not claim cross-distribution portability or distribute a renamed
