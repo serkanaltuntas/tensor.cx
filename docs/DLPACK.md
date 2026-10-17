@@ -159,3 +159,10 @@ are checked separately from CPU/CUDA interoperability.
 Protocol references: [DLPack Python specification](https://dmlc.github.io/dlpack/latest/python_spec.html),
 [Array API export contract](https://data-apis.org/array-api/latest/API_specification/generated/array_api.array.__dlpack__.html),
 [PyTorch custom operators](https://docs.pytorch.org/tutorials/advanced/python_custom_ops.html).
+
+## Allocation pool boundary
+
+[Opt-in CUDA memory pools](CUDA_MEMORY_POOL.md) never cache borrowed storage.
+Any owned buffer exposed through DLPack, including copied exports, permanently
+uses direct deletion instead of pool return. This preserves the existing
+foreign-stream lifetime boundary; discarding a capsule does not re-enable reuse.

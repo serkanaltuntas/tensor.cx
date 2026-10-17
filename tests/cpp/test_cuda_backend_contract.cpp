@@ -4,6 +4,7 @@
 #include "math_contract.h"
 #include "inference_contract.h"
 #include "int32_contract.h"
+#include "memory_pool_contract.h"
 
 #include <array>
 #include <bit>
@@ -538,6 +539,27 @@ int main() {
     outputs[0] = descriptor({2, 0});
     require(backend.execute(fill).ok(), "empty fill failed");
     require(outputs[0].buffer->nbytes() == 0, "empty allocation size mismatch");
+    pool_contract::run(require);
+    // Run every existing operation family again through opt-in reuse.
+    auto pool = std::make_shared<cuda::MemoryPool>(4 * 1024 * 1024, 64);
+    require(pool->enter().ok(), "pooled contract enter failed");
+    auto upload = [](const cpu::CpuTensor& value) { return cuda::to_core_tensor(cuda::from_cpu(value).value()); };
+    auto download = [](const Tensor& value) { return cuda::to_cpu(cuda::from_core_tensor(value).value()).value(); };
+    indexing_contract(backend);
+    predicate_contract(backend, upload, download);
+    batched_matmul_contract(backend, upload, download);
+    math_contract(backend, upload, download);
+    inference_contract(backend, upload, download);
+    arithmetic_contract(backend);
+    int32_contract(backend, upload, download);
+    cast_contract(backend);
+    broadcast_contract(backend);
+    transpose_contract(backend);
+    multi_axis_contract(backend);
+    require(pool->stats().hits > 0 && pool->stats().cached_bytes <= 4 * 1024 * 1024,
+            "pooled operation contracts did not reuse bounded storage");
+    require(pool->exit().ok() && pool->stats().cached_bytes == 0 && pool->stats().in_use_bytes == 0,
+            "pooled operation contracts retained memory after close");
     std::cout << "CUDA backend contract passed\n";
     return 0;
   } catch (const std::exception& error) {

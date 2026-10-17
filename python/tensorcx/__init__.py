@@ -7,6 +7,7 @@ from .dlpack import from_dlpack
 from .device import Device, best_device, device, device_name, devices, is_available
 from .diagnostics import capabilities, diagnostics, memory_info
 from .profiling import profile
+from .memory import memory_pool
 from .tensor import (
     Tensor,
     log, sqrt, abs, min, argmax, clip, topk,
@@ -63,6 +64,7 @@ def version() -> str:
 
 
 __all__ = [
+    "memory_pool",
     "profile",
     "capabilities", "diagnostics", "memory_info",
     "Tensor", "from_dlpack",

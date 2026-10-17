@@ -162,7 +162,9 @@ documentation. This order does not claim that later packages are implemented.
    MLIR operations and measured kernel fusion remain open.
 9. **Dtypes:** CUDA int32 fill/arithmetic/sum/max implemented;
    [contract and verification](CUDA_INT32.md). FP16/BF16 remain open on suitable hardware.
-10. **Memory pool and asynchronous execution:** reduce allocation and waiting costs.
+10. **Memory pool and asynchronous execution:** bounded opt-in synchronous
+    [CUDA allocation reuse](CUDA_MEMORY_POOL.md) implemented. CPU/Metal pools,
+    broader allocator policies and asynchronous execution remain open.
 11. **Portable distribution:** Linux x86_64 CPU manylinux wheel pipeline implemented
     for CPython 3.11–3.13; [contract](PORTABLE_WHEELS.md). macOS/CUDA portable
     wheels, versioned releases and package-index publication remain open.

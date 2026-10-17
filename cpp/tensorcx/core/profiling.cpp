@@ -100,6 +100,7 @@ const char* profile_category_name(ProfileCategory category) {
     case ProfileCategory::kCopyAllocate: return "copy_allocate";
     case ProfileCategory::kCompute: return "compute_sync";
     case ProfileCategory::kMemset: return "memset_api";
+    case ProfileCategory::kMemoryPool: return "memory_pool";
     case ProfileCategory::kSynchronize: return "synchronize";
   }
   return "unknown";

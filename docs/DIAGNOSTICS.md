@@ -94,3 +94,8 @@ Sanitizer makes the injected child process see CUDA despite its empty
 `CUDA_VISIBLE_DEVICES` setting. Both CPU/CUDA sdist-to-wheel installations
 passed the standalone module and console-script probes. A NumPy-free wheel
 installation produced the expected redacted import-error report and exit 1.
+
+CUDA free-memory snapshots include the effect of idle storage retained by
+[explicit memory pools](CUDA_MEMORY_POOL.md). Use `pool.stats()` for that
+scope's checked-out/cached payload and `pool.trim()` to release idle blocks;
+these are not process-wide allocator or device memory totals.

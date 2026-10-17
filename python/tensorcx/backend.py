@@ -24,6 +24,7 @@ class Backend:
     matmul_backends: Callable[[], list[str]] | None = None
     operations: dict[str, tuple[str, ...]] | None = None
     diagnostic_info: Callable[[], dict[str, Any]] | None = None
+    memory_pool: Callable[[int, int], Any] | None = None
 
 
 _BACKENDS: dict[str, Backend] = {}
@@ -202,5 +203,6 @@ if _core.is_available("cuda"):
             matmul_backends=lambda: list(_core.matmul_backends("cuda")),
             operations=CUDA_OPERATIONS,
             diagnostic_info=lambda: dict(_core._cuda_device_info()),
+            memory_pool=lambda size, blocks: _core._CudaMemoryPool.create(size, blocks),
         )
     )

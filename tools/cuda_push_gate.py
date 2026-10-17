@@ -23,7 +23,7 @@ finally:
     sys.path.pop(0)
 TEST_FILES = ('test_cuda.py', 'test_cuda_primitives.py', 'test_mlir_cuda_runtime.py',
               'test_mlir_cuda_expressions.py', 'test_mlir_division.py', 'test_mlir_select.py',
-              'test_int32_primitives.py', 'test_runtime_profile.py', 'test_tensor_api.py', 'test_cast_broadcast.py',
+              'test_int32_primitives.py', 'test_runtime_profile.py', 'test_memory_pool.py', 'test_tensor_api.py', 'test_cast_broadcast.py',
               'test_shape_ops.py', 'test_multi_axis_reductions.py', 'test_indexing_joining.py', 'test_boolean_masks.py', 'test_batched_matmul.py', 'test_math_ops.py', 'test_inference_ops.py', 'test_dlpack.py')
 
 
@@ -138,6 +138,10 @@ def validate(revision, llvm_bin):
                  'test_profile_primitive_parity_and_accounting',
                  'test_profile_transfer_and_temporary_cleanup',
                  'test_profile_generated_kernel',
+                 'test_pool_fill_reuse_and_parity', 'test_pool_profiles_real_allocations_and_default_path',
+                 'test_pool_dlpack_export_and_borrow_never_recycle',
+                 'test_pool_threads_isolated_and_cross_thread_final_release',
+                 'test_pool_generated_private_output_and_suffix',
                  'test_keepdims_matches_numpy_and_methods',
                  'test_astype_values_shape_device_and_storage',
                  'test_broadcast_float32_numpy_and_cpu_parity',

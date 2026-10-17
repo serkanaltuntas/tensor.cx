@@ -106,8 +106,33 @@ five sizes from 1K to 16M and a resident MLP. Profile setup, validation and
 returned-result cleanup are outside the call timer; intermediate allocation,
 existing waits and temporary cleanup inside the workload remain included.
 Instrumented runs include profiler overhead; use the paired unprofiled samples
-for ordinary latency. Device-event timing, Metal spans and memory pooling remain
-open work.
+for ordinary latency. Device-event timing and Metal spans remain open work.
+
+## Bounded CUDA memory reuse
+
+```python
+x = cx.ones((1024,), device="cuda")
+with cx.memory_pool("cuda", max_cached_bytes=64 * 1024 * 1024,
+                    max_cached_blocks=64) as pool:
+    for _ in range(10):
+        result = (x + x) * x
+        del result
+    print(pool.stats())
+```
+
+Here `x` is an existing CUDA tensor. This opt-in current-thread scope caches
+idle exact-size owned buffers. Operations remain synchronous. The limits cover
+cached payload, not live tensors or total VRAM. `pool.trim()` frees idle blocks;
+exit stops reuse and releases cached storage while live tensors remain valid.
+CPU/Metal pools and asynchronous execution are not implemented. DLPack-exposed
+storage is permanently excluded to preserve foreign-stream ownership boundaries.
+
+Use `benchmarks/bench_memory_pool.py --pool off` and `--pool on` to compare
+public-call timings with CPU parity outside timing. Defaults cover five sizes
+and an MLP; native profiles run separately from latency samples. At 16M float32
+elements, the default 64 MiB cache cannot hold two simultaneous outputs. Gains
+are workload-dependent and cost retained memory. See the
+[full contract, method and evidence](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/CUDA_MEMORY_POOL.md).
 
 ## A useful report includes
 

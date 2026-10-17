@@ -301,6 +301,7 @@ if(TENSORCX_ENABLE_CUDA)
     cpp/tensorcx/backends/cuda/kernels/math.cu
     cpp/tensorcx/backends/cuda/kernels/predicate.cu
     cpp/tensorcx/backends/cuda/cuda_context.cpp
+    cpp/tensorcx/backends/cuda/cuda_memory_pool.cpp
     cpp/tensorcx/backends/cuda/cuda_kernel.cpp
     cpp/tensorcx/backends/cuda/kernels/elementwise.cu
     cpp/tensorcx/backends/cuda/kernels/primitives.cu

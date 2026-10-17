@@ -9,7 +9,7 @@
 
 namespace tensorcx {
 
-enum class ProfileCategory { kDispatch, kAllocation, kDeallocation, kCopy, kCopyAllocate, kCompute, kMemset, kSynchronize };
+enum class ProfileCategory { kDispatch, kAllocation, kDeallocation, kCopy, kCopyAllocate, kCompute, kMemset, kSynchronize, kMemoryPool };
 
 struct ProfileEvent {
   std::uint64_t id{}, parent_id{}, start_ns{}, duration_ns{}, self_ns{};

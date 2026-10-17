@@ -35,6 +35,7 @@ that the operation succeeded. Public exceptions and tensor results are unchanged
 | `copy_allocate` | CPU sequence import, same-dtype clone, NumPy export or generated-output clone; allocation and copy combined |
 | `compute_sync` | CPU executors (including validation/indexing) or CUDA launch wrappers including their existing nested wait |
 | `memset_api` | `cudaMemset` API call; device completion is not implied |
+| `memory_pool` | Opt-in CUDA acquire/return bookkeeping; actual runtime allocations/frees remain nested spans |
 | `synchronize` | Existing `cudaDeviceSynchronize` / generated-kernel `cuCtxSynchronize` calls |
 
 `duration_ns` is inclusive; `self_ns` subtracts directly nested spans. Only
@@ -115,9 +116,9 @@ Instrumented samples include profiler overhead. Their category breakdown cannot
 be substituted for unprofiled performance or device timings. Run repeated paired
 measurements before making an overhead/optimization claim. A shared desktop GPU
 and endpoint process snapshots cannot establish isolation. No other workload is
-stopped by this benchmark. Device-event timing, Metal spans, broader allocation
-accounting, memory pooling, async execution and measured fusion remain separate
-work.
+stopped by this benchmark. Bounded opt-in [CUDA memory pooling](CUDA_MEMORY_POOL.md) is implemented.
+Device-event timing, Metal spans, broader allocation accounting, async execution
+and measured fusion remain separate work.
 
 ## Verification
 

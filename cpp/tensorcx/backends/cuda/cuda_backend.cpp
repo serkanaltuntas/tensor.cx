@@ -17,6 +17,7 @@
 #include "tensorcx/backends/cuda/cuda_math.h"
 #include "tensorcx/backends/cuda/cuda_buffer.h"
 #include "tensorcx/backends/cuda/cuda_kernel.h"
+#include "tensorcx/backends/cuda/cuda_memory_pool.h"
 
 namespace tensorcx::cuda {
 namespace {
@@ -48,7 +49,8 @@ Expected<std::size_t> byte_size(DType dtype, const Shape& shape) {
 void DeviceDeleter::operator()(void* pointer) const noexcept {
   if (!pointer) return;
   ContextScope context(owner);
-  if (context.ready()) (void)profiled_free(pointer);
+  if (pool) pool->release(pointer, bytes, !exported || !exported->load(std::memory_order_relaxed), context.ready());
+  else if (context.ready()) (void)profiled_free(pointer);
 }
 
 Expected<std::shared_ptr<CudaBuffer>> CudaBuffer::create(DType dtype, const Shape& shape) {
@@ -62,8 +64,19 @@ Expected<std::shared_ptr<CudaBuffer>> CudaBuffer::create(DType dtype, const Shap
   buffer->data_.get_deleter().owner = context.owner();
   if (buffer->bytes_) {
     void* pointer = nullptr;
-    auto status = runtime_status(profiled_malloc(&pointer, buffer->bytes_), "CUDA allocation");
-    if (!status.ok()) return status;
+    auto pool = active_memory_pool();
+    if (pool) {
+      auto allocation = pool->allocate(buffer->bytes_);
+      if (!allocation) return allocation.status();
+      pointer = allocation.value();
+      auto& deleter = buffer->data_.get_deleter();
+      deleter.pool = std::move(pool);
+      deleter.bytes = buffer->bytes_;
+      deleter.exported = &buffer->exported_;
+    } else {
+      auto status = runtime_status(profiled_malloc(&pointer, buffer->bytes_), "CUDA allocation");
+      if (!status.ok()) return status;
+    }
     buffer->data_.reset(pointer);
   }
   return buffer;

@@ -388,6 +388,9 @@ print(ln.cpu().numpy().shape)
   zero-thread launches validate the Metal function and return as no-ops. The
   launch path is synchronous, Metal-only, one-output, exact-shape, and still
   under `cx.experimental`.
+- Opt-in bounded `cx.memory_pool("cuda")` reuses idle exact-size owned buffers
+  within a current-thread scope, preserving synchronous operations and excluding
+  DLPack-exposed storage; see [the memory pool contract](docs/CUDA_MEMORY_POOL.md).
 - Opt-in `cx.profile()` separates CPU/CUDA native allocation, copy, execution
   and existing wait regions using host timings; Metal is not instrumented.
   See [runtime profiling](docs/RUNTIME_PROFILING.md).

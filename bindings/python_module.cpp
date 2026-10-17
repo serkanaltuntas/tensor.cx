@@ -37,6 +37,7 @@
 #if TENSORCX_ENABLE_CUDA
 #include "tensorcx/backends/cuda/cuda_backend.h"
 #include "tensorcx/backends/cuda/cuda_kernel.h"
+#include "tensorcx/backends/cuda/cuda_memory_pool.h"
 #endif
 
 #ifndef TENSORCX_RUNTIME_VERSION
@@ -1063,6 +1064,38 @@ NB_MODULE(_core, module) {
     return result;
   });
 #if TENSORCX_ENABLE_CUDA
+  nb::class_<tensorcx::cuda::MemoryPool>(module, "_CudaMemoryPool")
+      .def_static("create", [](nb::handle bytes, nb::handle blocks) {
+        if (is_bool_like(bytes) || is_bool_like(blocks)) throw std::invalid_argument("memory pool limits must be integers");
+        return std::make_shared<tensorcx::cuda::MemoryPool>(nb::cast<std::size_t>(bytes), nb::cast<std::size_t>(blocks));
+      })
+      .def("enter", [](tensorcx::cuda::MemoryPool& pool) {
+        const auto status = without_gil([&] { return pool.enter(); });
+        if (!status.ok()) throw_status(status);
+      })
+      .def("exit", [](tensorcx::cuda::MemoryPool& pool) {
+        const auto status = without_gil([&] { return pool.exit(); });
+        if (!status.ok()) throw_status(status);
+      })
+      .def("trim", [](tensorcx::cuda::MemoryPool& pool) {
+        const auto status = without_gil([&] { return pool.trim(); });
+        if (!status.ok()) throw_status(status);
+      })
+      .def("stats", [](const tensorcx::cuda::MemoryPool& pool) {
+        const auto stats = without_gil([&] { return pool.stats(); });
+        nb::dict result;
+#define TENSORCX_POOL_FIELD(field) result[#field] = stats.field
+        TENSORCX_POOL_FIELD(max_cached_bytes); TENSORCX_POOL_FIELD(max_cached_blocks);
+        TENSORCX_POOL_FIELD(cached_bytes); TENSORCX_POOL_FIELD(cached_blocks);
+        TENSORCX_POOL_FIELD(in_use_bytes); TENSORCX_POOL_FIELD(peak_in_use_bytes);
+        TENSORCX_POOL_FIELD(peak_cached_bytes); TENSORCX_POOL_FIELD(hits); TENSORCX_POOL_FIELD(misses);
+        TENSORCX_POOL_FIELD(allocation_calls); TENSORCX_POOL_FIELD(free_calls);
+        TENSORCX_POOL_FIELD(allocation_failures); TENSORCX_POOL_FIELD(oom_retries);
+        TENSORCX_POOL_FIELD(uncached_returns); TENSORCX_POOL_FIELD(readiness_failures);
+        TENSORCX_POOL_FIELD(free_failures); TENSORCX_POOL_FIELD(failed_free_bytes); TENSORCX_POOL_FIELD(active);
+#undef TENSORCX_POOL_FIELD
+        return result;
+      });
   module.def("_cuda_device_info", [] {
     auto info = unwrap(without_gil([] { return tensorcx::cuda::device_info(); }));
     nb::dict memory;

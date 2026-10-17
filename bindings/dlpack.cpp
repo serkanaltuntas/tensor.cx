@@ -187,6 +187,9 @@ void bind_dlpack(nb::module_& module) {
     if (copy) tensor = clone(backend, tensor);
     auto native = tensorcx::cuda::from_core_tensor(tensor);
     if (!native) reject(native.status().message().c_str());
+    // Foreign consumers may submit work on untracked streams. Permanently use
+    // direct deletion for any storage exposed through DLPack, including copies.
+    native.value().buffer()->mark_exported();
     return export_tensor(tensor, native.value().buffer()->data(), DLDevice{kDLCUDA, 0}, versioned, copy);
   }, nb::arg("input"), nb::arg("versioned"), nb::arg("copy"));
 #endif

@@ -1,0 +1,1647 @@
+{
+  "schema_version": 1,
+  "metadata": {
+    "started_utc": "2026-10-17T15:42:55.927987+00:00",
+    "benchmark_sha256": "9d76eee831c4ba747ed2629ef392be067a28fbd07922cdb414d1efeb9da4857f",
+    "extension_sha256": "ba5a348108345d08b89d297528018199a8a496243fb2d365aa5686181e9edaa4",
+    "profiler_sha256": "702d55f22072f8a925ef02a620c7c35f4b62ef5cabe94201205ada7f5513450b",
+    "python": "3.12.14",
+    "numpy": "2.4.6",
+    "system": "Linux",
+    "machine": "x86_64",
+    "tensorcx": "0.1.0",
+    "device": "cuda",
+    "device_name": "NVIDIA GeForce GTX 980 Ti",
+    "build": {
+      "cpu": true,
+      "metal": false,
+      "cuda": true
+    },
+    "seed": 701,
+    "cuda": {
+      "name": "NVIDIA GeForce GTX 980 Ti",
+      "architecture": "sm_52",
+      "runtime_version": 12040,
+      "driver_api_version": 13000,
+      "memory": {
+        "scope": "cuda_device",
+        "total_bytes": 6363217920,
+        "available_bytes": 5696520192
+      }
+    },
+    "revision": "a6cf4580aafe82c9e3bc9718bcddcca6d202eb89",
+    "git_dirty": true,
+    "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "memory_pool_benchmark_sha256": "30b8e9125daffe90b54990eaf33c6bd62464ff3c75fb41f6b29708d3a911b5ff",
+    "pool_available": false,
+    "gpu_before": {
+      "gpu": "name, compute_cap, driver_version, memory.used [MiB], temperature.gpu, clocks.current.sm [MHz], clocks.current.memory [MHz], power.draw [W], utilization.gpu [%]\nNVIDIA GeForce GTX 980 Ti, 5.2, 580.178.04, 636 MiB, 60, 1139 MHz, 3304 MHz, 72.36 W, 12 %",
+      "other_compute_processes": [
+        {
+          "memory_mib": "84"
+        },
+        {
+          "memory_mib": "21"
+        }
+      ]
+    },
+    "gpu_after": {
+      "gpu": "name, compute_cap, driver_version, memory.used [MiB], temperature.gpu, clocks.current.sm [MHz], clocks.current.memory [MHz], power.draw [W], utilization.gpu [%]\nNVIDIA GeForce GTX 980 Ti, 5.2, 580.178.04, 766 MiB, 61, 1139 MHz, 3304 MHz, 71.95 W, 14 %",
+      "other_compute_processes": [
+        {
+          "memory_mib": "84"
+        },
+        {
+          "memory_mib": "21"
+        }
+      ]
+    },
+    "other_compute_processes_observed": true
+  },
+  "config": {
+    "pool": "off",
+    "sizes": [
+      1024,
+      16384,
+      262144,
+      1048576,
+      16777216
+    ],
+    "repeats": 7,
+    "warmup": 1,
+    "max_cached_bytes": 67108864,
+    "max_cached_blocks": 64
+  },
+  "results": [
+    {
+      "case": "allocation_cycle",
+      "shape": [
+        1024
+      ],
+      "samples_ms": [
+        0.141318,
+        0.133867,
+        0.190316,
+        0.132138,
+        0.127545,
+        0.128007,
+        0.126732
+      ],
+      "median_ms": 0.132138,
+      "p10_ms": 0.1272198,
+      "p90_ms": 0.1609172,
+      "native_regions": [
+        {
+          "backend": "cpu",
+          "category": "allocation",
+          "name": "owned_buffer",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 556,
+          "inclusive_ns": 556,
+          "bytes": 4096,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "name": "cudaMalloc",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 54847,
+          "inclusive_ns": 54847,
+          "bytes": 4096,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "copy_api",
+          "name": "host_to_device",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 6191,
+          "inclusive_ns": 6191,
+          "bytes": 4096,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "name": "cudaFree",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 37920,
+          "inclusive_ns": 37920,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "name": "cudaDeviceSynchronize",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 4107,
+          "inclusive_ns": 4107,
+          "bytes": 0,
+          "byte_records": 0
+        }
+      ],
+      "pool_before_close": null,
+      "pool_after_close": null
+    },
+    {
+      "case": "expression_resident",
+      "shape": [
+        1024
+      ],
+      "samples_ms": [
+        0.118266,
+        0.034657,
+        0.033227,
+        0.032081,
+        0.031582,
+        0.031212,
+        0.040238
+      ],
+      "median_ms": 0.033227,
+      "p10_ms": 0.031434,
+      "p90_ms": 0.07144920000000002,
+      "native_regions": [
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "name": "cudaMalloc",
+          "operation": null,
+          "calls": 2,
+          "self_ns": 4649,
+          "inclusive_ns": 4649,
+          "bytes": 8192,
+          "byte_records": 2
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "name": "launch_binary",
+          "operation": null,
+          "calls": 2,
+          "self_ns": 7387,
+          "inclusive_ns": 16421,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "name": "cudaFree",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 1603,
+          "inclusive_ns": 1603,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "name": "execute",
+          "operation": "add",
+          "calls": 1,
+          "self_ns": 2430,
+          "inclusive_ns": 14550,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "name": "execute",
+          "operation": "multiply",
+          "calls": 1,
+          "self_ns": 1308,
+          "inclusive_ns": 10258,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "name": "cudaDeviceSynchronize",
+          "operation": null,
+          "calls": 2,
+          "self_ns": 9034,
+          "inclusive_ns": 9034,
+          "bytes": 0,
+          "byte_records": 0
+        }
+      ],
+      "pool_before_close": null,
+      "pool_after_close": null
+    },
+    {
+      "case": "expression_end_to_end",
+      "shape": [
+        1024
+      ],
+      "samples_ms": [
+        0.078399,
+        0.091897,
+        0.075101,
+        0.073486,
+        0.073318,
+        0.073226,
+        0.073053
+      ],
+      "median_ms": 0.073486,
+      "p10_ms": 0.07315680000000001,
+      "p90_ms": 0.0837982,
+      "native_regions": [
+        {
+          "backend": "cpu",
+          "category": "allocation",
+          "name": "owned_buffer",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 340,
+          "inclusive_ns": 340,
+          "bytes": 4096,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "name": "cudaMalloc",
+          "operation": null,
+          "calls": 4,
+          "self_ns": 8218,
+          "inclusive_ns": 8218,
+          "bytes": 16384,
+          "byte_records": 4
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "name": "launch_binary",
+          "operation": null,
+          "calls": 2,
+          "self_ns": 6193,
+          "inclusive_ns": 15197,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "copy_api",
+          "name": "device_to_host",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 7341,
+          "inclusive_ns": 7341,
+          "bytes": 4096,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "copy_api",
+          "name": "host_to_device",
+          "operation": null,
+          "calls": 2,
+          "self_ns": 7397,
+          "inclusive_ns": 7397,
+          "bytes": 8192,
+          "byte_records": 2
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "name": "cudaFree",
+          "operation": null,
+          "calls": 4,
+          "self_ns": 6633,
+          "inclusive_ns": 6633,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "name": "execute",
+          "operation": "add",
+          "calls": 1,
+          "self_ns": 1880,
+          "inclusive_ns": 11919,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "name": "execute",
+          "operation": "multiply",
+          "calls": 1,
+          "self_ns": 1129,
+          "inclusive_ns": 9564,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "name": "cudaDeviceSynchronize",
+          "operation": null,
+          "calls": 4,
+          "self_ns": 15938,
+          "inclusive_ns": 15938,
+          "bytes": 0,
+          "byte_records": 0
+        }
+      ],
+      "pool_before_close": null,
+      "pool_after_close": null
+    },
+    {
+      "case": "allocation_cycle",
+      "shape": [
+        16384
+      ],
+      "samples_ms": [
+        0.043261,
+        0.042241,
+        0.039302,
+        0.041241,
+        0.038851,
+        0.038574,
+        0.03984
+      ],
+      "median_ms": 0.03984,
+      "p10_ms": 0.038740199999999995,
+      "p90_ms": 0.042649,
+      "native_regions": [
+        {
+          "backend": "cpu",
+          "category": "allocation",
+          "name": "owned_buffer",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 45530,
+          "inclusive_ns": 45530,
+          "bytes": 65536,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "name": "cudaMalloc",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 3282,
+          "inclusive_ns": 3282,
+          "bytes": 65536,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "copy_api",
+          "name": "host_to_device",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 11052,
+          "inclusive_ns": 11052,
+          "bytes": 65536,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "name": "cudaFree",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 2909,
+          "inclusive_ns": 2909,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "name": "cudaDeviceSynchronize",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 10642,
+          "inclusive_ns": 10642,
+          "bytes": 0,
+          "byte_records": 0
+        }
+      ],
+      "pool_before_close": null,
+      "pool_after_close": null
+    },
+    {
+      "case": "expression_resident",
+      "shape": [
+        16384
+      ],
+      "samples_ms": [
+        0.328124,
+        0.035632,
+        0.034959,
+        0.032697,
+        0.03241,
+        0.031951,
+        0.039747
+      ],
+      "median_ms": 0.034959,
+      "p10_ms": 0.0322264,
+      "p90_ms": 0.15509780000000012,
+      "native_regions": [
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "name": "cudaMalloc",
+          "operation": null,
+          "calls": 2,
+          "self_ns": 4762,
+          "inclusive_ns": 4762,
+          "bytes": 131072,
+          "byte_records": 2
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "name": "launch_binary",
+          "operation": null,
+          "calls": 2,
+          "self_ns": 7505,
+          "inclusive_ns": 17044,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "name": "cudaFree",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 1513,
+          "inclusive_ns": 1513,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "name": "execute",
+          "operation": "add",
+          "calls": 1,
+          "self_ns": 2388,
+          "inclusive_ns": 14876,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "name": "execute",
+          "operation": "multiply",
+          "calls": 1,
+          "self_ns": 1175,
+          "inclusive_ns": 10493,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "name": "cudaDeviceSynchronize",
+          "operation": null,
+          "calls": 2,
+          "self_ns": 9539,
+          "inclusive_ns": 9539,
+          "bytes": 0,
+          "byte_records": 0
+        }
+      ],
+      "pool_before_close": null,
+      "pool_after_close": null
+    },
+    {
+      "case": "expression_end_to_end",
+      "shape": [
+        16384
+      ],
+      "samples_ms": [
+        0.11945,
+        0.114771,
+        0.114797,
+        0.111782,
+        0.112973,
+        0.111372,
+        0.112208
+      ],
+      "median_ms": 0.112973,
+      "p10_ms": 0.11161800000000001,
+      "p90_ms": 0.1166582,
+      "native_regions": [
+        {
+          "backend": "cpu",
+          "category": "allocation",
+          "name": "owned_buffer",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 44857,
+          "inclusive_ns": 44857,
+          "bytes": 65536,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "name": "cudaMalloc",
+          "operation": null,
+          "calls": 4,
+          "self_ns": 8633,
+          "inclusive_ns": 8633,
+          "bytes": 262144,
+          "byte_records": 4
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "name": "launch_binary",
+          "operation": null,
+          "calls": 2,
+          "self_ns": 6339,
+          "inclusive_ns": 15799,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "copy_api",
+          "name": "device_to_host",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 19017,
+          "inclusive_ns": 19017,
+          "bytes": 65536,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "copy_api",
+          "name": "host_to_device",
+          "operation": null,
+          "calls": 2,
+          "self_ns": 17757,
+          "inclusive_ns": 17757,
+          "bytes": 131072,
+          "byte_records": 2
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "name": "cudaFree",
+          "operation": null,
+          "calls": 4,
+          "self_ns": 7351,
+          "inclusive_ns": 7351,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "name": "execute",
+          "operation": "add",
+          "calls": 1,
+          "self_ns": 1946,
+          "inclusive_ns": 12457,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "name": "execute",
+          "operation": "multiply",
+          "calls": 1,
+          "self_ns": 1272,
+          "inclusive_ns": 10127,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "name": "cudaDeviceSynchronize",
+          "operation": null,
+          "calls": 4,
+          "self_ns": 30400,
+          "inclusive_ns": 30400,
+          "bytes": 0,
+          "byte_records": 0
+        }
+      ],
+      "pool_before_close": null,
+      "pool_after_close": null
+    },
+    {
+      "case": "allocation_cycle",
+      "shape": [
+        262144
+      ],
+      "samples_ms": [
+        0.299323,
+        0.268918,
+        0.259097,
+        0.258071,
+        0.250817,
+        0.250258,
+        0.247746
+      ],
+      "median_ms": 0.258071,
+      "p10_ms": 0.24925319999999998,
+      "p90_ms": 0.28108,
+      "native_regions": [
+        {
+          "backend": "cpu",
+          "category": "allocation",
+          "name": "owned_buffer",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 431580,
+          "inclusive_ns": 431580,
+          "bytes": 1048576,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "name": "cudaMalloc",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 73281,
+          "inclusive_ns": 73281,
+          "bytes": 1048576,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "copy_api",
+          "name": "host_to_device",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 75109,
+          "inclusive_ns": 75109,
+          "bytes": 1048576,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "name": "cudaFree",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 52582,
+          "inclusive_ns": 52582,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "name": "cudaDeviceSynchronize",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 90588,
+          "inclusive_ns": 90588,
+          "bytes": 0,
+          "byte_records": 0
+        }
+      ],
+      "pool_before_close": null,
+      "pool_after_close": null
+    },
+    {
+      "case": "expression_resident",
+      "shape": [
+        262144
+      ],
+      "samples_ms": [
+        0.337609,
+        0.269108,
+        0.526548,
+        0.351571,
+        0.265876,
+        0.347094,
+        0.28927
+      ],
+      "median_ms": 0.337609,
+      "p10_ms": 0.26781520000000003,
+      "p90_ms": 0.4215618000000001,
+      "native_regions": [
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "name": "cudaMalloc",
+          "operation": null,
+          "calls": 2,
+          "self_ns": 141819,
+          "inclusive_ns": 141819,
+          "bytes": 2097152,
+          "byte_records": 2
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "name": "launch_binary",
+          "operation": null,
+          "calls": 2,
+          "self_ns": 23390,
+          "inclusive_ns": 52668,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "name": "cudaFree",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 40078,
+          "inclusive_ns": 40078,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "name": "execute",
+          "operation": "add",
+          "calls": 1,
+          "self_ns": 6410,
+          "inclusive_ns": 124114,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "name": "execute",
+          "operation": "multiply",
+          "calls": 1,
+          "self_ns": 2519,
+          "inclusive_ns": 79302,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "name": "cudaDeviceSynchronize",
+          "operation": null,
+          "calls": 2,
+          "self_ns": 29278,
+          "inclusive_ns": 29278,
+          "bytes": 0,
+          "byte_records": 0
+        }
+      ],
+      "pool_before_close": null,
+      "pool_after_close": null
+    },
+    {
+      "case": "expression_end_to_end",
+      "shape": [
+        262144
+      ],
+      "samples_ms": [
+        1.367403,
+        1.322493,
+        1.563741,
+        1.691911,
+        1.563204,
+        1.563061,
+        1.342232
+      ],
+      "median_ms": 1.563061,
+      "p10_ms": 1.3343364,
+      "p90_ms": 1.6150090000000001,
+      "native_regions": [
+        {
+          "backend": "cpu",
+          "category": "allocation",
+          "name": "owned_buffer",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 30338,
+          "inclusive_ns": 30338,
+          "bytes": 1048576,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "name": "cudaMalloc",
+          "operation": null,
+          "calls": 4,
+          "self_ns": 335836,
+          "inclusive_ns": 335836,
+          "bytes": 4194304,
+          "byte_records": 4
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "name": "launch_binary",
+          "operation": null,
+          "calls": 2,
+          "self_ns": 19690,
+          "inclusive_ns": 43961,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "copy_api",
+          "name": "device_to_host",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 206135,
+          "inclusive_ns": 206135,
+          "bytes": 1048576,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "copy_api",
+          "name": "host_to_device",
+          "operation": null,
+          "calls": 2,
+          "self_ns": 223334,
+          "inclusive_ns": 223334,
+          "bytes": 2097152,
+          "byte_records": 2
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "name": "cudaFree",
+          "operation": null,
+          "calls": 4,
+          "self_ns": 308991,
+          "inclusive_ns": 308991,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "name": "execute",
+          "operation": "add",
+          "calls": 1,
+          "self_ns": 6485,
+          "inclusive_ns": 90677,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "name": "execute",
+          "operation": "multiply",
+          "calls": 1,
+          "self_ns": 2952,
+          "inclusive_ns": 75906,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "name": "cudaDeviceSynchronize",
+          "operation": null,
+          "calls": 4,
+          "self_ns": 191833,
+          "inclusive_ns": 191833,
+          "bytes": 0,
+          "byte_records": 0
+        }
+      ],
+      "pool_before_close": null,
+      "pool_after_close": null
+    },
+    {
+      "case": "allocation_cycle",
+      "shape": [
+        1048576
+      ],
+      "samples_ms": [
+        1.575465,
+        0.824746,
+        0.903515,
+        1.012928,
+        1.028296,
+        0.845393,
+        0.894114
+      ],
+      "median_ms": 0.903515,
+      "p10_ms": 0.8371341999999999,
+      "p90_ms": 1.2471636000000001,
+      "native_regions": [
+        {
+          "backend": "cpu",
+          "category": "allocation",
+          "name": "owned_buffer",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 110565,
+          "inclusive_ns": 110565,
+          "bytes": 4194304,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "name": "cudaMalloc",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 138318,
+          "inclusive_ns": 138318,
+          "bytes": 4194304,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "copy_api",
+          "name": "host_to_device",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 463697,
+          "inclusive_ns": 463697,
+          "bytes": 4194304,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "name": "cudaFree",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 79843,
+          "inclusive_ns": 79843,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "name": "cudaDeviceSynchronize",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 83882,
+          "inclusive_ns": 83882,
+          "bytes": 0,
+          "byte_records": 0
+        }
+      ],
+      "pool_before_close": null,
+      "pool_after_close": null
+    },
+    {
+      "case": "expression_resident",
+      "shape": [
+        1048576
+      ],
+      "samples_ms": [
+        0.585322,
+        0.554398,
+        0.587727,
+        0.522107,
+        0.592743,
+        0.530645,
+        0.533007
+      ],
+      "median_ms": 0.554398,
+      "p10_ms": 0.5272298,
+      "p90_ms": 0.5897334,
+      "native_regions": [
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "name": "cudaMalloc",
+          "operation": null,
+          "calls": 2,
+          "self_ns": 320708,
+          "inclusive_ns": 320708,
+          "bytes": 8388608,
+          "byte_records": 2
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "name": "launch_binary",
+          "operation": null,
+          "calls": 2,
+          "self_ns": 26054,
+          "inclusive_ns": 184187,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "name": "cudaFree",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 45314,
+          "inclusive_ns": 45314,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "name": "execute",
+          "operation": "add",
+          "calls": 1,
+          "self_ns": 7791,
+          "inclusive_ns": 390732,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "name": "execute",
+          "operation": "multiply",
+          "calls": 1,
+          "self_ns": 2859,
+          "inclusive_ns": 124813,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "name": "cudaDeviceSynchronize",
+          "operation": null,
+          "calls": 2,
+          "self_ns": 158133,
+          "inclusive_ns": 158133,
+          "bytes": 0,
+          "byte_records": 0
+        }
+      ],
+      "pool_before_close": null,
+      "pool_after_close": null
+    },
+    {
+      "case": "expression_end_to_end",
+      "shape": [
+        1048576
+      ],
+      "samples_ms": [
+        3.33447,
+        3.400015,
+        3.243941,
+        3.64004,
+        3.112105,
+        3.223455,
+        3.668445
+      ],
+      "median_ms": 3.33447,
+      "p10_ms": 3.178915,
+      "p90_ms": 3.651402,
+      "native_regions": [
+        {
+          "backend": "cpu",
+          "category": "allocation",
+          "name": "owned_buffer",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 128070,
+          "inclusive_ns": 128070,
+          "bytes": 4194304,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "name": "cudaMalloc",
+          "operation": null,
+          "calls": 4,
+          "self_ns": 372551,
+          "inclusive_ns": 372551,
+          "bytes": 16777216,
+          "byte_records": 4
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "name": "launch_binary",
+          "operation": null,
+          "calls": 2,
+          "self_ns": 20681,
+          "inclusive_ns": 179812,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "copy_api",
+          "name": "device_to_host",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 614866,
+          "inclusive_ns": 614866,
+          "bytes": 4194304,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "copy_api",
+          "name": "host_to_device",
+          "operation": null,
+          "calls": 2,
+          "self_ns": 1013065,
+          "inclusive_ns": 1013065,
+          "bytes": 8388608,
+          "byte_records": 2
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "name": "cudaFree",
+          "operation": null,
+          "calls": 4,
+          "self_ns": 766097,
+          "inclusive_ns": 766097,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "name": "execute",
+          "operation": "add",
+          "calls": 1,
+          "self_ns": 8091,
+          "inclusive_ns": 206222,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "name": "execute",
+          "operation": "multiply",
+          "calls": 1,
+          "self_ns": 3358,
+          "inclusive_ns": 135071,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "name": "cudaDeviceSynchronize",
+          "operation": null,
+          "calls": 4,
+          "self_ns": 322649,
+          "inclusive_ns": 322649,
+          "bytes": 0,
+          "byte_records": 0
+        }
+      ],
+      "pool_before_close": null,
+      "pool_after_close": null
+    },
+    {
+      "case": "allocation_cycle",
+      "shape": [
+        16777216
+      ],
+      "samples_ms": [
+        46.103094,
+        46.637879,
+        46.750326,
+        46.174568,
+        48.520583,
+        48.602571,
+        45.8745
+      ],
+      "median_ms": 46.637879,
+      "p10_ms": 46.0116564,
+      "p90_ms": 48.5533782,
+      "native_regions": [
+        {
+          "backend": "cpu",
+          "category": "allocation",
+          "name": "owned_buffer",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 33425176,
+          "inclusive_ns": 33425176,
+          "bytes": 67108864,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "name": "cudaMalloc",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 160176,
+          "inclusive_ns": 160176,
+          "bytes": 67108864,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "copy_api",
+          "name": "host_to_device",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 7008735,
+          "inclusive_ns": 7008735,
+          "bytes": 67108864,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "name": "cudaFree",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 118498,
+          "inclusive_ns": 118498,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "name": "cudaDeviceSynchronize",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 80841,
+          "inclusive_ns": 80841,
+          "bytes": 0,
+          "byte_records": 0
+        }
+      ],
+      "pool_before_close": null,
+      "pool_after_close": null
+    },
+    {
+      "case": "expression_resident",
+      "shape": [
+        16777216
+      ],
+      "samples_ms": [
+        6.138842,
+        6.2235,
+        6.276186,
+        6.253929,
+        6.101908,
+        6.058684,
+        6.999696
+      ],
+      "median_ms": 6.2235,
+      "p10_ms": 6.0846184,
+      "p90_ms": 6.56559,
+      "native_regions": [
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "name": "cudaMalloc",
+          "operation": null,
+          "calls": 2,
+          "self_ns": 4286746,
+          "inclusive_ns": 4286746,
+          "bytes": 134217728,
+          "byte_records": 2
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "name": "launch_binary",
+          "operation": null,
+          "calls": 2,
+          "self_ns": 26643,
+          "inclusive_ns": 1641679,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "name": "cudaFree",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 87632,
+          "inclusive_ns": 87632,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "name": "execute",
+          "operation": "add",
+          "calls": 1,
+          "self_ns": 8017,
+          "inclusive_ns": 5056579,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "name": "execute",
+          "operation": "multiply",
+          "calls": 1,
+          "self_ns": 2996,
+          "inclusive_ns": 882859,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "name": "cudaDeviceSynchronize",
+          "operation": null,
+          "calls": 2,
+          "self_ns": 1615036,
+          "inclusive_ns": 1615036,
+          "bytes": 0,
+          "byte_records": 0
+        }
+      ],
+      "pool_before_close": null,
+      "pool_after_close": null
+    },
+    {
+      "case": "expression_end_to_end",
+      "shape": [
+        16777216
+      ],
+      "samples_ms": [
+        67.355743,
+        66.477081,
+        68.505584,
+        67.27576,
+        76.453076,
+        68.049626,
+        68.452185
+      ],
+      "median_ms": 68.049626,
+      "p10_ms": 66.9562884,
+      "p90_ms": 71.6845808,
+      "native_regions": [
+        {
+          "backend": "cpu",
+          "category": "allocation",
+          "name": "owned_buffer",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 36674003,
+          "inclusive_ns": 36674003,
+          "bytes": 67108864,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "name": "cudaMalloc",
+          "operation": null,
+          "calls": 4,
+          "self_ns": 553396,
+          "inclusive_ns": 553396,
+          "bytes": 268435456,
+          "byte_records": 4
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "name": "launch_binary",
+          "operation": null,
+          "calls": 2,
+          "self_ns": 21843,
+          "inclusive_ns": 1626574,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "copy_api",
+          "name": "device_to_host",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 7172236,
+          "inclusive_ns": 7172236,
+          "bytes": 67108864,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "copy_api",
+          "name": "host_to_device",
+          "operation": null,
+          "calls": 2,
+          "self_ns": 14386723,
+          "inclusive_ns": 14386723,
+          "bytes": 134217728,
+          "byte_records": 2
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "name": "cudaFree",
+          "operation": null,
+          "calls": 4,
+          "self_ns": 6645999,
+          "inclusive_ns": 6645999,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "name": "execute",
+          "operation": "add",
+          "calls": 1,
+          "self_ns": 8254,
+          "inclusive_ns": 966910,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "name": "execute",
+          "operation": "multiply",
+          "calls": 1,
+          "self_ns": 4513,
+          "inclusive_ns": 866905,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "name": "cudaDeviceSynchronize",
+          "operation": null,
+          "calls": 4,
+          "self_ns": 1764104,
+          "inclusive_ns": 1764104,
+          "bytes": 0,
+          "byte_records": 0
+        }
+      ],
+      "pool_before_close": null,
+      "pool_after_close": null
+    },
+    {
+      "case": "mlp_resident",
+      "shape": [
+        32,
+        64,
+        128,
+        10
+      ],
+      "samples_ms": [
+        0.202953,
+        0.189922,
+        0.195025,
+        0.190625,
+        0.188507,
+        0.192342,
+        0.1905
+      ],
+      "median_ms": 0.190625,
+      "p10_ms": 0.189356,
+      "p90_ms": 0.1981962,
+      "native_regions": [
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "name": "cudaMalloc",
+          "operation": null,
+          "calls": 5,
+          "self_ns": 14511,
+          "inclusive_ns": 14511,
+          "bytes": 51712,
+          "byte_records": 5
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "name": "launch_axis",
+          "operation": null,
+          "calls": 2,
+          "self_ns": 7707,
+          "inclusive_ns": 79009,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "name": "launch_matmul",
+          "operation": null,
+          "calls": 2,
+          "self_ns": 10756,
+          "inclusive_ns": 38973,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "name": "launch_unary",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 3721,
+          "inclusive_ns": 8931,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "name": "cudaFree",
+          "operation": null,
+          "calls": 4,
+          "self_ns": 10260,
+          "inclusive_ns": 10260,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "name": "execute",
+          "operation": "gelu",
+          "calls": 1,
+          "self_ns": 2215,
+          "inclusive_ns": 12918,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "name": "execute",
+          "operation": "layernorm",
+          "calls": 1,
+          "self_ns": 2535,
+          "inclusive_ns": 67195,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "name": "execute",
+          "operation": "matmul",
+          "calls": 2,
+          "self_ns": 7761,
+          "inclusive_ns": 53639,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "name": "execute",
+          "operation": "softmax",
+          "calls": 1,
+          "self_ns": 2372,
+          "inclusive_ns": 22555,
+          "bytes": 0,
+          "byte_records": 0
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "name": "cudaDeviceSynchronize",
+          "operation": null,
+          "calls": 5,
+          "self_ns": 104729,
+          "inclusive_ns": 104729,
+          "bytes": 0,
+          "byte_records": 0
+        }
+      ],
+      "pool_before_close": null,
+      "pool_after_close": null
+    }
+  ],
+  "measurement": "unprofiled public-call host wall time; separate native profile; allocation_cycle validates metadata only, other outputs against CPU",
+  "publication": {
+    "format": "cortex-public-report-v1",
+    "scope": "known local identifiers removed; arbitrary text requires review"
+  }
+}
