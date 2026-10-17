@@ -322,3 +322,6 @@ Additional generated operations and targets remain separate work.
 
 Guarded float32 `cx.experimental.exp` is also supported; [kernel exp](MLIR_EXP.md)
 defines explicit CPU libm linkage, bounded numerical errors and target limits.
+
+Guarded float32 `cx.experimental.log` is also supported; [kernel log](MLIR_LOG.md)
+defines domain rules, shared explicit libm linkage and target error limits.

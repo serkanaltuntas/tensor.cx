@@ -61,7 +61,7 @@ def signature(ir):
               or (isinstance(value, IRCall)
                   and ((value.name == "select" and len(value.args) == 3)
                        or (value.name in {"minimum", "maximum"} and len(value.args) == 2)
-                       or (value.name in {"sqrt", "abs", "exp"} and len(value.args) == 1)))):
+                       or (value.name in {"sqrt", "abs", "exp", "log"} and len(value.args) == 1)))):
             operators += 1
             if operators > 64:
                 reject("expression operation count exceeds 64")
@@ -185,6 +185,13 @@ def emit_expression_cuda(ir, kinds, output, guard):
                 # propagation and zero signs; no libdevice or sm_80 required.
                 return instruction(f'llvm.call_intrinsic "llvm.{value.name}.f32"'
                                    f'({values[0]}, {values[1]}) : (f32, f32) -> f32')
+            if value.name == "log":
+                # Non-FTZ base-2 logarithm supports sm_52 subnormal inputs.
+                # Round the final conversion to a natural logarithm in f32.
+                logarithm = instruction('llvm.call_intrinsic "llvm.nvvm.lg2.approx.f"'
+                                        f'({values[0]}) : (f32) -> f32')
+                scale = instruction(f"arith.constant {format_f32_constant(0.6931471805599453)} : f32")
+                return instruction(f"arith.mulf {logarithm}, {scale} : f32")
             if value.name == "exp":
                 # A bounded-error exp implementation without external libdevice.
                 # Pin f32 scaling and the non-FTZ sm_52-compatible intrinsic.

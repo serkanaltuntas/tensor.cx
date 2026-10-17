@@ -135,6 +135,7 @@ cx.experimental.abs(float_value)
 cx.experimental.minimum(float_value, float_value)
 cx.experimental.maximum(float_value, float_value)
 cx.experimental.exp(float_value)
+cx.experimental.log(float_value)
 if blocks without else
 numeric constants
 for var in range(bound_name) with an assignment-only body (any local
@@ -285,3 +286,7 @@ their Metal helper/compiler policy is separate from builtin min/max semantics.
 [Kernel exp](MLIR_EXP.md) adds a bounded-error float32 exponential. CPU links
 libm explicitly; CUDA uses non-FTZ ex2 without libdevice. Direct Metal exp uses
 strict compilation and its separately documented normal-output numerical scope.
+
+[Kernel log](MLIR_LOG.md) defines float32 natural logarithms, domain/special-value
+rules and target error bounds. CUDA supports positive subnormal inputs without
+FTZ/libdevice; direct Metal acceptance excludes nonzero subnormal arguments.

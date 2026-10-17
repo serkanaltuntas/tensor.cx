@@ -39,6 +39,7 @@ canonical global index and the single outer `if i < n` guard. Inside that guard:
   defines its strict rounding/lowering and target-specific limits.
 - Float32 `cx.experimental.abs` is supported with the same strict unary typing;
   [MLIR_ABS.md](MLIR_ABS.md) defines its sign-bit and lowering contract.
+- Float32 `cx.experimental.log` counts as one operation; [log contract](MLIR_LOG.md).
 - Float32 `cx.experimental.exp` counts as one operation; [exp contract](MLIR_EXP.md).
 - Float32 `cx.experimental.minimum`/`maximum` each count as one operation;
   [MLIR_MINMAX.md](MLIR_MINMAX.md) defines NaN/zero semantics and sm_52 lowering.

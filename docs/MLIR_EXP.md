@@ -35,8 +35,10 @@ acceptance, not exhaustive validation of every float32 input or other hardware.
 ## Lowering and cache policy
 
 CPU emits `math.exp` without fast-math flags. LLVM 21.1.8 lowers it to `expf`;
-the compiler explicitly links system `libm` after its input objects. Only
-kernels containing exp add `-lm` and fingerprint the libm linker input and
+the compiler explicitly links system `libm` after its input objects. CPU kernel
+names `expf` and `logf` are rejected before compilation to prevent collisions
+with external libm symbols (CUDA/Metal are unaffected). Only
+kernels containing exp or [log](MLIR_LOG.md) add `-lm` and fingerprint the libm linker input and
 runtime library in the artifact cache. Other kernels retain their flags/keys.
 The interpreter uses NumPy float32 exp with local error handling, so ambient
 NumPy error settings do not turn overflow/underflow into Python exceptions.
