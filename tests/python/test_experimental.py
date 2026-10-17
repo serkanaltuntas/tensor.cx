@@ -806,6 +806,57 @@ def test_experimental_abs_metal_parity(shape):
     np.testing.assert_allclose(result.numpy(), signless(a), rtol=1e-6, atol=1e-6)
 
 
+@pytest.mark.parametrize('shape', [(), (0,), (1,), (257,), (2, 3)])
+def test_experimental_minmax_metal_parity(shape):
+    if not _has_metal_compiler() or 'metal' not in cx.devices():
+        pytest.skip('requires Metal compiler and device')
+    from test_mlir_minmax import KERNELS, helper_collision, oracle
+    count = int(np.prod(shape))
+    a = np.arange(count, dtype=np.float32).reshape(shape) * np.float32(.25) - np.float32(3)
+    b = np.full(shape, .75, dtype=np.float32)
+    tensors = [cx.tensor(values, device='metal')
+               for values in (a, b, np.full(shape, -7, dtype=np.float32))]
+    for dsl in [*KERNELS, helper_collision]:
+        result = dsl.compile(target='metal').launch(*tensors, count, block_size=7)
+        assert result is tensors[2]
+        np.testing.assert_allclose(result.numpy(), oracle(dsl, a, b), rtol=1e-6, atol=1e-6)
+        np.testing.assert_array_equal(tensors[0].numpy(), a)
+        np.testing.assert_array_equal(tensors[1].numpy(), b)
+
+
+@pytest.mark.parametrize('maximum', [False, True])
+def test_experimental_minmax_metal_ieee(maximum):
+    if not _has_metal_compiler() or 'metal' not in cx.devices():
+        pytest.skip('requires Metal compiler and device')
+    from test_mlir_minmax import lower, upper, special_pairs, ieee, assert_bits
+    a, b = special_pairs()
+    tensors = [cx.tensor(values, device='metal') for values in (a, b, np.zeros_like(a))]
+    dsl = upper if maximum else lower
+    result = dsl.compile(target='metal').launch(*tensors, a.size, block_size=113)
+    assert result is tensors[2]
+    assert_bits(result.numpy(), ieee(a, b, maximum=maximum))
+
+
+@pytest.mark.parametrize('maximum', [False, True])
+def test_experimental_minmax_metal_kernel_helper_collision(maximum):
+    if not _has_metal_compiler() or 'metal' not in cx.devices():
+        pytest.skip('requires Metal compiler and device')
+    from dataclasses import replace
+    from tensorcx._compiler import metal
+    from test_mlir_minmax import lower, upper, oracle
+    dsl = upper if maximum else lower
+    name = 'tensorcx_maximum_f32' if maximum else 'tensorcx_minimum_f32'
+    ir = replace(dsl.parse_ir(), name=name)
+    source = cx.experimental._emit_msl(ir)
+    artifact, _ = metal.compile_artifact(name, source, cache=False, strict_math=True)
+    native = cx.experimental.CompiledKernel(
+        name=name, target='metal', ir=ir, msl_source=source, metallib=artifact)
+    a, b, out = [cx.tensor(values, device='metal') for values in ([-2., 4.], [3., -1.], [0., 0.])]
+    result = native.launch(a, b, out, 2)
+    assert result is out
+    np.testing.assert_array_equal(result.numpy(), oracle(dsl, a.numpy(), b.numpy()))
+
+
 def _program_id_nonzero_axis_kernel():
     @cx.experimental.kernel
     def bad_kernel(out, axis):

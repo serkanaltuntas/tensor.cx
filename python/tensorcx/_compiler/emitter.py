@@ -437,6 +437,16 @@ def _emit_expression(
         )
         return value, "f32"
     if isinstance(expression, IRCall):
+        if expression.name in {"minimum", "maximum"}:
+            if len(expression.args) != 2:
+                raise MlirEmitError(f"{expression.name} requires two float32 arguments")
+            values = [_emit_expression(emitter, arg, indent=indent, context=context)
+                      for arg in expression.args]
+            if any(kind != "f32" for _, kind in values):
+                raise MlirEmitError(f"{expression.name} requires two float32 arguments")
+            value = emitter.fresh()
+            emitter.emit(indent, f"{value} = arith.{expression.name}f {', '.join(name for name, _ in values)} : f32")
+            return value, "f32"
         if expression.name in {"sqrt", "abs"}:
             if len(expression.args) != 1:
                 raise MlirEmitError(f"{expression.name} requires one float32 argument")

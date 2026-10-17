@@ -250,7 +250,7 @@ jobs:
         env:
           TENSORCX_LLVM_BIN: ${{ runner.temp }}/llvm-bin
           TENSORCX_REQUIRE_MLIR: "1"
-        run: uv run pytest tests/python/test_mlir_lowering.py tests/python/test_mlir_runtime.py tests/python/test_mlir_division.py tests/python/test_mlir_select.py tests/python/test_mlir_sqrt.py tests/python/test_mlir_abs.py tests/python/test_runtime_profile.py -k "not cuda" -v -rs
+        run: uv run pytest tests/python/test_mlir_lowering.py tests/python/test_mlir_runtime.py tests/python/test_mlir_division.py tests/python/test_mlir_select.py tests/python/test_mlir_sqrt.py tests/python/test_mlir_abs.py tests/python/test_mlir_minmax.py tests/python/test_runtime_profile.py -k "not cuda" -v -rs
 
       - name: Check CUDA device lowering without a CUDA SDK or GPU
         env:
@@ -268,7 +268,7 @@ jobs:
         env:
           TENSORCX_LLVM_BIN: ${{ runner.temp }}/llvm-bin
           TENSORCX_REQUIRE_MLIR: "1"
-        run: uv run pytest tests/python/test_mlir_cuda_runtime.py tests/python/test_mlir_cuda_expressions.py tests/python/test_mlir_division.py tests/python/test_mlir_select.py tests/python/test_mlir_sqrt.py tests/python/test_mlir_abs.py -k "gpu_emitter or malformed_serialized or unsupported_before_tools or default_cuda or expression_invalid_before_tools or expression_bounds" -v -rs
+        run: uv run pytest tests/python/test_mlir_cuda_runtime.py tests/python/test_mlir_cuda_expressions.py tests/python/test_mlir_division.py tests/python/test_mlir_select.py tests/python/test_mlir_sqrt.py tests/python/test_mlir_abs.py tests/python/test_mlir_minmax.py -k "gpu_emitter or malformed_serialized or unsupported_before_tools or default_cuda or expression_invalid_before_tools or expression_bounds" -v -rs
 
       # Guard the job's purpose: pin the end-to-end lowering test by node id so a
       # rename/removal or a stray selection filter makes pytest error (exit 4)

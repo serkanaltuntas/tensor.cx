@@ -270,6 +270,8 @@ Guarded float32 sqrt is implemented; docs/MLIR_SQRT.md defines strict CPU/CUDA
 lowering, unchanged signature/complexity limits and direct MSL numerical scope.
 Guarded float32 abs is implemented; docs/MLIR_ABS.md records sign-bit semantics,
 strict unary types and existing CPU/CUDA/Metal launch boundaries.
+Guarded float32 minimum/maximum are implemented; docs/MLIR_MINMAX.md defines
+NaN propagation, zero ordering, Metal strict compilation and unchanged ABI limits.
 ```
 
 `docs/CUDA_PHASE9_ENVIRONMENT.md` records the selected host and entry criteria;

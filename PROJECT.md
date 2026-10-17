@@ -55,6 +55,7 @@ Selection increment:    float32 comparisons and value selection in guarded kerne
                         docs/MLIR_SELECT.md (2026-10-17); general branches remain open
 Sqrt increment:         guarded float32 kernel sqrt; docs/MLIR_SQRT.md (2026-10-17)
 Abs increment:          guarded float32 kernel abs; docs/MLIR_ABS.md (2026-10-17)
+Min/max increment:      guarded float32 minimum/maximum; docs/MLIR_MINMAX.md (2026-10-17)
 Active user goal:       complete CUDA product list; docs/CUDA_PRODUCT_COMPLETION.md
 CUDA primitives:        float32 matmul, reductions, activations and normalization
                         implemented; docs/CUDA_PRIMITIVES_VALIDATION.md

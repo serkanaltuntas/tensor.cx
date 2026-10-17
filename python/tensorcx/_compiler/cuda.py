@@ -60,6 +60,7 @@ def signature(ir):
               or (isinstance(value, IRCompare) and value.op in PREDICATES)
               or (isinstance(value, IRCall)
                   and ((value.name == "select" and len(value.args) == 3)
+                       or (value.name in {"minimum", "maximum"} and len(value.args) == 2)
                        or (value.name in {"sqrt", "abs"} and len(value.args) == 1)))):
             operators += 1
             if operators > 64:
@@ -179,6 +180,11 @@ def emit_expression_cuda(ir, kinds, output, guard):
             return instruction(f"llvm.load {ptr} : !llvm.ptr -> f32")
         if isinstance(value, IRCall):
             values = [expression(argument) for argument in value.args]
+            if value.name in {"minimum", "maximum"}:
+                # LLVM expands IEEE minimum/maximum for sm_52, including NaN
+                # propagation and zero signs; no libdevice or sm_80 required.
+                return instruction(f'llvm.call_intrinsic "llvm.{value.name}.f32"'
+                                   f'({values[0]}, {values[1]}) : (f32, f32) -> f32')
             if value.name == "abs":
                 # Bypass GPUToNVVM's external libdevice math.absf lowering.
                 return instruction('llvm.call_intrinsic "llvm.fabs.f32"'

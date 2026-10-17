@@ -9,8 +9,8 @@ require a compiler SDK at runtime. Explicit custom-kernel compilation does.
 | Path | What is implemented | Required environment |
 | --- | --- | --- |
 | Metal / MSL | Restricted Python kernel DSL, float32 elementwise and bounded rowwise reductions | Apple Metal compiler tools and an available Metal device |
-| CPU / MLIR | Guarded float32 arithmetic, division, sqrt/abs, comparisons and select; bounded local/nested expressions | Validated on Linux x86_64 with LLVM/MLIR 21.1.8 |
-| CUDA / MLIR | Guarded float32 add/subtract/multiply/divide, sqrt/abs, comparisons and select; bounded local/nested expressions | Validated CPU toolchain plus CUDA toolkit 12.4, CUDA Driver API 13.0, and sm_52 hardware |
+| CPU / MLIR | Guarded float32 arithmetic, division, sqrt/abs, minimum/maximum, comparisons and select; bounded local/nested expressions | Validated on Linux x86_64 with LLVM/MLIR 21.1.8 |
+| CUDA / MLIR | Guarded float32 add/subtract/multiply/divide, sqrt/abs, minimum/maximum, comparisons and select; bounded local/nested expressions | Validated CPU toolchain plus CUDA toolkit 12.4, CUDA Driver API 13.0, and sm_52 hardware |
 
 ## Explicit compilation
 
@@ -49,6 +49,15 @@ CUDA emits `abs.f32` without an external math library; direct Metal emits
 qualified `fabs` with finite-input tolerance. The CUDA two-input signature
 remains unchanged. See the
 [absolute-value contract and example](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/MLIR_ABS.md).
+
+`cx.experimental.minimum(lhs, rhs)` and `cx.experimental.maximum(lhs, rhs)`
+accept two float32 values. Either NaN input yields NaN; mixed zero signs yield
+`-0` for minimum and `+0` for maximum, regardless of order. Standalone operations
+preserve subnormal magnitudes. CUDA lowering supports the validated sm_52
+target; Metal uses bit-order helpers and disables fast-math for kernels that
+contain these operations. CPU/CUDA and standalone Metal numerical checks compare
+non-NaN bits; composed Metal expressions keep their finite-input tolerance. See
+the [minimum/maximum contract and example](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/MLIR_MINMAX.md).
 
 Compiled CPU/CUDA/Metal code is cached in private local storage by default,
 including across process restarts. Inspect `compiled.cache_hit` for reuse, or

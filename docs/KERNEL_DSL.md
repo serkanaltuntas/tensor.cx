@@ -132,6 +132,8 @@ single comparisons: <, <=, >, >=, ==, !=
 cx.experimental.select(boolean_condition, float_value, float_value)
 cx.experimental.sqrt(float_value)
 cx.experimental.abs(float_value)
+cx.experimental.minimum(float_value, float_value)
+cx.experimental.maximum(float_value, float_value)
 if blocks without else
 numeric constants
 for var in range(bound_name) with an assignment-only body (any local
@@ -276,3 +278,5 @@ The [float32 sqrt extension](MLIR_SQRT.md) adds one strictly typed unary
 intrinsic; CPU/CUDA rounding checks and direct MSL limits are recorded there.
 The [float32 abs extension](MLIR_ABS.md) adds absolute value with strict unary
 typing and target-specific numerical limits; Python builtin `abs` is not an alias.
+[Kernel minimum/maximum](MLIR_MINMAX.md) propagate NaN and order -0 below +0;
+their Metal helper/compiler policy is separate from builtin min/max semantics.

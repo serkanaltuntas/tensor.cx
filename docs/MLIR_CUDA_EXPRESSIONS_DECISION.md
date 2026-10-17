@@ -39,7 +39,9 @@ canonical global index and the single outer `if i < n` guard. Inside that guard:
   defines its strict rounding/lowering and target-specific limits.
 - Float32 `cx.experimental.abs` is supported with the same strict unary typing;
   [MLIR_ABS.md](MLIR_ABS.md) defines its sign-bit and lowering contract.
-- Bound this compiler slice to 32 local assignments, 64 arithmetic/sqrt/abs/comparison/selection
+- Float32 `cx.experimental.minimum`/`maximum` each count as one operation;
+  [MLIR_MINMAX.md](MLIR_MINMAX.md) defines NaN/zero semantics and sm_52 lowering.
+- Bound this compiler slice to 32 local assignments, 64 arithmetic/sqrt/abs/min/max/comparison/selection
   nodes in the guarded body and expression-tree depth 16. A leaf has depth 1;
   an operator node has depth `1 + max(children)`, including all three selector
   arguments. Count each syntactic expression

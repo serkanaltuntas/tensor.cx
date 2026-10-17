@@ -231,6 +231,8 @@ Float32 `cx.experimental.sqrt` is also supported inside guarded expressions;
 see [MLIR_SQRT.md](MLIR_SQRT.md) for operand types and numerical limits.
 Float32 `cx.experimental.abs` follows the same unary typing and guard rules;
 [MLIR_ABS.md](MLIR_ABS.md) defines sign-bit semantics and target-specific scope.
+Float32 `cx.experimental.minimum`/`maximum` are also supported;
+[MLIR_MINMAX.md](MLIR_MINMAX.md) defines NaN propagation and signed-zero ordering.
 
 Float comparisons and boolean locals may feed the explicit selector described
 in [MLIR_SELECT.md](MLIR_SELECT.md); general branch bodies remain outside the runtime slice.

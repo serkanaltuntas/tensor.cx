@@ -42,6 +42,8 @@ _SUPPORTED_INTRINSICS = {
     "cx.experimental.select": 3,
     "cx.experimental.sqrt": 1,
     "cx.experimental.abs": 1,
+    "cx.experimental.minimum": 2,
+    "cx.experimental.maximum": 2,
 }
 _MSL_BINARY_OPS = {
     "add": "+",
@@ -340,7 +342,9 @@ class Kernel:
         ir = self.parse_ir()
         msl_source = _emit_msl(ir)
         from ._compiler.metal import compile_artifact
-        metallib, hit = compile_artifact(ir.name, msl_source, cache=cache)
+        options = ({"strict_math": True}
+                   if {"minimum", "maximum"}.intersection(_iter_call_names(ir.body)) else {})
+        metallib, hit = compile_artifact(ir.name, msl_source, cache=cache, **options)
         return CompiledKernel(
             name=ir.name,
             target=resolved,
@@ -991,6 +995,21 @@ def _reference_execute(kernel_ir, arrays, scalars, thread_count, block_size):
             # integer literal is always C-typed int.
             return ("int", expression.value & _UINT32_MASK)
         if isinstance(expression, IRCall):
+            if expression.name in {"minimum", "maximum"}:
+                (_, lhs), (_, rhs) = (eval_expression(arg, env, intrinsics)
+                                      for arg in expression.args)
+                with np.errstate(all="ignore"):
+                    operation = np.minimum if expression.name == "minimum" else np.maximum
+                    value = operation(lhs, rhs, dtype=np.float32)
+                    # NumPy's zero ties can depend on operand order. These
+                    # intrinsics order -0 below +0, independently of order.
+                    if lhs == 0 and rhs == 0:
+                        lhs_negative, rhs_negative = np.signbit(lhs), np.signbit(rhs)
+                        negative = ((lhs_negative or rhs_negative)
+                                    if expression.name == "minimum"
+                                    else (lhs_negative and rhs_negative))
+                        value = np.float32(-0.0 if negative else 0.0)
+                return ("float", value)
             if expression.name == "abs":
                 _, value = eval_expression(expression.args[0], env, intrinsics)
                 with np.errstate(all="ignore"):
@@ -1592,6 +1611,44 @@ def _iter_expression_names(expression: IRExpression):
         yield from _iter_expression_names(expression.rhs)
 
 
+def _iter_call_names(statements):
+    """Visit calls in statement values, guards and memory indices."""
+    pending = list(statements)
+    while pending:
+        value = pending.pop()
+        if isinstance(value, IRCall):
+            yield value.name
+            pending.extend(value.args)
+        elif isinstance(value, (IRBinaryOp, IRCompare)):
+            pending.extend((value.lhs, value.rhs))
+        elif isinstance(value, IRLoad):
+            pending.append(value.index)
+        elif isinstance(value, IRStore):
+            pending.extend((value.index, value.value))
+        elif isinstance(value, IRAssign):
+            pending.append(value.value)
+        elif isinstance(value, (IRIf, IRFor)):
+            pending.extend(value.body)
+            if isinstance(value, IRIf):
+                pending.append(value.condition)
+
+
+def _msl_minmax_helper(name, symbol):
+    # Integer ordering handles NaN, zero signs and subnormals without depending
+    # on Metal's floating-point min/max or default fast-math behavior.
+    predicate = "<" if name == "minimum" else ">"
+    return f"""inline float {symbol}(float a, float b) {{
+    uint ua = ::metal::as_type<uint>(a);
+    uint ub = ::metal::as_type<uint>(b);
+    if ((ua & 0x7fffffffU) > 0x7f800000U) return a;
+    if ((ub & 0x7fffffffU) > 0x7f800000U) return b;
+    uint ka = (ua & 0x80000000U) ? ~ua : (ua | 0x80000000U);
+    uint kb = (ub & 0x80000000U) ? ~ub : (ub | 0x80000000U);
+    return ::metal::as_type<float>(ka {predicate} kb ? ua : ub);
+}}
+"""
+
+
 def _emit_msl(kernel_ir: IRKernel) -> str:
     store_buffers = tuple(dict.fromkeys(_iter_store_buffers(kernel_ir.body)))
     if not store_buffers:
@@ -1614,10 +1671,25 @@ def _emit_msl(kernel_ir: IRKernel) -> str:
             name = f"{base}_{suffix}"
         builtin_names[intrinsic] = name
         used_names.add(name)
+    helpers = []
+    calls = set(_iter_call_names(kernel_ir.body))
+    used_names.add(kernel_ir.name)
+    for intrinsic in ("minimum", "maximum"):
+        if intrinsic not in calls:
+            continue
+        base = f"tensorcx_{intrinsic}_f32"
+        name, suffix = base, 0
+        while name in used_names:
+            suffix += 1
+            name = f"{base}_{suffix}"
+        builtin_names[intrinsic] = name
+        used_names.add(name)
+        helpers.append(_msl_minmax_helper(intrinsic, name))
     lines = [
         "#include <metal_stdlib>",
         "using namespace metal;",
         "",
+        *helpers,
         f"kernel void {kernel_ir.name}(",
     ]
     lines.extend(_emit_msl_parameters(kernel_ir, buffer_names, output_names, builtin_names))
@@ -1633,7 +1705,7 @@ def _emit_msl(kernel_ir: IRKernel) -> str:
     return "\n".join(lines)
 
 
-def _compile_msl_to_metallib(name: str, msl_source: str) -> bytes:
+def _compile_msl_to_metallib(name: str, msl_source: str, *, strict_math: bool = False) -> bytes:
     xcrun = shutil.which("xcrun")
     if xcrun is None:
         raise KernelCompileError(
@@ -1652,6 +1724,7 @@ def _compile_msl_to_metallib(name: str, msl_source: str) -> bytes:
                 "-sdk",
                 "macosx",
                 "metal",
+                *(["-fno-fast-math"] if strict_math else []),
                 "-c",
                 str(source_path),
                 "-o",
@@ -1858,6 +1931,11 @@ def _emit_msl_constant(value: int | float) -> str:
 
 
 def _emit_msl_call(call: IRCall, builtin_names: dict[str, str]) -> str:
+    if call.name in {"minimum", "maximum"}:
+        if len(call.args) != 2:
+            raise KernelCompileError(f"{call.name} requires two float32 arguments")
+        arguments = ", ".join(_emit_msl_expression(arg, builtin_names) for arg in call.args)
+        return f"::{builtin_names[call.name]}({arguments})"
     if call.name in {"sqrt", "abs"}:
         if len(call.args) != 1:
             raise KernelCompileError(f"{call.name} requires one float32 argument")
@@ -1882,6 +1960,11 @@ def _infer_msl_type(expression: IRExpression, context: dict[str, str]) -> str:
             return "float"
         return "int" if expression.value < 0 else "uint"
     if isinstance(expression, IRCall):
+        if expression.name in {"minimum", "maximum"}:
+            if (len(expression.args) != 2
+                    or any(_infer_msl_type(arg, context) != "float" for arg in expression.args)):
+                raise KernelCompileError(f"{expression.name} requires two float32 arguments")
+            return "float"
         if expression.name in {"sqrt", "abs"}:
             if (len(expression.args) != 1
                     or _infer_msl_type(expression.args[0], context) != "float"):
@@ -1968,6 +2051,16 @@ def abs(value):
     raise NotImplementedError("abs is only valid inside compiled experimental kernels")
 
 
+def minimum(lhs, rhs):
+    """NaN-propagating float32 minimum inside a kernel; -0 sorts below +0."""
+    raise NotImplementedError("minimum is only valid inside compiled experimental kernels")
+
+
+def maximum(lhs, rhs):
+    """NaN-propagating float32 maximum inside a kernel; +0 sorts above -0."""
+    raise NotImplementedError("maximum is only valid inside compiled experimental kernels")
+
+
 __all__ = [
     "CompiledKernel",
     "IRAssign",
@@ -1986,6 +2079,8 @@ __all__ = [
     "abs",
     "block_size",
     "kernel",
+    "minimum",
+    "maximum",
     "program_id",
     "select",
     "sqrt",
