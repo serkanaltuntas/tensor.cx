@@ -165,6 +165,7 @@ documentation. This order does not claim that later packages are implemented.
 10. **Memory pool and asynchronous execution:** bounded opt-in synchronous
     [CUDA allocation reuse](CUDA_MEMORY_POOL.md) implemented. CPU/Metal pools,
     broader allocator policies and asynchronous execution remain open.
+    CUDA `empty` also [allocates without CPU staging](CUDA_EMPTY.md).
 11. **Portable distribution:** Linux x86_64 CPU manylinux wheel pipeline implemented
     for CPython 3.11–3.13; [contract](PORTABLE_WHEELS.md). macOS/CUDA portable
     wheels, versioned releases and package-index publication remain open.

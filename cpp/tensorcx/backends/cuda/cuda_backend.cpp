@@ -173,6 +173,21 @@ Expected<DeviceInfo> device_info() {
   return info;
 }
 
+Expected<CudaTensor> empty(Shape shape, DType dtype) {
+  try {
+    // Validate both products before allocation, including zero-size shapes.
+    static_cast<void>(numel(shape));
+    static_cast<void>(contiguous_strides(shape));
+    auto buffer = CudaBuffer::create(dtype, shape);
+    if (!buffer) return buffer.status();
+    return CudaTensor(dtype, std::move(shape), buffer.move_value());
+  } catch (const std::invalid_argument& error) {
+    return invalid(error.what());
+  } catch (const std::exception& error) {
+    return Status(StatusCode::kInternal, error.what());
+  }
+}
+
 Expected<CudaTensor> from_cpu(const cpu::CpuTensor& tensor) {
   try {
     ContextScope device;

@@ -111,8 +111,9 @@ uv run --no-sync python benchmarks/bench_memory_pool.py --pool on --output build
 Defaults cover 1K, 16K, 256K, 1M and 16M elements, seven samples after one warmup,
 plus a resident 32×64 → 128 → 10 MLP. Missing CUDA fails without fallback. Cases:
 
-- `allocation_cycle`: public `cx.empty` and local tensor destruction. This API
-  also creates CPU storage and transfers it to CUDA; it is **not bare cudaMalloc**.
+- `allocation_cycle`: public `cx.empty` and local tensor destruction. Current
+  CUDA builds [allocate directly](CUDA_EMPTY.md); the dated runs below still
+  include the former CPU staging/upload path. Neither is bare cudaMalloc timing.
   Empty data has no numerical promise, so validation checks shape/dtype/device.
 - `expression_resident`: `(x + y) * y`, pre-existing resident inputs.
 - `expression_end_to_end`: two uploads, that expression and one CPU return,

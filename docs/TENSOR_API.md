@@ -10,6 +10,22 @@ Shared-storage exchange and the optional PyTorch custom op are documented in
 [DLPACK.md](DLPACK.md). `.numpy()` continues to return a copy; `np.from_dlpack`
 uses the separate sharing protocol.
 
+## Empty storage
+
+`cx.empty(shape, dtype="float32", device="cpu")` returns independent contiguous
+storage with **unspecified contents**. It does not promise zeros, finite values,
+or cleared/recycled bytes. Use `zeros` or `ones` for initialized data, and write
+all elements before using an empty allocation as input. float32/int32/bool,
+scalars, zero-size shapes, existing shape/stride/byte-size overflow checks and
+device-index-0 rules apply.
+
+CUDA allocates directly on the device through its registered factory: no CPU
+buffer, host transfer or fill kernel. The existing opt-in memory pool can reuse
+that storage. CPU and Metal retain their existing factory/copy behavior;
+initial contents remain unspecified on every backend. Views, DLPack ownership
+and synchronous operations are unchanged. See the
+[implementation and measurements](CUDA_EMPTY.md).
+
 ## Arithmetic
 
 `x + y`, `x - y`, `x * y`, `x / y`, and `-x` return new tensors. Two tensor

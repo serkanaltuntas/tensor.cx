@@ -1417,6 +1417,13 @@ NB_MODULE(_core, module) {
       })
       .def_prop_ro("device", [](const CudaTensor&) { return "cuda"; })
       .def_prop_ro("nbytes", &CudaTensor::nbytes);
+  module.def("_cuda_empty", [](nb::handle shape, nb::handle dtype) {
+    Shape parsed_shape = parse_shape(shape);
+    const DType parsed_dtype = parse_dtype(dtype, DType::kFloat32);
+    return unwrap(without_gil([&] {
+      return tensorcx::cuda::empty(std::move(parsed_shape), parsed_dtype);
+    }));
+  }, nb::arg("shape"), nb::arg("dtype") = "float32");
   bind_multi_input_tensor_ops<CudaTensor, tensorcx::cuda::CudaBackend>(module, [](const tensorcx::Tensor& tensor) {
     return unwrap(tensorcx::cuda::from_core_tensor(tensor));
   });

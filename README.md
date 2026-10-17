@@ -315,6 +315,9 @@ print(ln.cpu().numpy().shape)
 
 - Constructors, including `randn`, validate the requested device before
   materializing input data or allocating random arrays.
+- `empty` contents are unspecified; use `zeros`/`ones` for initialized storage.
+  CUDA `empty` allocates directly without a CPU buffer, upload or fill kernel;
+  see [factory semantics and measurements](docs/CUDA_EMPTY.md).
 - `cx.testing.assert_allclose` requires equal shapes (including scalar rank).
   If either input has an integer or boolean dtype, it compares values exactly;
   floating-point tolerances apply only when both inputs are floating point.

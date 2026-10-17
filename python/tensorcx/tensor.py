@@ -461,10 +461,10 @@ def tensor(data, dtype: str | None = None, device: str | Device | None = None) -
 
 
 def empty(shape, dtype: str = "float32", device: str | Device = "cpu") -> Tensor:
+    """Create contiguous storage with unspecified contents on the chosen device."""
     target = _normalize_device(device)
     _validate_creation_device(target)
-    cpu_tensor = Tensor(_core.empty(shape, dtype=dtype, device="cpu"))
-    return cpu_tensor if target == "cpu" else cpu_tensor.to(target)
+    return Tensor(_backend.empty(target, shape, dtype))
 
 
 def zeros(shape, dtype: str = "float32", device: str | Device = "cpu") -> Tensor:

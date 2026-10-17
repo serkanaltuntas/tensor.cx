@@ -42,6 +42,7 @@ struct DeviceInfo {
   std::size_t free_bytes{0}, total_bytes{0};
 };
 Expected<DeviceInfo> device_info();
+Expected<CudaTensor> empty(Shape shape, DType dtype);
 Expected<CudaTensor> from_cpu(const cpu::CpuTensor& tensor);
 Expected<cpu::CpuTensor> to_cpu(const CudaTensor& tensor);
 Tensor to_core_tensor(const CudaTensor& tensor);

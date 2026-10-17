@@ -134,6 +134,12 @@ elements, the default 64 MiB cache cannot hold two simultaneous outputs. Gains
 are workload-dependent and cost retained memory. See the
 [full contract, method and evidence](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/CUDA_MEMORY_POOL.md).
 
+CUDA `empty` now skips the CPU buffer and host upload, both with and without
+the pool. This removes those calls; it does not guarantee an overall speedup.
+The older pool measurements include CPU staging, while the
+[direct-allocation comparison](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/CUDA_EMPTY.md)
+records the changed factory path separately. `empty` contents remain unspecified.
+
 ## A useful report includes
 
 - Exact source revision and the build actually loaded.

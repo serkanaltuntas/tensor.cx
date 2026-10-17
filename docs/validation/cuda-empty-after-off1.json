@@ -1,0 +1,309 @@
+{
+  "schema_version": 1,
+  "metadata": {
+    "started_utc": "2026-10-17T16:37:52.386260+00:00",
+    "benchmark_sha256": "9d76eee831c4ba747ed2629ef392be067a28fbd07922cdb414d1efeb9da4857f",
+    "extension_sha256": "3b3d49cb3c6bd47a2a9e061f6feb29663c749c4d0deca124dcf0150085a3b22f",
+    "profiler_sha256": "702d55f22072f8a925ef02a620c7c35f4b62ef5cabe94201205ada7f5513450b",
+    "python": "3.12.14",
+    "numpy": "2.4.6",
+    "system": "Linux",
+    "machine": "x86_64",
+    "tensorcx": "0.1.0",
+    "device": "cuda",
+    "device_name": "NVIDIA GeForce GTX 980 Ti",
+    "build": {
+      "cpu": true,
+      "metal": false,
+      "cuda": true
+    },
+    "seed": 701,
+    "cuda": {
+      "name": "NVIDIA GeForce GTX 980 Ti",
+      "architecture": "sm_52",
+      "runtime_version": 12040,
+      "driver_api_version": 13000,
+      "memory": {
+        "scope": "cuda_device",
+        "total_bytes": 6363217920,
+        "available_bytes": 5689835520
+      }
+    },
+    "revision": "672074005804262da8cef559058223e8081edf42",
+    "git_dirty": true,
+    "tracked_diff_sha256": "3cb2886609ce7cc374d032839c02b54cf3d8ed4438b694aa4ab5125abdf1c93f",
+    "memory_pool_benchmark_sha256": "30b8e9125daffe90b54990eaf33c6bd62464ff3c75fb41f6b29708d3a911b5ff",
+    "pool_available": true,
+    "gpu_before": {
+      "gpu": "name, compute_cap, driver_version, memory.used [MiB], temperature.gpu, clocks.current.sm [MHz], clocks.current.memory [MHz], power.draw [W], utilization.gpu [%]\nNVIDIA GeForce GTX 980 Ti, 5.2, 580.178.04, 643 MiB, 62, 1139 MHz, 3304 MHz, 73.02 W, 13 %",
+      "other_compute_processes": [
+        {
+          "memory_mib": "84"
+        },
+        {
+          "memory_mib": "21"
+        }
+      ]
+    },
+    "gpu_after": {
+      "gpu": "name, compute_cap, driver_version, memory.used [MiB], temperature.gpu, clocks.current.sm [MHz], clocks.current.memory [MHz], power.draw [W], utilization.gpu [%]\nNVIDIA GeForce GTX 980 Ti, 5.2, 580.178.04, 777 MiB, 61, 1139 MHz, 3304 MHz, 72.19 W, 15 %",
+      "other_compute_processes": [
+        {
+          "memory_mib": "88"
+        },
+        {
+          "memory_mib": "21"
+        }
+      ]
+    },
+    "other_compute_processes_observed": true
+  },
+  "config": {
+    "pool": "off",
+    "sizes": [
+      1024,
+      16384,
+      262144,
+      1048576,
+      16777216
+    ],
+    "repeats": 7,
+    "warmup": 1,
+    "max_cached_bytes": 67108864,
+    "max_cached_blocks": 64
+  },
+  "results": [
+    {
+      "case": "allocation_cycle",
+      "shape": [
+        1024
+      ],
+      "samples_ms": [
+        0.149624,
+        0.145075,
+        0.131643,
+        0.128173,
+        0.126779,
+        0.125454,
+        0.124286
+      ],
+      "median_ms": 0.128173,
+      "p10_ms": 0.12498680000000001,
+      "p90_ms": 0.14689460000000001,
+      "native_regions": [
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "name": "cudaMalloc",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 66823,
+          "inclusive_ns": 66823,
+          "bytes": 4096,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "name": "cudaFree",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 45433,
+          "inclusive_ns": 45433,
+          "bytes": 0,
+          "byte_records": 0
+        }
+      ],
+      "pool_before_close": null,
+      "pool_after_close": null
+    },
+    {
+      "case": "allocation_cycle",
+      "shape": [
+        16384
+      ],
+      "samples_ms": [
+        0.008794,
+        0.007186,
+        0.006093,
+        0.005916,
+        0.005686,
+        0.005608,
+        0.005505
+      ],
+      "median_ms": 0.005916,
+      "p10_ms": 0.0055668,
+      "p90_ms": 0.0078292,
+      "native_regions": [
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "name": "cudaMalloc",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 1598,
+          "inclusive_ns": 1598,
+          "bytes": 65536,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "name": "cudaFree",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 1616,
+          "inclusive_ns": 1616,
+          "bytes": 0,
+          "byte_records": 0
+        }
+      ],
+      "pool_before_close": null,
+      "pool_after_close": null
+    },
+    {
+      "case": "allocation_cycle",
+      "shape": [
+        262144
+      ],
+      "samples_ms": [
+        0.11704,
+        0.115538,
+        0.113963,
+        0.114206,
+        0.113185,
+        0.11323,
+        0.113907
+      ],
+      "median_ms": 0.113963,
+      "p10_ms": 0.113212,
+      "p90_ms": 0.1161388,
+      "native_regions": [
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "name": "cudaMalloc",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 63893,
+          "inclusive_ns": 63893,
+          "bytes": 1048576,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "name": "cudaFree",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 35868,
+          "inclusive_ns": 35868,
+          "bytes": 0,
+          "byte_records": 0
+        }
+      ],
+      "pool_before_close": null,
+      "pool_after_close": null
+    },
+    {
+      "case": "allocation_cycle",
+      "shape": [
+        1048576
+      ],
+      "samples_ms": [
+        0.330254,
+        0.332229,
+        0.327073,
+        0.328072,
+        0.32673,
+        0.326739,
+        0.327176
+      ],
+      "median_ms": 0.327176,
+      "p10_ms": 0.3267354,
+      "p90_ms": 0.331044,
+      "native_regions": [
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "name": "cudaMalloc",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 271171,
+          "inclusive_ns": 271171,
+          "bytes": 4194304,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "name": "cudaFree",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 38616,
+          "inclusive_ns": 38616,
+          "bytes": 0,
+          "byte_records": 0
+        }
+      ],
+      "pool_before_close": null,
+      "pool_after_close": null
+    },
+    {
+      "case": "allocation_cycle",
+      "shape": [
+        16777216
+      ],
+      "samples_ms": [
+        4.587381,
+        4.587241,
+        4.587074,
+        4.589771,
+        4.586395,
+        4.591332,
+        4.588823
+      ],
+      "median_ms": 4.587381,
+      "p10_ms": 4.586802400000001,
+      "p90_ms": 4.5903954,
+      "native_regions": [
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "name": "cudaMalloc",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 4211575,
+          "inclusive_ns": 4211575,
+          "bytes": 67108864,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "name": "cudaFree",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 367585,
+          "inclusive_ns": 367585,
+          "bytes": 0,
+          "byte_records": 0
+        }
+      ],
+      "pool_before_close": null,
+      "pool_after_close": null
+    }
+  ],
+  "measurement": "unprofiled public-call host wall time; separate native profile; allocation_cycle validates metadata only, other outputs against CPU",
+  "publication": {
+    "format": "cortex-public-report-v1",
+    "scope": "known local identifiers removed; arbitrary text requires review"
+  },
+  "selection": {
+    "retained_cases": "five allocation_cycle rows; public empty creation/destruction",
+    "source_case_count": 16,
+    "omitted_numerical_control_cases": 11,
+    "control_validation": "all eleven expression/MLP CPU comparisons passed outside timing",
+    "source_report_sha256": "e1c2269327adb639622fd9d9b437ce4235fd3e9462b78ccb43d2e52c90046423"
+  }
+}

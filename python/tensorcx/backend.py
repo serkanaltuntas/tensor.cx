@@ -25,6 +25,7 @@ class Backend:
     operations: dict[str, tuple[str, ...]] | None = None
     diagnostic_info: Callable[[], dict[str, Any]] | None = None
     memory_pool: Callable[[int, int], Any] | None = None
+    empty: Callable[[Any, str], Any] | None = None
 
 
 _BACKENDS: dict[str, Backend] = {}
@@ -97,6 +98,15 @@ def copy_tensor(impl: Any, source: str, target: str) -> Any:
     if target_backend.copy_from_cpu is None:
         raise ValueError(f"unsupported device transfer: {source!r} -> {target!r}")
     return target_backend.copy_from_cpu(impl)
+
+
+def empty(name: str, shape: Any, dtype: str) -> Any:
+    backend = require_backend(name)
+    if backend.empty is not None:
+        return backend.empty(shape, dtype)
+    # Preserve the existing CPU factory and copy route for other backends.
+    host = _core.empty(shape, dtype=dtype, device="cpu")
+    return host if name == "cpu" else copy_tensor(host, "cpu", name)
 
 
 def fill(name: str, shape: Any, dtype: str, value: float) -> Any:
@@ -204,5 +214,6 @@ if _core.is_available("cuda"):
             operations=CUDA_OPERATIONS,
             diagnostic_info=lambda: dict(_core._cuda_device_info()),
             memory_pool=lambda size, blocks: _core._CudaMemoryPool.create(size, blocks),
+            empty=lambda shape, dtype: _core._cuda_empty(shape, dtype=dtype),
         )
     )

@@ -9,6 +9,7 @@
 #include <array>
 #include <bit>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 #include <limits>
 #include <stdexcept>
@@ -36,6 +37,42 @@ void same_float(float actual, float expected) {
     if (expected == 0.0f || std::isinf(expected))
       require(std::signbit(actual) == std::signbit(expected), "arithmetic sign mismatch");
   }
+}
+
+void empty_contract() {
+  for (const auto dtype : {DType::kFloat32, DType::kInt32, DType::kBool}) {
+    for (const Shape& shape : {Shape{}, Shape{0}, Shape{2, 0, 3}, Shape{2, 3},
+                               Shape{1000000000000, 1, 0}}) {
+      auto created = cuda::empty(shape, dtype);
+      require(created.has_value(), "direct CUDA empty failed");
+      const auto& value = created.value();
+      const auto reference = cpu::fill(shape, dtype, 1);
+      require(value.shape() == shape && value.strides() == reference.strides() &&
+              value.dtype() == dtype && value.nbytes() == reference.buffer()->nbytes(),
+              "direct CUDA empty metadata mismatch");
+      if (value.nbytes()) {
+        cuda::ContextScope context;
+        require(context.ready(), "direct empty write context failed");
+        require(cudaMemcpy(value.buffer()->data(), reference.data(), value.nbytes(),
+                           cudaMemcpyHostToDevice) == cudaSuccess,
+                "direct empty initialization failed");
+        require(cudaDeviceSynchronize() == cudaSuccess, "direct empty write incomplete");
+        const auto host = cuda::to_cpu(value);
+        require(host.has_value() && std::memcmp(host.value().data(), reference.data(),
+                                                value.nbytes()) == 0,
+                "initialized direct empty differs from CPU reference");
+      }
+    }
+  }
+  for (const Shape& shape : {Shape{-1}, Shape{INT64_MAX, 2}, Shape{0, INT64_MAX, 2},
+                             Shape{INT64_MAX / 2 + 1}}) {
+    auto failed = cuda::empty(shape, DType::kFloat32);
+    require(!failed, "invalid direct empty accepted");
+    invalid(failed.status());
+  }
+  auto bad_dtype = cuda::empty({0}, static_cast<DType>(99));
+  require(!bad_dtype, "invalid direct empty dtype accepted");
+  invalid(bad_dtype.status());
 }
 
 void indexing_contract(cuda::CudaBackend& backend) {
@@ -470,6 +507,7 @@ int main() {
     inference_contract(backend,
       [](const cpu::CpuTensor& value) { return cuda::to_core_tensor(cuda::from_cpu(value).value()); },
       [](const Tensor& value) { return cuda::to_cpu(cuda::from_core_tensor(value).value()).value(); });
+    empty_contract();
     arithmetic_contract(backend);
     int32_contract(backend,
       [](const cpu::CpuTensor& value) { return cuda::to_core_tensor(cuda::from_cpu(value).value()); },
@@ -550,6 +588,7 @@ int main() {
     batched_matmul_contract(backend, upload, download);
     math_contract(backend, upload, download);
     inference_contract(backend, upload, download);
+    empty_contract();
     arithmetic_contract(backend);
     int32_contract(backend, upload, download);
     cast_contract(backend);

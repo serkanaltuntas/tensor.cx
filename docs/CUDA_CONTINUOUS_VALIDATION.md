@@ -76,7 +76,8 @@ event SHA, reports `status: passed`, contains at least 595 Python tests and four
 native contracts without skips/errors/failures, and includes both device
 sanitizers and the CUDA MLP. The current selection also covers the extended
 tensor API, int32 primitives, [native runtime profiling](RUNTIME_PROFILING.md)
-and [bounded memory pooling](CUDA_MEMORY_POOL.md),
+and [bounded memory pooling](CUDA_MEMORY_POOL.md), plus
+[direct CUDA empty allocation](CUDA_EMPTY.md),
 including real generated CPU/CUDA launches. Use each run's report for its exact
 test count; the 746-test runs above are dated historical evidence.
 Enable the automatic-run variable only after the runner lifecycle is ready,

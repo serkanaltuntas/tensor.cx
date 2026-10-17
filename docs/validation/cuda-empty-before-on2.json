@@ -1,0 +1,664 @@
+{
+  "schema_version": 1,
+  "metadata": {
+    "started_utc": "2026-10-17T16:30:46.005066+00:00",
+    "benchmark_sha256": "9d76eee831c4ba747ed2629ef392be067a28fbd07922cdb414d1efeb9da4857f",
+    "extension_sha256": "394ecbe58632dd6b77637f0ae27d39fa73e613684a69ca1cb091b65443c8c5ce",
+    "profiler_sha256": "702d55f22072f8a925ef02a620c7c35f4b62ef5cabe94201205ada7f5513450b",
+    "python": "3.12.14",
+    "numpy": "2.4.6",
+    "system": "Linux",
+    "machine": "x86_64",
+    "tensorcx": "0.1.0",
+    "device": "cuda",
+    "device_name": "NVIDIA GeForce GTX 980 Ti",
+    "build": {
+      "cpu": true,
+      "metal": false,
+      "cuda": true
+    },
+    "seed": 701,
+    "cuda": {
+      "name": "NVIDIA GeForce GTX 980 Ti",
+      "architecture": "sm_52",
+      "runtime_version": 12040,
+      "driver_api_version": 13000,
+      "memory": {
+        "scope": "cuda_device",
+        "total_bytes": 6363217920,
+        "available_bytes": 5689835520
+      }
+    },
+    "revision": "672074005804262da8cef559058223e8081edf42",
+    "git_dirty": false,
+    "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "memory_pool_benchmark_sha256": "30b8e9125daffe90b54990eaf33c6bd62464ff3c75fb41f6b29708d3a911b5ff",
+    "pool_available": true,
+    "gpu_before": {
+      "gpu": "name, compute_cap, driver_version, memory.used [MiB], temperature.gpu, clocks.current.sm [MHz], clocks.current.memory [MHz], power.draw [W], utilization.gpu [%]\nNVIDIA GeForce GTX 980 Ti, 5.2, 580.178.04, 643 MiB, 60, 1139 MHz, 3304 MHz, 72.95 W, 19 %",
+      "other_compute_processes": [
+        {
+          "memory_mib": "84"
+        },
+        {
+          "memory_mib": "21"
+        }
+      ]
+    },
+    "gpu_after": {
+      "gpu": "name, compute_cap, driver_version, memory.used [MiB], temperature.gpu, clocks.current.sm [MHz], clocks.current.memory [MHz], power.draw [W], utilization.gpu [%]\nNVIDIA GeForce GTX 980 Ti, 5.2, 580.178.04, 774 MiB, 61, 1139 MHz, 3304 MHz, 72.31 W, 14 %",
+      "other_compute_processes": [
+        {
+          "memory_mib": "85"
+        },
+        {
+          "memory_mib": "21"
+        }
+      ]
+    },
+    "other_compute_processes_observed": true
+  },
+  "config": {
+    "pool": "on",
+    "sizes": [
+      1024,
+      16384,
+      262144,
+      1048576,
+      16777216
+    ],
+    "repeats": 7,
+    "warmup": 1,
+    "max_cached_bytes": 67108864,
+    "max_cached_blocks": 64
+  },
+  "results": [
+    {
+      "case": "allocation_cycle",
+      "shape": [
+        1024
+      ],
+      "samples_ms": [
+        0.021911,
+        0.013545,
+        0.012215,
+        0.012111,
+        0.011535,
+        0.011271,
+        0.011031
+      ],
+      "median_ms": 0.012111,
+      "p10_ms": 0.011175,
+      "p90_ms": 0.0168914,
+      "native_regions": [
+        {
+          "backend": "cpu",
+          "category": "allocation",
+          "name": "owned_buffer",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 389,
+          "inclusive_ns": 389,
+          "bytes": 4096,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "copy_api",
+          "name": "host_to_device",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 3619,
+          "inclusive_ns": 3619,
+          "bytes": 4096,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "memory_pool",
+          "name": "pool_acquire",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 111,
+          "inclusive_ns": 111,
+          "bytes": 4096,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "memory_pool",
+          "name": "pool_release",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 635,
+          "inclusive_ns": 635,
+          "bytes": 4096,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "name": "cudaDeviceSynchronize",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 3294,
+          "inclusive_ns": 3294,
+          "bytes": 0,
+          "byte_records": 0
+        }
+      ],
+      "pool_before_close": {
+        "max_cached_bytes": 67108864,
+        "max_cached_blocks": 64,
+        "cached_bytes": 4096,
+        "cached_blocks": 1,
+        "in_use_bytes": 0,
+        "peak_in_use_bytes": 4096,
+        "peak_cached_bytes": 4096,
+        "hits": 8,
+        "misses": 1,
+        "allocation_calls": 1,
+        "free_calls": 0,
+        "allocation_failures": 0,
+        "oom_retries": 0,
+        "uncached_returns": 0,
+        "readiness_failures": 0,
+        "free_failures": 0,
+        "failed_free_bytes": 0,
+        "active": true
+      },
+      "pool_after_close": {
+        "max_cached_bytes": 67108864,
+        "max_cached_blocks": 64,
+        "cached_bytes": 0,
+        "cached_blocks": 0,
+        "in_use_bytes": 0,
+        "peak_in_use_bytes": 4096,
+        "peak_cached_bytes": 4096,
+        "hits": 8,
+        "misses": 1,
+        "allocation_calls": 1,
+        "free_calls": 1,
+        "allocation_failures": 0,
+        "oom_retries": 0,
+        "uncached_returns": 0,
+        "readiness_failures": 0,
+        "free_failures": 0,
+        "failed_free_bytes": 0,
+        "active": false
+      }
+    },
+    {
+      "case": "allocation_cycle",
+      "shape": [
+        16384
+      ],
+      "samples_ms": [
+        0.027766,
+        0.026603,
+        0.025552,
+        0.024929,
+        0.024601,
+        0.02503,
+        0.026084
+      ],
+      "median_ms": 0.025552,
+      "p10_ms": 0.024797800000000002,
+      "p90_ms": 0.0270682,
+      "native_regions": [
+        {
+          "backend": "cpu",
+          "category": "allocation",
+          "name": "owned_buffer",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 32916,
+          "inclusive_ns": 32916,
+          "bytes": 65536,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "copy_api",
+          "name": "host_to_device",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 8834,
+          "inclusive_ns": 8834,
+          "bytes": 65536,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "memory_pool",
+          "name": "pool_acquire",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 97,
+          "inclusive_ns": 97,
+          "bytes": 65536,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "memory_pool",
+          "name": "pool_release",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 593,
+          "inclusive_ns": 593,
+          "bytes": 65536,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "name": "cudaDeviceSynchronize",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 10687,
+          "inclusive_ns": 10687,
+          "bytes": 0,
+          "byte_records": 0
+        }
+      ],
+      "pool_before_close": {
+        "max_cached_bytes": 67108864,
+        "max_cached_blocks": 64,
+        "cached_bytes": 65536,
+        "cached_blocks": 1,
+        "in_use_bytes": 0,
+        "peak_in_use_bytes": 65536,
+        "peak_cached_bytes": 65536,
+        "hits": 8,
+        "misses": 1,
+        "allocation_calls": 1,
+        "free_calls": 0,
+        "allocation_failures": 0,
+        "oom_retries": 0,
+        "uncached_returns": 0,
+        "readiness_failures": 0,
+        "free_failures": 0,
+        "failed_free_bytes": 0,
+        "active": true
+      },
+      "pool_after_close": {
+        "max_cached_bytes": 67108864,
+        "max_cached_blocks": 64,
+        "cached_bytes": 0,
+        "cached_blocks": 0,
+        "in_use_bytes": 0,
+        "peak_in_use_bytes": 65536,
+        "peak_cached_bytes": 65536,
+        "hits": 8,
+        "misses": 1,
+        "allocation_calls": 1,
+        "free_calls": 1,
+        "allocation_failures": 0,
+        "oom_retries": 0,
+        "uncached_returns": 0,
+        "readiness_failures": 0,
+        "free_failures": 0,
+        "failed_free_bytes": 0,
+        "active": false
+      }
+    },
+    {
+      "case": "allocation_cycle",
+      "shape": [
+        262144
+      ],
+      "samples_ms": [
+        0.170076,
+        0.152043,
+        0.151861,
+        0.152228,
+        0.149817,
+        0.153097,
+        0.156294
+      ],
+      "median_ms": 0.152228,
+      "p10_ms": 0.1510434,
+      "p90_ms": 0.1618068,
+      "native_regions": [
+        {
+          "backend": "cpu",
+          "category": "allocation",
+          "name": "owned_buffer",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 435390,
+          "inclusive_ns": 435390,
+          "bytes": 1048576,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "copy_api",
+          "name": "host_to_device",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 61100,
+          "inclusive_ns": 61100,
+          "bytes": 1048576,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "memory_pool",
+          "name": "pool_acquire",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 75,
+          "inclusive_ns": 75,
+          "bytes": 1048576,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "memory_pool",
+          "name": "pool_release",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 936,
+          "inclusive_ns": 936,
+          "bytes": 1048576,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "name": "cudaDeviceSynchronize",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 84447,
+          "inclusive_ns": 84447,
+          "bytes": 0,
+          "byte_records": 0
+        }
+      ],
+      "pool_before_close": {
+        "max_cached_bytes": 67108864,
+        "max_cached_blocks": 64,
+        "cached_bytes": 1048576,
+        "cached_blocks": 1,
+        "in_use_bytes": 0,
+        "peak_in_use_bytes": 1048576,
+        "peak_cached_bytes": 1048576,
+        "hits": 8,
+        "misses": 1,
+        "allocation_calls": 1,
+        "free_calls": 0,
+        "allocation_failures": 0,
+        "oom_retries": 0,
+        "uncached_returns": 0,
+        "readiness_failures": 0,
+        "free_failures": 0,
+        "failed_free_bytes": 0,
+        "active": true
+      },
+      "pool_after_close": {
+        "max_cached_bytes": 67108864,
+        "max_cached_blocks": 64,
+        "cached_bytes": 0,
+        "cached_blocks": 0,
+        "in_use_bytes": 0,
+        "peak_in_use_bytes": 1048576,
+        "peak_cached_bytes": 1048576,
+        "hits": 8,
+        "misses": 1,
+        "allocation_calls": 1,
+        "free_calls": 1,
+        "allocation_failures": 0,
+        "oom_retries": 0,
+        "uncached_returns": 0,
+        "readiness_failures": 0,
+        "free_failures": 0,
+        "failed_free_bytes": 0,
+        "active": false
+      }
+    },
+    {
+      "case": "allocation_cycle",
+      "shape": [
+        1048576
+      ],
+      "samples_ms": [
+        1.291746,
+        0.503243,
+        0.507881,
+        0.50327,
+        0.506454,
+        0.5316,
+        0.509737
+      ],
+      "median_ms": 0.507881,
+      "p10_ms": 0.5032592,
+      "p90_ms": 0.8356584000000002,
+      "native_regions": [
+        {
+          "backend": "cpu",
+          "category": "allocation",
+          "name": "owned_buffer",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 83092,
+          "inclusive_ns": 83092,
+          "bytes": 4194304,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "copy_api",
+          "name": "host_to_device",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 280019,
+          "inclusive_ns": 280019,
+          "bytes": 4194304,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "memory_pool",
+          "name": "pool_acquire",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 108,
+          "inclusive_ns": 108,
+          "bytes": 4194304,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "memory_pool",
+          "name": "pool_release",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 847,
+          "inclusive_ns": 847,
+          "bytes": 4194304,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "name": "cudaDeviceSynchronize",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 128860,
+          "inclusive_ns": 128860,
+          "bytes": 0,
+          "byte_records": 0
+        }
+      ],
+      "pool_before_close": {
+        "max_cached_bytes": 67108864,
+        "max_cached_blocks": 64,
+        "cached_bytes": 4194304,
+        "cached_blocks": 1,
+        "in_use_bytes": 0,
+        "peak_in_use_bytes": 4194304,
+        "peak_cached_bytes": 4194304,
+        "hits": 8,
+        "misses": 1,
+        "allocation_calls": 1,
+        "free_calls": 0,
+        "allocation_failures": 0,
+        "oom_retries": 0,
+        "uncached_returns": 0,
+        "readiness_failures": 0,
+        "free_failures": 0,
+        "failed_free_bytes": 0,
+        "active": true
+      },
+      "pool_after_close": {
+        "max_cached_bytes": 67108864,
+        "max_cached_blocks": 64,
+        "cached_bytes": 0,
+        "cached_blocks": 0,
+        "in_use_bytes": 0,
+        "peak_in_use_bytes": 4194304,
+        "peak_cached_bytes": 4194304,
+        "hits": 8,
+        "misses": 1,
+        "allocation_calls": 1,
+        "free_calls": 1,
+        "allocation_failures": 0,
+        "oom_retries": 0,
+        "uncached_returns": 0,
+        "readiness_failures": 0,
+        "free_failures": 0,
+        "failed_free_bytes": 0,
+        "active": false
+      }
+    },
+    {
+      "case": "allocation_cycle",
+      "shape": [
+        16777216
+      ],
+      "samples_ms": [
+        45.386282,
+        44.371365,
+        45.130015,
+        45.037495,
+        44.556129,
+        44.818815,
+        44.65961
+      ],
+      "median_ms": 44.818815,
+      "p10_ms": 44.482223399999995,
+      "p90_ms": 45.2325218,
+      "native_regions": [
+        {
+          "backend": "cpu",
+          "category": "allocation",
+          "name": "owned_buffer",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 34169468,
+          "inclusive_ns": 34169468,
+          "bytes": 67108864,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "copy_api",
+          "name": "host_to_device",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 6976810,
+          "inclusive_ns": 6976810,
+          "bytes": 67108864,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "memory_pool",
+          "name": "pool_acquire",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 516,
+          "inclusive_ns": 516,
+          "bytes": 67108864,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "memory_pool",
+          "name": "pool_release",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 2703,
+          "inclusive_ns": 2703,
+          "bytes": 67108864,
+          "byte_records": 1
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "name": "cudaDeviceSynchronize",
+          "operation": null,
+          "calls": 1,
+          "self_ns": 80356,
+          "inclusive_ns": 80356,
+          "bytes": 0,
+          "byte_records": 0
+        }
+      ],
+      "pool_before_close": {
+        "max_cached_bytes": 67108864,
+        "max_cached_blocks": 64,
+        "cached_bytes": 67108864,
+        "cached_blocks": 1,
+        "in_use_bytes": 0,
+        "peak_in_use_bytes": 67108864,
+        "peak_cached_bytes": 67108864,
+        "hits": 8,
+        "misses": 1,
+        "allocation_calls": 1,
+        "free_calls": 0,
+        "allocation_failures": 0,
+        "oom_retries": 0,
+        "uncached_returns": 0,
+        "readiness_failures": 0,
+        "free_failures": 0,
+        "failed_free_bytes": 0,
+        "active": true
+      },
+      "pool_after_close": {
+        "max_cached_bytes": 67108864,
+        "max_cached_blocks": 64,
+        "cached_bytes": 0,
+        "cached_blocks": 0,
+        "in_use_bytes": 0,
+        "peak_in_use_bytes": 67108864,
+        "peak_cached_bytes": 67108864,
+        "hits": 8,
+        "misses": 1,
+        "allocation_calls": 1,
+        "free_calls": 1,
+        "allocation_failures": 0,
+        "oom_retries": 0,
+        "uncached_returns": 0,
+        "readiness_failures": 0,
+        "free_failures": 0,
+        "failed_free_bytes": 0,
+        "active": false
+      }
+    }
+  ],
+  "measurement": "unprofiled public-call host wall time; separate native profile; allocation_cycle validates metadata only, other outputs against CPU",
+  "publication": {
+    "format": "cortex-public-report-v1",
+    "scope": "known local identifiers removed; arbitrary text requires review"
+  },
+  "selection": {
+    "retained_cases": "five allocation_cycle rows; public empty creation/destruction",
+    "source_case_count": 16,
+    "omitted_numerical_control_cases": 11,
+    "control_validation": "all eleven expression/MLP CPU comparisons passed outside timing",
+    "source_report_sha256": "213ddbda7efe55699d6e4a9d2a6aad8bcd1b72e6dbc387c2e1ae913b00e798d0"
+  }
+}
