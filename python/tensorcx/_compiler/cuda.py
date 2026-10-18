@@ -62,6 +62,27 @@ def _emit_tanh(operand, instruction):
     return intrinsic("copysign", (magnitude, operand))
 
 
+def _emit_sigmoid(operand, instruction):
+    """Stable logistic function with non-FTZ exp2 and bounded scaling input."""
+    def constant(value):
+        return instruction(f"arith.constant {format_f32_constant(value)} : f32")
+    absolute = instruction('llvm.call_intrinsic "llvm.fabs.f32"'
+                           f'({operand}) : (f32) -> f32')
+    limit = constant(128.0)
+    absolute = instruction('llvm.call_intrinsic "llvm.minimum.f32"'
+                           f'({absolute}, {limit}) : (f32, f32) -> f32')
+    scale = constant(-1.4426950408889634)
+    exponent = instruction(f"arith.mulf {absolute}, {scale} : f32")
+    exponential = instruction('llvm.call_intrinsic "llvm.nvvm.ex2.approx.f"'
+                              f'({exponent}) : (f32) -> f32')
+    one, zero = constant(1.0), constant(0.0)
+    denominator = instruction(f"arith.addf {one}, {exponential} : f32")
+    positive = instruction(f"arith.divf {one}, {denominator} : f32")
+    negative = instruction(f"arith.divf {exponential}, {denominator} : f32")
+    condition = instruction(f"arith.cmpf oge, {operand}, {zero} : f32")
+    return instruction(f"arith.select {condition}, {positive}, {negative} : f32")
+
+
 def entry_name(operation):
     return f"tensorcx_{operation}_v1"
 
@@ -103,7 +124,7 @@ def signature(ir):
               or (isinstance(value, IRCall)
                   and ((value.name == "select" and len(value.args) == 3)
                        or (value.name in {"minimum", "maximum"} and len(value.args) == 2)
-                       or (value.name in {"sqrt", "abs", "exp", "log", "rsqrt", "tanh"} and len(value.args) == 1)))):
+                       or (value.name in {"sqrt", "abs", "exp", "log", "rsqrt", "tanh", "sigmoid"} and len(value.args) == 1)))):
             operators += 1
             if operators > 64:
                 reject("expression operation count exceeds 64")
@@ -222,6 +243,8 @@ def emit_expression_cuda(ir, kinds, output, guard):
             return instruction(f"llvm.load {ptr} : !llvm.ptr -> f32")
         if isinstance(value, IRCall):
             values = [expression(argument) for argument in value.args]
+            if value.name == "sigmoid":
+                return _emit_sigmoid(values[0], instruction)
             if value.name == "tanh":
                 return _emit_tanh(values[0], instruction)
             if value.name in {"minimum", "maximum"}:

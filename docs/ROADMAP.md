@@ -160,7 +160,8 @@ documentation. This order does not claim that later packages are implemented.
    [comparison/select](MLIR_SELECT.md), [kernel sqrt](MLIR_SQRT.md) and
    [kernel abs](MLIR_ABS.md), [kernel minimum/maximum](MLIR_MINMAX.md),
    [kernel exp](MLIR_EXP.md), [kernel log](MLIR_LOG.md) and
-   [kernel rsqrt](MLIR_RSQRT.md) and [kernel tanh](MLIR_TANH.md) are implemented. Opt-in CPU/CUDA
+   [kernel rsqrt](MLIR_RSQRT.md) and [kernel tanh](MLIR_TANH.md) and
+   [kernel sigmoid](MLIR_SIGMOID.md) are implemented. Opt-in CPU/CUDA
    [runtime host profiling](RUNTIME_PROFILING.md) separates allocation/copy,
    native execution and existing waits. Device-event/Metal profiling, broader
    MLIR operations and measured kernel fusion remain open.

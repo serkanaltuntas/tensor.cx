@@ -138,6 +138,7 @@ cx.experimental.exp(float_value)
 cx.experimental.log(float_value)
 cx.experimental.rsqrt(float_value)
 cx.experimental.tanh(float_value)
+cx.experimental.sigmoid(float_value)
 if blocks without else
 numeric constants
 for var in range(bound_name) with an assignment-only body (any local
@@ -300,3 +301,9 @@ CUDA uses non-FTZ rsqrt without libdevice; Metal uses strict compilation.
 [Kernel tanh](MLIR_TANH.md) adds a bounded-error hyperbolic tangent. CPU links
 libm explicitly, CUDA uses a rational/exp implementation compatible with sm_52,
 and direct Metal uses strict compilation with its documented subnormal limits.
+
+[Kernel sigmoid](MLIR_SIGMOID.md) adds a stable logistic function using
+`exp(-abs(x))` and sign-based value selection. CPU reuses explicit exp/libm
+linkage; CUDA uses non-FTZ exp2 on sm_52. Direct Metal uses strict compilation
+with a narrower underflow acceptance range. Signature, budgets and ownership
+limits are unchanged.

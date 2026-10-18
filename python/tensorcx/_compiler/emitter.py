@@ -447,13 +447,28 @@ def _emit_expression(
             value = emitter.fresh()
             emitter.emit(indent, f"{value} = arith.{expression.name}f {', '.join(name for name, _ in values)} : f32")
             return value, "f32"
-        if expression.name in {"sqrt", "abs", "exp", "log", "rsqrt", "tanh"}:
+        if expression.name in {"sqrt", "abs", "exp", "log", "rsqrt", "tanh", "sigmoid"}:
             if len(expression.args) != 1:
                 raise MlirEmitError(f"{expression.name} requires one float32 argument")
             operand, kind = _emit_expression(
                 emitter, expression.args[0], indent=indent, context=context)
             if kind != "f32":
                 raise MlirEmitError(f"{expression.name} requires one float32 argument")
+            if expression.name == "sigmoid":
+                def instruction(text):
+                    result = emitter.fresh()
+                    emitter.emit(indent, f"{result} = {text}")
+                    return result
+                absolute = instruction(f"math.absf {operand} : f32")
+                negative = instruction(f"arith.negf {absolute} : f32")
+                exponential = instruction(f"math.exp {negative} : f32")
+                one = instruction("arith.constant 1.0 : f32")
+                zero = instruction("arith.constant 0.0 : f32")
+                denominator = instruction(f"arith.addf {one}, {exponential} : f32")
+                positive = instruction(f"arith.divf {one}, {denominator} : f32")
+                negative = instruction(f"arith.divf {exponential}, {denominator} : f32")
+                condition = instruction(f"arith.cmpf oge, {operand}, {zero} : f32")
+                return instruction(f"arith.select {condition}, {positive}, {negative} : f32"), "f32"
             value = emitter.fresh()
             operation = "math.absf" if expression.name == "abs" else f"math.{expression.name}"
             emitter.emit(indent, f"{value} = {operation} {operand} : f32")

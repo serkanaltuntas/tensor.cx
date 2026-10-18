@@ -42,6 +42,7 @@ canonical global index and the single outer `if i < n` guard. Inside that guard:
 - Float32 `cx.experimental.log` counts as one operation; [log contract](MLIR_LOG.md).
 - Float32 `cx.experimental.rsqrt` counts as one operation; [reciprocal-root contract](MLIR_RSQRT.md).
 - Float32 `cx.experimental.tanh` counts as one operation; [tanh contract](MLIR_TANH.md).
+- Float32 `cx.experimental.sigmoid` counts as one operation; [stable logistic contract](MLIR_SIGMOID.md).
 - Float32 `cx.experimental.exp` counts as one operation; [exp contract](MLIR_EXP.md).
 - Float32 `cx.experimental.minimum`/`maximum` each count as one operation;
   [MLIR_MINMAX.md](MLIR_MINMAX.md) defines NaN/zero semantics and sm_52 lowering.

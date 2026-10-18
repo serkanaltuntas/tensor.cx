@@ -331,3 +331,7 @@ defines strict CPU sqrt/divide lowering, special values and relative-error limit
 
 Guarded float32 `cx.experimental.tanh` is also supported; [kernel tanh](MLIR_TANH.md)
 defines explicit CPU libm linkage, reserved symbols and bounded numerical error.
+
+Guarded float32 `cx.experimental.sigmoid` is also supported; [kernel sigmoid](MLIR_SIGMOID.md)
+defines stable exp-based lowering, existing CPU libm linkage and target-specific
+gradual-underflow acceptance.

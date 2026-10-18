@@ -45,7 +45,8 @@ Tanh uses the existing explicit `-lm` linkage after object inputs and libm
 linker/runtime fingerprint policy introduced for exp/log. A shared internal
 operation list controls both linkage and reserved CPU names `expf`, `logf` and
 `tanhf`; collisions fail before tools/cache/native loading. This restriction is
-CPU-only. Existing exp/log flags/cache identities and non-libm defaults remain.
+CPU-only. [Sigmoid](MLIR_SIGMOID.md) emits exp and shares its existing libm policy;
+existing exp/log flags/cache identities and non-libm defaults remain.
 
 CUDA uses the following symmetric approximation on the validated sm_52 target.
 Let `a = abs(x)` and `z = min(a, 1)^2`:
