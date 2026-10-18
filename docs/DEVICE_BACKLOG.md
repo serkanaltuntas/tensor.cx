@@ -19,6 +19,46 @@ ROCm and Vulkan/SPIR-V are the remaining backend families named in
 execution targets, not another physical device family. TPU, NPU/Apple Neural
 Engine, oneAPI/SYCL and WebGPU have no committed implementation track here.
 
+## Nightblade validation experiments (planned)
+
+Added 2026-10-18 at the user's request. These four experiments are planned on
+Nightblade's existing GTX 980 Ti and i7-6700K; none has been executed or accepted
+as tensor.cx device support. They explore additional execution paths on the
+same physical hardware, not four additional devices or multi-GPU coverage.
+
+- [ ] **GTX 980 Ti via Vulkan/SPIR-V:** establish the NVIDIA Vulkan compute
+  environment, enumerate the selected GPU and required capabilities, then run
+  a minimal float32 compute probe against the CPU reference.
+- [ ] **GTX 980 Ti via OpenCL:** establish the NVIDIA OpenCL environment,
+  enumerate the selected GPU and compiler capabilities, then run the same
+  minimal float32 probe against the CPU reference.
+- [ ] **i7-6700K via Mesa lavapipe:** establish a software Vulkan environment,
+  explicitly select lavapipe and run the float32 probe on the CPU. Record this
+  as software-device validation, not GPU execution or another GPU architecture.
+- [ ] **i7-6700K via PoCL:** establish the OpenCL CPU environment, explicitly
+  select a PoCL CPU device and run the float32 probe against the existing CPU
+  reference. This does not establish NVIDIA OpenCL support.
+
+Each experiment first verifies prerequisites and reports the actual selected
+implementation, device, driver/compiler versions and capabilities. An installed
+ICD manifest alone is not execution evidence. Missing tools/runtime support
+leave the item pending; do not silently substitute another implementation.
+Acceptance requires real allocation/upload, guarded elementwise execution,
+readback with CPU parity, empty/tail sizes and resource cleanup. Retain reviewed
+results and limitations separately from raw local logs.
+
+This records planned validation work only. Vulkan and OpenCL tensor.cx backends
+are not implemented; successful standalone probes would not complete backend
+integration, packaging or operation coverage. OpenCL is a newly recorded
+exploration track, not an implemented family in the existing support matrix.
+Implementation scope and ordering remain separate decisions; no delivery dates
+or change to the product-feature priority order are implied.
+
+References: [Vulkan/SPIR-V](https://registry.khronos.org/vulkan/),
+[NVIDIA OpenCL](https://developer.nvidia.com/opencl),
+[Mesa lavapipe](https://docs.mesa3d.org/sourcetree.html),
+[PoCL device drivers](https://portablecl.org/docs/html/drivers.html).
+
 ## 1 Device identity and discovery
 
 - [ ] Define canonical backend-plus-index identity through Python, bindings,

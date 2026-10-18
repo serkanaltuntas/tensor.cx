@@ -102,6 +102,8 @@ it does not add LLVM/MLIR to the C++ core or backend build. See PROJECT.md §16 
 - **Device families and multi-device execution.** The dedicated
   [device backlog](DEVICE_BACKLOG.md) tracks identity/discovery, per-device
   ownership, transfers, ROCm, Vulkan/SPIR-V and multi-device acceptance.
+  It also records the [four planned Nightblade validation experiments](DEVICE_BACKLOG.md#nightblade-validation-experiments-planned)
+  for additional Vulkan/OpenCL execution paths on existing hardware.
   Its proposed sequence is separate from the product feature order below.
 
 - **MLIR CUDA integration.** The [CPU-first runtime slice](MLIR_RUNTIME_INTEGRATION_DECISION.md)
