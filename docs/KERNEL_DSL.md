@@ -139,6 +139,7 @@ cx.experimental.log(float_value)
 cx.experimental.rsqrt(float_value)
 cx.experimental.tanh(float_value)
 cx.experimental.sigmoid(float_value)
+cx.experimental.silu(float_value)
 if blocks without else
 numeric constants
 for var in range(bound_name) with an assignment-only body (any local
@@ -307,3 +308,8 @@ and direct Metal uses strict compilation with its documented subnormal limits.
 linkage; CUDA uses non-FTZ exp2 on sm_52. Direct Metal uses strict compilation
 with a narrower underflow acceptance range. Signature, budgets and ownership
 limits are unchanged.
+
+[Kernel SiLU](MLIR_SILU.md) adds a stable activation using half exponentials
+to retain representable negative tails. Signed zero and infinity rules are
+explicit. CPU reuses exp/libm, CUDA uses non-FTZ exp2, and direct Metal has a
+narrower numerical scope. Signature, budgets, cache and ownership are unchanged.

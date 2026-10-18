@@ -1045,6 +1045,52 @@ def test_experimental_sigmoid_metal_numerical():
     np.testing.assert_array_equal(a.numpy().view(np.uint32), original)
 
 
+@pytest.mark.parametrize('shape', [(), (0,), (1,), (257,), (2, 3)])
+def test_experimental_silu_metal_parity(shape):
+    if not _has_metal_compiler() or 'metal' not in cx.devices():
+        pytest.skip('requires Metal compiler and device')
+    from test_mlir_silu import KERNELS, helper_collision, oracle, oracle_silu, assert_close
+    count = int(np.prod(shape))
+    a = np.linspace(-20, 4, count, dtype=np.float32).reshape(shape)
+    b = np.full(shape, .75, dtype=np.float32)
+    tensors = [cx.tensor(values, device='metal')
+               for values in (a, b, np.full(shape, -7, dtype=np.float32))]
+    for dsl in [*KERNELS, helper_collision]:
+        result = dsl.compile(target='metal').launch(*tensors, count, block_size=7)
+        expected = oracle_silu(oracle_silu(a * b)) if dsl is helper_collision else oracle(dsl, a, b)
+        assert result is tensors[2]
+        assert_close(result.numpy(), expected, 'metal')
+        np.testing.assert_array_equal(tensors[0].numpy(), a)
+        np.testing.assert_array_equal(tensors[1].numpy(), b)
+
+
+def test_experimental_silu_metal_numerical():
+    if not _has_metal_compiler() or 'metal' not in cx.devices():
+        pytest.skip('requires Metal compiler and device')
+    from test_mlir_silu import silu_kernel_one, numerical_inputs, oracle_silu, assert_close
+    values = numerical_inputs()
+    normal_limit = np.float32(2) * np.finfo(np.float32).tiny
+    with np.errstate(all='ignore'):
+        accepted = ((values >= normal_limit) | ((values >= -80) & (values <= -normal_limit))
+                    | (values <= -128) | (values == 0) | np.isnan(values))
+        values = values[accepted]
+    a = cx.tensor(values, device='metal'); out = cx.zeros(a.shape, device='metal')
+    original = a.numpy().view(np.uint32).copy()
+    result = silu_kernel_one.compile(target='metal').launch(a, out, values.size, block_size=113)
+    actual = result.numpy()
+    assert result is out
+    assert_close(actual, oracle_silu(values), 'metal')
+    valid = ~np.isnan(values)
+    np.testing.assert_array_equal(np.signbit(actual[valid]), np.signbit(values[valid]))
+    assert np.all(actual[valid] >= np.minimum(values[valid], 0))
+    assert np.all(actual[valid] <= np.maximum(values[valid], 0))
+    assert np.all(actual[valid] >= np.float32(-.3))
+    np.testing.assert_array_equal(actual[np.isposinf(values)].view(np.uint32), 0x7f800000)
+    np.testing.assert_array_equal(actual[values <= -128].view(np.uint32), 0x80000000)
+    np.testing.assert_array_equal(actual[values == 0].view(np.uint32), original[values == 0])
+    np.testing.assert_array_equal(a.numpy().view(np.uint32), original)
+
+
 def _program_id_nonzero_axis_kernel():
     @cx.experimental.kernel
     def bad_kernel(out, axis):

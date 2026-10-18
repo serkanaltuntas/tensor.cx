@@ -282,6 +282,8 @@ Guarded float32 tanh is implemented; docs/MLIR_TANH.md defines its bounded-error
 contract, sm_52-compatible rational/exp lowering and CPU libm symbol policy.
 Guarded float32 sigmoid is implemented; docs/MLIR_SIGMOID.md defines stable
 exp-based lowering, gradual-underflow acceptance and direct Metal limits.
+Guarded float32 SiLU is implemented; docs/MLIR_SILU.md defines half-exponential
+lowering, signed-zero/infinity rules and negative-tail/subnormal acceptance.
 ```
 
 `docs/CUDA_PHASE9_ENVIRONMENT.md` records the selected host and entry criteria;

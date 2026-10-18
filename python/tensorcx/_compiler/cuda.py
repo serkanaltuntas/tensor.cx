@@ -83,6 +83,31 @@ def _emit_sigmoid(operand, instruction):
     return instruction(f"arith.select {condition}, {positive}, {negative} : f32")
 
 
+def _emit_silu(operand, instruction):
+    """Non-FTZ half exponentials avoid premature negative-tail underflow."""
+    def constant(value):
+        return instruction(f"arith.constant {format_f32_constant(value)} : f32")
+    absolute = instruction('llvm.call_intrinsic "llvm.fabs.f32"'
+                           f'({operand}) : (f32) -> f32')
+    scale = constant(-0.7213475204444817)
+    exponent = instruction(f"arith.mulf {absolute}, {scale} : f32")
+    h = instruction('llvm.call_intrinsic "llvm.nvvm.ex2.approx.f"'
+                    f'({exponent}) : (f32) -> f32')
+    one, zero = constant(1.0), constant(0.0)
+    squared = instruction(f"arith.mulf {h}, {h} : f32")
+    denominator = instruction(f"arith.addf {one}, {squared} : f32")
+    limit = constant(256.0)
+    bounded = instruction('llvm.call_intrinsic "llvm.minimum.f32"'
+                          f'({absolute}, {limit}) : (f32, f32) -> f32')
+    negative_scale = instruction(f"arith.negf {bounded} : f32")
+    tail = instruction(f"arith.mulf {negative_scale}, {h} : f32")
+    tail = instruction(f"arith.mulf {tail}, {h} : f32")
+    positive = instruction(f"arith.divf {operand}, {denominator} : f32")
+    negative = instruction(f"arith.divf {tail}, {denominator} : f32")
+    condition = instruction(f"arith.cmpf oge, {operand}, {zero} : f32")
+    return instruction(f"arith.select {condition}, {positive}, {negative} : f32")
+
+
 def entry_name(operation):
     return f"tensorcx_{operation}_v1"
 
@@ -124,7 +149,7 @@ def signature(ir):
               or (isinstance(value, IRCall)
                   and ((value.name == "select" and len(value.args) == 3)
                        or (value.name in {"minimum", "maximum"} and len(value.args) == 2)
-                       or (value.name in {"sqrt", "abs", "exp", "log", "rsqrt", "tanh", "sigmoid"} and len(value.args) == 1)))):
+                       or (value.name in {"sqrt", "abs", "exp", "log", "rsqrt", "tanh", "sigmoid", "silu"} and len(value.args) == 1)))):
             operators += 1
             if operators > 64:
                 reject("expression operation count exceeds 64")
@@ -243,6 +268,8 @@ def emit_expression_cuda(ir, kinds, output, guard):
             return instruction(f"llvm.load {ptr} : !llvm.ptr -> f32")
         if isinstance(value, IRCall):
             values = [expression(argument) for argument in value.args]
+            if value.name == "silu":
+                return _emit_silu(values[0], instruction)
             if value.name == "sigmoid":
                 return _emit_sigmoid(values[0], instruction)
             if value.name == "tanh":

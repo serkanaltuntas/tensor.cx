@@ -335,3 +335,7 @@ defines explicit CPU libm linkage, reserved symbols and bounded numerical error.
 Guarded float32 `cx.experimental.sigmoid` is also supported; [kernel sigmoid](MLIR_SIGMOID.md)
 defines stable exp-based lowering, existing CPU libm linkage and target-specific
 gradual-underflow acceptance.
+
+Guarded float32 `cx.experimental.silu` is also supported; [kernel SiLU](MLIR_SILU.md)
+defines half-exponential lowering, signed-zero/infinity rules and target-specific
+negative-tail/subnormal acceptance with existing CPU libm linkage.

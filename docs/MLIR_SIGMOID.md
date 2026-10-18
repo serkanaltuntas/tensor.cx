@@ -53,8 +53,8 @@ system `expf`; see the [pinned conversion](https://github.com/llvm/llvm-project/
 There is no new `math.sigmoid` or `sigmoidf` external symbol. The emitted
 `math.exp` reuses explicit `-lm` linkage after objects, existing libm linker and
 runtime fingerprints, and cache validation. CPU kernel names `expf`, `logf` and
-`tanhf` remain reserved; `sigmoidf` is not reserved. Other kernels retain their
-existing flags, dependencies and cache keys.
+`tanhf` remain reserved; `sigmoidf` is not reserved. [SiLU](MLIR_SILU.md) also emits exp and reuses this policy. Other kernels retain
+their existing flags, dependencies and cache keys.
 
 CUDA clamps the absolute magnitude to `128` using IEEE minimum before
 multiplication by float32 `-log2(e)`. This prevents the scaling multiplication

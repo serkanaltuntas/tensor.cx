@@ -409,6 +409,27 @@ def _is_integer_literal_expression(expression) -> bool:
     return False
 
 
+def _emit_silu(operand, instruction):
+    """Half exponentials retain the negative tail beyond exp(x) underflow."""
+    absolute = instruction(f"math.absf {operand} : f32")
+    negative = instruction(f"arith.negf {absolute} : f32")
+    half = instruction("arith.constant 0.5 : f32")
+    exponent = instruction(f"arith.mulf {negative}, {half} : f32")
+    h = instruction(f"math.exp {exponent} : f32")
+    one, zero = instruction("arith.constant 1.0 : f32"), instruction("arith.constant 0.0 : f32")
+    squared = instruction(f"arith.mulf {h}, {h} : f32")
+    denominator = instruction(f"arith.addf {one}, {squared} : f32")
+    limit = instruction("arith.constant 256.0 : f32")
+    bounded = instruction(f"arith.minimumf {absolute}, {limit} : f32")
+    scale = instruction(f"arith.negf {bounded} : f32")
+    tail = instruction(f"arith.mulf {scale}, {h} : f32")
+    tail = instruction(f"arith.mulf {tail}, {h} : f32")
+    positive = instruction(f"arith.divf {operand}, {denominator} : f32")
+    negative = instruction(f"arith.divf {tail}, {denominator} : f32")
+    condition = instruction(f"arith.cmpf oge, {operand}, {zero} : f32")
+    return instruction(f"arith.select {condition}, {positive}, {negative} : f32")
+
+
 def _emit_expression(
     emitter: _Emitter,
     expression,
@@ -447,18 +468,20 @@ def _emit_expression(
             value = emitter.fresh()
             emitter.emit(indent, f"{value} = arith.{expression.name}f {', '.join(name for name, _ in values)} : f32")
             return value, "f32"
-        if expression.name in {"sqrt", "abs", "exp", "log", "rsqrt", "tanh", "sigmoid"}:
+        if expression.name in {"sqrt", "abs", "exp", "log", "rsqrt", "tanh", "sigmoid", "silu"}:
             if len(expression.args) != 1:
                 raise MlirEmitError(f"{expression.name} requires one float32 argument")
             operand, kind = _emit_expression(
                 emitter, expression.args[0], indent=indent, context=context)
             if kind != "f32":
                 raise MlirEmitError(f"{expression.name} requires one float32 argument")
-            if expression.name == "sigmoid":
+            if expression.name in {"sigmoid", "silu"}:
                 def instruction(text):
                     result = emitter.fresh()
                     emitter.emit(indent, f"{result} = {text}")
                     return result
+                if expression.name == "silu":
+                    return _emit_silu(operand, instruction), "f32"
                 absolute = instruction(f"math.absf {operand} : f32")
                 negative = instruction(f"arith.negf {absolute} : f32")
                 exponential = instruction(f"math.exp {negative} : f32")

@@ -47,6 +47,7 @@ _SUPPORTED_INTRINSICS = {
     "cx.experimental.rsqrt": 1,
     "cx.experimental.tanh": 1,
     "cx.experimental.sigmoid": 1,
+    "cx.experimental.silu": 1,
     "cx.experimental.minimum": 2,
     "cx.experimental.maximum": 2,
 }
@@ -348,7 +349,7 @@ class Kernel:
         msl_source = _emit_msl(ir)
         from ._compiler.metal import compile_artifact
         options = ({"strict_math": True}
-                   if {"minimum", "maximum", "exp", "log", "rsqrt", "tanh", "sigmoid"}.intersection(_iter_call_names(ir.body)) else {})
+                   if {"minimum", "maximum", "exp", "log", "rsqrt", "tanh", "sigmoid", "silu"}.intersection(_iter_call_names(ir.body)) else {})
         metallib, hit = compile_artifact(ir.name, msl_source, cache=cache, **options)
         return CompiledKernel(
             name=ir.name,
@@ -1015,6 +1016,15 @@ def _reference_execute(kernel_ir, arrays, scalars, thread_count, block_size):
                                     else (lhs_negative and rhs_negative))
                         value = np.float32(-0.0 if negative else 0.0)
                 return ("float", value)
+            if expression.name == "silu":
+                _, value = eval_expression(expression.args[0], env, intrinsics)
+                with np.errstate(all="ignore"):
+                    absolute = np.abs(value)
+                    half_exp = np.exp(np.multiply(-absolute, np.float32(.5), dtype=np.float32), dtype=np.float32)
+                    denominator = np.add(np.float32(1), np.multiply(half_exp, half_exp, dtype=np.float32), dtype=np.float32)
+                    bounded = -np.minimum(absolute, np.float32(256))
+                    tail = np.multiply(np.multiply(bounded, half_exp, dtype=np.float32), half_exp, dtype=np.float32)
+                    return ("float", np.divide(value if value >= 0 else tail, denominator, dtype=np.float32))
             if expression.name == "sigmoid":
                 _, value = eval_expression(expression.args[0], env, intrinsics)
                 with np.errstate(all="ignore"):
@@ -1702,7 +1712,7 @@ def _emit_msl(kernel_ir: IRKernel) -> str:
     helpers = []
     calls = set(_iter_call_names(kernel_ir.body))
     used_names.add(kernel_ir.name)
-    for intrinsic in ("minimum", "maximum", "sigmoid"):
+    for intrinsic in ("minimum", "maximum", "sigmoid", "silu"):
         if intrinsic not in calls:
             continue
         base = f"tensorcx_{intrinsic}_f32"
@@ -1712,7 +1722,16 @@ def _emit_msl(kernel_ir: IRKernel) -> str:
             name = f"{base}_{suffix}"
         builtin_names[intrinsic] = name
         used_names.add(name)
-        if intrinsic == "sigmoid":
+        if intrinsic == "silu":
+            helpers.append(f"inline float {name}(float x) {{\n"
+                           "    if (x <= -128.0f) return -0.0f;\n"
+                           "    float a = ::metal::fabs(x);\n"
+                           "    float h = ::metal::exp(-a * 0.5f);\n"
+                           "    float d = 1.0f + h * h;\n"
+                           "    float tail = (-::metal::min(a, 256.0f) * h) * h;\n"
+                           "    return x >= 0.0f ? x / d : tail / d;\n"
+                           "}\n")
+        elif intrinsic == "sigmoid":
             helpers.append(f"inline float {name}(float x) {{\n"
                            "    float e = ::metal::exp(-::metal::fabs(x));\n"
                            "    float d = 1.0f + e;\n"
@@ -1966,16 +1985,16 @@ def _emit_msl_constant(value: int | float) -> str:
 
 
 def _emit_msl_call(call: IRCall, builtin_names: dict[str, str]) -> str:
-    if call.name == "sigmoid":
+    if call.name in {"sigmoid", "silu"}:
         if len(call.args) != 1:
-            raise KernelCompileError("sigmoid requires one float32 argument")
+            raise KernelCompileError(f"{call.name} requires one float32 argument")
         return f"::{builtin_names[call.name]}({_emit_msl_expression(call.args[0], builtin_names)})"
     if call.name in {"minimum", "maximum"}:
         if len(call.args) != 2:
             raise KernelCompileError(f"{call.name} requires two float32 arguments")
         arguments = ", ".join(_emit_msl_expression(arg, builtin_names) for arg in call.args)
         return f"::{builtin_names[call.name]}({arguments})"
-    if call.name in {"sqrt", "abs", "exp", "log", "rsqrt", "tanh", "sigmoid"}:
+    if call.name in {"sqrt", "abs", "exp", "log", "rsqrt", "tanh", "sigmoid", "silu"}:
         if len(call.args) != 1:
             raise KernelCompileError(f"{call.name} requires one float32 argument")
         builtin = "fabs" if call.name == "abs" else call.name
@@ -2004,7 +2023,7 @@ def _infer_msl_type(expression: IRExpression, context: dict[str, str]) -> str:
                     or any(_infer_msl_type(arg, context) != "float" for arg in expression.args)):
                 raise KernelCompileError(f"{expression.name} requires two float32 arguments")
             return "float"
-        if expression.name in {"sqrt", "abs", "exp", "log", "rsqrt", "tanh", "sigmoid"}:
+        if expression.name in {"sqrt", "abs", "exp", "log", "rsqrt", "tanh", "sigmoid", "silu"}:
             if (len(expression.args) != 1
                     or _infer_msl_type(expression.args[0], context) != "float"):
                 raise KernelCompileError(f"{expression.name} requires one float32 argument")
@@ -2115,6 +2134,11 @@ def sigmoid(value):
     raise NotImplementedError("sigmoid is only valid inside compiled experimental kernels")
 
 
+def silu(value):
+    """Stable float32 SiLU inside experimental kernels, including signed zeros."""
+    raise NotImplementedError("silu is only valid inside compiled experimental kernels")
+
+
 def minimum(lhs, rhs):
     """NaN-propagating float32 minimum inside a kernel; -0 sorts below +0."""
     raise NotImplementedError("minimum is only valid inside compiled experimental kernels")
@@ -2148,6 +2172,7 @@ __all__ = [
     "rsqrt",
     "tanh",
     "sigmoid",
+    "silu",
     "minimum",
     "maximum",
     "program_id",

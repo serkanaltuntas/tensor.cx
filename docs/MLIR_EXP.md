@@ -38,7 +38,7 @@ CPU emits `math.exp` without fast-math flags. LLVM 21.1.8 lowers it to `expf`;
 the compiler explicitly links system `libm` after its input objects. CPU kernel
 names `expf`, `logf` and `tanhf` are rejected before compilation to prevent collisions
 with external libm symbols (CUDA/Metal are unaffected). Only
-kernels emitting exp (including [sigmoid](MLIR_SIGMOID.md)), [log](MLIR_LOG.md) or [tanh](MLIR_TANH.md) add `-lm` and fingerprint the libm linker input and
+kernels emitting exp (including [sigmoid](MLIR_SIGMOID.md) and [SiLU](MLIR_SILU.md)), [log](MLIR_LOG.md) or [tanh](MLIR_TANH.md) add `-lm` and fingerprint the libm linker input and
 runtime library in the artifact cache. Other kernels retain their flags/keys.
 The interpreter uses NumPy float32 exp with local error handling, so ambient
 NumPy error settings do not turn overflow/underflow into Python exceptions.

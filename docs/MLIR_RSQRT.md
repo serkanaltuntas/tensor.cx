@@ -45,7 +45,7 @@ to `llvm.sqrt.f32` followed by float32 `1 / root`, so the two operations round
 separately. The NumPy reference also rounds the root before float32 division;
 the independent numerical oracle instead rounds only the final float64 result.
 No additional libm linkage or cache dependency is introduced; the existing
-exp/[sigmoid](MLIR_SIGMOID.md)/log/[tanh](MLIR_TANH.md) `-lm` policy and CPU reserved names remain unchanged. See the
+exp/[sigmoid](MLIR_SIGMOID.md)/[SiLU](MLIR_SILU.md)/log/[tanh](MLIR_TANH.md) `-lm` policy and CPU reserved names remain unchanged. See the
 [pinned CPU conversion](https://github.com/llvm/llvm-project/blob/llvmorg-21.1.8/mlir/lib/Conversion/MathToLLVM/MathToLLVM.cpp).
 
 CUDA emits `llvm.nvvm.rsqrt.approx.f`, producing non-FTZ

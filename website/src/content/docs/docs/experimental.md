@@ -9,8 +9,8 @@ require a compiler SDK at runtime. Explicit custom-kernel compilation does.
 | Path | What is implemented | Required environment |
 | --- | --- | --- |
 | Metal / MSL | Restricted Python kernel DSL, float32 elementwise and bounded rowwise reductions | Apple Metal compiler tools and an available Metal device |
-| CPU / MLIR | Guarded float32 arithmetic, division, sqrt/abs/exp/log/rsqrt/tanh/sigmoid, minimum/maximum, comparisons and select; bounded local/nested expressions | Validated on Linux x86_64 with LLVM/MLIR 21.1.8 |
-| CUDA / MLIR | Guarded float32 add/subtract/multiply/divide, sqrt/abs/exp/log/rsqrt/tanh/sigmoid, minimum/maximum, comparisons and select; bounded local/nested expressions | Validated CPU toolchain plus CUDA toolkit 12.4, CUDA Driver API 13.0, and sm_52 hardware |
+| CPU / MLIR | Guarded float32 arithmetic, division, sqrt/abs/exp/log/rsqrt/tanh/sigmoid/SiLU, minimum/maximum, comparisons and select; bounded local/nested expressions | Validated on Linux x86_64 with LLVM/MLIR 21.1.8 |
+| CUDA / MLIR | Guarded float32 add/subtract/multiply/divide, sqrt/abs/exp/log/rsqrt/tanh/sigmoid/SiLU, minimum/maximum, comparisons and select; bounded local/nested expressions | Validated CPU toolchain plus CUDA toolkit 12.4, CUDA Driver API 13.0, and sm_52 hardware |
 
 ## Explicit compilation
 
@@ -107,6 +107,19 @@ plus two units. Direct Metal uses strict compilation; accuracy is accepted for
 `x >= -80`, `x <= -128` and NaNs, with the intervening underflow range excluded.
 CPU reuses the existing exp/libm policy; CUDA uses non-FTZ exp2 without libdevice.
 See the [sigmoid contract and example](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/MLIR_SIGMOID.md).
+
+
+`cx.experimental.silu(value)` computes float32 SiLU, preserving signed zeros,
+mapping positive infinity to itself and negative infinity to negative zero.
+It uses half exponentials to keep representable negative-tail results after
+sigmoid itself would round to zero. CPU/CUDA include gradual underflow with
+`rtol=1e-6`/`1e-5` and one/two smallest-subnormal units of absolute allowance.
+Direct Metal uses strict compilation: normal-output ranges `[-80, -2*tiny]`
+and `[2*tiny, +inf]`, signed zeros, `x <= -128` and NaNs are accepted, where
+`tiny` is the smallest positive normal float32. Nonzero subnormal inputs/results
+and the negative interval `(-128, -80)` are outside its accuracy promise.
+Ordinary tensor `cx.silu` is an existing separate API. See the
+[SiLU contract and example](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/MLIR_SILU.md).
 
 Compiled CPU/CUDA/Metal code is cached in private local storage by default,
 including across process restarts. Inspect `compiled.cache_hit` for reuse, or

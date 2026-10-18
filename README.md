@@ -79,6 +79,7 @@ x86_64 with external LLVM 21.1.8 tools. See the
 - [`docs/MLIR_ABS.md`](docs/MLIR_ABS.md): float32 kernel absolute value, sign-bit semantics and retained signature/ownership limits.
 - [`docs/MLIR_LOG.md`](docs/MLIR_LOG.md): guarded float32 natural logarithm, domain rules and bounded numerical error.
 - [`docs/MLIR_RSQRT.md`](docs/MLIR_RSQRT.md): guarded float32 reciprocal square root, signed-zero/domain rules and relative-error acceptance.
+- [`docs/MLIR_SILU.md`](docs/MLIR_SILU.md): guarded float32 SiLU, stable negative tails, signed zeros and target-specific numerical scope.
 - [`docs/MLIR_SIGMOID.md`](docs/MLIR_SIGMOID.md): guarded float32 stable logistic function, tail/underflow acceptance and target limits.
 - [`docs/MLIR_TANH.md`](docs/MLIR_TANH.md): guarded float32 hyperbolic tangent, signed-zero/saturation rules and sm_52-compatible lowering.
 - [`docs/MLIR_EXP.md`](docs/MLIR_EXP.md): guarded float32 exp, bounded numerical error and target/cache policies.
