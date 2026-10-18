@@ -1,6 +1,7 @@
 #include <array>
 #include <cstdint>
 #include <iostream>
+#include <cmath>
 #include <limits>
 #include <stdexcept>
 #include <string_view>
@@ -69,12 +70,39 @@ void contract() {
     execution.op = OpDesc{OpKind::kNegate}; execution.inputs = inputs; execution.outputs = outputs;
     invalid(backend.execute(execution));
     require(outputs[0].buffer == original.buffer, "failure published an output");
+    for (auto kind : {OpKind::kCast, OpKind::kTranspose, OpKind::kSlice, OpKind::kConcat}) {
+      execution.op = OpDesc{kind};
+      execution.op.target_dtype = DType::kInt32;
+      execution.op.axes = {0};
+      execution.op.slice_starts = {0}; execution.op.slice_steps = {1}; execution.op.slice_shape = {3};
+      invalid(backend.execute(execution));
+      require(outputs[0].buffer == original.buffer, "rejected transform published an output");
+    }
   }
   auto fake_context = std::make_shared<vk::Context>();
   auto fake_buffer = std::make_shared<vk::VulkanBuffer>(DType::kFloat32, 0, fake_context, nullptr);
   auto foreign = original;
   foreign.shape = {0}; foreign.buffer = fake_buffer;
   require(!vk::from_core_tensor(foreign), "foreign context accepted");
+
+  // Primitive transform rejections must preserve the caller's output slot.
+  std::array<Tensor, 1> inputs{original}, unchanged{original};
+  BackendExecution transform;
+  transform.inputs = inputs; transform.outputs = unchanged;
+  for (auto op : {OpDesc{OpKind::kTranspose}, OpDesc{OpKind::kSlice}, OpDesc{OpKind::kConcat}}) {
+    op.axis = 8; transform.op = op;
+    invalid(backend.execute(transform));
+    require(unchanged[0].buffer == original.buffer, "bad transform plan published an output");
+  }
+  auto bad_cast = vk::from_cpu(cpu::CpuTensor({3}, std::vector<float>{1, NAN, 3})).move_value();
+  inputs[0] = vk::to_core_tensor(bad_cast);
+  transform.op = OpDesc{OpKind::kCast}; transform.op.target_dtype = DType::kInt32;
+  invalid(backend.execute(transform));
+  require(unchanged[0].buffer == original.buffer, "invalid float conversion published an output");
+  require(!bad_cast.buffer()->owner()->poisoned, "conversion validation poisoned the device");
+  require(std::isnan(vk::to_cpu(bad_cast).value().float_data()[1]), "failed cast modified its input");
+  inputs[0] = original;
+  require(backend.execute(transform).ok(), "conversion did not recover after invalid input");
 
   for (DType dtype : {DType::kFloat32, DType::kInt32, DType::kBool}) {
     auto empty = vk::empty({1000000000000, 0}, dtype);

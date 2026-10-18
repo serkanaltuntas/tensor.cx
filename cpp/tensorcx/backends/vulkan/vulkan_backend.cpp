@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "tensorcx/backends/vulkan/vulkan_context.h"
+#include "tensorcx/backends/vulkan/vulkan_transform.h"
 
 namespace tensorcx::vulkan {
 namespace {
@@ -44,6 +45,9 @@ std::uint32_t shader_operation(OpKind kind) {
 
 Status VulkanBackend::execute(const BackendExecution& execution) {
   if (auto status = validate_primitive_execution_contract(execution, "vulkan"); !status.ok()) return status;
+  if (execution.op.kind == OpKind::kCast || execution.op.kind == OpKind::kTranspose ||
+      execution.op.kind == OpKind::kSlice || execution.op.kind == OpKind::kConcat)
+    return execute_transform(execution);
   try {
     const auto operation = shader_operation(execution.op.kind);
     std::optional<VulkanTensor> lhs, rhs;

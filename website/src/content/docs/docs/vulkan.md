@@ -1,6 +1,6 @@
 ---
 title: Vulkan / SPIR-V
-description: Build and use the optional Linux Vulkan backend for GPU copies, factories and basic tensor arithmetic.
+description: Build and use the optional Linux Vulkan backend for GPU arithmetic, dtype conversion, indexing and tensor joins.
 ---
 
 Vulkan is an optional Linux backend with a deliberately smaller operation set
@@ -45,8 +45,23 @@ broadcast add/subtract/multiply, negation and scalar arithmetic; division is
 float32 only. Int32 arithmetic wraps exactly as on CPU. `randn` uses host
 random generation followed by upload. `empty` contents are unspecified.
 
-Matmul, reductions, inference, activations, masks, indexing/joins, casts,
-transpose, DLPack and generated kernels/MLIR are not implemented on Vulkan.
+All three dtypes also support `astype`, contiguous-copy `transpose`, basic
+indexing (including negative slices), `concat`, `stack` and `split`. Reordering
+preserves stored bits. Float-to-int casts truncate toward zero and reject NaN,
+infinity and out-of-range values without mutating input storage. Float-to-bool
+treats nonzero subnormals as true and both signed zeros as false.
+
+```python
+parts = cx.split(x[:, ::-1].T, [1], axis=-1)
+joined = cx.concat(parts, axis=-1)
+print(joined.astype(cx.int32).numpy())
+# [[3 6]
+#  [2 5]
+#  [1 4]]
+```
+
+Matmul, reductions, inference, activations, masks,
+DLPack and generated kernels/MLIR are not implemented on Vulkan.
 Unsupported operations raise errors. Inspect capabilities before choosing a
 backend for a larger workload.
 

@@ -44,6 +44,9 @@ def main():
         a = cx.tensor(rng.uniform(0.5, 5, (17, 1, 9)).astype(np.float32))
         b = cx.tensor(rng.uniform(0.5, 5, (1, 7, 1)).astype(np.float32))
         x, y = a.to(device), b.to(device)
+        bool_source = np.resize(np.array([0, 2, 255, 1, 128], dtype=np.uint8), (3, 5)).view(np.bool_)
+        bool_host = cx.from_dlpack(bool_source, copy=False)
+        bool_device = bool_host.to(device)
         checks = []
         for name, actual, expected in [
             ('copy', x, a), ('fill', cx.ones((65,), device=device), cx.ones((65,))),
@@ -52,6 +55,15 @@ def main():
             ('scalars', (3 - x) * 2, (3 - a) * 2), ('negative', -x, -a),
             ('bool_fill', cx.ones((7,), dtype=cx.bool, device=device), cx.ones((7,), dtype=cx.bool)),
             ('int32_wrap', cx.tensor([2147483647], device=device) + 1, cx.tensor([2147483647]) + 1),
+            ('cast', x.astype(cx.int32), a.astype(cx.int32)),
+            ('transpose', x.transpose((2, 0, 1)), a.transpose((2, 0, 1))),
+            ('indexing', x[::-1, 0, ::-2], a[::-1, 0, ::-2]),
+            ('concat', cx.concat([x, x[:, :, :0], x], axis=-1), cx.concat([a, a[:, :, :0], a], axis=-1)),
+            ('stack', cx.stack([x, x], axis=1), cx.stack([a, a], axis=1)),
+            ('split', cx.split(x, [3, 3], axis=0)[-1], cx.split(a, [3, 3], axis=0)[-1]),
+            ('bool_packed_transform', cx.concat([bool_device.T] * 3, axis=-1),
+                                      cx.concat([bool_host.T] * 3, axis=-1)),
+            ('noncanonical_bool_cast', bool_device.astype(cx.int32), bool_host.astype(cx.int32)),
         ]:
             check(actual.dtype == expected.dtype, name + ': dtype mismatch')
             if expected.dtype in (cx.int32, cx.bool):
@@ -69,6 +81,15 @@ def main():
                 raise RuntimeError('unsupported Vulkan reduction accepted')
             check(cx._core._vulkan_validation_errors() == 0, 'Vulkan validation errors')
             checks.append('unsupported_operation_error')
+            invalid_cast = cx.tensor([1., np.nan, 2.], device=device)
+            try:
+                invalid_cast.astype(cx.int32)
+            except ValueError as error:
+                check('out of range' in str(error), str(error))
+            else:
+                raise RuntimeError('invalid float-to-int conversion accepted')
+            np.testing.assert_array_equal(invalid_cast.numpy(), np.array([1., np.nan, 2.], dtype=np.float32))
+            checks.append('invalid_cast_rejection')
         print(json.dumps({'variant': args.variant, 'device': device, 'mlir': False, 'checks': checks,
                           'package': str(Path(cx.__file__).relative_to(prefix)),
                           'extension': str(Path(cx._core.__file__).relative_to(prefix)),

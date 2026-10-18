@@ -42,7 +42,8 @@ CUDA_OPERATIONS = _profile(dlpack=True)
 # Initial synchronous Vulkan slice. No broad CPU/Metal capability inheritance.
 VULKAN_OPERATIONS = {
     **{name: _ALL for name in (
-        "tensor", "empty", "copy", "zeros", "ones", "reshape", "squeeze", "expand_dims"
+        "tensor", "empty", "copy", "zeros", "ones", "reshape", "squeeze", "expand_dims",
+        "astype", "transpose", "indexing", "concat", "stack", "split"
     )},
     **{name: _NUMERIC for name in ("add", "subtract", "multiply", "negative")},
     "divide": _FLOAT,

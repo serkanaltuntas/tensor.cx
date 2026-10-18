@@ -98,7 +98,6 @@ def test_vulkan_threaded_reuse_preserves_inputs(vulkan_device):
 def test_vulkan_unsupported_operations_and_bad_metadata(vulkan_device):
     x = cx.ones((2, 3), device=vulkan_device)
     for action in (lambda: cx.matmul(x, x), lambda: cx.sum(x), lambda: cx.exp(x),
-                   lambda: cx.astype(x, cx.int32), lambda: x[:, 0],
                    lambda: cx.softmax(x, axis=-1), lambda: cx.rmsnorm(x, axis=-1), lambda: cx.layernorm(x, axis=-1)):
         with pytest.raises(ValueError, match="not supported"):
             action()
@@ -122,7 +121,9 @@ def test_vulkan_capabilities_and_diagnostics(vulkan_device):
     caps = cx.capabilities(vulkan_device)
     assert caps["add"] == ["float32", "int32"]
     assert caps["copy"] == ["float32", "int32", "bool"]
-    assert not {"matmul", "sum", "from_dlpack", "astype", "attention"} & caps.keys()
+    for name in ("astype", "transpose", "indexing", "concat", "stack", "split"):
+        assert caps[name] == ["float32", "int32", "bool"]
+    assert not {"matmul", "sum", "from_dlpack", "attention"} & caps.keys()
     info = cx.diagnostics()["backends"][vulkan_device]
     assert info["available"] is True
     assert info["api_version"]

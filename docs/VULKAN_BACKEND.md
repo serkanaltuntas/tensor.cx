@@ -46,13 +46,18 @@ print(cx.capabilities("vulkan"))
   arithmetic wraps modulo 2^32, matching the CPU reference.
 - `float32` only: tensor/scalar division. `randn` generates data on the host and
   explicitly uploads it, as with other backends.
+- All three dtypes: explicit `astype`, contiguous-copy `transpose`, basic
+  indexing (including negative-step slices, integer axes, ellipsis and new
+  axes), `concat`, `stack` and `split`. These execute on the GPU without
+  exporting tensor data to the CPU. Same-dtype copies and reordering preserve
+  stored bits, including float32 NaNs, signed zeros and subnormals.
 - Per-device capabilities and basic diagnostics: Vulkan API version, raw
   vendor-encoded driver version, storage-buffer limit and total device-local
   heap bytes. Available/free bytes are **not collected**. Heaps are device-wide,
   not a count of tensor-owned allocations.
 
-Matmul, reductions, activations, norms, comparisons/masks, slicing/joins,
-transpose/casts, inference, DLPack, generated kernels/MLIR, profiling, memory
+Matmul, reductions, activations, norms, comparisons/masks,
+inference, DLPack, generated kernels/MLIR, profiling, memory
 pools, batching and asynchronous execution are not implemented on Vulkan.
 Unsupported operations raise explicit errors; no CPU fallback is performed.
 Other backends retain their existing capabilities.
@@ -61,6 +66,16 @@ Float32 parity uses `rtol=1e-6, atol=1e-6` on the recorded inputs. Vulkan's basi
 shader float controls do not establish a portable subnormal, NaN-payload or
 bit-exact arithmetic contract across vendors; those stronger guarantees are
 not claimed. Int32 and bool parity are exact. Empty contents are unspecified.
+
+`astype` supports every pair among float32/int32/bool. Float-to-int truncates
+toward zero and rejects NaN, infinity and values outside `[-2^31, 2^31)`.
+A private GPU error flag is read back before publishing the output; rejection
+does not mutate the input or poison the context. Float-to-bool uses the stored
+bits so even subnormal nonzero values are true, while both signed zeros are
+false. Boolean transformations assign one invocation to each complete packed
+word, preventing races at unaligned byte boundaries. Concat currently makes
+one synchronous output pass per input; correctness is validated, throughput
+optimization remains in the checklist below.
 
 ## Device identity and ownership
 
@@ -140,6 +155,40 @@ failure retention and missing/incomplete loaders. Fresh source-archive/wheel
 installation checks CPU and GPU arithmetic and hidden-driver CPU execution.
 The optional CI job builds Vulkan and tests CPU/no-loader paths; it is **not**
 GPU execution evidence. Existing CUDA push acceptance remains required.
+
+## Remaining Vulkan work
+
+The user's 2026-10-18 goal is to finish the Vulkan work that can be developed
+and verified on the current Linux host. This checklist retains that full scope;
+finishing one increment does not complete the backend. The CPU API is the
+operation reference, and each advertised feature needs real-device acceptance.
+
+- [x] Copies, factories, shared views and basic numeric arithmetic.
+- [x] All dtype conversion pairs, transpose, basic indexing and
+  concat/stack/split, including packed bool and float-to-int validation.
+- [ ] Comparisons, boolean logic, `where` and masked selection.
+- [ ] Numeric and boolean reductions, selected axes and `keepdims`.
+- [ ] Vector, matrix and broadcast-batched matmul.
+- [ ] Remaining math, activations, normalization and inference operations
+  (`linear`, affine norms, embedding and attention), with CPU parity.
+- [ ] Repeatable benchmarks, host/device timing, allocation diagnostics and
+  measured staging/command/descriptor/buffer reuse.
+- [ ] Experimental custom kernels and MLIR-to-SPIR-V, with the existing
+  guarded-kernel validation and compilation-cache contracts.
+- [ ] Explicit accelerator/device transfer API and supported storage exchange
+  where the API and driver can actually provide it; do not label a host copy
+  zero-copy or publish an unsupported DLPack device type.
+- [ ] Portable Linux Vulkan wheels and repeatable local real-GPU acceptance
+  alongside no-loader/hidden-ICD CI. Broader packaging must not require a Vulkan
+  driver merely to import and use CPU.
+- [ ] The separately planned lavapipe software execution probe, clearly
+  distinguished from GPU acceptance (see [device backlog](DEVICE_BACKLOG.md)).
+
+External acceptance still needs other NVIDIA/AMD/Intel GPUs and real two-GPU
+hardware. Windows/Android/MoltenVK, FP16/BF16 and asynchronous public execution
+remain separate extensions with their own platform/dtype/API prerequisites;
+this host does not establish support for them. No new device-wide compatibility
+claim follows from implementing the checklist on one GTX 980 Ti.
 
 References: [Khronos compute tutorial](https://docs.vulkan.org/tutorial/latest/11_Compute_Shader.html),
 [synchronization examples](https://docs.vulkan.org/guide/latest/synchronization_examples.html),

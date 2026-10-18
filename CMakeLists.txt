@@ -356,6 +356,7 @@ if(TENSORCX_ENABLE_VULKAN)
     cpp/tensorcx/backends/vulkan/vulkan_backend.cpp
     cpp/tensorcx/backends/vulkan/vulkan_context.cpp
     cpp/tensorcx/backends/vulkan/vulkan_tensor.cpp
+    cpp/tensorcx/backends/vulkan/vulkan_transform.cpp
     "${TENSORCX_VULKAN_GENERATED}/elementwise_spirv.h"
   )
   target_compile_features(tensorcx_vulkan PUBLIC cxx_std_20)

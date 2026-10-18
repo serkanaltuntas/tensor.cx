@@ -3,13 +3,83 @@
 // Uint storage preserves wrapping int32 arithmetic without signed overflow.
 layout(local_size_x = 64) in;
 layout(set = 0, binding = 0, std430) readonly buffer Left { uint lhs[]; };
-layout(set = 0, binding = 1, std430) readonly buffer Right { uint rhs[]; };
-layout(set = 0, binding = 2, std430) writeonly buffer Output { uint output_data[]; };
+// Right is writable only for the private float-to-int conversion error flag.
+layout(set = 0, binding = 1, std430) buffer Right { uint rhs[]; };
+layout(set = 0, binding = 2, std430) buffer Output { uint output_data[]; };
 layout(set = 0, binding = 3, std430) readonly buffer Metadata { uint metadata[]; };
 layout(push_constant) uniform Parameters {
     uint count, operation, scalar_bits, scalar_left;
     uint groups_x, rank, integer_dtype, reserved;
 } p;
+
+uint read_source(uint index) {
+    if (p.integer_dtype == 2u)
+        return (lhs[index / 4u] >> (8u * (index % 4u))) & 0xffu;
+    return lhs[index];
+}
+
+uint transform_element(uint index) {
+    uint source = index;
+    if (p.operation == 11u) {
+        source = p.scalar_bits;
+        uint rest = index;
+        for (uint axis = p.rank; axis > 0u; --axis) {
+            uint coordinate = rest % metadata[axis];
+            rest /= metadata[axis];
+            source += coordinate * metadata[p.rank + axis];
+        }
+    }
+    uint bits = read_source(source);
+    if (p.operation != 10u || p.integer_dtype == p.reserved) return bits;
+    if (p.reserved == 2u) {
+        // Bit testing preserves nonzero subnormal truth even on devices that
+        // flush float arithmetic to zero. Both signs of zero remain false.
+        return uint((p.integer_dtype == 0u ? bits & 0x7fffffffu : bits) != 0u);
+    }
+    if (p.reserved == 0u)
+        return floatBitsToUint(p.integer_dtype == 2u ? float(bits != 0u) : float(int(bits)));
+    if (p.integer_dtype == 2u) return uint(bits != 0u);
+    float value = uintBitsToFloat(bits);
+    if (isnan(value) || isinf(value) || value < -2147483648.0 || value >= 2147483648.0) {
+        atomicOr(rhs[0], 1u);
+        return 0u; // Never perform an undefined out-of-range float-to-int cast.
+    }
+    return uint(int(value));
+}
+
+void transform(uint word) {
+    if (p.operation == 12u) {
+        uint block = metadata[1], output_block = metadata[2];
+        if (p.reserved != 2u) {
+            uint inner = word % output_block;
+            if (inner >= p.scalar_bits && inner - p.scalar_bits < block)
+                output_data[word] = read_source((word / output_block) * block + inner - p.scalar_bits);
+        } else {
+            uint packed = p.scalar_left != 0u ? 0u : output_data[word];
+            for (uint lane = 0u; lane < 4u; ++lane) {
+                uint index = word * 4u + lane;
+                if (index >= metadata[0]) break;
+                uint inner = index % output_block;
+                if (inner >= p.scalar_bits && inner - p.scalar_bits < block) {
+                    uint value = read_source((index / output_block) * block + inner - p.scalar_bits);
+                    uint shift = 8u * lane;
+                    packed = (packed & ~(0xffu << shift)) | (value << shift);
+                }
+            }
+            output_data[word] = packed;
+        }
+    } else if (p.reserved != 2u) {
+        output_data[word] = transform_element(word);
+    } else {
+        // One writer per packed bool word, including unaligned tails.
+        uint packed = 0u;
+        for (uint lane = 0u; lane < 4u; ++lane) {
+            uint index = word * 4u + lane;
+            if (index < metadata[0]) packed |= transform_element(index) << (8u * lane);
+        }
+        output_data[word] = packed;
+    }
+}
 
 void main() {
     uint group = gl_WorkGroupID.y * p.groups_x + gl_WorkGroupID.x;
@@ -17,6 +87,7 @@ void main() {
     uint i = group * 64u + gl_LocalInvocationID.x;
     if (i >= p.count) return;
     if (p.operation == 0u) { output_data[i] = p.scalar_bits; return; }
+    if (p.operation >= 10u) { transform(i); return; }
     uint a_index = 0u, b_index = 0u, rest = i;
     for (uint axis = p.rank; axis > 0u; --axis) {
         uint coordinate = rest % metadata[axis - 1u];

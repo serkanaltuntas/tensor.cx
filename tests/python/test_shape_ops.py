@@ -14,6 +14,8 @@ from tensorcx import _core
 def device_name(request):
     if not request.node.originalname.startswith(('test_squeeze_', 'test_expand_dims_')):
         require_operations(request.param, 'transpose')
+    if request.node.originalname == 'test_shape_ops_compose_without_host_exports':
+        require_operations(request.param, 'matmul')
     return request.param
 
 

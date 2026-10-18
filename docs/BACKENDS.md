@@ -206,7 +206,8 @@ attention materializes scores and is not a fused/FlashAttention path.
 ## Optional Vulkan/SPIR-V runtime
 
 The optional Linux Vulkan backend uses the same registry and `BackendExecution`
-primitive path. Its initial copies/factories/views and basic arithmetic subset,
+primitive path. Its copies/factories/views, basic arithmetic and contiguous
+cast/transpose/indexing/join subset,
 indexed ownership, synchronization, build instructions and real-GPU acceptance
 are defined in [VULKAN_BACKEND.md](VULKAN_BACKEND.md). Core device metadata permits
 nonnegative indices; each backend validates its supported indices and concrete

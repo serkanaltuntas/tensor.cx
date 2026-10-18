@@ -15,11 +15,11 @@ CPU/Metal/CUDA expose index 0; Vulkan has indexed routes with one physical GPU v
 | Float32 subtract, divide, negate and scalar arithmetic | Yes | Yes | Yes | Yes |
 | Int32 subtract, negate and scalar add/subtract/multiply | Yes | Yes | Yes | Yes |
 | Contiguous reshape (float32/int32/bool) | Yes | Yes | Yes | Yes |
-| Transpose to contiguous copy (float32/int32/bool) | Yes | Yes | Yes | Not implemented |
+| Transpose to contiguous copy (float32/int32/bool) | Yes | Yes | Yes | Yes |
 | Squeeze / expand dims views (float32/int32/bool) | Yes | Yes | Yes | Yes |
-| Basic indexing / slicing copies (float32/int32/bool) | Yes | Yes | Yes | Not implemented |
-| Concat / stack / split copies (float32/int32/bool) | Yes | Yes | Yes | Not implemented |
-| Explicit float32/int32/bool conversion | Yes | Yes | Yes | Not implemented |
+| Basic indexing / slicing copies (float32/int32/bool) | Yes | Yes | Yes | Yes |
+| Concat / stack / split copies (float32/int32/bool) | Yes | Yes | Yes | Yes |
+| Explicit float32/int32/bool conversion | Yes | Yes | Yes | Yes |
 | Comparisons and `where` (float32/int32/bool) | Yes | Yes | Yes | Not implemented |
 | Bool fill, logic, any/all and mask selection | Yes | Yes | Yes | Fill only |
 | Binary arithmetic broadcasting | Yes | Yes | Yes | Yes |
@@ -82,8 +82,9 @@ abs, min, argmax, clip and topk. Float32 matmul supports `auto` and `custom`, no
 
 ## Vulkan / SPIR-V
 
-The optional Linux backend supports GPU copies/factories/views and basic
-broadcast float32/int32 arithmetic. It has real GTX 980 Ti validation, with no
+The optional Linux backend supports GPU copies/factories/views, casts,
+transpose, basic indexing/joins and broadcast float32/int32 arithmetic.
+It has real GTX 980 Ti validation, with no
 claim of other-GPU acceptance. Software Vulkan CPU devices are excluded from
 GPU discovery. Matmul, inference, reductions, DLPack and MLIR are outside this
 first slice. See [Vulkan setup and limits](/docs/vulkan/).

@@ -13,7 +13,9 @@ from tensorcx import _core
 @pytest.fixture(params=cx.devices())
 def device_name(request):
     if not request.node.originalname.startswith('test_broadcast_'):
-        require_operations(request.param, 'astype', 'mean')
+        require_operations(request.param, 'astype')
+    if request.node.originalname == 'test_cast_broadcast_composition_stays_native':
+        require_operations(request.param, 'mean')
     return request.param
 
 

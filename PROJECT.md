@@ -84,7 +84,8 @@ Fusion experiment:      explicit two/four-op CUDA grouping benchmark with separa
                         docs/CUDA_FUSION_EXPERIMENT.md; automatic fusion remains open
 Output-copy increment:  generated CUDA v2 full writes omit the template copy;
                         docs/CUDA_OUTPUT_COPY_ELISION.md; private output and legacy fallback retained
-Vulkan increment:       optional Linux SPIR-V copies/factories/basic arithmetic;
+Vulkan increment:       optional Linux SPIR-V copies/factories/basic arithmetic,
+                        casts/transpose/indexing/concat/stack/split;
                         docs/VULKAN_BACKEND.md (2026-10-18, GTX 980 Ti validation)
 Next implementation:    wider device compatibility and continuous GPU validation
 Open scope:             other SM/host versions and broader compiler features
