@@ -22,7 +22,7 @@ try:
 finally:
     sys.path.pop(0)
 TEST_FILES = ('test_cuda.py', 'test_cuda_primitives.py', 'test_mlir_cuda_runtime.py',
-              'test_mlir_cuda_expressions.py', 'test_mlir_division.py', 'test_mlir_select.py', 'test_mlir_sqrt.py', 'test_mlir_abs.py', 'test_mlir_minmax.py', 'test_mlir_exp.py', 'test_mlir_log.py',
+              'test_mlir_cuda_expressions.py', 'test_mlir_division.py', 'test_mlir_select.py', 'test_mlir_sqrt.py', 'test_mlir_abs.py', 'test_mlir_minmax.py', 'test_mlir_exp.py', 'test_mlir_log.py', 'test_mlir_rsqrt.py',
               'test_int32_primitives.py', 'test_runtime_profile.py', 'test_memory_pool.py', 'test_empty.py', 'test_tensor_api.py', 'test_cast_broadcast.py',
               'test_shape_ops.py', 'test_multi_axis_reductions.py', 'test_indexing_joining.py', 'test_boolean_masks.py', 'test_batched_matmul.py', 'test_math_ops.py', 'test_inference_ops.py', 'test_dlpack.py')
 
@@ -138,6 +138,7 @@ def validate(revision, llvm_bin):
                  'test_minmax_parity', 'test_minmax_ieee_pairs', 'test_gpu_emitter_minmax_ieee',
                  'test_exp_parity', 'test_exp_numerical_domain', 'test_gpu_emitter_exp_no_ftz',
                  'test_log_parity', 'test_log_numerical_domain', 'test_gpu_emitter_log_no_ftz',
+                 'test_rsqrt_parity', 'test_rsqrt_numerical_domain', 'test_gpu_emitter_rsqrt_no_ftz',
                  'test_int32_binary_exact_wrap', 'test_int32_scalar_precision_and_order',
                  'test_int32_reductions_exact_wrap', 'test_int32_grid_stride_tail',
                  'test_profile_primitive_parity_and_accounting',

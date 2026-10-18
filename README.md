@@ -78,6 +78,7 @@ x86_64 with external LLVM 21.1.8 tools. See the
 - [`docs/MLIR_SQRT.md`](docs/MLIR_SQRT.md): guarded float32 kernel square root, strict CPU/CUDA lowering and numerical limits.
 - [`docs/MLIR_ABS.md`](docs/MLIR_ABS.md): float32 kernel absolute value, sign-bit semantics and retained signature/ownership limits.
 - [`docs/MLIR_LOG.md`](docs/MLIR_LOG.md): guarded float32 natural logarithm, domain rules and bounded numerical error.
+- [`docs/MLIR_RSQRT.md`](docs/MLIR_RSQRT.md): guarded float32 reciprocal square root, signed-zero/domain rules and relative-error acceptance.
 - [`docs/MLIR_EXP.md`](docs/MLIR_EXP.md): guarded float32 exp, bounded numerical error and target/cache policies.
 - [`docs/MLIR_MINMAX.md`](docs/MLIR_MINMAX.md): guarded float32 minimum/maximum, NaN/zero rules and target-specific lowering.
 - [`docs/CUDA_INT32.md`](docs/CUDA_INT32.md): native int32 factories, wrapping arithmetic and signed sum/max validation.

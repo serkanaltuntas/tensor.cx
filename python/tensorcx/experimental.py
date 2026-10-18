@@ -44,6 +44,7 @@ _SUPPORTED_INTRINSICS = {
     "cx.experimental.abs": 1,
     "cx.experimental.exp": 1,
     "cx.experimental.log": 1,
+    "cx.experimental.rsqrt": 1,
     "cx.experimental.minimum": 2,
     "cx.experimental.maximum": 2,
 }
@@ -345,7 +346,7 @@ class Kernel:
         msl_source = _emit_msl(ir)
         from ._compiler.metal import compile_artifact
         options = ({"strict_math": True}
-                   if {"minimum", "maximum", "exp", "log"}.intersection(_iter_call_names(ir.body)) else {})
+                   if {"minimum", "maximum", "exp", "log", "rsqrt"}.intersection(_iter_call_names(ir.body)) else {})
         metallib, hit = compile_artifact(ir.name, msl_source, cache=cache, **options)
         return CompiledKernel(
             name=ir.name,
@@ -1012,6 +1013,10 @@ def _reference_execute(kernel_ir, arrays, scalars, thread_count, block_size):
                                     else (lhs_negative and rhs_negative))
                         value = np.float32(-0.0 if negative else 0.0)
                 return ("float", value)
+            if expression.name == "rsqrt":
+                _, value = eval_expression(expression.args[0], env, intrinsics)
+                with np.errstate(all="ignore"):
+                    return ("float", np.divide(np.float32(1), np.sqrt(value, dtype=np.float32), dtype=np.float32))
             if expression.name == "log":
                 _, value = eval_expression(expression.args[0], env, intrinsics)
                 with np.errstate(all="ignore"):
@@ -1947,7 +1952,7 @@ def _emit_msl_call(call: IRCall, builtin_names: dict[str, str]) -> str:
             raise KernelCompileError(f"{call.name} requires two float32 arguments")
         arguments = ", ".join(_emit_msl_expression(arg, builtin_names) for arg in call.args)
         return f"::{builtin_names[call.name]}({arguments})"
-    if call.name in {"sqrt", "abs", "exp", "log"}:
+    if call.name in {"sqrt", "abs", "exp", "log", "rsqrt"}:
         if len(call.args) != 1:
             raise KernelCompileError(f"{call.name} requires one float32 argument")
         builtin = "fabs" if call.name == "abs" else call.name
@@ -1976,7 +1981,7 @@ def _infer_msl_type(expression: IRExpression, context: dict[str, str]) -> str:
                     or any(_infer_msl_type(arg, context) != "float" for arg in expression.args)):
                 raise KernelCompileError(f"{expression.name} requires two float32 arguments")
             return "float"
-        if expression.name in {"sqrt", "abs", "exp", "log"}:
+        if expression.name in {"sqrt", "abs", "exp", "log", "rsqrt"}:
             if (len(expression.args) != 1
                     or _infer_msl_type(expression.args[0], context) != "float"):
                 raise KernelCompileError(f"{expression.name} requires one float32 argument")
@@ -2072,6 +2077,11 @@ def log(value):
     raise NotImplementedError("log is only valid inside compiled experimental kernels")
 
 
+def rsqrt(value):
+    """Float32 reciprocal square root in kernels; see its target error contract."""
+    raise NotImplementedError("rsqrt is only valid inside compiled experimental kernels")
+
+
 def minimum(lhs, rhs):
     """NaN-propagating float32 minimum inside a kernel; -0 sorts below +0."""
     raise NotImplementedError("minimum is only valid inside compiled experimental kernels")
@@ -2102,6 +2112,7 @@ __all__ = [
     "kernel",
     "exp",
     "log",
+    "rsqrt",
     "minimum",
     "maximum",
     "program_id",

@@ -276,6 +276,8 @@ Guarded float32 exp is implemented; docs/MLIR_EXP.md records bounded-error
 CPU/CUDA lowering, explicit CPU libm linkage and narrower Metal numerical scope.
 Guarded float32 log is implemented; docs/MLIR_LOG.md defines domain/special-value
 rules, non-FTZ CUDA lowering and Metal normal-input acceptance.
+Guarded float32 rsqrt is implemented; docs/MLIR_RSQRT.md defines reciprocal-root
+special values, relative-error acceptance and retained target/ownership limits.
 ```
 
 `docs/CUDA_PHASE9_ENVIRONMENT.md` records the selected host and entry criteria;

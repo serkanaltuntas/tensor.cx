@@ -136,6 +136,7 @@ cx.experimental.minimum(float_value, float_value)
 cx.experimental.maximum(float_value, float_value)
 cx.experimental.exp(float_value)
 cx.experimental.log(float_value)
+cx.experimental.rsqrt(float_value)
 if blocks without else
 numeric constants
 for var in range(bound_name) with an assignment-only body (any local
@@ -290,3 +291,7 @@ strict compilation and its separately documented normal-output numerical scope.
 [Kernel log](MLIR_LOG.md) defines float32 natural logarithms, domain/special-value
 rules and target error bounds. CUDA supports positive subnormal inputs without
 FTZ/libdevice; direct Metal acceptance excludes nonzero subnormal arguments.
+
+[Kernel rsqrt](MLIR_RSQRT.md) adds a reciprocal square root with explicit
+signed-zero/domain rules and relative-error bounds. CPU uses strict sqrt/divide;
+CUDA uses non-FTZ rsqrt without libdevice; Metal uses strict compilation.

@@ -105,7 +105,7 @@ def _signature(ir):
     def reject():
         raise KernelCompileError(
             "MLIR CPU runtime requires a canonical global index and one guarded "
-            "float32 elementwise body (arithmetic, sqrt/abs/exp/log, minimum/maximum, comparisons, select and local assignments)"
+            "float32 elementwise body (arithmetic, sqrt/abs/exp/log/rsqrt, minimum/maximum, comparisons, select and local assignments)"
         )
 
     if not re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*", ir.name) or ir.name.startswith("tensorcx_"):
@@ -160,7 +160,7 @@ def _signature(ir):
             if any(expression(argument) != "float" for argument in value.args):
                 reject()
             return "float"
-        elif isinstance(value, IRCall) and value.name in {"sqrt", "abs", "exp", "log"} and len(value.args) == 1:
+        elif isinstance(value, IRCall) and value.name in {"sqrt", "abs", "exp", "log", "rsqrt"} and len(value.args) == 1:
             if expression(value.args[0]) != "float":
                 reject()
             return "float"

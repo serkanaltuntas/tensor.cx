@@ -159,7 +159,8 @@ documentation. This order does not claim that later packages are implemented.
    [contract](COMPILATION_CACHE.md). [Float32 kernel division](MLIR_DIVISION.md),
    [comparison/select](MLIR_SELECT.md), [kernel sqrt](MLIR_SQRT.md) and
    [kernel abs](MLIR_ABS.md), [kernel minimum/maximum](MLIR_MINMAX.md),
-   [kernel exp](MLIR_EXP.md) and [kernel log](MLIR_LOG.md) are implemented. Opt-in CPU/CUDA
+   [kernel exp](MLIR_EXP.md), [kernel log](MLIR_LOG.md) and
+   [kernel rsqrt](MLIR_RSQRT.md) are implemented. Opt-in CPU/CUDA
    [runtime host profiling](RUNTIME_PROFILING.md) separates allocation/copy,
    native execution and existing waits. Device-event/Metal profiling, broader
    MLIR operations and measured kernel fusion remain open.

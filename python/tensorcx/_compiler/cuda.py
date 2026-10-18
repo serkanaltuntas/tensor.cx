@@ -61,7 +61,7 @@ def signature(ir):
               or (isinstance(value, IRCall)
                   and ((value.name == "select" and len(value.args) == 3)
                        or (value.name in {"minimum", "maximum"} and len(value.args) == 2)
-                       or (value.name in {"sqrt", "abs", "exp", "log"} and len(value.args) == 1)))):
+                       or (value.name in {"sqrt", "abs", "exp", "log", "rsqrt"} and len(value.args) == 1)))):
             operators += 1
             if operators > 64:
                 reject("expression operation count exceeds 64")
@@ -185,6 +185,11 @@ def emit_expression_cuda(ir, kinds, output, guard):
                 # propagation and zero signs; no libdevice or sm_80 required.
                 return instruction(f'llvm.call_intrinsic "llvm.{value.name}.f32"'
                                    f'({values[0]}, {values[1]}) : (f32, f32) -> f32')
+            if value.name == "rsqrt":
+                # Approximate reciprocal root, with subnormal inputs preserved.
+                # Avoid generic GPU lowering's external libdevice dependency.
+                return instruction('llvm.call_intrinsic "llvm.nvvm.rsqrt.approx.f"'
+                                   f'({values[0]}) : (f32) -> f32')
             if value.name == "log":
                 # Non-FTZ base-2 logarithm supports sm_52 subnormal inputs.
                 # Round the final conversion to a natural logarithm in f32.

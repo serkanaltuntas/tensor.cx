@@ -325,3 +325,6 @@ defines explicit CPU libm linkage, bounded numerical errors and target limits.
 
 Guarded float32 `cx.experimental.log` is also supported; [kernel log](MLIR_LOG.md)
 defines domain rules, shared explicit libm linkage and target error limits.
+
+Guarded float32 `cx.experimental.rsqrt` is also supported; [kernel rsqrt](MLIR_RSQRT.md)
+defines strict CPU sqrt/divide lowering, special values and relative-error limits.
