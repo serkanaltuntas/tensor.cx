@@ -46,3 +46,11 @@ checks for the optional LLVM 21.1.8 toolchain. Ordinary tensor operations do not
 need LLVM, and compiler readiness does not establish support for every kernel.
 
 See the [detailed contract and limitations](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/DIAGNOSTICS.md).
+
+## Vulkan diagnostics
+
+The [initial Vulkan backend](/docs/vulkan/) reports its smaller capability set,
+API version, vendor-encoded raw driver version, storage-buffer limit and total
+device-local heap bytes. Available/free bytes are not collected. CUDA/Metal keep
+higher automatic selection priority; Vulkan indices are process-local and only
+one physical Vulkan GPU has been validated.

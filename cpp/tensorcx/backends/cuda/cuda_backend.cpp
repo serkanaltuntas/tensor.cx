@@ -261,6 +261,8 @@ Status CudaBackend::execute(const BackendExecution& execution) {
     }
     if (auto status = validate_primitive_execution_contract(execution, "cuda");
         !status.ok()) return status;
+    if (execution.op.kind == OpKind::kFill && execution.outputs[0].device.index != 0)
+      return Status(StatusCode::kInvalidArgument, "CUDA fill requires device index 0");
     const auto kind = execution.op.kind;
     Shape shape;
     std::size_t outer=1, reduce=1, inner=1;

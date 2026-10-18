@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <cstring>
 #include <deque>
+#include <functional>
 #include <limits>
 #include <optional>
 #include <span>
@@ -38,6 +39,11 @@
 #include "tensorcx/backends/cuda/cuda_backend.h"
 #include "tensorcx/backends/cuda/cuda_kernel.h"
 #include "tensorcx/backends/cuda/cuda_memory_pool.h"
+#endif
+
+#if TENSORCX_ENABLE_VULKAN
+#include "tensorcx/backends/vulkan/vulkan_backend.h"
+#include "tensorcx/backends/vulkan/vulkan_context.h"
 #endif
 
 #ifndef TENSORCX_RUNTIME_VERSION
@@ -496,11 +502,11 @@ T unwrap(tensorcx::Expected<T> result) {
 }
 
 struct BackendRoute {
-  const char* name;
-  bool (*is_available)();
-  std::string (*device_name)();
-  nb::object (*fill)(Shape, DType, double);
-  nb::list (*matmul_backends)();
+  std::string name;
+  std::function<bool()> is_available;
+  std::function<std::string()> device_name;
+  std::function<nb::object(Shape, DType, double)> fill;
+  std::function<nb::list()> matmul_backends;
 };
 
 bool cpu_backend_available() { return true; }
@@ -711,6 +717,42 @@ nb::list cuda_backend_matmul_backends() {
 }
 #endif
 
+#if TENSORCX_ENABLE_VULKAN
+tensorcx::vulkan::VulkanTensor vulkan_primitive(
+    const tensorcx::vulkan::VulkanTensor& input, OpDesc op,
+    const tensorcx::vulkan::VulkanTensor* right = nullptr) {
+  tensorcx::vulkan::VulkanBackend backend;
+  std::array<tensorcx::Tensor, 2> inputs{tensorcx::vulkan::to_core_tensor(input), {}};
+  if (right) inputs[1] = tensorcx::vulkan::to_core_tensor(*right);
+  std::array<tensorcx::Tensor, 1> outputs;
+  tensorcx::BackendExecution execution;
+  execution.op = std::move(op);
+  execution.inputs = std::span<const tensorcx::Tensor>(inputs.data(), right ? 2 : 1);
+  execution.outputs = outputs;
+  const auto status = without_gil([&] { return backend.execute(execution); });
+  if (!status.ok()) throw_status(status);
+  return unwrap(tensorcx::vulkan::from_core_tensor(outputs[0]));
+}
+
+tensorcx::vulkan::VulkanTensor binary_op(const tensorcx::vulkan::VulkanTensor& lhs,
+                                       const tensorcx::vulkan::VulkanTensor& rhs, OpKind kind) {
+  return vulkan_primitive(lhs, OpDesc{kind}, &rhs);
+}
+
+nb::object vulkan_fill(Shape shape, DType dtype, double value, int index) {
+  tensorcx::vulkan::VulkanBackend backend;
+  const auto strides = tensorcx::contiguous_strides(shape);
+  std::array<tensorcx::Tensor, 1> outputs{tensorcx::Tensor{
+      dtype, std::move(shape), strides, {"vulkan", index}, nullptr, 0}};
+  tensorcx::BackendExecution execution;
+  execution.op = OpDesc{OpKind::kFill}; execution.op.scalar_value = value;
+  execution.outputs = outputs;
+  const auto status = without_gil([&] { return backend.execute(execution); });
+  if (!status.ok()) throw_status(status);
+  return nb::cast(unwrap(tensorcx::vulkan::from_core_tensor(outputs[0])));
+}
+#endif
+
 // Metadata-only view: the typed constructor validates the shared buffer and
 // computes contiguous strides without allocating or moving tensor data.
 template <typename NativeTensor>
@@ -909,7 +951,8 @@ void bind_tensor_extensions(nb::module_& module, ExecuteSingle execute_single) {
 }
 
 std::span<const BackendRoute> backend_routes() {
-  static const BackendRoute routes[]{
+  static const std::vector<BackendRoute> routes = [] {
+    std::vector<BackendRoute> result{
       {"cpu", &cpu_backend_available, &cpu_backend_device_name,
        &cpu_backend_fill, &cpu_backend_matmul_backends},
 #if TENSORCX_ENABLE_METAL
@@ -920,7 +963,21 @@ std::span<const BackendRoute> backend_routes() {
       {"cuda", &cuda_backend_available, &cuda_backend_device_name,
        &cuda_backend_fill, &cuda_backend_matmul_backends},
 #endif
-  };
+    };
+#if TENSORCX_ENABLE_VULKAN
+    for (std::size_t i = 0; i < tensorcx::vulkan::device_count(); ++i) {
+      const int index = static_cast<int>(i);
+      result.push_back({tensorcx::vulkan::device_string(index),
+        [index] { return tensorcx::vulkan::available(index); },
+        [index] { return unwrap(tensorcx::vulkan::device_info(index)).name; },
+        [index](Shape shape, DType dtype, double value) {
+          return vulkan_fill(std::move(shape), dtype, value, index);
+        },
+        [] { return nb::list(); }});
+    }
+#endif
+    return result;
+  }();
   return routes;
 }
 
@@ -1076,6 +1133,7 @@ NB_MODULE(_core, module) {
     result["cpu"] = true;
     result["metal"] = static_cast<bool>(TENSORCX_ENABLE_METAL);
     result["cuda"] = static_cast<bool>(TENSORCX_ENABLE_CUDA);
+    result["vulkan"] = static_cast<bool>(TENSORCX_ENABLE_VULKAN);
     return result;
   });
 #if TENSORCX_ENABLE_CUDA
@@ -1421,6 +1479,65 @@ NB_MODULE(_core, module) {
              nb::arg("output"),
              nb::arg("thread_count"),
              nb::arg("threads_per_threadgroup"));
+
+#if TENSORCX_ENABLE_VULKAN
+  using tensorcx::vulkan::VulkanTensor;
+  nb::class_<VulkanTensor>(module, "VulkanTensor")
+      .def_prop_ro("shape", [](const VulkanTensor& x) { return shape_tuple(x.shape()); })
+      .def_prop_ro("strides", [](const VulkanTensor& x) { return shape_tuple(x.strides()); })
+      .def_prop_ro("dtype", [](const VulkanTensor& x) { return std::string(tensorcx::dtype_name(x.dtype())); })
+      .def_prop_ro("device", [](const VulkanTensor& x) { return tensorcx::vulkan::device_string(x.device().index); })
+      .def_prop_ro("nbytes", &VulkanTensor::nbytes);
+  module.def("_vulkan_device_count", &tensorcx::vulkan::device_count);
+  module.def("_vulkan_validation_errors", &tensorcx::vulkan::validation_errors);
+  module.def("_vulkan_discovery_error", &tensorcx::vulkan::discovery_error);
+  module.def("_vulkan_device_info", [](int index) {
+    const auto info = unwrap(tensorcx::vulkan::device_info(index));
+    nb::dict result, memory;
+    result["name"] = info.name;
+    result["api_version"] = std::to_string(VK_API_VERSION_MAJOR(info.api_version)) + "." +
+        std::to_string(VK_API_VERSION_MINOR(info.api_version)) + "." + std::to_string(VK_API_VERSION_PATCH(info.api_version));
+    result["driver_version_raw"] = info.driver_version;
+    result["vendor_id"] = info.vendor_id;
+    result["max_storage_buffer_range"] = info.max_storage_buffer_range;
+    memory["total_bytes"] = info.device_local_bytes;
+    memory["available_bytes"] = nb::none(); memory["scope"] = "device_local_heaps";
+    result["memory"] = memory;
+    return result;
+  }, nb::arg("index") = 0);
+  module.def("_vulkan_empty", [](nb::handle shape, nb::handle dtype, int index) {
+    Shape parsed = parse_shape(shape);
+    const auto parsed_dtype = parse_dtype(dtype, DType::kFloat32);
+    return unwrap(without_gil([&] { return tensorcx::vulkan::empty(std::move(parsed), parsed_dtype, index); }));
+  }, nb::arg("shape"), nb::arg("dtype") = "float32", nb::arg("index") = 0);
+  module.def("cpu_to_vulkan", [](const CpuTensor& tensor, int index) {
+    return unwrap(without_gil([&] { return tensorcx::vulkan::from_cpu(tensor, index); }));
+  }, nb::arg("tensor"), nb::arg("index") = 0);
+  module.def("vulkan_to_cpu", [](const VulkanTensor& tensor) {
+    return unwrap(without_gil([&] { return tensorcx::vulkan::to_cpu(tensor); }));
+  }, nb::arg("tensor"));
+  bind_tensor_extensions<VulkanTensor>(module, [](const VulkanTensor& x, const OpDesc& op) {
+    return vulkan_primitive(x, op);
+  });
+  bind_multi_input_tensor_ops<VulkanTensor, tensorcx::vulkan::VulkanBackend>(module,
+      [](const tensorcx::Tensor& x) { return unwrap(tensorcx::vulkan::from_core_tensor(x)); });
+  for (auto [name, kind] : {std::pair{"add", OpKind::kAdd}, {"multiply", OpKind::kMultiply}})
+    module.def(name, [kind](const VulkanTensor& a, const VulkanTensor& b) { return binary_op(a, b, kind); },
+               nb::arg("lhs"), nb::arg("rhs"));
+  // Explicit errors for unsupported public primitive overloads; never a CPU fallback.
+  for (auto [name, kind] : {std::pair{"exp", OpKind::kExp}, {"gelu", OpKind::kGelu}, {"silu", OpKind::kSilu}})
+    module.def(name, [kind](const VulkanTensor& x) { return vulkan_primitive(x, OpDesc{kind}); }, nb::arg("input"));
+  module.def("softmax", [](const VulkanTensor& x, std::int64_t axis) {
+    OpDesc op{OpKind::kSoftmax}; op.axis = axis; return vulkan_primitive(x, op);
+  }, nb::arg("input"), nb::arg("axis"));
+  for (auto [name, kind] : {std::pair{"rmsnorm", OpKind::kRmsNorm}, {"layernorm", OpKind::kLayerNorm}})
+    module.def(name, [kind](const VulkanTensor& x, std::int64_t axis, double epsilon) {
+      OpDesc op{kind}; op.axis = axis; op.epsilon = epsilon; return vulkan_primitive(x, op);
+    }, nb::arg("input"), nb::arg("axis"), nb::arg("eps") = 1.0e-5);
+  module.def("matmul", [](const VulkanTensor& a, const VulkanTensor& b, const std::string&) {
+    return vulkan_primitive(a, OpDesc{OpKind::kMatmul}, &b);
+  }, nb::arg("lhs"), nb::arg("rhs"), nb::arg("backend") = "auto");
+#endif
 
 #if TENSORCX_ENABLE_CUDA
   using tensorcx::cuda::CudaTensor;

@@ -4,6 +4,7 @@ import operator
 
 import numpy as np
 import pytest
+from backend_support import require_operations
 
 import tensorcx as cx
 from tensorcx import _core
@@ -11,6 +12,12 @@ from tensorcx import _core
 
 @pytest.fixture(params=cx.devices())
 def device_name(request):
+    if request.node.originalname in {
+        'test_int32_reductions_exact_wrap', 'test_int32_random_bits_and_signed_max',
+        'test_int32_float_only_rejections_and_invalid_scalars',
+        'test_int32_high_rank_alias_lifetime_and_no_numpy_fallback',
+    }:
+        require_operations(request.param, 'sum', 'max', 'mean', 'exp')
     return request.param
 
 

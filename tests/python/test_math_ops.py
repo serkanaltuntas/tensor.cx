@@ -2,11 +2,13 @@
 import builtins
 import numpy as np
 import pytest
+from backend_support import require_operations
 import tensorcx as cx
 from tensorcx import _core
 
 @pytest.fixture(params=cx.devices())
 def device(request):
+    require_operations(request.param, 'log', 'sqrt', 'topk')
     return request.param
 
 

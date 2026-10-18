@@ -4,6 +4,7 @@ import itertools
 
 import numpy as np
 import pytest
+from backend_support import require_operations
 
 import tensorcx as cx
 from tensorcx import _core
@@ -11,6 +12,8 @@ from tensorcx import _core
 
 @pytest.fixture(params=cx.devices())
 def device_name(request):
+    if not request.node.originalname.startswith(('test_squeeze_', 'test_expand_dims_')):
+        require_operations(request.param, 'transpose')
     return request.param
 
 

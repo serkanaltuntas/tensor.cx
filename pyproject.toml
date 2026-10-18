@@ -55,7 +55,7 @@ sdist.include = [
   "LICENSE",
   "THIRD_PARTY_NOTICES.md",
   "cmake/*.py",
-  "cpp/**/*.cpp", "cpp/**/*.h", "cpp/**/*.cu", "cpp/**/*.metal", "cpp/**/*.mm",
+  "cpp/**/*.cpp", "cpp/**/*.h", "cpp/**/*.cu", "cpp/**/*.metal", "cpp/**/*.mm", "cpp/**/*.comp",
   "bindings/*.cpp",
   "third_party/dlpack/*",
   "python/**/*.py",

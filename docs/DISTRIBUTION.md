@@ -157,3 +157,13 @@ claims that the newly rewritten commit IDs were used for those runs. Old IDs
 may not resolve from the rewritten branch. The sanitized JSON is an edited
 public summary, not the original byte-for-byte log. Current validation runs
 must identify the new revision separately.
+
+## Optional Vulkan host wheel
+
+`tools/validate_distribution.py --variants vulkan --output build/distribution-vulkan`
+builds from the source archive and requires real Vulkan GPU execution in a fresh
+wheel environment, plus hidden-driver CPU checks. `--vulkan-sdk PREFIX` can select
+nonstandard build headers/tools. These are Linux host-specific wheels, not a
+portable Vulkan release. CPU wheels keep Vulkan disabled; Vulkan-enabled wheels
+load the runtime dynamically and embed their build-time validated SPIR-V.
+See [Vulkan setup and acceptance limits](VULKAN_BACKEND.md).

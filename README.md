@@ -8,8 +8,9 @@ general-purpose machine-learning framework. Its purpose is to build a compact
 tensor runtime with a backend-neutral C++ core, a Python API, a mandatory CPU
 reference path, and accelerator backends that can be validated operation by
 operation. Apple Metal is the first accelerator backend; a small CUDA prototype
-is also available. ROCm,
-Vulkan/SPIR-V, and broader MLIR-based lowering are longer-term directions.
+is also available. An optional Linux [Vulkan/SPIR-V backend](docs/VULKAN_BACKEND.md)
+now supports GPU copies, factories and basic arithmetic. ROCm and broader
+MLIR-based lowering remain longer-term directions.
 
 The project is useful today as:
 
@@ -59,6 +60,7 @@ x86_64 with external LLVM 21.1.8 tools. See the
   buffer ownership, launch metadata, and future backend expectations.
 - [`docs/METAL_BACKEND.md`](docs/METAL_BACKEND.md): Apple Metal-specific
   implementation notes and current limitations.
+- [`docs/VULKAN_BACKEND.md`](docs/VULKAN_BACKEND.md): optional Linux Vulkan setup, supported arithmetic, device selection and real-GPU validation limits.
 - [`docs/CUDA_PHASE9_ENVIRONMENT.md`](docs/CUDA_PHASE9_ENVIRONMENT.md): CUDA
   environment decision gate and Phase 9 validation requirements.
 - [`docs/PHASE_SEQUENCING_DECISION.md`](docs/PHASE_SEQUENCING_DECISION.md):

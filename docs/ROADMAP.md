@@ -49,6 +49,9 @@ for discovery and copies. See [validation evidence](CUDA_PHASE9_VALIDATION.md).
 
 ## What works today (runtime through Phase 9, plus the Phase 10 MLIR prototype)
 
+- Optional Linux [Vulkan/SPIR-V backend](VULKAN_BACKEND.md): float32/int32/bool
+  copies/factories/views and broadcast basic float32/int32 arithmetic; synchronous
+  real GTX 980 Ti execution. Broader operations and other GPUs remain open.
 - Optional CUDA backend: device 0 discovery, float32/int32 CPU↔CUDA copies,
   float32 fill/add/multiply, matmul, sum/max/mean, exp/GELU/SiLU, softmax/RMSNorm/LayerNorm;
   [int32 fill, arithmetic and sum/max](CUDA_INT32.md);
@@ -101,9 +104,10 @@ it does not add LLVM/MLIR to the C++ core or backend build. See PROJECT.md §16 
 
 - **Device families and multi-device execution.** The dedicated
   [device backlog](DEVICE_BACKLOG.md) tracks identity/discovery, per-device
-  ownership, transfers, ROCm, Vulkan/SPIR-V and multi-device acceptance.
-  It also records the [four planned Nightblade validation experiments](DEVICE_BACKLOG.md#nightblade-validation-experiments-planned)
-  for additional Vulkan/OpenCL execution paths on existing hardware.
+  ownership, transfers, ROCm, wider Vulkan/SPIR-V coverage and multi-device acceptance.
+  It also records the [Nightblade validation experiments](DEVICE_BACKLOG.md#nightblade-validation-experiments-planned)
+  for additional execution paths on existing hardware; the first Vulkan slice
+  is implemented, while the three OpenCL/software-device experiments remain planned.
   Its proposed sequence is separate from the product feature order below.
 
 - **MLIR CUDA integration.** The [CPU-first runtime slice](MLIR_RUNTIME_INTEGRATION_DECISION.md)

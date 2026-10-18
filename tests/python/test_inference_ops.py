@@ -1,12 +1,14 @@
 """Inference contract, independent references, and native backend parity."""
 import numpy as np
 import pytest
+from backend_support import require_operations
 import tensorcx as cx
 from tensorcx import _core
 
 
 @pytest.fixture(params=cx.devices())
 def device(request):
+    require_operations(request.param, 'linear', 'embedding', 'attention')
     return request.param
 
 

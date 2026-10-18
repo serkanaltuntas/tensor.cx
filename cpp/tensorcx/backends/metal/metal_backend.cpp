@@ -188,6 +188,8 @@ Status MetalBackend::execute(const BackendExecution& execution) {
     if (!contract.ok()) {
       return contract;
     }
+    if (execution.op.kind == OpKind::kFill && execution.outputs[0].device.index != 0)
+      return Status(StatusCode::kInvalidArgument, "Metal fill requires device index 0");
 
     if (is_inference_composite(execution.op.kind) || execution.op.kind == OpKind::kEmbedding || execution.op.kind == OpKind::kAttentionSoftmax) {
       std::vector<MetalTensor> inputs;

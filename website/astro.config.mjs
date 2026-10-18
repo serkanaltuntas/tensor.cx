@@ -8,7 +8,7 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'tensor.cx',
-      description: 'A compact Python-first tensor runtime with a C++20 core, CPU references, and Metal and CUDA backends.',
+      description: 'A compact Python-first tensor runtime with a C++20 core, CPU references, and Metal, CUDA and optional Vulkan backends.',
       favicon: '/favicon.svg',
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/serkanaltuntas/tensor.cx' }],
       customCss: ['./src/styles/docs.css'],
@@ -22,6 +22,7 @@ export default defineConfig({
           { label: 'Tensor operations', slug: 'docs/operations' },
           { label: 'DLPack & PyTorch', slug: 'docs/interoperability' },
           { label: 'Backends & support', slug: 'docs/backends' },
+          { label: 'Vulkan / SPIR-V', slug: 'docs/vulkan' },
           { label: 'Diagnostics', slug: 'docs/diagnostics' },
           { label: 'Examples', slug: 'docs/examples' },
           { label: 'Experimental kernels', slug: 'docs/experimental' },

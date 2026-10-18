@@ -100,3 +100,17 @@ without those driver libraries.
 
 LLVM/MLIR is optional and unnecessary for ordinary tensor operations. See
 [experimental kernels](/docs/experimental/) for its separate requirements.
+
+## Enable Vulkan / SPIR-V
+
+The optional Linux Vulkan build needs Vulkan 1.1+ headers, `glslangValidator`,
+`spirv-val`, a Vulkan loader and a compute GPU driver/ICD. It is off by default.
+
+```bash
+CMAKE_ARGS="-DTENSORCX_ENABLE_METAL=OFF -DTENSORCX_ENABLE_CUDA=OFF -DTENSORCX_ENABLE_VULKAN=ON" \
+  uv pip install --reinstall -e ".[dev]"
+```
+
+This first slice supports copies/factories/views and basic arithmetic, not the
+full CPU/CUDA operator set. SPIR-V is embedded at build time; the installed
+runtime does not need shader tools or LLVM. See [Vulkan setup and limits](/docs/vulkan/).

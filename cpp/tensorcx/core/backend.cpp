@@ -18,8 +18,8 @@ Status validate_concrete_tensor_metadata(const Tensor& tensor, std::string_view 
   if (tensor.device.type.empty()) {
     return invalid_argument_status(std::string(context) + " requires a device type");
   }
-  if (tensor.device.index != 0) {
-    return invalid_argument_status(std::string(context) + " requires device index 0");
+  if (tensor.device.index < 0) {
+    return invalid_argument_status(std::string(context) + " requires a non-negative device index");
   }
   if (tensor.offset != 0) {
     return invalid_argument_status(std::string(context) + " requires offset 0");
@@ -51,8 +51,8 @@ Status validate_fill_output_descriptor(
     return invalid_argument_status(
         "fill output descriptor device type does not match backend");
   }
-  if (output.device.index != 0) {
-    return invalid_argument_status("fill output descriptor requires device index 0");
+  if (output.device.index < 0) {
+    return invalid_argument_status("fill output descriptor requires a non-negative device index");
   }
   if (output.offset != 0) {
     return invalid_argument_status("fill output descriptor requires offset 0");

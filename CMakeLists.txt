@@ -30,6 +30,7 @@ include(FetchContent)
 set(TENSORCX_ENABLE_METAL "AUTO" CACHE STRING "Enable the Apple Metal backend: AUTO, ON, or OFF")
 set_property(CACHE TENSORCX_ENABLE_METAL PROPERTY STRINGS AUTO ON OFF)
 option(TENSORCX_ENABLE_CUDA "Build the optional CUDA prototype (requires CUDA toolkit)" OFF)
+option(TENSORCX_ENABLE_VULKAN "Build the optional Linux Vulkan/SPIR-V backend" OFF)
 option(TENSORCX_BUILD_TESTS "Build tensor.cx C++ test executables" OFF)
 option(TENSORCX_ENABLE_SANITIZERS
   "Build with AddressSanitizer and UndefinedBehaviorSanitizer (GCC/Clang only)" OFF)
@@ -331,6 +332,66 @@ if(TENSORCX_ENABLE_CUDA)
   endif()
 endif()
 
+if(TENSORCX_ENABLE_VULKAN)
+  if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    message(FATAL_ERROR "The initial Vulkan backend requires Linux.")
+  endif()
+  find_path(TENSORCX_VULKAN_INCLUDE_DIR vulkan/vulkan.h REQUIRED)
+  find_program(TENSORCX_GLSLANG_VALIDATOR glslangValidator REQUIRED)
+  find_program(TENSORCX_SPIRV_VAL spirv-val REQUIRED)
+  set(TENSORCX_VULKAN_GENERATED "${CMAKE_CURRENT_BINARY_DIR}/vulkan-generated")
+  file(MAKE_DIRECTORY "${TENSORCX_VULKAN_GENERATED}")
+  set(TENSORCX_VULKAN_SHADER "${CMAKE_CURRENT_SOURCE_DIR}/cpp/tensorcx/backends/vulkan/kernels/elementwise.comp")
+  add_custom_command(
+    OUTPUT "${TENSORCX_VULKAN_GENERATED}/elementwise_spirv.h"
+    COMMAND "${TENSORCX_GLSLANG_VALIDATOR}" -V --target-env vulkan1.1
+      -o "${TENSORCX_VULKAN_GENERATED}/elementwise.spv" "${TENSORCX_VULKAN_SHADER}"
+    COMMAND "${TENSORCX_SPIRV_VAL}" --target-env vulkan1.1 "${TENSORCX_VULKAN_GENERATED}/elementwise.spv"
+    COMMAND "${Python_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed_spirv.py"
+      "${TENSORCX_VULKAN_GENERATED}/elementwise.spv" "${TENSORCX_VULKAN_GENERATED}/elementwise_spirv.h"
+    DEPENDS "${TENSORCX_VULKAN_SHADER}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed_spirv.py"
+    VERBATIM
+  )
+  add_library(tensorcx_vulkan STATIC
+    cpp/tensorcx/backends/vulkan/vulkan_backend.cpp
+    cpp/tensorcx/backends/vulkan/vulkan_context.cpp
+    cpp/tensorcx/backends/vulkan/vulkan_tensor.cpp
+    "${TENSORCX_VULKAN_GENERATED}/elementwise_spirv.h"
+  )
+  target_compile_features(tensorcx_vulkan PUBLIC cxx_std_20)
+  target_include_directories(tensorcx_vulkan SYSTEM PUBLIC "${TENSORCX_VULKAN_INCLUDE_DIR}")
+  target_include_directories(tensorcx_vulkan PRIVATE "${TENSORCX_VULKAN_GENERATED}")
+  target_compile_options(tensorcx_vulkan PRIVATE ${TENSORCX_WARNING_FLAGS})
+  target_link_libraries(tensorcx_vulkan PUBLIC tensorcx_core ${CMAKE_DL_LIBS})
+  set_target_properties(tensorcx_vulkan PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  if(TENSORCX_BUILD_TESTS)
+    add_executable(tensorcx_vulkan_backend_tests tests/cpp/test_vulkan_backend_contract.cpp)
+    target_link_libraries(tensorcx_vulkan_backend_tests PRIVATE tensorcx_vulkan)
+    add_library(tensorcx_vulkan_no_loader SHARED tests/cpp/vulkan_no_loader.cpp)
+    target_link_libraries(tensorcx_vulkan_no_loader PRIVATE ${CMAKE_DL_LIBS})
+    add_library(tensorcx_vulkan_incomplete_loader SHARED tests/cpp/vulkan_incomplete_loader.cpp)
+    target_include_directories(tensorcx_vulkan_incomplete_loader SYSTEM PRIVATE "${TENSORCX_VULKAN_INCLUDE_DIR}")
+    foreach(TENSORCX_VULKAN_TEST IN ITEMS contract wait_failure unproven_idle)
+      set(TENSORCX_VULKAN_TEST_ARGS)
+      if(TENSORCX_VULKAN_TEST STREQUAL "wait_failure")
+        set(TENSORCX_VULKAN_TEST_ARGS --wait-failure)
+      elseif(TENSORCX_VULKAN_TEST STREQUAL "unproven_idle")
+        set(TENSORCX_VULKAN_TEST_ARGS --unproven-idle)
+      endif()
+      add_test(NAME tensorcx_vulkan_${TENSORCX_VULKAN_TEST}
+        COMMAND tensorcx_vulkan_backend_tests ${TENSORCX_VULKAN_TEST_ARGS})
+      set_tests_properties(tensorcx_vulkan_${TENSORCX_VULKAN_TEST} PROPERTIES SKIP_RETURN_CODE 77)
+    endforeach()
+    add_test(NAME tensorcx_vulkan_no_loader
+      COMMAND "${CMAKE_COMMAND}" -E env "LD_PRELOAD=$<TARGET_FILE:tensorcx_vulkan_no_loader>"
+        $<TARGET_FILE:tensorcx_vulkan_backend_tests> --no-loader)
+    add_test(NAME tensorcx_vulkan_incomplete_loader
+      COMMAND "${CMAKE_COMMAND}" -E env "LD_PRELOAD=$<TARGET_FILE:tensorcx_vulkan_no_loader>"
+        "TENSORCX_TEST_VULKAN_INCOMPLETE_LOADER=$<TARGET_FILE:tensorcx_vulkan_incomplete_loader>"
+        $<TARGET_FILE:tensorcx_vulkan_backend_tests> --no-loader)
+  endif()
+endif()
+
 nanobind_add_module(_core
   bindings/dlpack.cpp
   bindings/python_module.cpp
@@ -340,6 +401,7 @@ target_link_libraries(_core PRIVATE tensorcx_core)
 target_compile_definitions(_core PRIVATE
   TENSORCX_RUNTIME_VERSION="${PROJECT_VERSION}"
   TENSORCX_ENABLE_CUDA=$<BOOL:${TENSORCX_ENABLE_CUDA}>
+  TENSORCX_ENABLE_VULKAN=$<BOOL:${TENSORCX_ENABLE_VULKAN}>
   TENSORCX_ENABLE_METAL=$<BOOL:${TENSORCX_ENABLE_METAL}>
   TENSORCX_ENABLE_MPSGRAPH=$<BOOL:${TENSORCX_ENABLE_MPSGRAPH}>
 )
@@ -350,6 +412,9 @@ endif()
 
 if(TENSORCX_ENABLE_CUDA)
   target_link_libraries(_core PRIVATE tensorcx_cuda)
+endif()
+if(TENSORCX_ENABLE_VULKAN)
+  target_link_libraries(_core PRIVATE tensorcx_vulkan)
 endif()
 
 install(TARGETS _core LIBRARY DESTINATION tensorcx)

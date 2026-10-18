@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from . import _core
-from ._capabilities import CPU_OPERATIONS, CUDA_OPERATIONS, METAL_OPERATIONS
+from ._capabilities import CPU_OPERATIONS, CUDA_OPERATIONS, METAL_OPERATIONS, VULKAN_OPERATIONS
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,6 +26,7 @@ class Backend:
     diagnostic_info: Callable[[], dict[str, Any]] | None = None
     memory_pool: Callable[[int, int], Any] | None = None
     empty: Callable[[Any, str], Any] | None = None
+    indexed: bool = False
 
 
 _BACKENDS: dict[str, Backend] = {}
@@ -56,6 +57,11 @@ def _default_unavailable_message(name: str) -> str:
 def is_available(name: str) -> bool:
     backend = _BACKENDS.get(name)
     return bool(backend is not None and backend.is_available())
+
+
+def allows_device_index(name: str) -> bool:
+    backend = _BACKENDS.get(name)
+    return bool(backend is not None and backend.indexed)
 
 
 def devices() -> list[str]:
@@ -217,3 +223,31 @@ if _core.is_available("cuda"):
             empty=lambda shape, dtype: _core._cuda_empty(shape, dtype=dtype),
         )
     )
+
+
+def _register_vulkan_device(index: int) -> None:
+    name = "vulkan" if index == 0 else f"vulkan:{index}"
+    _register_backend(
+        Backend(
+            name=name,
+            priority=50,
+            indexed=True,
+            is_available=lambda: bool(_core.is_available(name)),
+            device_name=lambda: _core.device_name(name),
+            copy_from_cpu=lambda impl: _core.cpu_to_vulkan(impl, index=index),
+            copy_to_cpu=lambda impl: _core.vulkan_to_cpu(impl),
+            fill=lambda shape, dtype, value: _core.fill(
+                shape, dtype=dtype, value=value, device=name
+            ),
+            empty=lambda shape, dtype: _core._vulkan_empty(shape, dtype=dtype, index=index),
+            matmul_backends=lambda: list(_core.matmul_backends(name)),
+            operations=VULKAN_OPERATIONS,
+            diagnostic_info=lambda: dict(_core._vulkan_device_info(index=index)),
+        )
+    )
+
+
+if _core._build_info().get("vulkan", False):
+    # Keep index-zero discovery visible to diagnostics even without a loader/ICD.
+    for _index in range(max(1, _core._vulkan_device_count())):
+        _register_vulkan_device(_index)

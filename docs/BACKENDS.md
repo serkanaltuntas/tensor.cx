@@ -202,3 +202,12 @@ on CPU, Metal and CUDA. Linear, affine normalization and attention compose
 backend primitives; embedding and masked attention softmax have native kernels.
 Embedding reads back one GPU validation flag. Execution remains synchronous;
 attention materializes scores and is not a fused/FlashAttention path.
+
+## Optional Vulkan/SPIR-V runtime
+
+The optional Linux Vulkan backend uses the same registry and `BackendExecution`
+primitive path. Its initial copies/factories/views and basic arithmetic subset,
+indexed ownership, synchronization, build instructions and real-GPU acceptance
+are defined in [VULKAN_BACKEND.md](VULKAN_BACKEND.md). Core device metadata permits
+nonnegative indices; each backend validates its supported indices and concrete
+buffer ownership. CPU/Metal/CUDA retain their index-zero boundaries.

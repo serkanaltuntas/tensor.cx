@@ -99,3 +99,11 @@ CUDA free-memory snapshots include the effect of idle storage retained by
 [explicit memory pools](CUDA_MEMORY_POOL.md). Use `pool.stats()` for that
 scope's checked-out/cached payload and `pool.trim()` to release idle blocks;
 these are not process-wide allocator or device memory totals.
+
+## Initial Vulkan profile
+
+Vulkan reports its restricted operation/dtype profile and process-local indexed
+device routes. Diagnostics include API version, vendor-encoded raw driver
+version, storage-buffer limit and device-local heap totals. Free/available bytes
+are not collected; this is not tensor allocation accounting or memory-budget
+telemetry. See [Vulkan scope and device selection](VULKAN_BACKEND.md).

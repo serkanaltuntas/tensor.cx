@@ -1,5 +1,9 @@
 # Tensor API extension
 
+The optional [Vulkan runtime](VULKAN_BACKEND.md) supports a smaller subset:
+copies/factories, shared shape views and basic arithmetic. Check
+`cx.capabilities(device)` before placing broader workloads.
+
 User-requested increment, 2026-10-04: basic arithmetic and Python/NumPy real
 scalars, contiguous reshape, and reduction `keepdims`, followed by explicit
 `astype` conversion, tensor broadcasting, and shape operations (`transpose`,

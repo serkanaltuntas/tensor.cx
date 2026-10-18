@@ -7,14 +7,14 @@ proposal, not a change to the user-prioritized [product feature order](ROADMAP.m
 
 ## Starting point
 
-CPU, Metal and CUDA have implemented execution paths, with validation bounded
-by their documented hardware and toolchains. Python currently accepts only
-device index 0, although Python and C++ device metadata contain an index:
+CPU, Metal, CUDA and the initial Linux Vulkan slice have implemented execution
+paths, with validation bounded by documented hardware and toolchains. CPU, Metal
+and CUDA accept index 0 only; Vulkan has indexed registry/ownership routing:
 [Python selection](../python/tensorcx/device.py),
 [native metadata](../cpp/tensorcx/core/device.h).
 Multiple available backend types do not establish multi-device execution.
 
-ROCm and Vulkan/SPIR-V are the remaining backend families named in
+ROCm and wider Vulkan/SPIR-V coverage remain among the directions named in
 [PROJECT.md](../PROJECT.md#15-long-term-vision). MLIR is a compiler path into
 execution targets, not another physical device family. TPU, NPU/Apple Neural
 Engine, oneAPI/SYCL and WebGPU have no committed implementation track here.
@@ -22,13 +22,15 @@ Engine, oneAPI/SYCL and WebGPU have no committed implementation track here.
 ## Nightblade validation experiments (planned)
 
 Added 2026-10-18 at the user's request. These four experiments are planned on
-Nightblade's existing GTX 980 Ti and i7-6700K; none has been executed or accepted
-as tensor.cx device support. They explore additional execution paths on the
+Nightblade's existing GTX 980 Ti and i7-6700K. They explore execution paths on the
 same physical hardware, not four additional devices or multi-GPU coverage.
+The Vulkan item was implemented and validated on 2026-10-18; the other three
+experiments remain unexecuted.
 
-- [ ] **GTX 980 Ti via Vulkan/SPIR-V:** establish the NVIDIA Vulkan compute
-  environment, enumerate the selected GPU and required capabilities, then run
-  a minimal float32 compute probe against the CPU reference.
+- [x] **GTX 980 Ti via Vulkan/SPIR-V:** NVIDIA compute discovery and real GPU
+  execution integrated through the runtime; copies/factories/basic arithmetic,
+  CPU parity, native failure contracts and fresh wheel installation validated.
+  [Scope and evidence](VULKAN_BACKEND.md). Other Vulkan GPUs remain unvalidated.
 - [ ] **GTX 980 Ti via OpenCL:** establish the NVIDIA OpenCL environment,
   enumerate the selected GPU and compiler capabilities, then run the same
   minimal float32 probe against the CPU reference.
@@ -47,9 +49,9 @@ Acceptance requires real allocation/upload, guarded elementwise execution,
 readback with CPU parity, empty/tail sizes and resource cleanup. Retain reviewed
 results and limitations separately from raw local logs.
 
-This records planned validation work only. Vulkan and OpenCL tensor.cx backends
-are not implemented; successful standalone probes would not complete backend
-integration, packaging or operation coverage. OpenCL is a newly recorded
+The remaining unchecked items record planned validation only. OpenCL is not
+implemented; a standalone probe would not complete backend integration,
+packaging or operation coverage. OpenCL is a newly recorded
 exploration track, not an implemented family in the existing support matrix.
 Implementation scope and ordering remain separate decisions; no delivery dates
 or change to the product-feature priority order are implied.
@@ -60,6 +62,11 @@ References: [Vulkan/SPIR-V](https://registry.khronos.org/vulkan/),
 [PoCL device drivers](https://portablecl.org/docs/html/drivers.html).
 
 ## 1 Device identity and discovery
+
+The [initial Vulkan slice](VULKAN_BACKEND.md#device-identity-and-ownership) now
+implements canonical indexed routing, owner checks and bounded capabilities.
+The cross-backend checklist stays open: legacy index-zero restrictions and
+real multi-GPU/nonzero-index acceptance have not been removed or completed.
 
 - [ ] Define canonical backend-plus-index identity through Python, bindings,
   registries and native dispatch. Preserve existing unindexed device strings;

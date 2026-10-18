@@ -103,3 +103,15 @@ test('mobile pages fit and the documentation menu works', async ({ page }) => {
   await expect(page).toHaveURL('/docs/backends/');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Backends & support');
 });
+
+
+test('Vulkan guide states the supported subset and links to the matrix', async ({ page }) => {
+  await page.goto('/docs/vulkan/');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Vulkan / SPIR-V');
+  await expect(page.locator('main')).toContainText('Matmul, reductions, inference');
+  await expect(page.locator('main')).toContainText('Only one physical Vulkan GPU has been tested');
+  await expect(page.locator('main')).toContainText('TENSORCX_ENABLE_VULKAN=ON');
+  await page.getByRole('link', { name: 'full support matrix', exact: true }).click();
+  await expect(page).toHaveURL('/docs/backends/');
+  await expect(page.getByRole('columnheader', { name: 'Vulkan (initial slice)' })).toBeVisible();
+});

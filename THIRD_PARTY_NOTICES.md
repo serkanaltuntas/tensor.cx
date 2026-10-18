@@ -97,3 +97,13 @@ they are not relicensed by tensor.cx. Current CUDA wheels dynamically depend on
 CUDA runtime and driver libraries and do not bundle them. Packaging a future
 binary with additional libraries requires checking their redistribution terms
 and adding the corresponding notices. No model weights or datasets ship here.
+
+## Vulkan headers — Apache-2.0 (Vulkan builds)
+
+Copyright 2015-2026 The Khronos Group Inc.
+Vulkan builds use externally installed Vulkan-Headers API declarations under
+Apache-2.0 (also offered under MIT for the relevant headers). Source and license:
+https://github.com/KhronosGroup/Vulkan-Headers. The Apache-2.0 terms are in LICENSE.
+The Vulkan loader/driver, glslang and SPIR-V Tools are external dependencies;
+these tools and their binaries are not bundled in tensor.cx wheels. The embedded
+SPIR-V is compiled from tensor.cx's own checked-in GLSL shader.

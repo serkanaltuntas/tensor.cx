@@ -17,7 +17,7 @@ def _uncached_compiler_tests():
         os.environ["TENSORCX_DISABLE_CACHE"] = previous
 
 
-BACKEND_ORDER = ("cpu", "metal", "cuda")
+BACKEND_ORDER = ("cpu", "metal", "cuda", "vulkan")
 KNOWN_BACKENDS = frozenset(BACKEND_ORDER)
 KNOWN_CAPABILITIES = frozenset(
     {
@@ -48,6 +48,8 @@ CAPABILITY_DEPENDENCIES = {
 }
 
 BACKEND_CAPABILITIES = {
+    "vulkan": frozenset({"copy", "tensor_factories_float32", "tensor_factories_int32",
+                         "binary_ops_float32", "binary_ops_int32", "binary_ops_dtype_mismatch"}),
     "cpu": frozenset(
         {
             "copy",

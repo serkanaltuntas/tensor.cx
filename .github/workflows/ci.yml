@@ -95,6 +95,34 @@ jobs:
             build/distribution-ci/cpu/*.whl
           retention-days: 14
 
+  vulkan-build:
+    name: Vulkan build and CPU-only failure paths
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Install Vulkan build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvulkan-dev glslang-tools spirv-tools mesa-vulkan-drivers
+      - run: uv venv --python 3.12
+      - name: Build optional Vulkan extension
+        run: CMAKE_ARGS="-DTENSORCX_ENABLE_METAL=OFF -DTENSORCX_ENABLE_CUDA=OFF -DTENSORCX_ENABLE_VULKAN=ON" uv pip install -e ".[dev]"
+      - name: Build native contracts and loader fixtures
+        run: |
+          uv run --no-sync cmake -S . -B build/cpp-vulkan -G Ninja \
+            -DTENSORCX_ENABLE_METAL=OFF -DTENSORCX_ENABLE_CUDA=OFF \
+            -DTENSORCX_ENABLE_VULKAN=ON -DTENSORCX_BUILD_TESTS=ON \
+            -Dnanobind_DIR="$(uv run --no-sync python -c 'import nanobind; print(nanobind.cmake_dir())')" \
+            -DPython_EXECUTABLE="$(uv run --no-sync python -c 'import sys; print(sys.executable)')"
+          uv run --no-sync cmake --build build/cpp-vulkan --parallel 2
+          uv run --no-sync ctest --test-dir build/cpp-vulkan --output-on-failure
+      - name: CPU regression and optional-loader contracts (no GPU acceptance)
+        run: |
+          TENSORCX_TEST_VULKAN_NO_LOADER="$PWD/build/cpp-vulkan/libtensorcx_vulkan_no_loader.so" \
+          TENSORCX_TEST_VULKAN_INCOMPLETE_LIBRARY="$PWD/build/cpp-vulkan/libtensorcx_vulkan_incomplete_loader.so" \
+            uv run --no-sync pytest -q
+
   cpu:
     name: CPU path (py${{ matrix.python }})
     runs-on: ubuntu-latest

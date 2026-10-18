@@ -252,6 +252,8 @@ Status CpuBackend::execute(const BackendExecution& execution) {
     if (!contract.ok()) {
       return contract;
     }
+    if (execution.op.kind == OpKind::kFill && execution.outputs[0].device.index != 0)
+      return Status(StatusCode::kInvalidArgument, "CPU fill requires device index 0");
 
     if (is_inference_composite(execution.op.kind) || execution.op.kind == OpKind::kEmbedding || execution.op.kind == OpKind::kAttentionSoftmax) {
       for (const auto& input : execution.inputs) (void)from_core_tensor(input);

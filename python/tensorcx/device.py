@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from . import backend as _backend
 
@@ -13,7 +13,7 @@ class Device:
 
     type: str
     index: int = 0
-    name: str | None = None
+    name: str | None = field(default=None, compare=False)
 
     def __str__(self) -> str:
         return self.type if self.index == 0 else f"{self.type}:{self.index}"
@@ -39,10 +39,14 @@ def _normalize_device(value: str | Device | None) -> str:
 
     if not device_type:
         raise ValueError("device type must be a non-empty string")
-    # The index guard applies to both string and Device inputs.
-    if index != 0:
+    if not isinstance(index, int) or isinstance(index, bool):
+        raise ValueError("device index must be an integer")
+    # Indexed routes opt in through the registry; legacy devices retain index 0.
+    if index != 0 and not _backend.allows_device_index(device_type):
         raise ValueError("only device index 0 is supported")
-    return device_type
+    if index < 0:
+        raise ValueError("device index must be non-negative")
+    return device_type if index == 0 else f"{device_type}:{index}"
 
 
 def devices() -> list[str]:
@@ -58,10 +62,11 @@ def device_name(device: str | Device) -> str:
 
 
 def device(value: str | Device) -> Device:
-    device_type = _normalize_device(value)
-    if not is_available(device_type):
-        raise ValueError(f"device is not available: {device_type}")
-    return Device(type=device_type, index=0, name=device_name(device_type))
+    canonical = _normalize_device(value)
+    if not is_available(canonical):
+        raise ValueError(f"device is not available: {canonical}")
+    device_type, _, suffix = canonical.partition(":")
+    return Device(type=device_type, index=int(suffix) if suffix else 0, name=device_name(canonical))
 
 
 def best_device() -> str:

@@ -1,4 +1,4 @@
-"""Build CPU/CUDA wheels from an sdist and validate fresh installs on Linux."""
+"""Build CPU/CUDA/Vulkan wheels from an sdist and validate fresh installs on Linux."""
 from __future__ import annotations
 
 import argparse
@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import platform
 import re
+import shlex
 import subprocess
 import sys
 import tarfile
@@ -67,7 +68,7 @@ def only(directory, pattern):
 
 
 def audit_linkage(linkage, variant, work):
-    if 'not found' in linkage or (variant == 'cpu' and any(x in linkage.lower() for x in ('cuda', 'llvm', 'mlir'))):
+    if 'not found' in linkage or (variant in {'cpu', 'vulkan'} and any(x in linkage.lower() for x in ('cuda', 'llvm', 'mlir'))):
         raise RuntimeError('unexpected or unresolved shared library dependency')
     for value in re.findall(r'=>\s+(/.*?)\s+\(0x[0-9a-fA-F]+\)', linkage):
         path = Path(value).resolve()
@@ -83,7 +84,8 @@ def audit_linkage(linkage, variant, work):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True, help='new directory; never overwrites a previous run')
-    parser.add_argument('--variants', choices=['cpu', 'cuda', 'both'], default='both')
+    parser.add_argument('--variants', choices=['cpu', 'cuda', 'vulkan', 'both'], default='both')
+    parser.add_argument('--vulkan-sdk', type=Path, help='optional prefix containing Vulkan include/ and bin/ tools')
     parser.add_argument('--llvm-bin', type=Path, help='also require MLIR execution with this external LLVM toolchain')
     args = parser.parse_args()
     if platform.system() != 'Linux':
@@ -110,6 +112,7 @@ def main():
         audit_archive_members(members)
         for required in ('CMakeLists.txt', 'pyproject.toml', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'bindings/python_module.cpp',
                          'cpp/tensorcx/backends/cuda/kernels/primitives.cu',
+                         'cpp/tensorcx/backends/vulkan/kernels/elementwise.comp', 'cmake/embed_spirv.py',
                          'python/tensorcx/_compiler/cuda.py', 'tools/distribution_probe.py',
                          'examples/cuda_mlp.py', 'bindings/dlpack.cpp',
                          'third_party/dlpack/dlpack.h', 'third_party/dlpack/LICENSE'):
@@ -122,8 +125,17 @@ def main():
         print(f'building and validating {variant}', flush=True)
         destination = output / variant
         destination.mkdir()
-        build_env = {**env, 'CMAKE_ARGS': '-DTENSORCX_ENABLE_METAL=OFF -DTENSORCX_ENABLE_CUDA=' +
-                     ('ON -DCMAKE_CUDA_ARCHITECTURES=52' if variant == 'cuda' else 'OFF')}
+        cmake_args = ['-DTENSORCX_ENABLE_METAL=OFF',
+                      '-DTENSORCX_ENABLE_CUDA=' + ('ON' if variant == 'cuda' else 'OFF'),
+                      '-DTENSORCX_ENABLE_VULKAN=' + ('ON' if variant == 'vulkan' else 'OFF')]
+        if variant == 'cuda':
+            cmake_args.append('-DCMAKE_CUDA_ARCHITECTURES=52')
+        if variant == 'vulkan' and args.vulkan_sdk:
+            sdk = args.vulkan_sdk.resolve()
+            cmake_args.extend([f'-DTENSORCX_VULKAN_INCLUDE_DIR={sdk}/include',
+                               f'-DTENSORCX_GLSLANG_VALIDATOR={sdk}/bin/glslangValidator',
+                               f'-DTENSORCX_SPIRV_VAL={sdk}/bin/spirv-val'])
+        build_env = {**env, 'CMAKE_ARGS': shlex.join(cmake_args)}
         run(['uv', 'build', '--wheel', sdist, '--python', sys.executable, '--out-dir', destination],
             ROOT, build_env, destination / 'build.log')
         wheel = only(destination, '*.whl')
@@ -167,12 +179,15 @@ def main():
                 raise RuntimeError('installed diagnostic console script failed')
             record['diagnostics'] = doctor
             modes = [('without-llvm', []), ('hidden-gpu', ['--hidden-gpu'])]
-            if args.llvm_bin:
+            if args.llvm_bin and variant != 'vulkan':
                 modes.append(('with-llvm', ['--mlir']))
             for mode, flags in modes:
                 selected_env = runtime_env.copy()
                 if mode == 'hidden-gpu':
                     selected_env['CUDA_VISIBLE_DEVICES'] = ''
+                    if variant == 'vulkan':
+                        selected_env['VK_DRIVER_FILES'] = str(work / 'absent-icd.json')
+                        selected_env['VK_ICD_FILENAMES'] = str(work / 'absent-icd.json')
                 if mode == 'with-llvm':
                     selected_env['TENSORCX_LLVM_BIN'] = str(args.llvm_bin.resolve())
                 raw = run([*command, work / 'probe.py', '--variant', variant, *flags],
@@ -189,9 +204,14 @@ def main():
                 raise RuntimeError('wheel references a temporary/source/stub library path')
             versions = run(['readelf', '--version-info', extension], work, env, destination / 'elf-versions.log')
             record['elf_symbol_versions'] = sorted(set(re.findall(r'\b(?:GLIBC|GLIBCXX|CXXABI)_[0-9.]+', versions)))
-            raw = run([*command, work / 'mlp.py', '--device', variant, '--repeats', '3'],
-                      work, runtime_env, destination / 'mlp.log')
-            record['mlp'] = json.loads(raw)
+            if variant != 'vulkan':
+                raw = run([*command, work / 'mlp.py', '--device', variant, '--repeats', '3'],
+                          work, runtime_env, destination / 'mlp.log')
+                record['mlp'] = json.loads(raw)
+            else:
+                record['mlp'] = {'status': 'not_supported_by_initial_vulkan_slice'}
+                if any('vulkan' in needed.lower() for needed in record['elf_needed']):
+                    raise RuntimeError('optional Vulkan loader became a mandatory ELF dependency')
         manifest['variants'][variant] = record
     manifest['finished_utc'] = datetime.now(timezone.utc).isoformat()
     write_public_report(output / 'manifest.json', manifest, root=ROOT)

@@ -1,0 +1,48 @@
+#version 450
+
+// Uint storage preserves wrapping int32 arithmetic without signed overflow.
+layout(local_size_x = 64) in;
+layout(set = 0, binding = 0, std430) readonly buffer Left { uint lhs[]; };
+layout(set = 0, binding = 1, std430) readonly buffer Right { uint rhs[]; };
+layout(set = 0, binding = 2, std430) writeonly buffer Output { uint output_data[]; };
+layout(set = 0, binding = 3, std430) readonly buffer Metadata { uint metadata[]; };
+layout(push_constant) uniform Parameters {
+    uint count, operation, scalar_bits, scalar_left;
+    uint groups_x, rank, integer_dtype, reserved;
+} p;
+
+void main() {
+    uint group = gl_WorkGroupID.y * p.groups_x + gl_WorkGroupID.x;
+    // The host bounds the rounded grid to uint32 before dispatch.
+    uint i = group * 64u + gl_LocalInvocationID.x;
+    if (i >= p.count) return;
+    if (p.operation == 0u) { output_data[i] = p.scalar_bits; return; }
+    uint a_index = 0u, b_index = 0u, rest = i;
+    for (uint axis = p.rank; axis > 0u; --axis) {
+        uint coordinate = rest % metadata[axis - 1u];
+        rest /= metadata[axis - 1u];
+        a_index += coordinate * metadata[p.rank + axis - 1u];
+        b_index += coordinate * metadata[2u * p.rank + axis - 1u];
+    }
+    uint a = lhs[a_index], b;
+    if (p.operation >= 5u && p.operation <= 8u) {
+        b = p.scalar_bits;
+        if (p.scalar_left != 0u) { uint t = a; a = b; b = t; }
+    } else if (p.operation == 9u) {
+        output_data[i] = p.integer_dtype != 0u ? 0u - a : a ^ 0x80000000u;
+        return;
+    } else b = rhs[b_index];
+    uint op = p.operation >= 5u ? p.operation - 4u : p.operation;
+    if (p.integer_dtype != 0u) {
+        if (op == 1u) output_data[i] = a + b;
+        else if (op == 2u) output_data[i] = a - b;
+        else output_data[i] = a * b;
+    } else {
+        precise float x = uintBitsToFloat(a), y = uintBitsToFloat(b), value;
+        if (op == 1u) value = x + y;
+        else if (op == 2u) value = x - y;
+        else if (op == 3u) value = x * y;
+        else value = x / y;
+        output_data[i] = floatBitsToUint(value);
+    }
+}

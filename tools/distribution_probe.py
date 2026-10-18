@@ -24,7 +24,7 @@ def check(condition, message):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--variant', choices=['cpu', 'cuda'], required=True)
+    parser.add_argument('--variant', choices=['cpu', 'cuda', 'vulkan'], required=True)
     parser.add_argument('--mlir', action='store_true')
     parser.add_argument('--hidden-gpu', action='store_true')
     args = parser.parse_args()
@@ -35,6 +35,45 @@ def main():
     direct = json.loads(distribution.read_text('direct_url.json'))
     check(not direct.get('dir_info', {}).get('editable', False), 'editable install is forbidden')
     check('archive_info' in direct, 'expected installation from a wheel archive')
+    if args.variant == 'vulkan':
+        check(cx._core._build_info()['vulkan'] and not cx._core._build_info()['cuda'],
+              'wrong Vulkan wheel backend variant')
+        check(cx.is_available('vulkan') is not args.hidden_gpu, 'Vulkan visibility differs from required mode')
+        device = 'cpu' if args.hidden_gpu else 'vulkan'
+        rng = np.random.default_rng(712)
+        a = cx.tensor(rng.uniform(0.5, 5, (17, 1, 9)).astype(np.float32))
+        b = cx.tensor(rng.uniform(0.5, 5, (1, 7, 1)).astype(np.float32))
+        x, y = a.to(device), b.to(device)
+        checks = []
+        for name, actual, expected in [
+            ('copy', x, a), ('fill', cx.ones((65,), device=device), cx.ones((65,))),
+            ('add', x + y, a + b), ('subtract', x - y, a - b),
+            ('multiply', x * y, a * b), ('divide', x / y, a / b),
+            ('scalars', (3 - x) * 2, (3 - a) * 2), ('negative', -x, -a),
+            ('bool_fill', cx.ones((7,), dtype=cx.bool, device=device), cx.ones((7,), dtype=cx.bool)),
+            ('int32_wrap', cx.tensor([2147483647], device=device) + 1, cx.tensor([2147483647]) + 1),
+        ]:
+            check(actual.dtype == expected.dtype, name + ': dtype mismatch')
+            if expected.dtype in (cx.int32, cx.bool):
+                np.testing.assert_array_equal(actual.numpy(), expected.numpy())
+            else:
+                np.testing.assert_allclose(actual.numpy(), expected.numpy(), rtol=1e-6, atol=1e-6)
+            check(actual.device == device, name + ': wrong execution device')
+            checks.append(name)
+        if not args.hidden_gpu:
+            try:
+                cx.sum(x)
+            except ValueError as error:
+                check('not supported' in str(error), str(error))
+            else:
+                raise RuntimeError('unsupported Vulkan reduction accepted')
+            check(cx._core._vulkan_validation_errors() == 0, 'Vulkan validation errors')
+            checks.append('unsupported_operation_error')
+        print(json.dumps({'variant': args.variant, 'device': device, 'mlir': False, 'checks': checks,
+                          'package': str(Path(cx.__file__).relative_to(prefix)),
+                          'extension': str(Path(cx._core.__file__).relative_to(prefix)),
+                          'version': cx.__version__, 'numpy': np.__version__}))
+        return
     cuda_built = hasattr(cx._core, 'CudaTensor')
     check(cuda_built == (args.variant == 'cuda'), 'wrong wheel backend variant')
     if args.hidden_gpu or args.variant == 'cpu':

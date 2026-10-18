@@ -62,7 +62,8 @@ Sigmoid increment:      guarded float32 stable kernel sigmoid; docs/MLIR_SIGMOID
 SiLU increment:         guarded float32 stable kernel SiLU; docs/MLIR_SILU.md (2026-10-18)
 Exp increment:          guarded float32 kernel exp; docs/MLIR_EXP.md (2026-10-18)
 Min/max increment:      guarded float32 minimum/maximum; docs/MLIR_MINMAX.md (2026-10-17)
-Active user goal:       complete CUDA product list; docs/CUDA_PRODUCT_COMPLETION.md
+Active user goal:       optional Vulkan/SPIR-V runtime; docs/VULKAN_BACKEND.md
+CUDA product backlog:   docs/CUDA_PRODUCT_COMPLETION.md (wider validation remains open)
 CUDA primitives:        float32 matmul, reductions, activations and normalization
                         implemented; docs/CUDA_PRIMITIVES_VALIDATION.md
 Int32 increment:        native CUDA fill, arithmetic/scalars/negate and sum/max;
@@ -83,7 +84,9 @@ Fusion experiment:      explicit two/four-op CUDA grouping benchmark with separa
                         docs/CUDA_FUSION_EXPERIMENT.md; automatic fusion remains open
 Output-copy increment:  generated CUDA v2 full writes omit the template copy;
                         docs/CUDA_OUTPUT_COPY_ELISION.md; private output and legacy fallback retained
-Next implementation:    compatibility and repository-wide continuous GPU validation
+Vulkan increment:       optional Linux SPIR-V copies/factories/basic arithmetic;
+                        docs/VULKAN_BACKEND.md (2026-10-18, GTX 980 Ti validation)
+Next implementation:    wider device compatibility and continuous GPU validation
 Open scope:             other SM/host versions and broader compiler features
 API increment:          arithmetic/scalars, contiguous reshape and keepdims;
                         explicit casts, tensor broadcasting, transpose,

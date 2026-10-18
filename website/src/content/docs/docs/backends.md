@@ -1,46 +1,46 @@
 ---
 title: Backends & support
-description: What CPU, Metal, CUDA, and experimental compilation support today, with validation limits.
+description: What CPU, Metal, CUDA, Vulkan and experimental compilation support today, with validation limits.
 ---
 
 This matrix describes the implemented pre-alpha runtime, not a promise of
 production support. All operations are synchronous; tensors are contiguous and
-only device index 0 is exposed.
+CPU/Metal/CUDA expose index 0; Vulkan has indexed routes with one physical GPU validated.
 
-| Capability | CPU | Metal | CUDA |
-| --- | --- | --- | --- |
-| Float32/int32/bool tensor copy | Yes | Yes | Yes |
-| Float32 fill, add, multiply | Yes | Yes | Yes |
-| Int32 fill, add, multiply | Yes | Yes | Yes |
-| Float32 subtract, divide, negate and scalar arithmetic | Yes | Yes | Yes |
-| Int32 subtract, negate and scalar add/subtract/multiply | Yes | Yes | Yes |
-| Contiguous reshape (float32/int32/bool) | Yes | Yes | Yes |
-| Transpose to contiguous copy (float32/int32/bool) | Yes | Yes | Yes |
-| Squeeze / expand dims views (float32/int32/bool) | Yes | Yes | Yes |
-| Basic indexing / slicing copies (float32/int32/bool) | Yes | Yes | Yes |
-| Concat / stack / split copies (float32/int32/bool) | Yes | Yes | Yes |
-| Explicit float32/int32/bool conversion | Yes | Yes | Yes |
-| Comparisons and `where` (float32/int32/bool) | Yes | Yes | Yes |
-| Bool fill, logic, any/all and mask selection | Yes | Yes | Yes |
-| Binary arithmetic broadcasting | Yes | Yes | Yes |
-| Float32 batched/vector matmul | Yes | Custom + optional optimized path | Custom path |
-| Float32 sum, max, mean | Yes | Yes | Yes |
-| Int32 sum, max | Yes | Yes | Yes |
-| Sum/max/mean `keepdims` | Yes | Yes | Yes |
-| All-axis / multi-axis sum, max, mean | Yes | Yes | Yes |
-| Float32 log, sqrt | Yes | Yes | Yes |
-| Float32/int32 abs, min, argmax, clip, topk | Yes | Yes | Yes |
-| Float32 linear, affine norms, embedding, attention | Yes | Yes | Yes |
-| Float32 exp, GELU, SiLU | Yes | Yes | Yes |
-| Float32 softmax, RMSNorm, LayerNorm | Yes | Yes | Yes |
-| Generated kernels | Optional MLIR subset | Experimental MSL subset | Optional MLIR subset |
-| `empty` allocation | CPU storage | Existing CPU staging/copy | Direct device allocation |
-| DLPack exchange (contiguous float32/int32/bool) | Yes | Not implemented | Device 0 |
-| Installation and operation/dtype diagnostics | Yes | Availability/capabilities | Yes |
-| Memory snapshots | System physical memory | Not implemented | Device-wide free/total |
-| Native host profiling | Bounded spans | Not instrumented | Bounded spans |
-| Persistent compiled-code cache | Optional MLIR | Experimental MSL | Optional MLIR |
-| Bounded buffer pool | Not implemented | Not implemented | Explicit opt-in scope |
+| Capability | CPU | Metal | CUDA | Vulkan (initial slice) |
+| --- | --- | --- | --- | --- |
+| Float32/int32/bool tensor copy | Yes | Yes | Yes | Yes |
+| Float32 fill, add, multiply | Yes | Yes | Yes | Yes |
+| Int32 fill, add, multiply | Yes | Yes | Yes | Yes |
+| Float32 subtract, divide, negate and scalar arithmetic | Yes | Yes | Yes | Yes |
+| Int32 subtract, negate and scalar add/subtract/multiply | Yes | Yes | Yes | Yes |
+| Contiguous reshape (float32/int32/bool) | Yes | Yes | Yes | Yes |
+| Transpose to contiguous copy (float32/int32/bool) | Yes | Yes | Yes | Not implemented |
+| Squeeze / expand dims views (float32/int32/bool) | Yes | Yes | Yes | Yes |
+| Basic indexing / slicing copies (float32/int32/bool) | Yes | Yes | Yes | Not implemented |
+| Concat / stack / split copies (float32/int32/bool) | Yes | Yes | Yes | Not implemented |
+| Explicit float32/int32/bool conversion | Yes | Yes | Yes | Not implemented |
+| Comparisons and `where` (float32/int32/bool) | Yes | Yes | Yes | Not implemented |
+| Bool fill, logic, any/all and mask selection | Yes | Yes | Yes | Fill only |
+| Binary arithmetic broadcasting | Yes | Yes | Yes | Yes |
+| Float32 batched/vector matmul | Yes | Custom + optional optimized path | Custom path | Not implemented |
+| Float32 sum, max, mean | Yes | Yes | Yes | Not implemented |
+| Int32 sum, max | Yes | Yes | Yes | Not implemented |
+| Sum/max/mean `keepdims` | Yes | Yes | Yes | Not implemented |
+| All-axis / multi-axis sum, max, mean | Yes | Yes | Yes | Not implemented |
+| Float32 log, sqrt | Yes | Yes | Yes | Not implemented |
+| Float32/int32 abs, min, argmax, clip, topk | Yes | Yes | Yes | Not implemented |
+| Float32 linear, affine norms, embedding, attention | Yes | Yes | Yes | Not implemented |
+| Float32 exp, GELU, SiLU | Yes | Yes | Yes | Not implemented |
+| Float32 softmax, RMSNorm, LayerNorm | Yes | Yes | Yes | Not implemented |
+| Generated kernels | Optional MLIR subset | Experimental MSL subset | Optional MLIR subset | Not implemented |
+| `empty` allocation | CPU storage | Existing CPU staging/copy | Direct device allocation | Direct device allocation |
+| DLPack exchange (contiguous float32/int32/bool) | Yes | Not implemented | Device 0 | Not implemented |
+| Installation and operation/dtype diagnostics | Yes | Availability/capabilities | Yes | Yes |
+| Memory snapshots | System physical memory | Not implemented | Device-wide free/total | Device-local heap total |
+| Native host profiling | Bounded spans | Not instrumented | Bounded spans | Not implemented |
+| Persistent compiled-code cache | Optional MLIR | Experimental MSL | Optional MLIR | Not implemented |
+| Bounded buffer pool | Not implemented | Not implemented | Explicit opt-in scope | Not implemented |
 
 `empty` has unspecified contents on every backend. CUDA skips CPU payload
 allocation/upload and can reuse idle storage in an explicit pool. See
@@ -80,14 +80,22 @@ add/subtract/multiply/negate, integer scalars and sum/max reductions. Division
 and mean require float32. The math extension also supports int32
 abs, min, argmax, clip and topk. Float32 matmul supports `auto` and `custom`, not `optimized`.
 
+## Vulkan / SPIR-V
+
+The optional Linux backend supports GPU copies/factories/views and basic
+broadcast float32/int32 arithmetic. It has real GTX 980 Ti validation, with no
+claim of other-GPU acceptance. Software Vulkan CPU devices are excluded from
+GPU discovery. Matmul, inference, reductions, DLPack and MLIR are outside this
+first slice. See [Vulkan setup and limits](/docs/vulkan/).
+
 ## Compiler boundary
 
-MLIR is an optional compiler path, not a fourth hardware backend. Its current
+MLIR is an optional compiler path, not a hardware backend. Its current
 CPU/CUDA runtime integration handles a guarded float32 elementwise subset.
 See [experimental kernels](/docs/experimental/) for requirements and non-goals.
 
-ROCm, Vulkan/SPIR-V, float16/bfloat16, asynchronous streams, and multi-device
-execution are not implemented.
+ROCm, float16/bfloat16, asynchronous streams and multi-device execution are not
+implemented. Broader Vulkan operations and GPU coverage remain open.
 
 ## Engineering evidence
 

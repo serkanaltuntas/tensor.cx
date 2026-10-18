@@ -3,6 +3,11 @@ title: Tensor operations
 description: The current tensor API, its numerical behavior, and its explicit limits.
 ---
 
+The optional [Vulkan backend](/docs/vulkan/) implements a smaller subset: copies,
+factories, shared shape views and basic arithmetic. The broader operations below
+apply to the CPU/Metal/CUDA profiles; inspect `cx.capabilities(device)` for placement.
+
+
 import { Code } from '@astrojs/starlight/components';
 import operations from '../../../snippets/operations.py?raw';
 

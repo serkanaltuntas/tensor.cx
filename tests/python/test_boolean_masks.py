@@ -3,6 +3,7 @@ import operator
 
 import numpy as np
 import pytest
+from backend_support import require_operations
 
 import tensorcx as cx
 from tensorcx import _core
@@ -10,6 +11,7 @@ from tensorcx import _core
 
 @pytest.fixture(params=cx.devices())
 def device_name(request):
+    require_operations(request.param, 'equal', 'where', 'logical_and', 'astype')
     return request.param
 
 

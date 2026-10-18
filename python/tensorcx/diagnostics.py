@@ -108,7 +108,8 @@ def diagnostics(*, check_tools: bool = False) -> dict:
     backends = {}
     names = dict.fromkeys((*build, *_backend.backend_names(include_unavailable=True)))
     for name in names:
-        info = {"compiled": build.get(name), "available": None,
+        family = name.partition(":")[0]
+        info = {"compiled": build.get(family), "available": None,
                 "operations": {}, "memory": {"scope": "not_collected", "total_bytes": None,
                                                 "available_bytes": None}}
         try:
@@ -121,7 +122,7 @@ def diagnostics(*, check_tools: bool = False) -> dict:
                     info.update(route.diagnostic_info())
             else:
                 info["hint"] = ("Backend was not compiled into this package. Install or build the matching variant."
-                                if build.get(name) is False else
+                                if build.get(family) is False else
                                 "No usable device discovered. Check device visibility and driver/runtime compatibility.")
         except (RuntimeError, OSError, ValueError):
             info["query_status"] = "failed"
