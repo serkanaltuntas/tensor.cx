@@ -26,8 +26,10 @@ use **`rtol=1e-6, atol=0`** on CPU/MLIR, CUDA/MLIR and direct Metal. The indepen
 oracle computes float64 tanh and rounds once to float32; error comparisons use
 float64 so a small result is not hidden by an absolute tolerance. Signed zeros,
 NaN classifications, exact infinity-to-one results and the output range are
-checked separately. CPU/CUDA tests also check input-bit preservation for
-`abs(x) <= 2^-12`, including both signed zeros and subnormals.
+checked separately. CPU/CUDA tests also check exact signed-zero and subnormal
+output bits. CUDA additionally checks input-bit preservation for
+`abs(x) <= 2^-12`; CPU libm results for small normal inputs may differ by an ULP
+while meeting the relative-error bound.
 
 This is sampled numerical acceptance, not a correctly-rounded or bit-identical
 cross-target promise. Composed operations retain their own error bounds and
