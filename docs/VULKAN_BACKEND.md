@@ -65,10 +65,28 @@ pools, batching and asynchronous execution are not implemented on Vulkan.
 Unsupported operations raise explicit errors; no CPU fallback is performed.
 Other backends retain their existing capabilities.
 
-Float32 parity uses `rtol=1e-6, atol=1e-6` on the recorded inputs. Vulkan's basic
-shader float controls do not establish a portable subnormal, NaN-payload or
-bit-exact arithmetic contract across vendors; those stronger guarantees are
-not claimed. Int32 and bool parity are exact. Empty contents are unspecified.
+Basic float32 add/subtract/multiply/divide now implement binary32
+round-to-nearest, ties-to-even, including gradual underflow, signed zeros,
+overflow and invalid operations. Their tensor and scalar paths use uint32
+significand arithmetic on the GPU, without host fallback, shaderInt64, float64
+or optional float-control features. Add/subtract align guard/round/sticky bits;
+multiply uses a two-word exact significand product; division uses binary long
+division. Rounding happens once, after any subnormal shift. These helpers also
+avoid false NaNs when dividing two nonzero subnormal inputs.
+
+Non-NaN results match CPU float32 bits under round-to-nearest, ties-to-even.
+Arithmetic NaNs are canonical quiet NaNs; their input payload/sign is not
+preserved. Negate, copies, shape operations and selection retain their separate
+bit-preserving contracts. Int32 and bool parity are exact. This arithmetic
+contract does not establish other GPUs' hardware acceptance or implement the
+remaining math operations. Empty contents are unspecified.
+
+The integer path adds work, especially for division. A local shared-desktop
+snapshot (seven warmed synchronous host calls per size, allocation/metadata/
+fence included, upload/readback excluded) measured 1M-element medians of
+1.04–1.19 ms before and 1.05–1.54 ms after this change across the four operations.
+These are host intervals, not device times, controlled throughput comparisons
+or guarantees. Profiling and measured optimization remain in the checklist.
 
 `astype` supports every pair among float32/int32/bool. Float-to-int truncates
 toward zero and rejects NaN, infinity and values outside `[-2^31, 2^31)`.
@@ -155,6 +173,7 @@ zero. Raw validation logs, device UUIDs and local paths are not publication data
 TENSORCX_VULKAN_VALIDATION=1 TENSORCX_REQUIRE_BACKENDS=vulkan \
   uv run --no-sync pytest -q tests/python/test_vulkan.py \
   tests/python/test_vulkan_transform.py tests/python/test_vulkan_predicate.py \
+  tests/python/test_vulkan_float32.py \
   tests/python/test_boolean_masks.py tests/python/test_backend_parity.py
 # Build native tests with TENSORCX_BUILD_TESTS=ON and TENSORCX_ENABLE_VULKAN=ON:
 uv run --no-sync ctest --test-dir build/vulkan-native --output-on-failure
@@ -172,6 +191,11 @@ acceptance also covers all nine cast pairs, noncanonical bool bytes, IEEE
 comparison ordering, bit-preserving conditional/leading-mask selection, empty
 and multi-axis boolean reductions, packed bool 2D dispatch and million-element
 mask scans. Native offset readback checks preserve destinations on rejection.
+Arithmetic acceptance additionally compares non-NaN result bits against CPU
+and NumPy across exponent boundaries, rounding ties, random bit patterns,
+scalar-left/right paths, empty shapes, threaded calls and 2D dispatch. NaN
+classification and canonical quiet bits are checked separately from CPU NaN
+payloads.
 Fresh source-archive/wheel
 installation checks CPU and GPU arithmetic and hidden-driver CPU execution.
 The optional CI job builds Vulkan and tests CPU/no-loader paths; it is **not**
@@ -185,6 +209,8 @@ finishing one increment does not complete the backend. The CPU API is the
 operation reference, and each advertised feature needs real-device acceptance.
 
 - [x] Copies, factories, shared views and basic numeric arithmetic.
+- [x] Float32 basic arithmetic gradual underflow and fixed ties-to-even rounding
+  through integer GPU significands; arithmetic NaN payloads are not preserved.
 - [x] All dtype conversion pairs, transpose, basic indexing and
   concat/stack/split, including packed bool and float-to-int validation.
 - [x] Comparisons, boolean logic, `where`, masked selection and boolean

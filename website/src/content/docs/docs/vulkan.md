@@ -45,6 +45,14 @@ broadcast add/subtract/multiply, negation and scalar arithmetic; division is
 float32 only. Int32 arithmetic wraps exactly as on CPU. `randn` uses host
 random generation followed by upload. `empty` contents are unspecified.
 
+Basic float32 add/subtract/multiply/divide use integer significands on the GPU
+to provide round-to-nearest, ties-to-even and gradual underflow even when the
+driver flushes native float arithmetic. Non-NaN results match CPU float32 bits,
+including signed zeros and overflow. Arithmetic NaNs are canonical quiet NaNs;
+their source payload/sign is not preserved. This uses no CPU fallback or
+optional 64-bit shader feature. Integer arithmetic adds work, especially for
+division; no optimized-throughput claim is made.
+
 All three dtypes also support `astype`, contiguous-copy `transpose`, basic
 indexing (including negative slices), `concat`, `stack` and `split`. Reordering
 preserves stored bits. Float-to-int casts truncate toward zero and reject NaN,

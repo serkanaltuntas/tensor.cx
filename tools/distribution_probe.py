@@ -78,6 +78,19 @@ def main():
                 np.testing.assert_allclose(actual.numpy(), expected.numpy(), rtol=1e-6, atol=1e-6)
             check(actual.device == device, name + ': wrong execution device')
             checks.append(name)
+        boundary_bits = np.array([0, 0x80000000, 1, 3, 0x007fffff, 0x00800000,
+                                  0x40000000, 0x7f7fffff, 0x7f800000, 0x7fc12345], np.uint32)
+        boundary_a = cx.tensor(boundary_bits.view(np.float32)[:, None])
+        boundary_b = cx.tensor(boundary_bits.view(np.float32)[None, :])
+        for name, operation in [('add', lambda a, b: a + b), ('subtract', lambda a, b: a - b),
+                                ('multiply', lambda a, b: a * b), ('divide', lambda a, b: a / b)]:
+            actual = operation(boundary_a.to(device), boundary_b.to(device)).numpy()
+            expected = operation(boundary_a, boundary_b).numpy()
+            nan = np.isnan(expected)
+            np.testing.assert_array_equal(np.isnan(actual), nan)
+            np.testing.assert_array_equal(actual.view(np.uint32)[~nan], expected.view(np.uint32)[~nan])
+            check(np.all((actual.view(np.uint32)[nan] & np.uint32(0x00400000)) != 0), 'arithmetic NaN not quiet')
+            checks.append('float32_rne_' + name)
         if not args.hidden_gpu:
             try:
                 cx.sum(x)

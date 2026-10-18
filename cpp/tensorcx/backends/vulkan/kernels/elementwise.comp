@@ -83,6 +83,7 @@ void transform(uint word) {
 }
 
 #include "predicate.glsl"
+#include "float32.glsl"
 
 void main() {
     uint group = gl_WorkGroupID.y * p.groups_x + gl_WorkGroupID.x;
@@ -113,11 +114,9 @@ void main() {
         else if (op == 2u) output_data[i] = a - b;
         else output_data[i] = a * b;
     } else {
-        precise float x = uintBitsToFloat(a), y = uintBitsToFloat(b), value;
-        if (op == 1u) value = x + y;
-        else if (op == 2u) value = x - y;
-        else if (op == 3u) value = x * y;
-        else value = x / y;
-        output_data[i] = floatBitsToUint(value);
+        if (op == 1u) output_data[i] = cx_f32_add_bits(a, b);
+        else if (op == 2u) output_data[i] = cx_f32_add_bits(a, b ^ CX_F32_SIGN);
+        else if (op == 3u) output_data[i] = cx_f32_mul_bits(a, b);
+        else output_data[i] = cx_f32_div_bits(a, b);
     }
 }

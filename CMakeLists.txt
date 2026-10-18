@@ -351,6 +351,7 @@ if(TENSORCX_ENABLE_VULKAN)
       "${TENSORCX_VULKAN_GENERATED}/elementwise.spv" "${TENSORCX_VULKAN_GENERATED}/elementwise_spirv.h"
     DEPENDS "${TENSORCX_VULKAN_SHADER}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed_spirv.py"
       "${CMAKE_CURRENT_SOURCE_DIR}/cpp/tensorcx/backends/vulkan/kernels/predicate.glsl"
+      "${CMAKE_CURRENT_SOURCE_DIR}/cpp/tensorcx/backends/vulkan/kernels/float32.glsl"
     VERBATIM
   )
   add_library(tensorcx_vulkan STATIC

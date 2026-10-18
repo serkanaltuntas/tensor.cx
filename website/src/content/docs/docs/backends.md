@@ -86,7 +86,9 @@ The optional Linux backend supports GPU copies/factories/views, casts,
 transpose, basic indexing/joins, comparisons/masks, boolean reductions and
 broadcast float32/int32 arithmetic.
 It has real GTX 980 Ti validation, with no
-claim of other-GPU acceptance. Software Vulkan CPU devices are excluded from
+claim of other-GPU acceptance. Basic float32 arithmetic uses integer GPU
+significands for ties-to-even rounding and gradual underflow; arithmetic NaNs
+are canonical quiet NaNs. Software Vulkan CPU devices are excluded from
 GPU discovery. Matmul, inference, numeric reductions, DLPack and MLIR are outside this
 first slice. See [Vulkan setup and limits](/docs/vulkan/).
 
