@@ -447,7 +447,7 @@ def _emit_expression(
             value = emitter.fresh()
             emitter.emit(indent, f"{value} = arith.{expression.name}f {', '.join(name for name, _ in values)} : f32")
             return value, "f32"
-        if expression.name in {"sqrt", "abs", "exp", "log", "rsqrt"}:
+        if expression.name in {"sqrt", "abs", "exp", "log", "rsqrt", "tanh"}:
             if len(expression.args) != 1:
                 raise MlirEmitError(f"{expression.name} requires one float32 argument")
             operand, kind = _emit_expression(

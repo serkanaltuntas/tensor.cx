@@ -20,6 +20,48 @@ OPERATIONS = {"add": "arith.addf", "sub": "arith.subf", "mul": "arith.mulf", "di
 PREDICATES = {"lt": "olt", "lte": "ole", "gt": "ogt", "gte": "oge", "eq": "oeq", "neq": "une"}
 
 
+def _emit_tanh(operand, instruction):
+    """sm_52 tanh without libdevice or cancellation at the origin."""
+    def constant(value):
+        return instruction(f"arith.constant {format_f32_constant(value)} : f32")
+
+    def intrinsic(name, values):
+        types = ", ".join("f32" for _ in values)
+        return instruction(f'llvm.call_intrinsic "llvm.{name}.f32"'
+                           f'({", ".join(values)}) : ({types}) -> f32')
+
+    absolute = intrinsic("fabs", (operand,))
+    one, ten = constant(1.0), constant(10.0)
+    # Clamp both eager branches. NaNs propagate through IEEE minimum.
+    small = intrinsic("minimum", (absolute, one))
+    large = intrinsic("minimum", (absolute, ten))
+    squared = instruction(f"arith.mulf {small}, {small} : f32")
+
+    def polynomial(coefficients):
+        result = constant(coefficients[0])
+        for coefficient in coefficients[1:]:
+            result = intrinsic("fma", (result, squared, constant(coefficient)))
+        return result
+
+    # [7/6] Pade approximant, used only for |x| <= 1.
+    numerator = polynomial((1.0, 378.0, 17325.0, 135135.0))
+    denominator = polynomial((28.0, 3150.0, 62370.0, 135135.0))
+    ratio = instruction(f"arith.divf {numerator}, {denominator} : f32")
+    rational = instruction(f"arith.mulf {small}, {ratio} : f32")
+    scale = constant(-2.8853900817779268)  # -2 * log2(e), rounded to f32.
+    exponent = instruction(f"arith.mulf {large}, {scale} : f32")
+    exponential = instruction('llvm.call_intrinsic "llvm.nvvm.ex2.approx.f"'
+                              f'({exponent}) : (f32) -> f32')
+    difference = instruction(f"arith.subf {one}, {exponential} : f32")
+    total = instruction(f"arith.addf {one}, {exponential} : f32")
+    quotient = instruction(f"arith.divf {difference}, {total} : f32")
+    near = instruction(f"arith.cmpf ole, {absolute}, {one} : f32")
+    magnitude = instruction(f"arith.select {near}, {rational}, {quotient} : f32")
+    saturated = instruction(f"arith.cmpf oge, {absolute}, {ten} : f32")
+    magnitude = instruction(f"arith.select {saturated}, {one}, {magnitude} : f32")
+    return intrinsic("copysign", (magnitude, operand))
+
+
 def entry_name(operation):
     return f"tensorcx_{operation}_v1"
 
@@ -61,7 +103,7 @@ def signature(ir):
               or (isinstance(value, IRCall)
                   and ((value.name == "select" and len(value.args) == 3)
                        or (value.name in {"minimum", "maximum"} and len(value.args) == 2)
-                       or (value.name in {"sqrt", "abs", "exp", "log", "rsqrt"} and len(value.args) == 1)))):
+                       or (value.name in {"sqrt", "abs", "exp", "log", "rsqrt", "tanh"} and len(value.args) == 1)))):
             operators += 1
             if operators > 64:
                 reject("expression operation count exceeds 64")
@@ -180,6 +222,8 @@ def emit_expression_cuda(ir, kinds, output, guard):
             return instruction(f"llvm.load {ptr} : !llvm.ptr -> f32")
         if isinstance(value, IRCall):
             values = [expression(argument) for argument in value.args]
+            if value.name == "tanh":
+                return _emit_tanh(values[0], instruction)
             if value.name in {"minimum", "maximum"}:
                 # LLVM expands IEEE minimum/maximum for sm_52, including NaN
                 # propagation and zero signs; no libdevice or sm_80 required.

@@ -24,6 +24,7 @@ COMMAND_TIMEOUT = 60
 LINK_QUERY_WORKERS = 4
 OPT_FLAGS = ["--convert-scf-to-cf", "--convert-to-llvm", "--reconcile-unrealized-casts"]
 TRANSLATE_FLAGS = ["--mlir-to-llvmir"]
+LIBM_OPERATIONS = ("exp", "log", "tanh")
 CLANG_FLAGS = ["-O2", "-fPIC", "-shared", "-ffp-contract=off",
                "-Wno-override-module", "-Wl,-Bsymbolic"]
 
@@ -105,7 +106,7 @@ def _signature(ir):
     def reject():
         raise KernelCompileError(
             "MLIR CPU runtime requires a canonical global index and one guarded "
-            "float32 elementwise body (arithmetic, sqrt/abs/exp/log/rsqrt, minimum/maximum, comparisons, select and local assignments)"
+            "float32 elementwise body (arithmetic, sqrt/abs/exp/log/rsqrt/tanh, minimum/maximum, comparisons, select and local assignments)"
         )
 
     if not re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*", ir.name) or ir.name.startswith("tensorcx_"):
@@ -160,7 +161,7 @@ def _signature(ir):
             if any(expression(argument) != "float" for argument in value.args):
                 reject()
             return "float"
-        elif isinstance(value, IRCall) and value.name in {"sqrt", "abs", "exp", "log", "rsqrt"} and len(value.args) == 1:
+        elif isinstance(value, IRCall) and value.name in {"sqrt", "abs", "exp", "log", "rsqrt", "tanh"} and len(value.args) == 1:
             if expression(value.args[0]) != "float":
                 reject()
             return "float"
@@ -229,19 +230,18 @@ def _link_inputs(tools, *, math_library=False):
 
 def compile_kernel(ir, *, cache=True) -> CompiledCpuKernel:
     signature = _signature(ir)
-    # LLVM lowers exp/log to these external functions. A public kernel with
-    # either name would capture the call under -Bsymbolic with the wrong ABI.
+    # LLVM lowers these operations to external libm functions. A kernel with
+    # a matching name would capture the call under -Bsymbolic with the wrong ABI.
     # Keep this restriction here: CUDA shares _signature but uses a private entry.
-    if ir.name in {"expf", "logf"}:
+    if ir.name in {name + "f" for name in LIBM_OPERATIONS}:
         raise KernelCompileError(f"MLIR CPU kernel name {ir.name!r} is reserved for libm")
     if not _core._cpu_kernel_supported():
         raise RuntimeError("MLIR CPU runtime requires Linux x86_64")
     source = emit_mlir(ir)
     tools = toolchain()
     adapter_source = _adapter(ir, *signature)
-    # math.exp/log lower to expf/logf. Link explicitly instead of relying on libm
-    # already being in the embedding process global symbol table.
-    math_flags = ["-lm"] if any(f"math.{name} " in source for name in ("exp", "log")) else []
+    # Link libm explicitly instead of relying on the embedding process globals.
+    math_flags = ["-lm"] if any(f"math.{name} " in source for name in LIBM_OPERATIONS) else []
     link_inputs = (lambda: _link_inputs(tools, math_library=True)) if math_flags else lambda: _link_inputs(tools)
     options = {"opt": OPT_FLAGS, "translate": TRANSLATE_FLAGS, "clang": CLANG_FLAGS + math_flags}
     description = descriptor("cpu", source, tools=tools, options=options,

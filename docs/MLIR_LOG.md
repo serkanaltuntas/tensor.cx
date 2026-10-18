@@ -47,10 +47,10 @@ loads. An unselected NaN does not contaminate the selected value.
 CPU emits `math.log` without fast-math flags. LLVM 21.1.8 lowers it through
 `llvm.log.f32` to system `logf`; the compiler uses the explicit libm linkage
 and cache fingerprint policy introduced for [kernel exp](MLIR_EXP.md).
-Exp/log kernels link `-lm` after object inputs and fingerprint both libm linker
+Exp/log/[tanh](MLIR_TANH.md) kernels link `-lm` after object inputs and fingerprint both libm linker
 and runtime files. Existing exp kernels retain their flags/cache identity;
-kernels with neither operation retain their defaults.
-CPU compilation rejects kernel names `logf` and `expf` before tools/cache/native
+kernels with none of these operations retain their defaults.
+CPU compilation rejects kernel names `logf`, `expf` and `tanhf` before tools/cache/native
 loading to prevent collision with those external libm symbols. This name
 restriction does not apply to CUDA or direct Metal kernels.
 

@@ -328,3 +328,6 @@ defines domain rules, shared explicit libm linkage and target error limits.
 
 Guarded float32 `cx.experimental.rsqrt` is also supported; [kernel rsqrt](MLIR_RSQRT.md)
 defines strict CPU sqrt/divide lowering, special values and relative-error limits.
+
+Guarded float32 `cx.experimental.tanh` is also supported; [kernel tanh](MLIR_TANH.md)
+defines explicit CPU libm linkage, reserved symbols and bounded numerical error.

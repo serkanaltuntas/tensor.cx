@@ -9,8 +9,8 @@ require a compiler SDK at runtime. Explicit custom-kernel compilation does.
 | Path | What is implemented | Required environment |
 | --- | --- | --- |
 | Metal / MSL | Restricted Python kernel DSL, float32 elementwise and bounded rowwise reductions | Apple Metal compiler tools and an available Metal device |
-| CPU / MLIR | Guarded float32 arithmetic, division, sqrt/abs/exp/log/rsqrt, minimum/maximum, comparisons and select; bounded local/nested expressions | Validated on Linux x86_64 with LLVM/MLIR 21.1.8 |
-| CUDA / MLIR | Guarded float32 add/subtract/multiply/divide, sqrt/abs/exp/log/rsqrt, minimum/maximum, comparisons and select; bounded local/nested expressions | Validated CPU toolchain plus CUDA toolkit 12.4, CUDA Driver API 13.0, and sm_52 hardware |
+| CPU / MLIR | Guarded float32 arithmetic, division, sqrt/abs/exp/log/rsqrt/tanh, minimum/maximum, comparisons and select; bounded local/nested expressions | Validated on Linux x86_64 with LLVM/MLIR 21.1.8 |
+| CUDA / MLIR | Guarded float32 add/subtract/multiply/divide, sqrt/abs/exp/log/rsqrt/tanh, minimum/maximum, comparisons and select; bounded local/nested expressions | Validated CPU toolchain plus CUDA toolkit 12.4, CUDA Driver API 13.0, and sm_52 hardware |
 
 ## Explicit compilation
 
@@ -76,7 +76,7 @@ nonzero subnormal arguments are outside its numerical promise. CPU/Metal use
 `rtol=1e-6` with zero absolute allowance; CUDA uses `rtol=1e-6, atol=2e-7`,
 covering base-2 approximation near one. CPU shares explicit libm linkage with
 exp; CUDA emits non-FTZ logarithm lowering without libdevice. CPU kernel names
-`expf` and `logf` are reserved to prevent libm symbol collisions. See the
+`expf`, `logf` and `tanhf` are reserved to prevent libm symbol collisions. See the
 [log contract and runnable example](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/MLIR_LOG.md).
 
 `cx.experimental.rsqrt(value)` computes float32 `1 / sqrt(value)`. Positive and
@@ -87,6 +87,15 @@ positive subnormal arguments; direct Metal uses strict compilation and excludes
 nonzero subnormal arguments. CPU uses strict sqrt/division and CUDA uses a
 non-FTZ reciprocal-root instruction without libdevice. See the
 [rsqrt contract and runnable example](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/MLIR_RSQRT.md).
+
+`cx.experimental.tanh(value)` accepts one float32 value. It preserves signed
+zero, maps infinities to the corresponding `-1`/`+1`, propagates NaNs, and keeps
+finite results in `[-1, 1]`. Standalone results use `rtol=1e-6, atol=0` on each
+target. CPU/CUDA include subnormal inputs/results; direct Metal uses strict
+compilation and excludes nonzero subnormal arguments. CPU uses explicit libm
+linkage; CUDA uses a rational/exp implementation compatible with the validated
+sm_52 target, without libdevice or a newer-GPU tanh instruction. See the
+[tanh contract and example](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/MLIR_TANH.md).
 
 Compiled CPU/CUDA/Metal code is cached in private local storage by default,
 including across process restarts. Inspect `compiled.cache_hit` for reuse, or

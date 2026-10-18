@@ -137,6 +137,7 @@ cx.experimental.maximum(float_value, float_value)
 cx.experimental.exp(float_value)
 cx.experimental.log(float_value)
 cx.experimental.rsqrt(float_value)
+cx.experimental.tanh(float_value)
 if blocks without else
 numeric constants
 for var in range(bound_name) with an assignment-only body (any local
@@ -295,3 +296,7 @@ FTZ/libdevice; direct Metal acceptance excludes nonzero subnormal arguments.
 [Kernel rsqrt](MLIR_RSQRT.md) adds a reciprocal square root with explicit
 signed-zero/domain rules and relative-error bounds. CPU uses strict sqrt/divide;
 CUDA uses non-FTZ rsqrt without libdevice; Metal uses strict compilation.
+
+[Kernel tanh](MLIR_TANH.md) adds a bounded-error hyperbolic tangent. CPU links
+libm explicitly, CUDA uses a rational/exp implementation compatible with sm_52,
+and direct Metal uses strict compilation with its documented subnormal limits.

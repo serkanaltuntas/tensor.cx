@@ -278,6 +278,8 @@ Guarded float32 log is implemented; docs/MLIR_LOG.md defines domain/special-valu
 rules, non-FTZ CUDA lowering and Metal normal-input acceptance.
 Guarded float32 rsqrt is implemented; docs/MLIR_RSQRT.md defines reciprocal-root
 special values, relative-error acceptance and retained target/ownership limits.
+Guarded float32 tanh is implemented; docs/MLIR_TANH.md defines its bounded-error
+contract, sm_52-compatible rational/exp lowering and CPU libm symbol policy.
 ```
 
 `docs/CUDA_PHASE9_ENVIRONMENT.md` records the selected host and entry criteria;
