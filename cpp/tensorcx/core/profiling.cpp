@@ -1,6 +1,7 @@
 #include "tensorcx/core/profiling.h"
 
 #include <atomic>
+#include <cmath>
 #include <memory>
 #include <stdexcept>
 
@@ -13,6 +14,9 @@ struct ProfileSession {
   Clock::time_point started;
   ProfileScope* top{};
   std::vector<ProfileEvent> events;
+  bool device_timing{};
+  std::uint64_t dropped_device_events{};
+  std::vector<ProfileResult::DeviceEvent> device_events;
 };
 
 namespace {
@@ -34,13 +38,15 @@ std::uint64_t nanos(Clock::duration duration) noexcept {
 }
 }  // namespace
 
-std::uint64_t begin_profile(std::size_t max_events) {
+std::uint64_t begin_profile(std::size_t max_events, bool device_timing) {
   if (active) throw std::runtime_error("runtime profiles cannot be nested on the same thread");
   if (!max_events || max_events > 100000)
     throw std::invalid_argument("max_events must be an integer in [1, 100000]");
   auto session = std::make_unique<ProfileSession>();
   session->limit = max_events;
   session->events.reserve(max_events);
+  session->device_timing = device_timing;
+  if (device_timing) session->device_events.reserve(max_events);
   session->token = next_token.fetch_add(1, std::memory_order_relaxed);
   if (!session->token) throw std::overflow_error("runtime profile token exhausted");
   session->started = Clock::now();
@@ -54,10 +60,34 @@ ProfileResult end_profile(std::uint64_t token) {
     throw std::runtime_error("runtime profile must end on its owning thread with its original token");
   if (active->top) throw std::runtime_error("cannot end a runtime profile inside a native span");
   const auto elapsed = nanos(Clock::now() - active->started);
-  ProfileResult result{elapsed, active->dropped, std::move(active->events)};
+  ProfileResult result{elapsed, active->dropped, std::move(active->events),
+                       active->device_timing, active->dropped_device_events,
+                       std::move(active->device_events)};
   active = nullptr;
   holder().session.reset();
   return result;
+}
+
+DeviceProfileToken reserve_device_profile(const char* name, const char* backend) noexcept {
+  if (!active || !active->device_timing) return {};
+  if (active->device_events.size() == active->limit) {
+    ++active->dropped_device_events;
+    return {};
+  }
+  const auto index = active->device_events.size();
+  auto* host = active->top;
+  active->device_events.push_back({index + 1, host ? host->event_id() : 0, name, backend,
+                                  host ? host->operation() : std::nullopt, std::nullopt, "incomplete"});
+  return {active->token, index};
+}
+
+void finish_device_profile(DeviceProfileToken token, std::optional<float> elapsed_ms,
+                           const char* error) noexcept {
+  if (!active || active->token != token.session || token.index >= active->device_events.size()) return;
+  auto& event = active->device_events[token.index];
+  if (!error && (!elapsed_ms || !std::isfinite(*elapsed_ms) || *elapsed_ms < 0)) error = "invalid_duration";
+  event.elapsed_ms = error ? std::nullopt : elapsed_ms;
+  event.error = error;
 }
 
 ProfileScope::ProfileScope(ProfileCategory category, const char* name, const char* backend,
@@ -65,6 +95,7 @@ ProfileScope::ProfileScope(ProfileCategory category, const char* name, const cha
   if (!active) return;
   session_ = active;
   parent_ = session_->top;
+  operation_ = operation ? operation : parent_ ? parent_->operation_ : std::nullopt;
   started_ = Clock::now();
   session_->top = this;
   if (session_->events.size() == session_->limit) { ++session_->dropped; return; }

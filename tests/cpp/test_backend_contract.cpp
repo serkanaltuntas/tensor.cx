@@ -412,6 +412,29 @@ void profiling_contract_tests() {
   }
   const auto limited = end_profile(clipped);
   check(limited.events.size() == 1 && limited.dropped_events == 1, "native profile dropped-event accounting");
+  check(!reserve_device_profile("disabled", "test"), "inactive device slot reserved");
+  const auto device_token = begin_profile(1, true);
+  DeviceProfileToken slot;
+  {
+    ProfileScope parent(ProfileCategory::kDispatch, "op", "test", std::nullopt, OpKind::kAdd);
+    ProfileScope child(ProfileCategory::kCompute, "dropped_host", "test");
+    slot = reserve_device_profile("kernel", "test");
+    check(bool(slot) && !reserve_device_profile("dropped_device", "test"), "device slots not independently bounded");
+    finish_device_profile(slot, 0.0f, nullptr);
+  }
+  const auto devices = end_profile(device_token);
+  check(devices.device_timing && devices.device_events.size() == 1 && devices.dropped_device_events == 1,
+        "device result/cap incorrect");
+  check(devices.device_events[0].host_event_id == 0 && devices.device_events[0].operation == OpKind::kAdd &&
+        devices.device_events[0].elapsed_ms == 0.0f && !devices.device_events[0].error,
+        "truncated-host device correlation or inherited operation incorrect");
+  const auto following = begin_profile(1, true);
+  const auto fresh = reserve_device_profile("fresh", "test");
+  finish_device_profile(slot, 99.0f, nullptr);  // A stale session cannot alter this one.
+  finish_device_profile(fresh, -1.0f, nullptr);
+  const auto invalid_duration = end_profile(following);
+  check(invalid_duration.device_events[0].error && !invalid_duration.device_events[0].elapsed_ms,
+        "invalid device duration recorded as a measurement");
   // The holder is constructed after this TLS object, hence destroyed before
   // it. Late resource destructors must observe profiling disabled, not freed TLS.
   std::atomic<bool> late_done{false};

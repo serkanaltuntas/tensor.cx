@@ -19,12 +19,35 @@
 
 #include "tensorcx/backends/cuda/cuda_backend.h"
 #include "tensorcx/backends/cuda/cuda_buffer.h"
+#include "tensorcx/backends/cuda/cuda_profiling.h"
 #include "tensorcx/backends/cpu/cpu_backend.h"
 
 using namespace tensorcx;
 namespace {
 void require(bool result, const char* message) {
   if (!result) throw std::runtime_error(message);
+}
+
+void device_profile_contract(cuda::CudaBackend& backend) {
+  struct Foreign {
+    CUcontext previous{}, value{};
+    Foreign() {
+      require(cuCtxGetCurrent(&previous) == CUDA_SUCCESS && cuCtxCreate(&value, 0, 0) == CUDA_SUCCESS,
+              "foreign event test context unavailable");
+    }
+    ~Foreign() { (void)cuCtxSetCurrent(previous); if (value) (void)cuCtxDestroy(value); }
+  } foreign;
+  const auto token = begin_profile(32, true);
+  std::array<Tensor, 1> output{{DType::kFloat32, {257}, {1}, {"cuda", 0}, nullptr, 0}};
+  BackendExecution fill{BackendOpClass::kPrimitive, OpDesc{OpKind::kFill}, {}, output};
+  fill.op.scalar_value = 3;
+  require(backend.execute(fill).ok(), "profiled foreign-context fill failed");
+  const auto report = end_profile(token);
+  CUcontext current{};
+  require(cuCtxGetCurrent(&current) == CUDA_SUCCESS && current == foreign.value,
+          "event profiling changed foreign current context");
+  require(report.device_events.size() == 1 && !report.device_events[0].error &&
+          report.device_events[0].elapsed_ms.has_value(), "real event interval missing");
 }
 void invalid(const Status& status) {
   require(status.code() == StatusCode::kInvalidArgument, status.message().c_str());
@@ -425,6 +448,7 @@ int main() {
       std::cout << "CUDA device unavailable; metadata validation passed\n";
       return 77;
     }
+    device_profile_contract(backend);
     {
       auto owned = cuda::CudaBuffer::create(DType::kFloat32, {4}).value();
       std::weak_ptr<cuda::CudaBuffer> lifetime = owned;

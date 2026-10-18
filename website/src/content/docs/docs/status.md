@@ -21,7 +21,7 @@ the [support matrix](/docs/backends/) defines backend availability.
 | Diagnostics | Standalone `tensorcx-doctor`, installation checks, operation/dtype capabilities and CPU/CUDA memory snapshots | [Diagnostics](/docs/diagnostics/) |
 | Explicit kernels | Experimental Metal MSL and guarded float32 CPU/CUDA MLIR compilation; division, sqrt/abs/exp/log/rsqrt/tanh/sigmoid/SiLU, minimum/maximum, comparisons and value selection in the MLIR subset | [Experimental kernels](/docs/experimental/) |
 | Compilation tools | Persistent CPU/CUDA/Metal code cache; compile/launch latency measurements and separate compilation profiles | [Performance](/docs/performance/#compilation-cache-measurements) |
-| Runtime profiling | Opt-in CPU/CUDA native host spans and Chrome trace export, with allocation/copy/execution/wait attribution | [Host profiling](/docs/performance/#native-runtime-profiling) |
+| Runtime profiling | CPU/CUDA host spans and Chrome trace export; optional separate CUDA kernel event intervals | [Runtime profiling](/docs/performance/#native-runtime-profiling) |
 | CUDA allocation | Bounded opt-in exact-size reuse, pool stats/trim, and direct `empty` allocation without CPU staging | [Memory reuse](/docs/performance/#bounded-cuda-memory-reuse) |
 | Distribution | Reviewed Linux x86_64 CPU manylinux wheel pipeline for CPython 3.11–3.13; source builds for supported Metal/CUDA environments | [Installation](/docs/installation/) |
 
@@ -40,7 +40,7 @@ remaining parts; completed pieces above are not reset by this list.
 
 | Track | Remaining scope |
 | --- | --- |
-| Diagnostics and profiling | Native Metal memory reporting and host profiling; device-event kernel timings and broader profiling coverage |
+| Diagnostics and profiling | Native Metal memory reporting and profiling; CUDA transfer timing and broader profiling coverage |
 | Compiler and performance | More generated MLIR operations and reductions, measured kernel fusion, and lower first-process toolchain fingerprinting cost; ordinary tensor expressions are not automatically fused |
 | Dtypes | FP16/BF16 implementation and numerical/performance acceptance on suitable hardware |
 | Memory and execution | CPU/Metal pools, broader allocator policies, asynchronous submission/streams and command batching |
@@ -50,7 +50,7 @@ remaining parts; completed pieces above are not reset by this list.
 Float32 `sqrt`, `abs`, minimum/maximum and bounded-error `exp`/`log`/`rsqrt`/`tanh`/`sigmoid`/`silu`
 are implemented inside guarded experimental kernels, with their target-specific
 numerical contracts. Ordinary tensor operations remain separate. The next proposed
-product increment is portable macOS wheel builds with isolated installation CI.
+product increment is a measured CUDA elementwise kernel-fusion experiment on the validated local GPU.
 This is a scoped candidate, not a release date or a promise of a full compiler.
 
 ## Validation boundaries

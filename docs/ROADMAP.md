@@ -162,8 +162,8 @@ documentation. This order does not claim that later packages are implemented.
    [kernel exp](MLIR_EXP.md), [kernel log](MLIR_LOG.md) and
    [kernel rsqrt](MLIR_RSQRT.md) and [kernel tanh](MLIR_TANH.md) and
    [kernel sigmoid](MLIR_SIGMOID.md) and [kernel SiLU](MLIR_SILU.md) are implemented. Opt-in CPU/CUDA
-   [runtime host profiling](RUNTIME_PROFILING.md) separates allocation/copy,
-   native execution and existing waits. Device-event/Metal profiling, broader
+   [runtime profiling](RUNTIME_PROFILING.md) separates host allocation/copy,
+   execution/waits and optional CUDA kernel event intervals. Metal/device-copy profiling, broader
    MLIR operations and measured kernel fusion remain open.
 9. **Dtypes:** CUDA int32 fill/arithmetic/sum/max implemented;
    [contract and verification](CUDA_INT32.md). FP16/BF16 remain open on suitable hardware.

@@ -7,10 +7,6 @@ namespace tensorcx::cuda {
 namespace {
 constexpr unsigned kThreads = 256;
 unsigned blocks(std::size_t count) { return static_cast<unsigned>(std::min<std::size_t>((count - 1) / kThreads + 1, 65535)); }
-cudaError_t finish() {
-  const auto error = cudaGetLastError();
-  return error == cudaSuccess ? profiled_synchronize() : error;
-}
 __device__ Dim mapped(Dim i, const Dim* metadata, std::size_t rank, std::size_t arg) {
   Dim result = 0;
   for (std::size_t axis = rank; axis-- > 0;) {
@@ -110,45 +106,51 @@ cudaError_t launch_predicate(const void* a, const void* b, const void* c, void* 
                             OpKind kind, DType dtype) {
   ProfileScope profile(ProfileCategory::kCompute, "launch_predicate", "cuda");
   if (!count) return cudaSuccess;
+  DeviceTimer timer("launch_predicate");
   if (dtype == DType::kFloat32) predicate_kernel<float><<<blocks(count), kThreads>>>(a,b,c,output,count,metadata,rank,kind);
   else if (dtype == DType::kInt32) predicate_kernel<std::int32_t><<<blocks(count), kThreads>>>(a,b,c,output,count,metadata,rank,kind);
   else predicate_kernel<std::uint8_t><<<blocks(count), kThreads>>>(a,b,c,output,count,metadata,rank,kind);
-  return finish();
+  return finish_profiled_launch(timer);
 }
 cudaError_t launch_bool_reduce(const std::uint8_t* input, std::uint8_t* output,
                               std::size_t count, Dim reduce, const Dim* metadata, std::size_t rank, bool all) {
   ProfileScope profile(ProfileCategory::kCompute, "launch_bool_reduce", "cuda");
   if (!count) return cudaSuccess;
+  DeviceTimer timer("launch_bool_reduce");
   bool_reduce<<<blocks(count), kThreads>>>(input,output,count,reduce,metadata,rank,all);
-  return finish();
+  return finish_profiled_launch(timer);
 }
 cudaError_t launch_bool_cast(const void* input, void* output, std::size_t count, DType source, DType target) {
   ProfileScope profile(ProfileCategory::kCompute, "launch_bool_cast", "cuda");
   if (!count) return cudaSuccess;
+  DeviceTimer timer("launch_bool_cast");
   bool_cast<<<blocks(count), kThreads>>>(input,output,count,source,target);
-  return finish();
+  return finish_profiled_launch(timer);
 }
 cudaError_t launch_mask_prefix(const std::uint8_t* mask, Dim* output, std::size_t count) {
   ProfileScope profile(ProfileCategory::kCompute, "launch_mask_prefix", "cuda");
   if (!count) return cudaSuccess;
+  DeviceTimer timer("launch_mask_prefix");
   mask_prefix<<<blocks(count), kThreads>>>(mask,output,count);
-  return finish();
+  return finish_profiled_launch(timer);
 }
 cudaError_t launch_prefix_step(const Dim* input, Dim* output, std::size_t count, Dim step) {
   ProfileScope profile(ProfileCategory::kCompute, "launch_prefix_step", "cuda");
   if (!count) return cudaSuccess;
+  DeviceTimer timer("launch_prefix_step");
   prefix_step<<<blocks(count), kThreads>>>(input,output,count,step);
-  return finish();
+  return finish_profiled_launch(timer);
 }
 cudaError_t launch_mask_copy(const void* input, const std::uint8_t* mask, const Dim* prefix,
                             void* output, std::size_t count, Dim block, DType dtype) {
   ProfileScope profile(ProfileCategory::kCompute, "launch_mask_copy", "cuda");
   if (!count) return cudaSuccess;
+  DeviceTimer timer("launch_mask_copy");
   if (dtype == DType::kBool)
     mask_copy<<<blocks(count), kThreads>>>(static_cast<const std::uint8_t*>(input), mask, prefix,
                                          static_cast<std::uint8_t*>(output), count, block);
   else mask_copy<<<blocks(count), kThreads>>>(static_cast<const std::uint32_t*>(input), mask, prefix,
                                              static_cast<std::uint32_t*>(output), count, block);
-  return finish();
+  return finish_profiled_launch(timer);
 }
 }  // namespace tensorcx::cuda

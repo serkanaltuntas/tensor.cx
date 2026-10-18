@@ -23,7 +23,7 @@ finally:
     sys.path.pop(0)
 TEST_FILES = ('test_cuda.py', 'test_cuda_primitives.py', 'test_mlir_cuda_runtime.py',
               'test_mlir_cuda_expressions.py', 'test_mlir_division.py', 'test_mlir_select.py', 'test_mlir_sqrt.py', 'test_mlir_abs.py', 'test_mlir_minmax.py', 'test_mlir_exp.py', 'test_mlir_log.py', 'test_mlir_rsqrt.py', 'test_mlir_tanh.py', 'test_mlir_sigmoid.py', 'test_mlir_silu.py',
-              'test_int32_primitives.py', 'test_runtime_profile.py', 'test_memory_pool.py', 'test_empty.py', 'test_tensor_api.py', 'test_cast_broadcast.py',
+              'test_int32_primitives.py', 'test_runtime_profile.py', 'test_device_profile.py', 'test_memory_pool.py', 'test_empty.py', 'test_tensor_api.py', 'test_cast_broadcast.py',
               'test_shape_ops.py', 'test_multi_axis_reductions.py', 'test_indexing_joining.py', 'test_boolean_masks.py', 'test_batched_matmul.py', 'test_math_ops.py', 'test_inference_ops.py', 'test_dlpack.py')
 
 
@@ -148,6 +148,9 @@ def validate(revision, llvm_bin):
                  'test_profile_primitive_parity_and_accounting',
                  'test_profile_transfer_and_temporary_cleanup',
                  'test_profile_generated_kernel',
+                 'test_device_profile_cuda_parity', 'test_device_profile_cuda_all_launch_families_and_waits',
+                 'test_device_profile_cuda_empty_copies_and_bounds', 'test_device_profile_cuda_generated_and_zero_work',
+                 'test_device_profile_cuda_threads_and_abandonment',
                  'test_pool_fill_reuse_and_parity', 'test_pool_profiles_real_allocations_and_default_path',
                  'test_pool_dlpack_export_and_borrow_never_recycle',
                  'test_pool_threads_isolated_and_cross_thread_final_release',
@@ -190,9 +193,9 @@ def validate(revision, llvm_bin):
             run([*runner, 'cmake', '--build', native], snapshot, env, output / 'build.log')
             run([*runner, 'ctest', '--test-dir', native, '--no-tests=error', '--output-on-failure',
                  '--output-junit', output / 'ctest.xml'], snapshot, env, output / 'ctest.log')
-            report['native'] = junit_result(output / 'ctest.xml', 4,
+            report['native'] = junit_result(output / 'ctest.xml', 5,
                 ('tensorcx_cpu_kernel_tests', 'tensorcx_backend_contract_tests',
-                 'tensorcx_cuda_kernel_tests', 'tensorcx_cuda_backend_contract_tests'))
+                 'tensorcx_cuda_kernel_tests', 'tensorcx_cuda_backend_contract_tests', 'tensorcx_cuda_profile_tests'))
             for tool in ('memcheck', 'racecheck'):
                 run(['compute-sanitizer', '--tool', tool, '--error-exitcode', '1',
                      native / 'tensorcx_cuda_backend_contract_tests'], snapshot, env, output / (tool + '.log'))

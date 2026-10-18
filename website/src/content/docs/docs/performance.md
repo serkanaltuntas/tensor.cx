@@ -88,7 +88,8 @@ Metal is not instrumented, and reports explicitly declare that limitation.
 
 Contexts are current-thread, single-use and cannot nest on the same thread.
 The default cap is 10,000 spans; `report()["complete"]` means no spans were
-dropped, not full backend coverage. Export is explicit and local, with synthetic
+dropped and no requested device measurement failed, not full backend coverage.
+Export is explicit and local, with synthetic
 process/thread IDs and no tensor values. See the
 [complete contract](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/RUNTIME_PROFILING.md).
 
@@ -106,7 +107,39 @@ five sizes from 1K to 16M and a resident MLP. Profile setup, validation and
 returned-result cleanup are outside the call timer; intermediate allocation,
 existing waits and temporary cleanup inside the workload remain included.
 Instrumented runs include profiler overhead; use the paired unprofiled samples
-for ordinary latency. Device-event timing and Metal spans remain open work.
+for ordinary latency. Metal profiling and CUDA transfer timing remain open work.
+
+### CUDA kernel event intervals
+
+On the validated CUDA host, request device timing explicitly:
+
+```python
+x = cx.ones((1024,), device="cuda")
+with cx.profile(device_timing=True) as p:
+    result = (x + x) * x
+print(p.device_summary())
+```
+
+Static CUDA and generated MLIR kernel launches produce separate `device_events`
+with `elapsed_ms`, operation labels and a `host_event_id` correlation. CUDA
+events bracket the launch before its existing wait; no extra synchronization is
+added. These intervals can include submission gaps and GPU contention, so they
+are not isolated instruction times. Copies, memset, allocations and Metal are
+outside device timing. Host `summary()` stays unchanged; never add GPU durations
+to host self time. Chrome trace events remain on the host clock, with device
+intervals retained separately in metadata.
+
+The host and device lists each have the `max_events` limit. Failed device
+measurements have `elapsed_ms=None` and an error label; `device_complete` becomes
+false on errors or device drops, while `host_complete` only tracks host drops.
+Inspect coverage even when a report is complete. CPU/Metal-only work produces
+no CUDA intervals. Timing defaults to disabled, and event handles are cleaned
+up within each synchronous launch.
+
+Use `--device-timing` with `--device cuda` in the benchmark above to collect a
+separate device-time breakdown. Instrumentation overhead remains in profiled
+wall samples; compare paired unprofiled samples when evaluating latency.
+See the [numerical, timing and resource boundaries](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/RUNTIME_PROFILING.md#optional-cuda-device-intervals).
 
 ## Bounded CUDA memory reuse
 

@@ -85,9 +85,10 @@ test('features are discoverable from the homepage and link to usage boundaries',
   await expect(page).toHaveURL('/docs/status/');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Features & roadmap');
   await expect(page.getByRole('heading', { name: 'Remaining work', exact: true })).toBeVisible();
-  await page.getByRole('link', { name: 'Host profiling', exact: true }).click();
+  await page.getByRole('link', { name: 'Runtime profiling', exact: true }).click();
   await expect(page).toHaveURL('/docs/performance/#native-runtime-profiling');
   await expect(page.getByRole('heading', { name: 'Native runtime profiling', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'CUDA kernel event intervals', exact: true })).toBeVisible();
 });
 
 test('mobile pages fit and the documentation menu works', async ({ page }) => {

@@ -6,7 +6,6 @@
 namespace tensorcx::cuda {
 namespace {
 unsigned blocks(Dim n){return static_cast<unsigned>(std::min<Dim>((n-1)/256+1,65535));}
-cudaError_t finish(){auto error=cudaGetLastError();return error==cudaSuccess?profiled_synchronize():error;}
 __global__ void embedding_validate(const std::int32_t* indices,Dim count,Dim vocabulary,int* invalid) {
   for(Dim i=Dim(blockIdx.x)*blockDim.x+threadIdx.x;i<count;i+=Dim(blockDim.x)*gridDim.x)
     if(indices[i]<0 || Dim(indices[i])>=vocabulary)atomicExch(invalid,1);
@@ -41,15 +40,21 @@ __global__ void attention_softmax(const float* scores,const void* mask,float* ou
 }
 cudaError_t launch_embedding_validate(const std::int32_t* indices,Dim count,Dim vocabulary,int* invalid) {
   ProfileScope profile(ProfileCategory::kCompute, "launch_embedding_validate", "cuda");
-  if(!count)return cudaSuccess;embedding_validate<<<blocks(count),256>>>(indices,count,vocabulary,invalid);return finish();
+  if(!count)return cudaSuccess;
+  DeviceTimer timer("launch_embedding_validate");
+  embedding_validate<<<blocks(count),256>>>(indices,count,vocabulary,invalid);return finish_profiled_launch(timer);
 }
 cudaError_t launch_embedding_gather(const std::int32_t* indices,const void* weight,void* output,Dim count,Dim width) {
   ProfileScope profile(ProfileCategory::kCompute, "launch_embedding_gather", "cuda");
-  if(!count)return cudaSuccess;embedding_gather<<<blocks(count),256>>>(indices,static_cast<const unsigned*>(weight),static_cast<unsigned*>(output),count,width);return finish();
+  if(!count)return cudaSuccess;
+  DeviceTimer timer("launch_embedding_gather");
+  embedding_gather<<<blocks(count),256>>>(indices,static_cast<const unsigned*>(weight),static_cast<unsigned*>(output),count,width);return finish_profiled_launch(timer);
 }
 cudaError_t launch_attention_softmax(const float* scores,const void* mask,float* output,const Dim* metadata,
                                      Dim rows,Dim columns,std::size_t rank,float scale,unsigned mask_kind,bool causal) {
   ProfileScope profile(ProfileCategory::kCompute, "launch_attention_softmax", "cuda");
-  if(!rows)return cudaSuccess;attention_softmax<<<blocks(rows),256>>>(scores,mask,output,metadata,rows,columns,rank,scale,mask_kind,causal);return finish();
+  if(!rows)return cudaSuccess;
+  DeviceTimer timer("launch_attention_softmax");
+  attention_softmax<<<blocks(rows),256>>>(scores,mask,output,metadata,rows,columns,rank,scale,mask_kind,causal);return finish_profiled_launch(timer);
 }
 }

@@ -1,4 +1,4 @@
-"""Opt-in, bounded native host spans for the current thread."""
+"""Bounded native host spans and optional CUDA event intervals."""
 from __future__ import annotations
 
 import copy
@@ -29,9 +29,12 @@ def _atomic_write(path, text):
 
 
 class RuntimeProfile:
-    """Single-use context collecting CPU/CUDA native spans, without extra waits."""
+    """Single-use native host profiling, with optional CUDA event intervals."""
 
-    def __init__(self, *, max_events=10000):
+    def __init__(self, *, max_events=10000, device_timing=False):
+        if type(device_timing) is not bool:
+            raise ValueError("device_timing must be a bool")
+        self._device_timing = device_timing
         if isinstance(max_events, (bool, np.bool_)):
             raise ValueError("max_events must be an integer in [1, 100000]")
         try:
@@ -51,7 +54,7 @@ class RuntimeProfile:
         with self._lock:
             if self._used:
                 raise RuntimeError("runtime profile contexts are single-use")
-            self._token = _core._profile_begin(self._limit)
+            self._token = _core._profile_begin(self._limit, self._device_timing)
             self._owner = threading.get_ident()
             self._used = True
         return self
@@ -63,12 +66,19 @@ class RuntimeProfile:
             result = _core._profile_end(self._token)
             self._token = None
         measured = sum(event["self_ns"] for event in result["events"])
+        failures = sum(event["error"] is not None for event in result["device_events"])
+        device_complete = result["dropped_device_events"] == 0 and failures == 0
         result.update(schema_version=1, clock="steady_clock_host", timing="synchronous_host_spans",
-                      complete=result["dropped_events"] == 0,
+                      complete=result["dropped_events"] == 0 and device_complete,
+                      host_complete=result["dropped_events"] == 0,
+                      device_complete=device_complete if self._device_timing else None,
+                      device_errors=failures, device_clock="cuda_events_elapsed_ms",
                       unattributed_ns=result["elapsed_ns"] - measured,
                       coverage={"cpu": "native executors and owned-buffer allocation; sequence imports, clones and NumPy exports combine allocation and copy",
                                 "cuda": "native dispatch, allocation/free, copy API, static/generated launch and existing waits",
-                                "metal": "not instrumented"})
+                                "metal": "not instrumented"},
+                      device_coverage={"cuda": "static/generated kernel event intervals on the backend default stream; no copies, allocations or memset",
+                                       "cpu": "not instrumented", "metal": "not instrumented"})
         self._result = result
         return False
 
@@ -104,7 +114,7 @@ class RuntimeProfile:
         return [groups[key] for key in sorted(groups)]
 
     def export_chrome_trace(self, path):
-        """Explicitly write a host timeline using synthetic process/thread IDs."""
+        """Write a host timeline; unaligned device intervals remain in metadata."""
         report = self.report()
         events = [{"name": e["operation"] or e["name"], "cat": e["backend"] + "/" + e["category"],
                    "ph": "X", "pid": 0, "tid": 0, "ts": e["start_ns"] / 1000,
@@ -114,7 +124,22 @@ class RuntimeProfile:
         _atomic_write(path, json.dumps({"traceEvents": events, "metadata": {
             key: value for key, value in report.items() if key != "events"}}, indent=2))
 
+    def device_summary(self):
+        """Group CUDA event intervals separately from all host clock totals."""
+        groups = {}
+        for event in self.report()["device_events"]:
+            key = (event["backend"], event["name"], event["operation"] or "")
+            row = groups.setdefault(key, dict(backend=key[0], name=key[1], operation=event["operation"],
+                                             calls=0, measured_calls=0, failed_calls=0, elapsed_ms=0.0))
+            row["calls"] += 1
+            if event["error"] is None:
+                row["measured_calls"] += 1
+                row["elapsed_ms"] += event["elapsed_ms"]
+            else:
+                row["failed_calls"] += 1
+        return [groups[key] for key in sorted(groups)]
 
-def profile(*, max_events=10000):
-    """Collect current-thread CPU/CUDA native host spans; Metal is not instrumented."""
-    return RuntimeProfile(max_events=max_events)
+
+def profile(*, max_events=10000, device_timing=False):
+    """Collect host spans and optional CUDA event intervals; Metal is uninstrumented."""
+    return RuntimeProfile(max_events=max_events, device_timing=device_timing)

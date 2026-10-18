@@ -335,3 +335,46 @@ def test_runtime_profile_failed_benchmark_preserves_output(tmp_path, monkeypatch
     with pytest.raises(AssertionError, match="wrong output"):
         bench.main()
     assert target.read_text() == "previous"
+
+
+@pytest.mark.parametrize("failure", ["event", "device_cap"])
+def test_runtime_profile_device_benchmark_failure_diagnostic_and_output(tmp_path, monkeypatch, failure):
+    class FailedProfile:
+        def __enter__(self): return self
+        def __exit__(self, *args): return False
+        def report(self):
+            return dict(complete=False, device_errors=int(failure == "event"), dropped_events=0,
+                        dropped_device_events=int(failure == "device_cap"),
+                        device_events=[dict(error="create_start_failed")] if failure == "event" else [])
+    target = tmp_path / "report.json"
+    target.write_text("previous")
+    monkeypatch.setattr(bench.cx, "profile", lambda **kwargs: FailedProfile())
+    monkeypatch.setattr(bench, "run", lambda args: bench.measure(lambda: None, lambda value: None,
+                                                              1, 0, 10, device_timing=True))
+    monkeypatch.setattr(bench.sys, "argv", ["bench", "--device", "cuda", "--device-timing", "--output", str(target)])
+    message = "CUDA event measurement failed: create_start_failed" if failure == "event" else "truncated"
+    with pytest.raises(RuntimeError, match=message):
+        bench.main()
+    assert target.read_text() == "previous"
+
+
+def test_runtime_profile_device_benchmark_requires_cuda():
+    with pytest.raises(ValueError, match="requires --device cuda"):
+        bench.run(argparse.Namespace(device="cpu", device_timing=True))
+
+
+@pytest.mark.skipif(not cx.is_available("cuda"), reason="CUDA is unavailable")
+@pytest.mark.parametrize("include_events", [False, True])
+def test_runtime_profile_cuda_device_benchmark_report(include_events):
+    r = bench.run(argparse.Namespace(device="cuda", sizes=(17,), repeats=1, warmup=1, max_events=10000,
+                                    include_events=include_events, device_timing=True))
+    assert r["device_timing"]
+    for row in r["results"]:
+        assert row["device_time_breakdown"] and row["cpu_parity"]
+        assert row["profile_samples"][0]["device_event_count"] > 0
+        assert row["profile_samples"][0]["device_complete"]
+        if include_events:
+            assert row["profiles"][0]["device_events"]
+        else:
+            assert "profiles" not in row
+    json.dumps(r, allow_nan=False)

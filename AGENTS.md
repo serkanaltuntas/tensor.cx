@@ -284,6 +284,8 @@ Guarded float32 sigmoid is implemented; docs/MLIR_SIGMOID.md defines stable
 exp-based lowering, gradual-underflow acceptance and direct Metal limits.
 Guarded float32 SiLU is implemented; docs/MLIR_SILU.md defines half-exponential
 lowering, signed-zero/infinity rules and negative-tail/subnormal acceptance.
+Optional CUDA event profiling is implemented; docs/RUNTIME_PROFILING.md keeps
+device intervals separate from host spans and preserves existing waits/status.
 ```
 
 `docs/CUDA_PHASE9_ENVIRONMENT.md` records the selected host and entry criteria;

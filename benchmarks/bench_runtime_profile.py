@@ -50,7 +50,7 @@ def summary(samples):
                 p10_ms=float(np.percentile(samples, 10)), p90_ms=float(np.percentile(samples, 90)))
 
 
-def measure(function, validate, repeats, warmup, max_events):
+def measure(function, validate, repeats, warmup, max_events, device_timing=False):
     """Alternate modes; setup/export/validation/returned-result cleanup are untimed."""
     wall = {"unprofiled": [], "profiled": []}
     profiles = []
@@ -58,12 +58,15 @@ def measure(function, validate, repeats, warmup, max_events):
         modes = ("unprofiled", "profiled") if iteration % 2 == 0 else ("profiled", "unprofiled")
         for mode in modes:
             if mode == "profiled":
-                with cx.profile(max_events=max_events) as profile:
+                with cx.profile(max_events=max_events, device_timing=device_timing) as profile:
                     start = time.perf_counter_ns()
                     result = function()
                     elapsed = (time.perf_counter_ns() - start) / 1e6
                 report = profile.report()
                 if not report["complete"]:
+                    if report.get("device_errors", 0):
+                        errors = sorted({e["error"] for e in report.get("device_events", []) if e["error"]})
+                        raise RuntimeError("CUDA event measurement failed: " + ", ".join(errors))
                     raise RuntimeError("runtime profile truncated; increase max_events")
             else:
                 start = time.perf_counter_ns()
@@ -83,8 +86,16 @@ def measure(function, validate, repeats, warmup, max_events):
         samples = [sum(e["self_ns"] for e in r["events"] if (e["backend"], e["category"]) == (backend, category)) / 1e6
                    for r in profiles]
         breakdown.append(dict(backend=backend, category=category, **summary(samples)))
+    device_breakdown = []
+    if device_timing:
+        keys = sorted({(e["name"], e["operation"] or "") for r in profiles for e in r["device_events"]})
+        for name, operation in keys:
+            samples = [sum(e["elapsed_ms"] for e in r["device_events"]
+                           if (e["name"], e["operation"] or "") == (name, operation)) for r in profiles]
+            device_breakdown.append(dict(name=name, operation=operation or None, **summary(samples)))
     return dict(wall={mode: summary(values) for mode, values in wall.items()},
-                self_time_breakdown=breakdown, profiles=profiles, cpu_parity=True)
+                self_time_breakdown=breakdown, device_time_breakdown=device_breakdown,
+                profiles=profiles, cpu_parity=True)
 
 
 def command(arguments):
@@ -132,6 +143,9 @@ def forward(x, first, second):
 def run(args):
     if args.device not in ("cpu", "cuda") or not cx.is_available(args.device):
         raise RuntimeError("requested CPU/CUDA profiling backend is unavailable; no fallback")
+    device_timing = getattr(args, "device_timing", False)
+    if device_timing and args.device != "cuda":
+        raise ValueError("device timing benchmark requires --device cuda")
     details = metadata(args.device)
     if args.device == "cuda":
         details["gpu_before"] = gpu_snapshot()
@@ -142,10 +156,13 @@ def run(args):
         reference = expected.numpy()
         def validate(result):
             np.testing.assert_allclose(result.numpy(), reference, rtol=tolerance, atol=tolerance)
-        row = measure(function, validate, args.repeats, args.warmup, args.max_events)
+        row = measure(function, validate, args.repeats, args.warmup, args.max_events, device_timing)
         row["profile_samples"] = [dict(elapsed_ns=r["elapsed_ns"], unattributed_ns=r["unattributed_ns"],
                                        event_count=len(r["events"]), complete=r["complete"],
-                                       dropped_events=r["dropped_events"]) for r in row["profiles"]]
+                                       dropped_events=r["dropped_events"],
+                                       device_event_count=len(r["device_events"]), device_errors=r["device_errors"],
+                                       dropped_device_events=r["dropped_device_events"],
+                                       device_complete=r["device_complete"]) for r in row["profiles"]]
         if not getattr(args, "include_events", False):
             del row["profiles"]
         rows.append(dict(case=case, shape=list(shape), **row))
@@ -173,7 +190,9 @@ def run(args):
     return public_report(dict(schema_version=1, metadata=details,
                               config=dict(sizes=list(args.sizes), repeats=args.repeats, warmup=args.warmup,
                                           max_events=args.max_events, include_events=getattr(args, "include_events", False)),
-                              measurement="paired public-call host wall time and native self spans; no device-only kernel timing",
+                              device_timing=device_timing,
+                              measurement=("paired public-call host wall time, native self spans and separate CUDA event intervals"
+                                           if device_timing else "paired public-call host wall time and native self spans; no device timing"),
                               results=rows), root=ROOT)
 
 
@@ -186,6 +205,7 @@ def main():
     parser.add_argument("--max-events", type=positive_int, default=10000)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--include-events", action="store_true", help="include per-span timelines in local reports")
+    parser.add_argument("--device-timing", action="store_true", help="include CUDA kernel event intervals separately from host spans")
     args = parser.parse_args()
     text = json.dumps(run(args), indent=2, allow_nan=False) + "\n"
     if args.output:

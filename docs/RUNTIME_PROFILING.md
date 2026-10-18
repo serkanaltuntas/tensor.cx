@@ -1,10 +1,11 @@
-# Native runtime host profiling
+# Native runtime profiling
 
 `cx.profile()` records bounded, current-thread host spans for CPU and CUDA.
 It separates native allocation, copies, execution and existing waits without
-adding device synchronization. Metal execution is **not instrumented**; every
-report declares that limitation. This is a narrow runtime profiling increment,
-not a device-event profiler, graph optimizer or new execution mode.
+adding device synchronization. `cx.profile(device_timing=True)` additionally
+records CUDA kernel event intervals on the validated local sm_52 host. Metal
+execution is **not instrumented**; every report declares that limitation.
+This does not add graph optimization, streams or an asynchronous execution API.
 
 ```python
 import tensorcx as cx
@@ -20,7 +21,67 @@ assert report["complete"]
 p.export_chrome_trace("runtime-trace.json")  # explicit local file export
 ```
 
-## Timing and coverage contract
+## Optional CUDA device intervals
+
+```python
+x = cx.ones((1024,), device="cuda")
+with cx.profile(device_timing=True) as p:
+    result = (x + x) * x
+print(p.device_summary())  # elapsed_ms, measured_calls, failed_calls
+assert p.report()["device_complete"]
+```
+
+`device_timing` accepts a Python bool and defaults to false. CPU-only builds and
+CPU/Metal work remain usable with the flag enabled, but produce no device
+intervals for those backends. An empty device list is not evidence of device
+execution: inspect `device_coverage` and the actual interval list.
+
+Each nonempty static CUDA launch wrapper and generated MLIR CUDA launch records
+a pair of timing-enabled Driver events on the backend's existing default stream,
+inside its primary-context guard. The stop event is submitted after a successful
+launch **before the existing completion wait**; elapsed time is read only after
+that wait succeeds. Event handles are destroyed within the call, including early
+returns. No events, GPU clock reads or extra waits occur for disabled timing,
+zero-launch work or an exhausted device-record cap. Only two event handles are
+live per instrumented launch, rather than retaining handles until session exit.
+The Driver API preserves the Runtime launch-error slot and original launch/wait
+return values. See NVIDIA's [event contract](https://docs.nvidia.com/cuda/archive/12.4.1/cuda-driver-api/group__CUDA__EVENT.html).
+
+`device_events` is separate from host `events`. Each row has a session-local
+`id`, `host_event_id` correlation, static backend/name/optional operation labels,
+`elapsed_ms` and `error`. A correlated host event may be absent after host
+truncation (`host_event_id=0`). Durations retain the CUDA API's float millisecond
+precision; zero is a valid measured duration at timer resolution. Device rows
+have **no host timestamp**. Never add them to host self/elapsed/unattributed
+time or treat them as calibrated positions on the host timeline.
+
+`device_summary()` groups these intervals independently, retaining measured and
+failed counts; its totals are partial if records failed or were dropped. Host
+`summary()` is unchanged. Chrome trace `X` events remain host-only; separate
+device intervals and coverage stay in trace metadata. No artificial GPU lane
+or common host/GPU epoch is invented. The host report schema stays at version 1
+with additive optional device fields and unchanged host clock semantics.
+
+These are **device event intervals around submission**, not isolated instruction
+times. Host submission gaps, GPU scheduling/contention and instrumentation can
+affect them. Copies, memset, allocation, compilation, module/context setup and
+external library/Metal work do not create device intervals. Existing copy/API
+and wait spans remain host measurements. There is no transfer bandwidth,
+overlap, asynchronous pipeline, clean-GPU or additional-architecture claim.
+
+`max_events` independently bounds each of the host and device record lists.
+Device capacity is reserved only when requested. `dropped_device_events` counts
+omitted device records. Event create/record/read/destroy failures or failed
+operations yield a static error label and `elapsed_ms=None`, never a fabricated
+zero. Instrumentation errors do not replace the tensor operation's status.
+Cleanup is attempted for both acquired handles even after an earlier failure;
+a Driver cleanup error is reported rather than hidden. `device_errors` counts
+failed recorded intervals; `device_complete` is false on errors/drops and is
+`None` when timing was not requested. `host_complete` only describes host drops;
+overall `complete` requires both requested recording domains to be untruncated
+and all recorded device measurements to succeed. None implies full coverage.
+
+## Host timing and coverage contract
 
 All offsets/durations use the host's monotonic C++ `steady_clock`, in integer
 nanoseconds. A span measures an **attempted** native region; it is not evidence
@@ -55,8 +116,8 @@ arbitrary internal temporary/metadata allocations, CUDA context/module startup,
 external library work and other threads are not independently attributed.
 Compilation has a [separate profiler](COMPILATION_CACHE.md#compile-and-launch-profiling).
 
-`complete` means **no instrumented spans were dropped**, not complete backend
-coverage. Inspect `coverage` even when it is true. A Metal-only context can have
+`host_complete` means **no instrumented host spans were dropped**, not complete
+backend coverage. Inspect `coverage` even when it is true. A Metal-only context can have
 no events and still be complete; incidental CPU imports/exports remain CPU spans.
 No Metal kernel, allocation or wait duration is claimed.
 
@@ -117,10 +178,71 @@ be substituted for unprofiled performance or device timings. Run repeated paired
 measurements before making an overhead/optimization claim. A shared desktop GPU
 and endpoint process snapshots cannot establish isolation. No other workload is
 stopped by this benchmark. Bounded opt-in [CUDA memory pooling](CUDA_MEMORY_POOL.md) is implemented.
-Device-event timing, Metal spans, broader allocation accounting, async execution
-and measured fusion remain separate work.
+Optional CUDA kernel event intervals are implemented as described above.
+Metal/device-copy timing, broader accounting, async execution and measured fusion
+remain separate work. Add `--device-timing` with `--device cuda` to the paired
+benchmark to retain a separate `device_time_breakdown` and device-record counts.
+This measures instrumentation overhead too; the paired unprofiled samples remain
+the public-call latency baseline. `--include-events` additionally retains the
+separate per-interval results for local inspection. Incomplete device measurements
+fail the benchmark before report publication.
 
 ## Verification
+
+### CUDA event intervals — 2026-10-18
+
+Local Linux x86_64/Toolkit 12.4/GTX 980 Ti sm_52 verification covers all 22
+static launch wrappers and the generated MLIR launch, float32 and exact int32
+parity, zero work, separate clock/cap accounting, caller preservation, repeated
+launches, thread isolation, context restoration, exceptions and safe exports.
+Native tests inject every event API failure, invalid/zero durations and failed
+launch/completion paths, require both cleanup attempts, and verify that disabled
+or capacity-exhausted timing makes no event API calls. A separate native test
+also preserves a deliberately seeded Runtime error; it runs on a real GPU,
+outside the memory/race-contract executable. Sanitizer error flags are unchanged.
+
+Focused profiler/gate verification passed **97 tests**; the complete Linux
+CPU/CUDA/LLVM regression passed **9,227 tests with 226 expected platform/capability
+skips**. An initial full run was interrupted by SIGTERM before completion and was
+excluded; the separate-session rerun completed. Ten option/report/benchmark
+policy tests passed with CUDA and LLVM hidden. Native contracts passed **5/5**;
+native memcheck/racecheck reported zero errors/hazards. Python sanitizer selection
+passed **38 tests** per tool with zero errors/hazards, including the generated
+launch. Those Python sanitizer commands disable API-error logging for the
+loader's deliberate out-of-range parameter-count probe; memory/race checking
+remains enabled. The mandatory native sanitizer commands keep their original
+error flags.
+
+Independent GPU QA also passed pooled float32 and exact int32 work, generated
+prefix/output-alias/private-copy/suffix preservation, unchanged wait lists,
+zero-work/copy/memset exclusions, event-to-host correlation and two-worker
+isolation. After test tensors were released and the pool exited, its cached and
+in-use counters were both zero.
+
+Four reviewed paired reports compare host-only profiling
+([1](validation/device-profile-host-1.json), [2](validation/device-profile-host-2.json))
+and host plus CUDA events
+([1](validation/device-profile-events-1.json), [2](validation/device-profile-events-2.json)).
+Each uses three element counts (1K, 256K, 1M), resident/end-to-end expressions and
+the resident MLP: seven cases, seven measured pairs and one warmup pair per
+case. All outputs passed CPU parity and all profiles were complete. These runs
+share benchmark/profiler/native-extension hashes and come from the pre-commit
+worktree based on `c0bf17c`; they are not measurements of an already-published
+commit. Other compute processes and the desktop shared the GPU in every run.
+
+Public-call medians in milliseconds, run 1 / run 2:
+
+| Case | Host-only unprofiled | Host-only profiled | Event-mode unprofiled | Event-mode profiled |
+| --- | --- | --- | --- | --- |
+| 1K resident expression | 0.033955 / 0.031540 | 0.032841 / 0.032427 | 0.032306 / 0.032988 | 0.042820 / 0.042533 |
+| 1M resident expression | 0.530590 / 0.527915 | 0.514859 / 0.510768 | 0.532716 / 0.532937 | 0.525527 / 0.522480 |
+| Resident MLP | 0.148914 / 0.146656 | 0.150604 / 0.148389 | 0.146608 / 0.148348 | 0.171532 / 0.171866 |
+
+Per-case/per-operation event intervals are retained in the separate device
+breakdown. Event creation/record/read/destruction has visible overhead for small
+workloads; the apparently lower instrumented 1M medians illustrate measurement
+variation rather than a speedup. These samples do not establish zero overhead,
+isolated kernel timing, calibrated host/GPU clocks or another GPU's behavior.
 
 ### Recorded local paired runs — 2026-10-17
 

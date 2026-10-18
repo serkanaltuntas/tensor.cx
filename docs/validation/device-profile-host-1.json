@@ -1,0 +1,1571 @@
+{
+  "schema_version": 1,
+  "metadata": {
+    "started_utc": "2026-10-18T09:25:40.212060+00:00",
+    "benchmark_sha256": "0309eef122af7c774ecacff098189ff2419269ed7b9d9b50e311f38adc516022",
+    "extension_sha256": "0591f08637237415e0e2d6a59b3064c322deb0f5b3106e15073f9e4c831222a8",
+    "profiler_sha256": "cfdb889f1daac0d5ef881d235fd92086fb8057aef9086904116b802a016f62a7",
+    "python": "3.12.14",
+    "numpy": "2.4.6",
+    "system": "Linux",
+    "machine": "x86_64",
+    "tensorcx": "0.1.0",
+    "device": "cuda",
+    "device_name": "NVIDIA GeForce GTX 980 Ti",
+    "build": {
+      "cpu": true,
+      "metal": false,
+      "cuda": true
+    },
+    "seed": 701,
+    "cuda": {
+      "name": "NVIDIA GeForce GTX 980 Ti",
+      "architecture": "sm_52",
+      "runtime_version": 12040,
+      "driver_api_version": 13000,
+      "memory": {
+        "scope": "cuda_device",
+        "total_bytes": 6363217920,
+        "available_bytes": 5666111488
+      }
+    },
+    "revision": "c0bf17ce6fa27bea9515c922bc02429384873eed",
+    "git_dirty": true,
+    "tracked_diff_sha256": "0cf5d6ebf3054462ac18aac560769d50911853fe2ef5b2edf4ca45a62debb213",
+    "gpu_before": {
+      "gpu": "name, compute_cap, driver_version, memory.used [MiB], temperature.gpu, clocks.current.sm [MHz], clocks.current.memory [MHz], power.draw [W], utilization.gpu [%]\nNVIDIA GeForce GTX 980 Ti, 5.2, 580.178.04, 665 MiB, 62, 1328 MHz, 3304 MHz, 89.31 W, 18 %",
+      "other_compute_processes": [
+        {
+          "memory_mib": "90"
+        },
+        {
+          "memory_mib": "21"
+        }
+      ]
+    },
+    "gpu_after": {
+      "gpu": "name, compute_cap, driver_version, memory.used [MiB], temperature.gpu, clocks.current.sm [MHz], clocks.current.memory [MHz], power.draw [W], utilization.gpu [%]\nNVIDIA GeForce GTX 980 Ti, 5.2, 580.178.04, 675 MiB, 62, 1328 MHz, 3304 MHz, 88.83 W, 16 %",
+      "other_compute_processes": [
+        {
+          "memory_mib": "90"
+        },
+        {
+          "memory_mib": "21"
+        }
+      ]
+    },
+    "other_compute_processes_observed": true,
+    "finished_utc": "2026-10-18T09:25:41.525207+00:00"
+  },
+  "config": {
+    "sizes": [
+      1024,
+      262144,
+      1048576
+    ],
+    "repeats": 7,
+    "warmup": 1,
+    "max_events": 10000,
+    "include_events": false
+  },
+  "device_timing": false,
+  "measurement": "paired public-call host wall time and native self spans; no device timing",
+  "results": [
+    {
+      "case": "expression_resident",
+      "shape": [
+        1024
+      ],
+      "wall": {
+        "unprofiled": {
+          "samples_ms": [
+            0.034061,
+            0.038516,
+            0.033127,
+            0.030816,
+            0.045456,
+            0.033955,
+            0.032842
+          ],
+          "median_ms": 0.033955,
+          "p10_ms": 0.0320316,
+          "p90_ms": 0.041292
+        },
+        "profiled": {
+          "samples_ms": [
+            0.035793,
+            0.031981,
+            0.033415,
+            0.031172,
+            0.032841,
+            0.032603,
+            0.040418
+          ],
+          "median_ms": 0.032841,
+          "p10_ms": 0.0316574,
+          "p90_ms": 0.037643
+        }
+      },
+      "self_time_breakdown": [
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "samples_ms": [
+            0.005734,
+            0.004551,
+            0.005104,
+            0.004427,
+            0.004927,
+            0.004707,
+            0.011113
+          ],
+          "median_ms": 0.004927,
+          "p10_ms": 0.0045014,
+          "p90_ms": 0.007885600000000003
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "samples_ms": [
+            0.007994,
+            0.00686,
+            0.007346,
+            0.00671,
+            0.007139,
+            0.007176,
+            0.007594
+          ],
+          "median_ms": 0.007176,
+          "p10_ms": 0.0068,
+          "p90_ms": 0.007754
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "samples_ms": [
+            0.001973,
+            0.001626,
+            0.001729,
+            0.001592,
+            0.001738,
+            0.001685,
+            0.001928
+          ],
+          "median_ms": 0.001729,
+          "p10_ms": 0.0016124000000000002,
+          "p90_ms": 0.001946
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "samples_ms": [
+            0.0039,
+            0.003609,
+            0.003634,
+            0.003484,
+            0.003544,
+            0.003544,
+            0.003839
+          ],
+          "median_ms": 0.003609,
+          "p10_ms": 0.00352,
+          "p90_ms": 0.0038634
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "samples_ms": [
+            0.007869,
+            0.008129,
+            0.007857,
+            0.008151,
+            0.008103,
+            0.008202,
+            0.007912
+          ],
+          "median_ms": 0.008103,
+          "p10_ms": 0.0078642,
+          "p90_ms": 0.0081714
+        }
+      ],
+      "device_time_breakdown": [],
+      "cpu_parity": true,
+      "profile_samples": [
+        {
+          "elapsed_ns": 41729,
+          "unattributed_ns": 14259,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 37034,
+          "unattributed_ns": 12259,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 38046,
+          "unattributed_ns": 12376,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 35979,
+          "unattributed_ns": 11615,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 37275,
+          "unattributed_ns": 11824,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 37926,
+          "unattributed_ns": 12612,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 45036,
+          "unattributed_ns": 12650,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        }
+      ]
+    },
+    {
+      "case": "expression_end_to_end",
+      "shape": [
+        1024
+      ],
+      "wall": {
+        "unprofiled": {
+          "samples_ms": [
+            0.078558,
+            0.075486,
+            0.079019,
+            0.074036,
+            0.079897,
+            0.074869,
+            0.078965
+          ],
+          "median_ms": 0.078558,
+          "p10_ms": 0.0745358,
+          "p90_ms": 0.0793702
+        },
+        "profiled": {
+          "samples_ms": [
+            0.081183,
+            0.075214,
+            0.085697,
+            0.074517,
+            0.082232,
+            0.099323,
+            0.116365
+          ],
+          "median_ms": 0.082232,
+          "p10_ms": 0.07493520000000001,
+          "p90_ms": 0.1061398
+        }
+      },
+      "self_time_breakdown": [
+        {
+          "backend": "cpu",
+          "category": "allocation",
+          "samples_ms": [
+            0.000349,
+            0.000295,
+            0.000298,
+            0.000314,
+            0.00037,
+            0.000319,
+            0.000352
+          ],
+          "median_ms": 0.000319,
+          "p10_ms": 0.0002968,
+          "p90_ms": 0.0003592
+        },
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "samples_ms": [
+            0.00967,
+            0.008671,
+            0.009652,
+            0.00858,
+            0.009909,
+            0.009005,
+            0.01023
+          ],
+          "median_ms": 0.009652,
+          "p10_ms": 0.008634600000000001,
+          "p90_ms": 0.0100374
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "samples_ms": [
+            0.006955,
+            0.006457,
+            0.006458,
+            0.006417,
+            0.006771,
+            0.006711,
+            0.006918
+          ],
+          "median_ms": 0.006711,
+          "p10_ms": 0.006441,
+          "p90_ms": 0.0069328
+        },
+        {
+          "backend": "cuda",
+          "category": "copy_api",
+          "samples_ms": [
+            0.016338,
+            0.014976,
+            0.021584,
+            0.014981,
+            0.016667,
+            0.015284,
+            0.016293
+          ],
+          "median_ms": 0.016293,
+          "p10_ms": 0.014979,
+          "p90_ms": 0.018633800000000002
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "samples_ms": [
+            0.007828,
+            0.006823,
+            0.007945,
+            0.006583,
+            0.008034,
+            0.00679,
+            0.007706
+          ],
+          "median_ms": 0.007706,
+          "p10_ms": 0.0067072,
+          "p90_ms": 0.007980600000000001
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "samples_ms": [
+            0.003541,
+            0.003283,
+            0.003424,
+            0.003268,
+            0.003442,
+            0.025483,
+            0.003952
+          ],
+          "median_ms": 0.003442,
+          "p10_ms": 0.003277,
+          "p90_ms": 0.012564400000000007
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "samples_ms": [
+            0.013952,
+            0.013665,
+            0.013966,
+            0.013627,
+            0.014424,
+            0.014336,
+            0.013962
+          ],
+          "median_ms": 0.013962,
+          "p10_ms": 0.0136498,
+          "p90_ms": 0.014371199999999999
+        }
+      ],
+      "device_time_breakdown": [],
+      "cpu_parity": true,
+      "profile_samples": [
+        {
+          "elapsed_ns": 86128,
+          "unattributed_ns": 27495,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 80239,
+          "unattributed_ns": 26069,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 90740,
+          "unattributed_ns": 27413,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 79540,
+          "unattributed_ns": 25770,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 87209,
+          "unattributed_ns": 27592,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 104664,
+          "unattributed_ns": 26736,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 121371,
+          "unattributed_ns": 61958,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        }
+      ]
+    },
+    {
+      "case": "expression_resident",
+      "shape": [
+        262144
+      ],
+      "wall": {
+        "unprofiled": {
+          "samples_ms": [
+            0.262508,
+            0.287931,
+            0.256326,
+            0.257157,
+            0.302213,
+            0.25478,
+            0.437075
+          ],
+          "median_ms": 0.262508,
+          "p10_ms": 0.2557076,
+          "p90_ms": 0.3561578000000001
+        },
+        "profiled": {
+          "samples_ms": [
+            0.305502,
+            0.720415,
+            0.268844,
+            0.253085,
+            0.277668,
+            0.266312,
+            0.26603
+          ],
+          "median_ms": 0.268844,
+          "p10_ms": 0.260852,
+          "p90_ms": 0.4714672000000002
+        }
+      },
+      "self_time_breakdown": [
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "samples_ms": [
+            0.142332,
+            0.140712,
+            0.146326,
+            0.138861,
+            0.157536,
+            0.143031,
+            0.144944
+          ],
+          "median_ms": 0.143031,
+          "p10_ms": 0.1399716,
+          "p90_ms": 0.15081000000000003
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "samples_ms": [
+            0.023636,
+            0.023418,
+            0.02418,
+            0.022777,
+            0.026081,
+            0.023687,
+            0.023842
+          ],
+          "median_ms": 0.023687,
+          "p10_ms": 0.0231616,
+          "p90_ms": 0.0249404
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "samples_ms": [
+            0.041483,
+            0.458018,
+            0.041856,
+            0.040768,
+            0.042362,
+            0.047835,
+            0.041379
+          ],
+          "median_ms": 0.041856,
+          "p10_ms": 0.0411346,
+          "p90_ms": 0.21190820000000016
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "samples_ms": [
+            0.009466,
+            0.009569,
+            0.011034,
+            0.008836,
+            0.009201,
+            0.009583,
+            0.010791
+          ],
+          "median_ms": 0.009569,
+          "p10_ms": 0.009055,
+          "p90_ms": 0.0108882
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "samples_ms": [
+            0.071985,
+            0.071931,
+            0.026807,
+            0.025836,
+            0.025843,
+            0.025554,
+            0.026791
+          ],
+          "median_ms": 0.026791,
+          "p10_ms": 0.0257232,
+          "p90_ms": 0.07195259999999999
+        }
+      ],
+      "device_time_breakdown": [],
+      "cpu_parity": true,
+      "profile_samples": [
+        {
+          "elapsed_ns": 316918,
+          "unattributed_ns": 28016,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 732889,
+          "unattributed_ns": 29241,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 282611,
+          "unattributed_ns": 32408,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 263552,
+          "unattributed_ns": 26474,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 288605,
+          "unattributed_ns": 27582,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 276683,
+          "unattributed_ns": 26993,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 277398,
+          "unattributed_ns": 29651,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        }
+      ]
+    },
+    {
+      "case": "expression_end_to_end",
+      "shape": [
+        262144
+      ],
+      "wall": {
+        "unprofiled": {
+          "samples_ms": [
+            1.65223,
+            1.371169,
+            1.359312,
+            1.673696,
+            1.417319,
+            1.321728,
+            1.288238
+          ],
+          "median_ms": 1.371169,
+          "p10_ms": 1.308332,
+          "p90_ms": 1.6608164
+        },
+        "profiled": {
+          "samples_ms": [
+            1.307488,
+            1.293748,
+            1.373841,
+            1.444539,
+            1.284052,
+            1.299274,
+            1.290664
+          ],
+          "median_ms": 1.299274,
+          "p10_ms": 1.2880192,
+          "p90_ms": 1.4021202000000001
+        }
+      },
+      "self_time_breakdown": [
+        {
+          "backend": "cpu",
+          "category": "allocation",
+          "samples_ms": [
+            0.031122,
+            0.030129,
+            0.030825,
+            0.031098,
+            0.031078,
+            0.030664,
+            0.030542
+          ],
+          "median_ms": 0.030825,
+          "p10_ms": 0.0303768,
+          "p90_ms": 0.0311076
+        },
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "samples_ms": [
+            0.311671,
+            0.310336,
+            0.329319,
+            0.311378,
+            0.298167,
+            0.301208,
+            0.305981
+          ],
+          "median_ms": 0.310336,
+          "p10_ms": 0.29999159999999997,
+          "p90_ms": 0.31873019999999996
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "samples_ms": [
+            0.01845,
+            0.01908,
+            0.020295,
+            0.0216,
+            0.025278,
+            0.018822,
+            0.019057
+          ],
+          "median_ms": 0.01908,
+          "p10_ms": 0.0186732,
+          "p90_ms": 0.0230712
+        },
+        {
+          "backend": "cuda",
+          "category": "copy_api",
+          "samples_ms": [
+            0.415035,
+            0.40075,
+            0.458263,
+            0.536208,
+            0.404414,
+            0.411381,
+            0.406085
+          ],
+          "median_ms": 0.411381,
+          "p10_ms": 0.4029484,
+          "p90_ms": 0.489441
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "samples_ms": [
+            0.278606,
+            0.281258,
+            0.27929,
+            0.288791,
+            0.273609,
+            0.277922,
+            0.274824
+          ],
+          "median_ms": 0.278606,
+          "p10_ms": 0.274338,
+          "p90_ms": 0.2842712
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "samples_ms": [
+            0.008138,
+            0.008375,
+            0.008553,
+            0.009075,
+            0.008345,
+            0.008775,
+            0.008489
+          ],
+          "median_ms": 0.008489,
+          "p10_ms": 0.008262199999999999,
+          "p90_ms": 0.008895
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "samples_ms": [
+            0.189412,
+            0.190122,
+            0.187368,
+            0.189024,
+            0.189526,
+            0.189689,
+            0.189319
+          ],
+          "median_ms": 0.189412,
+          "p10_ms": 0.1883616,
+          "p90_ms": 0.1898622
+        }
+      ],
+      "device_time_breakdown": [],
+      "cpu_parity": true,
+      "profile_samples": [
+        {
+          "elapsed_ns": 1321068,
+          "unattributed_ns": 68634,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 1307541,
+          "unattributed_ns": 67491,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 1389702,
+          "unattributed_ns": 75789,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 1458241,
+          "unattributed_ns": 71067,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 1297862,
+          "unattributed_ns": 67445,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 1312688,
+          "unattributed_ns": 74227,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 1304055,
+          "unattributed_ns": 69758,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        }
+      ]
+    },
+    {
+      "case": "expression_resident",
+      "shape": [
+        1048576
+      ],
+      "wall": {
+        "unprofiled": {
+          "samples_ms": [
+            0.530848,
+            0.486491,
+            0.554785,
+            0.52905,
+            0.53059,
+            0.481181,
+            0.532199
+          ],
+          "median_ms": 0.53059,
+          "p10_ms": 0.484367,
+          "p90_ms": 0.5412334
+        },
+        "profiled": {
+          "samples_ms": [
+            0.466882,
+            0.501629,
+            0.518483,
+            0.515098,
+            0.466316,
+            0.514859,
+            1.099152
+          ],
+          "median_ms": 0.514859,
+          "p10_ms": 0.4666556,
+          "p90_ms": 0.7507506000000002
+        }
+      },
+      "self_time_breakdown": [
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "samples_ms": [
+            0.271171,
+            0.261927,
+            0.271351,
+            0.26909,
+            0.266988,
+            0.270117,
+            0.735601
+          ],
+          "median_ms": 0.270117,
+          "p10_ms": 0.2649636,
+          "p90_ms": 0.45705100000000015
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "samples_ms": [
+            0.023244,
+            0.023284,
+            0.02539,
+            0.024654,
+            0.024274,
+            0.024067,
+            0.033281
+          ],
+          "median_ms": 0.024274,
+          "p10_ms": 0.023268,
+          "p90_ms": 0.028546400000000003
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "samples_ms": [
+            0.043034,
+            0.04243,
+            0.045695,
+            0.042459,
+            0.045743,
+            0.044357,
+            0.129928
+          ],
+          "median_ms": 0.044357,
+          "p10_ms": 0.042447399999999996,
+          "p90_ms": 0.07941700000000002
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "samples_ms": [
+            0.009518,
+            0.009374,
+            0.010041,
+            0.010285,
+            0.009228,
+            0.009415,
+            0.013623
+          ],
+          "median_ms": 0.009518,
+          "p10_ms": 0.0093156,
+          "p90_ms": 0.0116202
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "samples_ms": [
+            0.103523,
+            0.148269,
+            0.14861,
+            0.148959,
+            0.10388,
+            0.149762,
+            0.163562
+          ],
+          "median_ms": 0.14861,
+          "p10_ms": 0.1037372,
+          "p90_ms": 0.155282
+        }
+      ],
+      "device_time_breakdown": [],
+      "cpu_parity": true,
+      "profile_samples": [
+        {
+          "elapsed_ns": 478274,
+          "unattributed_ns": 27784,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 512469,
+          "unattributed_ns": 27185,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 530867,
+          "unattributed_ns": 29780,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 527198,
+          "unattributed_ns": 31751,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 477698,
+          "unattributed_ns": 27585,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 526555,
+          "unattributed_ns": 28837,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 1113282,
+          "unattributed_ns": 37287,
+          "event_count": 9,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        }
+      ]
+    },
+    {
+      "case": "expression_end_to_end",
+      "shape": [
+        1048576
+      ],
+      "wall": {
+        "unprofiled": {
+          "samples_ms": [
+            3.010588,
+            2.972505,
+            3.101363,
+            3.024148,
+            3.133682,
+            2.954077,
+            3.957733
+          ],
+          "median_ms": 3.024148,
+          "p10_ms": 2.9651338,
+          "p90_ms": 3.4633024000000003
+        },
+        "profiled": {
+          "samples_ms": [
+            3.127387,
+            3.932943,
+            3.383291,
+            3.727415,
+            2.979946,
+            2.932769,
+            3.164742
+          ],
+          "median_ms": 3.164742,
+          "p10_ms": 2.9610752,
+          "p90_ms": 3.8096262000000003
+        }
+      },
+      "self_time_breakdown": [
+        {
+          "backend": "cpu",
+          "category": "allocation",
+          "samples_ms": [
+            0.120814,
+            0.118375,
+            0.121518,
+            0.120024,
+            0.118163,
+            0.117758,
+            0.124098
+          ],
+          "median_ms": 0.120024,
+          "p10_ms": 0.11800100000000001,
+          "p90_ms": 0.12255
+        },
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "samples_ms": [
+            0.383901,
+            0.357866,
+            0.499045,
+            0.353834,
+            0.328093,
+            0.325049,
+            0.326837
+          ],
+          "median_ms": 0.353834,
+          "p10_ms": 0.32612179999999996,
+          "p90_ms": 0.4299586
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "samples_ms": [
+            0.020376,
+            0.019742,
+            0.020204,
+            0.020692,
+            0.018858,
+            0.018979,
+            0.018426
+          ],
+          "median_ms": 0.019742,
+          "p10_ms": 0.0186852,
+          "p90_ms": 0.020502399999999997
+        },
+        {
+          "backend": "cuda",
+          "category": "copy_api",
+          "samples_ms": [
+            1.578984,
+            2.025131,
+            1.692632,
+            1.987353,
+            1.474833,
+            1.470239,
+            1.656749
+          ],
+          "median_ms": 1.656749,
+          "p10_ms": 1.4729954,
+          "p90_ms": 2.0024642
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "samples_ms": [
+            0.677939,
+            0.670442,
+            0.689639,
+            0.684018,
+            0.654975,
+            0.661924,
+            0.656391
+          ],
+          "median_ms": 0.670442,
+          "p10_ms": 0.6558246,
+          "p90_ms": 0.6862664
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "samples_ms": [
+            0.008687,
+            0.010298,
+            0.008965,
+            0.009437,
+            0.008314,
+            0.007944,
+            0.007945
+          ],
+          "median_ms": 0.008687,
+          "p10_ms": 0.0079446,
+          "p90_ms": 0.009781399999999999
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "samples_ms": [
+            0.271466,
+            0.621369,
+            0.276644,
+            0.473245,
+            0.315331,
+            0.27095,
+            0.314799
+          ],
+          "median_ms": 0.314799,
+          "p10_ms": 0.2712596,
+          "p90_ms": 0.5324946
+        }
+      ],
+      "device_time_breakdown": [],
+      "cpu_parity": true,
+      "profile_samples": [
+        {
+          "elapsed_ns": 3146340,
+          "unattributed_ns": 84173,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 3950082,
+          "unattributed_ns": 126859,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 3405624,
+          "unattributed_ns": 96977,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 3746287,
+          "unattributed_ns": 97684,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 2995883,
+          "unattributed_ns": 77316,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 2948518,
+          "unattributed_ns": 75675,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 3179734,
+          "unattributed_ns": 74489,
+          "event_count": 20,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        }
+      ]
+    },
+    {
+      "case": "mlp_resident",
+      "shape": [
+        32,
+        64,
+        128,
+        10
+      ],
+      "wall": {
+        "unprofiled": {
+          "samples_ms": [
+            0.148914,
+            0.144473,
+            0.151578,
+            0.148597,
+            0.153547,
+            0.297883,
+            0.146846
+          ],
+          "median_ms": 0.148914,
+          "p10_ms": 0.1458968,
+          "p90_ms": 0.21128140000000006
+        },
+        "profiled": {
+          "samples_ms": [
+            0.151445,
+            0.145855,
+            0.154701,
+            0.150604,
+            0.153987,
+            0.1484,
+            0.149749
+          ],
+          "median_ms": 0.150604,
+          "p10_ms": 0.147382,
+          "p90_ms": 0.1542726
+        }
+      },
+      "self_time_breakdown": [
+        {
+          "backend": "cuda",
+          "category": "allocation",
+          "samples_ms": [
+            0.010254,
+            0.009492,
+            0.011594,
+            0.010915,
+            0.011485,
+            0.010107,
+            0.010274
+          ],
+          "median_ms": 0.010274,
+          "p10_ms": 0.009861,
+          "p90_ms": 0.0115286
+        },
+        {
+          "backend": "cuda",
+          "category": "compute_sync",
+          "samples_ms": [
+            0.015774,
+            0.014473,
+            0.015743,
+            0.01479,
+            0.015729,
+            0.015096,
+            0.015082
+          ],
+          "median_ms": 0.015096,
+          "p10_ms": 0.0146632,
+          "p90_ms": 0.0157554
+        },
+        {
+          "backend": "cuda",
+          "category": "deallocation",
+          "samples_ms": [
+            0.007968,
+            0.006831,
+            0.008448,
+            0.008041,
+            0.008636,
+            0.007169,
+            0.00744
+          ],
+          "median_ms": 0.007968,
+          "p10_ms": 0.0070338,
+          "p90_ms": 0.0085232
+        },
+        {
+          "backend": "cuda",
+          "category": "dispatch",
+          "samples_ms": [
+            0.008737,
+            0.008315,
+            0.009008,
+            0.008691,
+            0.008734,
+            0.008393,
+            0.008774
+          ],
+          "median_ms": 0.008734,
+          "p10_ms": 0.008361799999999999,
+          "p90_ms": 0.0088676
+        },
+        {
+          "backend": "cuda",
+          "category": "synchronize",
+          "samples_ms": [
+            0.090325,
+            0.09005,
+            0.090883,
+            0.089945,
+            0.09005,
+            0.089753,
+            0.090006
+          ],
+          "median_ms": 0.09005,
+          "p10_ms": 0.0898682,
+          "p90_ms": 0.09054820000000001
+        }
+      ],
+      "device_time_breakdown": [],
+      "cpu_parity": true,
+      "profile_samples": [
+        {
+          "elapsed_ns": 157327,
+          "unattributed_ns": 24269,
+          "event_count": 24,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 151183,
+          "unattributed_ns": 22022,
+          "event_count": 24,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 160102,
+          "unattributed_ns": 24426,
+          "event_count": 24,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 156068,
+          "unattributed_ns": 23686,
+          "event_count": 24,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 159250,
+          "unattributed_ns": 24616,
+          "event_count": 24,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 153763,
+          "unattributed_ns": 23245,
+          "event_count": 24,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        },
+        {
+          "elapsed_ns": 160869,
+          "unattributed_ns": 29293,
+          "event_count": 24,
+          "complete": true,
+          "dropped_events": 0,
+          "device_event_count": 0,
+          "device_errors": 0,
+          "dropped_device_events": 0,
+          "device_complete": null
+        }
+      ]
+    }
+  ],
+  "publication": {
+    "format": "cortex-public-report-v1",
+    "scope": "known local identifiers removed; arbitrary text requires review"
+  }
+}

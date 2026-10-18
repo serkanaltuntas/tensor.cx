@@ -405,6 +405,8 @@ print(ln.cpu().numpy().shape)
   DLPack-exposed storage; see [the memory pool contract](docs/CUDA_MEMORY_POOL.md).
 - Opt-in `cx.profile()` separates CPU/CUDA native allocation, copy, execution
   and existing wait regions using host timings; Metal is not instrumented.
+  Optional `cx.profile(device_timing=True)` adds separate CUDA kernel event
+  intervals; host and device durations are not combined.
   See [runtime profiling](docs/RUNTIME_PROFILING.md).
 - Execution is synchronous, but native backend calls release the Python GIL, so
   operations issued from multiple Python threads run concurrently in the native

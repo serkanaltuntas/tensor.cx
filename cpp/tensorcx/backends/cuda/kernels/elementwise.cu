@@ -120,87 +120,90 @@ unsigned blocks(std::size_t count) {
   return static_cast<unsigned>(std::min<std::size_t>(1 + (count - 1) / kThreads, 65535));
 }
 
-cudaError_t finish_launch() {
-  const auto error = cudaGetLastError();
-  return error == cudaSuccess ? profiled_synchronize() : error;
-}
 }  // namespace
 
 cudaError_t launch_fill(void* output, std::size_t count, double value, DType dtype) {
   ProfileScope profile(ProfileCategory::kCompute, "launch_fill", "cuda");
   if (count == 0) return cudaSuccess;
+  DeviceTimer timer("launch_fill");
   if (dtype == DType::kInt32)
     fill_numeric<<<blocks(count), kThreads>>>(static_cast<std::int32_t*>(output), count,
                                              static_cast<std::int32_t>(value));
   else
     fill_numeric<<<blocks(count), kThreads>>>(static_cast<float*>(output), count, static_cast<float>(value));
-  return finish_launch();
+  return finish_profiled_launch(timer);
 }
 
 cudaError_t launch_binary(const void* lhs, const void* rhs, void* output,
                           std::size_t count, OpKind op, DType dtype) {
   ProfileScope profile(ProfileCategory::kCompute, "launch_binary", "cuda");
   if (count == 0) return cudaSuccess;
+  DeviceTimer timer("launch_binary");
   if (dtype == DType::kInt32)
     binary_numeric<<<blocks(count), kThreads>>>(static_cast<const std::uint32_t*>(lhs),
         static_cast<const std::uint32_t*>(rhs), static_cast<std::uint32_t*>(output), count, op);
   else
     binary_numeric<<<blocks(count), kThreads>>>(static_cast<const float*>(lhs),
         static_cast<const float*>(rhs), static_cast<float*>(output), count, op);
-  return finish_launch();
+  return finish_profiled_launch(timer);
 }
 cudaError_t launch_broadcast_binary(const void* lhs, const void* rhs, void* output,
                                     std::size_t count, OpKind op,
                                     const Dim* metadata, std::size_t rank, DType dtype) {
   ProfileScope profile(ProfileCategory::kCompute, "launch_broadcast_binary", "cuda");
   if (count == 0) return cudaSuccess;
+  DeviceTimer timer("launch_broadcast_binary");
   if (dtype == DType::kInt32)
     broadcast_binary_numeric<<<blocks(count), kThreads>>>(static_cast<const std::uint32_t*>(lhs),
         static_cast<const std::uint32_t*>(rhs), static_cast<std::uint32_t*>(output), count, op, metadata, rank);
   else
     broadcast_binary_numeric<<<blocks(count), kThreads>>>(static_cast<const float*>(lhs),
         static_cast<const float*>(rhs), static_cast<float*>(output), count, op, metadata, rank);
-  return finish_launch();
+  return finish_profiled_launch(timer);
 }
 
 cudaError_t launch_transpose(const void* input, void* output, std::size_t count,
                              const Dim* metadata, std::size_t rank, Dim offset, DType dtype) {
   ProfileScope profile(ProfileCategory::kCompute, "launch_transpose", "cuda");
   if (count == 0) return cudaSuccess;
+  DeviceTimer timer("launch_transpose");
   if (dtype == DType::kBool) {
     transpose_bits<<<blocks(count), kThreads>>>(static_cast<const std::uint8_t*>(input),
         static_cast<std::uint8_t*>(output), count, metadata, rank, offset);
-    return finish_launch();
+    return finish_profiled_launch(timer);
   }
   transpose_bits<<<blocks(count), kThreads>>>(static_cast<const std::uint32_t*>(input),
       static_cast<std::uint32_t*>(output), count, metadata, rank, offset);
-  return finish_launch();
+  return finish_profiled_launch(timer);
 }
 
 cudaError_t launch_concat(const void* input, void* output, std::size_t count,
                           Dim block, Dim output_block, Dim offset, DType dtype) {
   ProfileScope profile(ProfileCategory::kCompute, "launch_concat", "cuda");
   if (count == 0) return cudaSuccess;
+  DeviceTimer timer("launch_concat");
   if (dtype == DType::kBool) {
     concat_bits<<<blocks(count), kThreads>>>(static_cast<const std::uint8_t*>(input),
         static_cast<std::uint8_t*>(output), count, block, output_block, offset);
-    return finish_launch();
+    return finish_profiled_launch(timer);
   }
   concat_bits<<<blocks(count), kThreads>>>(static_cast<const std::uint32_t*>(input),
       static_cast<std::uint32_t*>(output), count, block, output_block, offset);
-  return finish_launch();
+  return finish_profiled_launch(timer);
 }
 
 cudaError_t launch_validate_int32_cast(const float* input, std::size_t count, int* invalid) {
   ProfileScope profile(ProfileCategory::kCompute, "launch_validate_int32_cast", "cuda");
   if (count == 0) return cudaSuccess;
+  DeviceTimer timer("launch_validate_int32_cast");
   validate_int32_cast<<<blocks(count), kThreads>>>(input, count, invalid);
-  return finish_launch();
+  return finish_profiled_launch(timer);
 }
 
 cudaError_t launch_cast(const void* input, void* output, std::size_t count, DType input_dtype) {
   ProfileScope profile(ProfileCategory::kCompute, "launch_cast", "cuda");
   if (count == 0) return cudaSuccess;
+  DeviceTimer timer("launch_cast");
   if (input_dtype == DType::kFloat32) {
     cast_f32_i32<<<blocks(count), kThreads>>>(static_cast<const float*>(input),
                                             static_cast<std::int32_t*>(output), count);
@@ -208,12 +211,13 @@ cudaError_t launch_cast(const void* input, void* output, std::size_t count, DTyp
     cast_i32_f32<<<blocks(count), kThreads>>>(static_cast<const std::int32_t*>(input),
                                             static_cast<float*>(output), count);
   }
-  return finish_launch();
+  return finish_profiled_launch(timer);
 }
 cudaError_t launch_scalar(const void* input, void* output, std::size_t count,
                           OpKind op, double scalar, bool scalar_left, DType dtype) {
   ProfileScope profile(ProfileCategory::kCompute, "launch_scalar", "cuda");
   if (count == 0) return cudaSuccess;
+  DeviceTimer timer("launch_scalar");
   if (dtype == DType::kInt32)
     scalar_numeric<<<blocks(count), kThreads>>>(static_cast<const std::uint32_t*>(input),
         static_cast<std::uint32_t*>(output), count, op,
@@ -221,6 +225,6 @@ cudaError_t launch_scalar(const void* input, void* output, std::size_t count,
   else
     scalar_numeric<<<blocks(count), kThreads>>>(static_cast<const float*>(input),
         static_cast<float*>(output), count, op, static_cast<float>(scalar), scalar_left);
-  return finish_launch();
+  return finish_profiled_launch(timer);
 }
 }  // namespace tensorcx::cuda

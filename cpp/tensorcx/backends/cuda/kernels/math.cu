@@ -84,8 +84,9 @@ __global__ void math_kernel(const Word* a,const Word* b,const Word* c,Word* out,
 cudaError_t launch_math(const void* a,const void* b,const void* c,void* output,void* indices,const Dim* metadata,std::size_t groups) {
   ProfileScope profile(ProfileCategory::kCompute, "launch_math", "cuda");
   if(!groups)return cudaSuccess;
+  DeviceTimer timer("launch_math");
   unsigned blocks=static_cast<unsigned>(std::min<std::size_t>((groups-1)/256+1,65535));
   math_kernel<<<blocks,256>>>(static_cast<const Word*>(a),static_cast<const Word*>(b),static_cast<const Word*>(c),static_cast<Word*>(output),static_cast<Word*>(indices),metadata);
-  auto error=cudaGetLastError();return error==cudaSuccess?profiled_synchronize():error;
+  return finish_profiled_launch(timer);
 }
 }

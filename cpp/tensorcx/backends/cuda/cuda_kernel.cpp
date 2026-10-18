@@ -213,14 +213,18 @@ Expected<CudaTensor> CudaKernelModule::launch(std::span<const KernelArgument> ar
     }
     if (threads) {
       ProfileScope compute(ProfileCategory::kCompute, "generated_kernel", "cuda");
+      DeviceTimer timer("generated_kernel");
       if (auto status = driver_status(cuLaunchKernel(impl_->function, static_cast<unsigned>(blocks),
               1, 1, block, 1, 1, 0, nullptr, slots.data(), nullptr), "CUDA generated kernel launch");
-          !status.ok()) return status;
+          !status.ok()) { timer.finish(false); return status; }
+      timer.stop();
+      Status status;
       {
         ProfileScope wait(ProfileCategory::kSynchronize, "cuCtxSynchronize", "cuda");
-        if (auto status = driver_status(cuCtxSynchronize(), "CUDA generated kernel synchronize");
-            !status.ok()) return status;
+        status = driver_status(cuCtxSynchronize(), "CUDA generated kernel synchronize");
       }
+      timer.finish(status.ok());
+      if (!status.ok()) return status;
     }
     return CudaTensor(DType::kFloat32, output.shape, copied.move_value());
   } catch (const std::invalid_argument& error) {

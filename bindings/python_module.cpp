@@ -1031,9 +1031,11 @@ std::string launch_metal_library_function_via_backend(
 void bind_dlpack(nb::module_& module);
 
 NB_MODULE(_core, module) {
-  module.def("_profile_begin", [](nb::handle limit) {
-    return tensorcx::begin_profile(cast_uint32_or_throw(limit, "max_events must be an integer in [1, 100000]"));
-  });
+  module.def("_profile_begin", [](nb::handle limit, nb::handle device_timing) {
+    if (!PyBool_Check(device_timing.ptr())) throw std::invalid_argument("device_timing must be a bool");
+    return tensorcx::begin_profile(cast_uint32_or_throw(limit, "max_events must be an integer in [1, 100000]"),
+                                   nb::cast<bool>(device_timing));
+  }, nb::arg("max_events"), nb::arg("device_timing") = false);
   module.def("_profile_end", [](nb::handle token) {
     if (is_bool_like(token)) throw std::invalid_argument("profile token must be an integer");
     const auto result = tensorcx::end_profile(nb::cast<std::uint64_t>(token));
@@ -1053,6 +1055,19 @@ NB_MODULE(_core, module) {
       events.append(row);
     }
     report["events"] = events;
+    report["device_timing"] = result.device_timing;
+    report["dropped_device_events"] = result.dropped_device_events;
+    nb::list device_events;
+    for (const auto& event : result.device_events) {
+      nb::dict row;
+      row["id"] = event.id; row["host_event_id"] = event.host_event_id;
+      row["name"] = event.name; row["backend"] = event.backend;
+      row["operation"] = event.operation ? nb::cast(tensorcx::profile_operation_name(*event.operation)) : nb::none();
+      row["elapsed_ms"] = event.elapsed_ms ? nb::cast(*event.elapsed_ms) : nb::none();
+      row["error"] = event.error ? nb::cast(event.error) : nb::none();
+      device_events.append(row);
+    }
+    report["device_events"] = device_events;
     return report;
   });
   module.doc() = "Native extension module for tensor.cx.";

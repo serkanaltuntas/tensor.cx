@@ -39,7 +39,7 @@ Cached CUDA pool blocks still occupy device memory. `pool.stats()` reports the
 payload owned by that pool, rather than process-wide or total GPU memory.
 Use [host profiling and memory reuse](/docs/performance/) to examine allocation,
 copy and wait costs, or try the [runtime tools example](/docs/examples/#inspect-and-reuse-storage).
-Native Metal profiling and device-event timings remain open.
+Native Metal profiling and CUDA transfer timing remain open.
 
 LLVM checks do not execute tools by default. `--check-tools` runs bounded version
 checks for the optional LLVM 21.1.8 toolchain. Ordinary tensor operations do not

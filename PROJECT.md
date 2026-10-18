@@ -77,8 +77,8 @@ Memory pool:            bounded opt-in CUDA exact-size reuse with synchronous op
                         docs/CUDA_MEMORY_POOL.md; CPU/Metal pools and async remain open
 Empty allocation:       CUDA empty uses direct device storage without CPU staging;
                         docs/CUDA_EMPTY.md; contents remain unspecified
-Runtime profiling:      opt-in CPU/CUDA native host spans; Metal uninstrumented;
-                        docs/RUNTIME_PROFILING.md; device-event timing remains open
+Runtime profiling:      opt-in CPU/CUDA host spans and separate CUDA kernel event intervals;
+                        docs/RUNTIME_PROFILING.md; Metal/transfer timing remains open
 Next implementation:    compatibility and repository-wide continuous GPU validation
 Open scope:             other SM/host versions and broader compiler features
 API increment:          arithmetic/scalars, contiguous reshape and keepdims;
