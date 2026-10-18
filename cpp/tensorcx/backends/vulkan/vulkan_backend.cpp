@@ -10,6 +10,7 @@
 #include "tensorcx/backends/vulkan/vulkan_context.h"
 #include "tensorcx/backends/vulkan/vulkan_transform.h"
 #include "tensorcx/backends/vulkan/vulkan_predicate.h"
+#include "tensorcx/backends/vulkan/vulkan_reduction.h"
 #include "tensorcx/core/predicate.h"
 
 namespace tensorcx::vulkan {
@@ -47,6 +48,10 @@ std::uint32_t shader_operation(OpKind kind) {
 
 Status VulkanBackend::execute(const BackendExecution& execution) {
   if (auto status = validate_primitive_execution_contract(execution, "vulkan"); !status.ok()) return status;
+  if (execution.op.kind == OpKind::kSum || execution.op.kind == OpKind::kMax ||
+      execution.op.kind == OpKind::kMean || execution.op.kind == OpKind::kMin ||
+      execution.op.kind == OpKind::kArgmax)
+    return execute_reduction(execution);
   if (is_predicate_elementwise(execution.op.kind) || execution.op.kind == OpKind::kAny ||
       execution.op.kind == OpKind::kAll || execution.op.kind == OpKind::kMaskedSelect)
     return execute_predicate(execution);

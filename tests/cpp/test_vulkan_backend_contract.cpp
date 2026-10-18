@@ -70,6 +70,11 @@ void contract() {
     execution.op = OpDesc{OpKind::kNegate}; execution.inputs = inputs; execution.outputs = outputs;
     invalid(backend.execute(execution));
     require(outputs[0].buffer == original.buffer, "failure published an output");
+    for (auto kind : {OpKind::kSum, OpKind::kMax, OpKind::kMean, OpKind::kMin, OpKind::kArgmax}) {
+      execution.op = OpDesc{kind}; execution.op.axis = 0;
+      invalid(backend.execute(execution));
+      require(outputs[0].buffer == original.buffer, "rejected reduction published an output");
+    }
     for (auto kind : {OpKind::kCast, OpKind::kTranspose, OpKind::kSlice, OpKind::kConcat}) {
       execution.op = OpDesc{kind};
       execution.op.target_dtype = DType::kInt32;
@@ -99,6 +104,15 @@ void contract() {
   check_predicate_rejection(OpDesc{OpKind::kAny}, {original});
   auto bad_axis = OpDesc{OpKind::kAll}; bad_axis.reduction_axes = Shape{0, 0};
   check_predicate_rejection(bad_axis, {mask});
+  for (auto kind : {OpKind::kSum, OpKind::kMax, OpKind::kMean, OpKind::kMin, OpKind::kArgmax}) {
+    auto op = OpDesc{kind}; op.reduction_axes = Shape{0, 0};
+    check_predicate_rejection(op, {original});
+    op.reduction_axes.reset(); op.axis = 1;
+    check_predicate_rejection(op, {original});
+    op.axis = 0;
+    check_predicate_rejection(op, {mask});
+    check_predicate_rejection(op, {foreign});
+  }
   for (auto kind : {OpKind::kEqual, OpKind::kWhere, OpKind::kMaskedSelect}) {
     auto args = kind == OpKind::kWhere ? std::vector<Tensor>{mask, original, original}
               : kind == OpKind::kMaskedSelect ? std::vector<Tensor>{original, mask}

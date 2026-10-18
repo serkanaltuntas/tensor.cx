@@ -47,8 +47,9 @@ VULKAN_OPERATIONS = {
         "equal", "not_equal", "less", "less_equal", "greater", "greater_equal",
         "where", "masked_select"
     )},
-    **{name: _NUMERIC for name in ("add", "subtract", "multiply", "negative")},
+    **{name: _NUMERIC for name in ("add", "subtract", "multiply", "negative", "sum", "max", "min", "argmax")},
     "divide": _FLOAT,
+    "mean": _FLOAT,
     "randn": _FLOAT,
     **{name: _BOOL for name in ("logical_and", "logical_or", "logical_xor", "logical_not", "any", "all")},
 }

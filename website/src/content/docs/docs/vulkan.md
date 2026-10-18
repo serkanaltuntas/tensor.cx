@@ -1,6 +1,6 @@
 ---
 title: Vulkan / SPIR-V
-description: Build and use the optional Linux Vulkan backend for GPU arithmetic, dtype conversion, indexing and tensor joins.
+description: Build and use the optional Linux Vulkan backend for GPU arithmetic, reductions, dtype conversion, indexing and tensor joins.
 ---
 
 Vulkan is an optional Linux backend with a deliberately smaller operation set
@@ -67,6 +67,17 @@ selection uses a GPU prefix scan; only the result row count is read back.
 Empty `any`/`all` reductions return false/true. Boolean reductions currently
 iterate serially per output; `where` uses two synchronized GPU passes.
 
+Numeric `sum/max/mean/min` support all, single, multiple or no axes and
+`keepdims`; `argmax` supports one axis or flattened search, returning int32
+indices. Inputs may be float32 or int32, except mean requires float32. Int32
+sum wraps; float32 sum/mean preserve the sequential CPU order and gradual
+underflow using integer GPU arithmetic. Mean divides once after the sum.
+Min/max preserve the first NaN's bits and first signed zero on ties; argmax
+selects the first maximum/NaN. Empty sum/mean return zero/NaN, while
+max/min/argmax reject empty reduction spaces. An empty axis tuple copies bits
+to independent output storage. Numeric reductions currently iterate serially
+per output, without tensor-value readback; throughput optimization remains open.
+
 ```python
 parts = cx.split(x[:, ::-1].T, [1], axis=-1)
 joined = cx.concat(parts, axis=-1)
@@ -76,7 +87,7 @@ print(joined.astype(cx.int32).numpy())
 #  [1 4]]
 ```
 
-Matmul, numeric reductions, inference, activations,
+Matmul, inference, activations, remaining math,
 DLPack and generated kernels/MLIR are not implemented on Vulkan.
 Unsupported operations raise errors. Inspect capabilities before choosing a
 backend for a larger workload.

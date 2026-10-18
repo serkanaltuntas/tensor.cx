@@ -24,12 +24,13 @@ CPU/Metal/CUDA expose index 0; Vulkan has indexed routes with one physical GPU v
 | Bool fill, logic, any/all and mask selection | Yes | Yes | Yes | Yes |
 | Binary arithmetic broadcasting | Yes | Yes | Yes | Yes |
 | Float32 batched/vector matmul | Yes | Custom + optional optimized path | Custom path | Not implemented |
-| Float32 sum, max, mean | Yes | Yes | Yes | Not implemented |
-| Int32 sum, max | Yes | Yes | Yes | Not implemented |
-| Sum/max/mean `keepdims` | Yes | Yes | Yes | Not implemented |
-| All-axis / multi-axis sum, max, mean | Yes | Yes | Yes | Not implemented |
+| Float32 sum, max, mean | Yes | Yes | Yes | Yes |
+| Int32 sum, max | Yes | Yes | Yes | Yes |
+| Sum/max/mean `keepdims` | Yes | Yes | Yes | Yes |
+| All-axis / multi-axis sum, max, mean | Yes | Yes | Yes | Yes |
 | Float32 log, sqrt | Yes | Yes | Yes | Not implemented |
-| Float32/int32 abs, min, argmax, clip, topk | Yes | Yes | Yes | Not implemented |
+| Float32/int32 min, argmax | Yes | Yes | Yes | Yes |
+| Float32/int32 abs, clip, topk | Yes | Yes | Yes | Not implemented |
 | Float32 linear, affine norms, embedding, attention | Yes | Yes | Yes | Not implemented |
 | Float32 exp, GELU, SiLU | Yes | Yes | Yes | Not implemented |
 | Float32 softmax, RMSNorm, LayerNorm | Yes | Yes | Yes | Not implemented |
@@ -83,13 +84,15 @@ abs, min, argmax, clip and topk. Float32 matmul supports `auto` and `custom`, no
 ## Vulkan / SPIR-V
 
 The optional Linux backend supports GPU copies/factories/views, casts,
-transpose, basic indexing/joins, comparisons/masks, boolean reductions and
+transpose, basic indexing/joins, comparisons/masks, boolean/numeric reductions and
 broadcast float32/int32 arithmetic.
 It has real GTX 980 Ti validation, with no
 claim of other-GPU acceptance. Basic float32 arithmetic uses integer GPU
 significands for ties-to-even rounding and gradual underflow; arithmetic NaNs
 are canonical quiet NaNs. Software Vulkan CPU devices are excluded from
-GPU discovery. Matmul, inference, numeric reductions, DLPack and MLIR are outside this
+GPU discovery. Numeric sum/max/mean/min/argmax preserve CPU order and execute
+serially per output, with mean restricted to float32. Matmul, inference,
+remaining math, DLPack and MLIR are outside this
 first slice. See [Vulkan setup and limits](/docs/vulkan/).
 
 ## Compiler boundary

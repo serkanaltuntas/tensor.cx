@@ -54,12 +54,15 @@ print(cx.capabilities("vulkan"))
 - All three dtypes: broadcast comparisons, `where` and leading-dimension
   boolean mask selection. Boolean tensors also support logical and/or/xor/not
   and `any`/`all` over scalar, single, multiple or all axes, with `keepdims`.
+- `float32`, `int32`: `sum`, `max`, `min` and `argmax`; `mean` is float32-only.
+  Sum/max/mean/min support all, single, multiple or no axes and `keepdims`.
+  Argmax supports one axis or a flattened search and returns int32 indices.
 - Per-device capabilities and basic diagnostics: Vulkan API version, raw
   vendor-encoded driver version, storage-buffer limit and total device-local
   heap bytes. Available/free bytes are **not collected**. Heaps are device-wide,
   not a count of tensor-owned allocations.
 
-Matmul, numeric reductions, activations, norms,
+Matmul, remaining math, activations, norms,
 inference, DLPack, generated kernels/MLIR, profiling, memory
 pools, batching and asynchronous execution are not implemented on Vulkan.
 Unsupported operations raise explicit errors; no CPU fallback is performed.
@@ -108,6 +111,22 @@ inclusive prefix scan followed by stable gather; only the final four-byte
 selected-row count is read back for output allocation. `any`/`all` currently
 reduce serially per output element; empty reductions return false/true.
 These initial algorithms establish correctness, not optimized throughput.
+
+Numeric reductions currently assign one invocation to each output and traverse
+reduced axes in input-axis order, independent of the order of an axis tuple.
+Float32 sum uses the integer-significand add helper; mean performs one sum then
+one division, with the CPU's float32 extent conversion. Non-NaN result bits
+match that sequential CPU order, including subnormals and overflow. Sum/mean
+arithmetic NaNs are canonical quiet NaNs. Int32 sum wraps modulo 2^32.
+Min/max preserve the first NaN's stored bits and the first zero's sign on ties;
+argmax returns the first maximum/NaN index. Empty sums are zero and empty means
+are NaN; max/min/argmax reject an empty reduction even if no output elements
+would be produced. An explicit empty axis tuple copies stored bits to new
+storage; argmax's internal empty-axis plan instead returns zero indices.
+Shape/axis/index limits are validated before publishing any output; unused
+metadata on empty outputs need not fit shader indices. No tensor values are
+read back for numeric reductions. Long serial reductions are a correctness
+baseline; parallel algorithms and measured optimization remain open.
 
 ## Device identity and ownership
 
@@ -174,6 +193,7 @@ TENSORCX_VULKAN_VALIDATION=1 TENSORCX_REQUIRE_BACKENDS=vulkan \
   uv run --no-sync pytest -q tests/python/test_vulkan.py \
   tests/python/test_vulkan_transform.py tests/python/test_vulkan_predicate.py \
   tests/python/test_vulkan_float32.py \
+  tests/python/test_vulkan_reduction.py tests/python/test_multi_axis_reductions.py \
   tests/python/test_boolean_masks.py tests/python/test_backend_parity.py
 # Build native tests with TENSORCX_BUILD_TESTS=ON and TENSORCX_ENABLE_VULKAN=ON:
 uv run --no-sync ctest --test-dir build/vulkan-native --output-on-failure
@@ -196,6 +216,11 @@ and NumPy across exponent boundaries, rounding ties, random bit patterns,
 scalar-left/right paths, empty shapes, threaded calls and 2D dispatch. NaN
 classification and canonical quiet bits are checked separately from CPU NaN
 payloads.
+Numeric acceptance covers all/selected/empty axes and keepdims, first NaN/tie
+ordering, signed zeros, gradual underflow, wrapping int32, million-element
+reduction spaces, 2D output dispatch, high-rank/unused empty metadata, immutable
+inputs and composition with host export blocked. Native rejections retain the
+caller's output slot for malformed input ownership, dtype, shape and axes.
 Fresh source-archive/wheel
 installation checks CPU and GPU arithmetic and hidden-driver CPU execution.
 The optional CI job builds Vulkan and tests CPU/no-loader paths; it is **not**
@@ -215,7 +240,7 @@ operation reference, and each advertised feature needs real-device acceptance.
   concat/stack/split, including packed bool and float-to-int validation.
 - [x] Comparisons, boolean logic, `where`, masked selection and boolean
   reductions, selected axes and `keepdims`.
-- [ ] Numeric reductions, selected axes and `keepdims`.
+- [x] Numeric sum/max/mean/min/argmax reductions, selected axes and `keepdims`.
 - [ ] Vector, matrix and broadcast-batched matmul.
 - [ ] Remaining math, activations, normalization and inference operations
   (`linear`, affine norms, embedding and attention), with CPU parity.

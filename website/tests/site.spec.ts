@@ -108,7 +108,8 @@ test('mobile pages fit and the documentation menu works', async ({ page }) => {
 test('Vulkan guide states the supported subset and links to the matrix', async ({ page }) => {
   await page.goto('/docs/vulkan/');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Vulkan / SPIR-V');
-  await expect(page.locator('main')).toContainText('Matmul, numeric reductions, inference');
+  await expect(page.locator('main')).toContainText('sum/max/mean/min');
+  await expect(page.locator('main')).toContainText('Matmul, inference, activations');
   await expect(page.locator('main')).toContainText('boolean any/all');
   await expect(page.locator('main')).toContainText('Only one physical Vulkan GPU has been tested');
   await expect(page.locator('main')).toContainText('TENSORCX_ENABLE_VULKAN=ON');

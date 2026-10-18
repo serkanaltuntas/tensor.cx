@@ -70,6 +70,10 @@ def main():
             ('masked_select', bool_device[bool_device], bool_host[bool_host]),
             ('any', bool_device.any(axis=1, keepdims=True), bool_host.any(axis=1, keepdims=True)),
             ('all', bool_device.all(axis=(0, 1)), bool_host.all(axis=(0, 1))),
+            ('sum', x.sum((0, 2), keepdims=True), a.sum((0, 2), keepdims=True)),
+            ('max', x.max(2), a.max(2)), ('mean', x.mean((2, 0)), a.mean((2, 0))),
+            ('min', x.min((2, 0)), a.min((2, 0))), ('argmax', x.argmax(0), a.argmax(0)),
+            ('int32_sum', cx.tensor([2147483647, 2], device=device).sum(), cx.tensor([2147483647, 2]).sum()),
         ]:
             check(actual.dtype == expected.dtype, name + ': dtype mismatch')
             if expected.dtype in (cx.int32, cx.bool):
@@ -93,11 +97,11 @@ def main():
             checks.append('float32_rne_' + name)
         if not args.hidden_gpu:
             try:
-                cx.sum(x)
+                cx.exp(x)
             except ValueError as error:
                 check('not supported' in str(error), str(error))
             else:
-                raise RuntimeError('unsupported Vulkan reduction accepted')
+                raise RuntimeError('unsupported Vulkan exponential accepted')
             check(cx._core._vulkan_validation_errors() == 0, 'Vulkan validation errors')
             checks.append('unsupported_operation_error')
             invalid_cast = cx.tensor([1., np.nan, 2.], device=device)

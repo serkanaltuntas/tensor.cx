@@ -3,7 +3,7 @@
 The optional [Vulkan runtime](VULKAN_BACKEND.md) supports a smaller subset:
 copies/factories, shared shape views, basic arithmetic, all dtype casts,
 transpose, basic indexing/concat/stack/split, comparisons/masks and boolean
-`any`/`all`. Check
+`any`/`all`, numeric sum/max/mean/min and argmax. Check
 `cx.capabilities(device)` before placing broader workloads.
 
 User-requested increment, 2026-10-04: basic arithmetic and Python/NumPy real

@@ -84,6 +84,7 @@ void transform(uint word) {
 
 #include "predicate.glsl"
 #include "float32.glsl"
+#include "reduction.glsl"
 
 void main() {
     uint group = gl_WorkGroupID.y * p.groups_x + gl_WorkGroupID.x;
@@ -91,6 +92,7 @@ void main() {
     uint i = group * 64u + gl_LocalInvocationID.x;
     if (i >= p.count) return;
     if (p.operation == 0u) { output_data[i] = p.scalar_bits; return; }
+    if (p.operation >= 40u) { numeric_reduction(i); return; }
     if (p.operation >= 20u) { predicate(i); return; }
     if (p.operation >= 10u) { transform(i); return; }
     uint a_index = 0u, b_index = 0u, rest = i;

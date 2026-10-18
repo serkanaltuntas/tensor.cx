@@ -114,7 +114,8 @@ def main():
                          'cpp/tensorcx/backends/cuda/kernels/primitives.cu',
                          'cpp/tensorcx/backends/vulkan/kernels/elementwise.comp',
                          'cpp/tensorcx/backends/vulkan/kernels/predicate.glsl',
-                         'cpp/tensorcx/backends/vulkan/kernels/float32.glsl', 'cmake/embed_spirv.py',
+                         'cpp/tensorcx/backends/vulkan/kernels/float32.glsl',
+                         'cpp/tensorcx/backends/vulkan/kernels/reduction.glsl', 'cmake/embed_spirv.py',
                          'python/tensorcx/_compiler/cuda.py', 'tools/distribution_probe.py',
                          'examples/cuda_mlp.py', 'bindings/dlpack.cpp',
                          'third_party/dlpack/dlpack.h', 'third_party/dlpack/LICENSE'):

@@ -86,7 +86,7 @@ Output-copy increment:  generated CUDA v2 full writes omit the template copy;
                         docs/CUDA_OUTPUT_COPY_ELISION.md; private output and legacy fallback retained
 Vulkan increment:       optional Linux SPIR-V copies/factories/basic arithmetic,
                         casts/transpose/indexing/concat/stack/split,
-                        comparisons/masks/boolean reductions;
+                        comparisons/masks/boolean and numeric reductions;
                         basic float32 integer-significand RNE/gradual underflow;
                         docs/VULKAN_BACKEND.md (2026-10-18, GTX 980 Ti validation)
 Next implementation:    wider device compatibility and continuous GPU validation
