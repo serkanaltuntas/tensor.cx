@@ -49,7 +49,8 @@ CAPABILITY_DEPENDENCIES = {
 
 BACKEND_CAPABILITIES = {
     "vulkan": frozenset({"copy", "tensor_factories_float32", "tensor_factories_int32",
-                         "binary_ops_float32", "binary_ops_int32", "binary_ops_dtype_mismatch"}),
+                         "binary_ops_float32", "binary_ops_int32", "binary_ops_dtype_mismatch",
+                         "reductions_float32", "reductions_int32"}),
     "cpu": frozenset(
         {
             "copy",

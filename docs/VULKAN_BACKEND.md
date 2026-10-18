@@ -221,6 +221,9 @@ ordering, signed zeros, gradual underflow, wrapping int32, million-element
 reduction spaces, 2D output dispatch, high-rank/unused empty metadata, immutable
 inputs and composition with host export blocked. Native rejections retain the
 caller's output slot for malformed input ownership, dtype, shape and axes.
+High-rank tensors remain valid internally. NumPy export follows NumPy's own
+rank limit and safely rejects larger ranks; reshape explicitly before export
+(see [the API contract](TENSOR_API.md)).
 Fresh source-archive/wheel
 installation checks CPU and GPU arithmetic and hidden-driver CPU execution.
 The optional CI job builds Vulkan and tests CPU/no-loader paths; it is **not**

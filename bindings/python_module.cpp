@@ -12,6 +12,7 @@
 #include <deque>
 #include <functional>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <span>
 #include <stdexcept>
@@ -318,28 +319,34 @@ nb::tuple shape_tuple(const Shape& shape) {
 // the nb::ndarray NumPy bridge §5.6 chose nanobind for, and keeps Tensor.numpy()
 // O(n) memory copies rather than O(n) PyObject allocations on 1M/16M tensors.
 template <typename T>
-nb::object make_numpy_array(std::span<const T> data, const Shape& shape) {
-  const std::size_t ndim = shape.size();
-  std::vector<std::size_t> dims(ndim);
-  for (std::size_t i = 0; i < ndim; ++i) {
-    dims[i] = static_cast<std::size_t>(shape[i]);
+nb::object export_numpy_copy(std::unique_ptr<T[]> owned, std::size_t count, const Shape& shape) {
+  nb::capsule owner(owned.get(), [](void* ptr) noexcept { delete[] static_cast<T*>(ptr); });
+  T* data = owned.release();
+  // NumPy 2's baseline supports 64 axes. Above that, let the installed NumPy
+  // validate its own limit through reshape. Creating a high-rank nanobind
+  // ndarray directly can lose the shape or hit its unrecoverable rank check.
+  if (shape.size() > 64) {
+    nb::object flat = nb::cast(nb::ndarray<nb::numpy, T>(data, 1, &count, owner));
+    return flat.attr("reshape")(shape_tuple(shape));
   }
+  std::vector<std::size_t> dims(shape.begin(), shape.end());
+  return nb::cast(nb::ndarray<nb::numpy, T>(data, dims.size(), dims.data(), owner));
+}
 
-  T* owned = new T[data.size()];
+template <typename T>
+nb::object make_numpy_array(std::span<const T> data, const Shape& shape) {
+  std::unique_ptr<T[]> owned(new T[data.size()]);
   if (!data.empty()) {
-    std::memcpy(owned, data.data(), data.size() * sizeof(T));
+    std::memcpy(owned.get(), data.data(), data.size() * sizeof(T));
   }
-  nb::capsule owner(owned, [](void* ptr) noexcept { delete[] static_cast<T*>(ptr); });
-  return nb::cast(nb::ndarray<nb::numpy, T>(owned, ndim, dims.data(), owner));
+  return export_numpy_copy(std::move(owned), data.size(), shape);
 }
 
 nb::object make_bool_numpy(const CpuTensor& tensor) {
   const auto& data = tensor.bool_data();
-  auto* owned = new bool[data.size()];
+  std::unique_ptr<bool[]> owned(new bool[data.size()]);
   for (std::size_t i = 0; i < data.size(); ++i) owned[i] = data[i] != 0;
-  nb::capsule owner(owned, [](void* ptr) noexcept { delete[] static_cast<bool*>(ptr); });
-  std::vector<std::size_t> dims(tensor.shape().begin(), tensor.shape().end());
-  return nb::cast(nb::ndarray<nb::numpy, bool>(owned, dims.size(), dims.data(), owner));
+  return export_numpy_copy(std::move(owned), data.size(), tensor.shape());
 }
 
 nb::object tensor_to_numpy(const CpuTensor& tensor) {

@@ -16,6 +16,13 @@ Shared-storage exchange and the optional PyTorch custom op are documented in
 [DLPACK.md](DLPACK.md). `.numpy()` continues to return a copy; `np.from_dlpack`
 uses the separate sharing protocol.
 
+`.numpy()` preserves shape within the installed NumPy's supported rank. A
+larger rank raises `ValueError`; it is never silently flattened and must not
+terminate the process. This does not cap the rank of internal runtime tensors.
+Reshape to a supported rank before export, for example
+`x.reshape((-1,)).numpy()`. Exported arrays remain independent private copies,
+including when a high-rank result uses a NumPy reshape internally.
+
 ## Empty storage
 
 `cx.empty(shape, dtype="float32", device="cpu")` returns independent contiguous

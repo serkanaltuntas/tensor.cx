@@ -70,6 +70,9 @@ Support varies by backend, particularly for `int32`. See the
 - Reshape keeps the underlying buffer alive. Experimental Metal kernels writing
   through a view also change other views sharing that storage. MLIR CPU/CUDA
   launches preserve caller tensors by copying their output. NumPy export still copies.
+  Export preserves shape within the installed NumPy's rank limit; a larger rank
+  raises `ValueError`. Internal tensors may have higher rank: use
+  `x.reshape((-1,)).numpy()` to export a flattened copy explicitly.
   Empty shape inference such as `(0, -1)` is ambiguous and rejected.
 - Reductions support negative and multiple axes, such as `(0, -1)`; duplicates
   are errors. `axis=None` reduces all axes, while `axis=()` returns an independent
