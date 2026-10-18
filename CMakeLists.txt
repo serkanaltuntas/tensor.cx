@@ -353,6 +353,7 @@ if(TENSORCX_ENABLE_VULKAN)
       "${CMAKE_CURRENT_SOURCE_DIR}/cpp/tensorcx/backends/vulkan/kernels/predicate.glsl"
       "${CMAKE_CURRENT_SOURCE_DIR}/cpp/tensorcx/backends/vulkan/kernels/float32.glsl"
       "${CMAKE_CURRENT_SOURCE_DIR}/cpp/tensorcx/backends/vulkan/kernels/reduction.glsl"
+      "${CMAKE_CURRENT_SOURCE_DIR}/cpp/tensorcx/backends/vulkan/kernels/matmul.glsl"
     VERBATIM
   )
   add_library(tensorcx_vulkan STATIC
@@ -362,6 +363,7 @@ if(TENSORCX_ENABLE_VULKAN)
     cpp/tensorcx/backends/vulkan/vulkan_transform.cpp
     cpp/tensorcx/backends/vulkan/vulkan_predicate.cpp
     cpp/tensorcx/backends/vulkan/vulkan_reduction.cpp
+    cpp/tensorcx/backends/vulkan/vulkan_matmul.cpp
     "${TENSORCX_VULKAN_GENERATED}/elementwise_spirv.h"
   )
   target_compile_features(tensorcx_vulkan PUBLIC cxx_std_20)

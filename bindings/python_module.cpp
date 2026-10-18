@@ -980,7 +980,7 @@ std::span<const BackendRoute> backend_routes() {
         [index](Shape shape, DType dtype, double value) {
           return vulkan_fill(std::move(shape), dtype, value, index);
         },
-        [] { return nb::list(); }});
+        [] { nb::list names; names.append("auto"); names.append("custom"); return names; }});
     }
 #endif
     return result;
@@ -1546,8 +1546,12 @@ NB_MODULE(_core, module) {
     module.def(name, [kind](const VulkanTensor& x, std::int64_t axis, double epsilon) {
       OpDesc op{kind}; op.axis = axis; op.epsilon = epsilon; return vulkan_primitive(x, op);
     }, nb::arg("input"), nb::arg("axis"), nb::arg("eps") = 1.0e-5);
-  module.def("matmul", [](const VulkanTensor& a, const VulkanTensor& b, const std::string&) {
-    return vulkan_primitive(a, OpDesc{OpKind::kMatmul}, &b);
+  module.def("matmul", [](const VulkanTensor& a, const VulkanTensor& b, const std::string& backend) {
+    OpDesc op{OpKind::kMatmul};
+    if (backend == "auto") op.matmul_preference = MatmulPreference::kAuto;
+    else if (backend == "custom") op.matmul_preference = MatmulPreference::kCustom;
+    else throw std::invalid_argument("Vulkan matmul supports auto or custom");
+    return vulkan_primitive(a, op, &b);
   }, nb::arg("lhs"), nb::arg("rhs"), nb::arg("backend") = "auto");
 #endif
 

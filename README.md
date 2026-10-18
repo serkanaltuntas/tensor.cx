@@ -11,7 +11,7 @@ operation. Apple Metal is the first accelerator backend; a small CUDA prototype
 is also available. An optional Linux [Vulkan/SPIR-V backend](docs/VULKAN_BACKEND.md)
 now supports GPU copies, factories, basic arithmetic, casts and contiguous
 indexing/shape/join operations, comparisons/masks, boolean reductions and
-numeric sum/max/mean/min/argmax. ROCm and broader
+numeric sum/max/mean/min/argmax and float32 vector/batched matmul. ROCm and broader
 MLIR-based lowering remain longer-term directions.
 
 The project is useful today as:

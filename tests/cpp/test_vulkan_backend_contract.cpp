@@ -9,6 +9,7 @@
 #include "tensorcx/backends/cpu/cpu_backend.h"
 #include "tensorcx/backends/vulkan/vulkan_backend.h"
 #include "tensorcx/backends/vulkan/vulkan_context.h"
+#include "batched_matmul_contract.h"
 
 using namespace tensorcx;
 namespace vk = tensorcx::vulkan;
@@ -46,6 +47,11 @@ void failed_completion(bool unproven_idle) {
 
 void contract() {
   vk::VulkanBackend backend;
+  for (auto preference : {MatmulPreference::kAuto, MatmulPreference::kCustom})
+    batched_matmul_contract(backend,
+        [](const cpu::CpuTensor& input) { return vk::to_core_tensor(vk::from_cpu(input).value()); },
+        [](const Tensor& output) { return vk::to_cpu(vk::from_core_tensor(output).value()).move_value(); },
+        preference);
   auto created = vk::from_cpu(cpu::CpuTensor({3}, std::vector<float>{1, 2, 3}));
   require(static_cast<bool>(created), "Vulkan upload failed");
   const auto tensor = created.move_value();
@@ -112,6 +118,23 @@ void contract() {
     op.axis = 0;
     check_predicate_rejection(op, {mask});
     check_predicate_rejection(op, {foreign});
+  }
+  for (auto preference : {MatmulPreference::kOptimized, static_cast<MatmulPreference>(-1)}) {
+    auto op = OpDesc{OpKind::kMatmul}; op.matmul_preference = preference;
+    check_predicate_rejection(op, {original, original});
+  }
+  for (std::size_t position = 0; position < 2; ++position) {
+    for (const auto& malformed : {foreign, mask}) {
+      std::vector<Tensor> args{original, original}; args[position] = malformed;
+      check_predicate_rejection(OpDesc{OpKind::kMatmul}, args);
+    }
+    for (int mutation = 0; mutation < 3; ++mutation) {
+      std::vector<Tensor> args{original, original};
+      if (mutation == 0) args[position].offset = 1;
+      if (mutation == 1) args[position].device.index = 1;
+      if (mutation == 2) args[position].buffer = fake_buffer;
+      check_predicate_rejection(OpDesc{OpKind::kMatmul}, args);
+    }
   }
   for (auto kind : {OpKind::kEqual, OpKind::kWhere, OpKind::kMaskedSelect}) {
     auto args = kind == OpKind::kWhere ? std::vector<Tensor>{mask, original, original}
@@ -189,7 +212,7 @@ void contract() {
   const auto sentinel = output[0].buffer;
   fill.op.kind = OpKind::kMatmul;
   invalid(backend.execute(fill));
-  require(output[0].buffer == sentinel, "unsupported execution changed output");
+  require(output[0].buffer == sentinel, "invalid execution changed output");
 
   // The common ABI accepts concrete nonnegative identities; legacy backends
   // remain responsible for rejecting unsupported indices.

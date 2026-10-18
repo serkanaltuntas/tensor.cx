@@ -23,7 +23,7 @@ CPU/Metal/CUDA expose index 0; Vulkan has indexed routes with one physical GPU v
 | Comparisons and `where` (float32/int32/bool) | Yes | Yes | Yes | Yes |
 | Bool fill, logic, any/all and mask selection | Yes | Yes | Yes | Yes |
 | Binary arithmetic broadcasting | Yes | Yes | Yes | Yes |
-| Float32 batched/vector matmul | Yes | Custom + optional optimized path | Custom path | Not implemented |
+| Float32 batched/vector matmul | Yes | Custom + optional optimized path | Custom path | Custom path |
 | Float32 sum, max, mean | Yes | Yes | Yes | Yes |
 | Int32 sum, max | Yes | Yes | Yes | Yes |
 | Sum/max/mean `keepdims` | Yes | Yes | Yes | Yes |
@@ -85,13 +85,15 @@ abs, min, argmax, clip and topk. Float32 matmul supports `auto` and `custom`, no
 
 The optional Linux backend supports GPU copies/factories/views, casts,
 transpose, basic indexing/joins, comparisons/masks, boolean/numeric reductions and
-broadcast float32/int32 arithmetic.
+broadcast float32/int32 arithmetic and float32 vector/batched matmul.
 It has real GTX 980 Ti validation, with no
 claim of other-GPU acceptance. Basic float32 arithmetic uses integer GPU
 significands for ties-to-even rounding and gradual underflow; arithmetic NaNs
 are canonical quiet NaNs. Software Vulkan CPU devices are excluded from
 GPU discovery. Numeric sum/max/mean/min/argmax preserve CPU order and execute
-serially per output, with mean restricted to float32. Matmul, inference,
+serially per output, with mean restricted to float32. Matmul supports
+`auto`/`custom`, separate multiply/add rounding and broadcast batches.
+Inference,
 remaining math, DLPack and MLIR are outside this
 first slice. See [Vulkan setup and limits](/docs/vulkan/).
 

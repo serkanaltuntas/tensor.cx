@@ -50,6 +50,7 @@ VULKAN_OPERATIONS = {
     **{name: _NUMERIC for name in ("add", "subtract", "multiply", "negative", "sum", "max", "min", "argmax")},
     "divide": _FLOAT,
     "mean": _FLOAT,
+    "matmul": _FLOAT,
     "randn": _FLOAT,
     **{name: _BOOL for name in ("logical_and", "logical_or", "logical_xor", "logical_not", "any", "all")},
 }

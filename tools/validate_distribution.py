@@ -116,6 +116,9 @@ def main():
                          'cpp/tensorcx/backends/vulkan/kernels/predicate.glsl',
                          'cpp/tensorcx/backends/vulkan/kernels/float32.glsl',
                          'cpp/tensorcx/backends/vulkan/kernels/reduction.glsl', 'cmake/embed_spirv.py',
+                         'cpp/tensorcx/backends/vulkan/kernels/matmul.glsl',
+                         'cpp/tensorcx/backends/vulkan/vulkan_matmul.cpp',
+                         'cpp/tensorcx/backends/vulkan/vulkan_matmul.h',
                          'python/tensorcx/_compiler/cuda.py', 'tools/distribution_probe.py',
                          'examples/cuda_mlp.py', 'bindings/dlpack.cpp',
                          'third_party/dlpack/dlpack.h', 'third_party/dlpack/LICENSE'):

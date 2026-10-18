@@ -1,6 +1,6 @@
 ---
 title: Vulkan / SPIR-V
-description: Build and use the optional Linux Vulkan backend for GPU arithmetic, reductions, dtype conversion, indexing and tensor joins.
+description: Build and use the optional Linux Vulkan backend for GPU arithmetic, matmul, reductions, dtype conversion, indexing and tensor joins.
 ---
 
 Vulkan is an optional Linux backend with a deliberately smaller operation set
@@ -78,6 +78,22 @@ max/min/argmax reject empty reduction spaces. An empty axis tuple copies bits
 to independent output storage. Numeric reductions currently iterate serially
 per output, without tensor-value readback; throughput optimization remains open.
 
+Float32 `matmul` / `@` supports vectors, matrices and right-aligned batch
+broadcasting. `auto` and `custom` use the same kernel; `optimized` is rejected.
+One GPU invocation owns each output and accumulates along K with separately
+rounded multiply/add, preserving gradual underflow. Results have independent
+contiguous storage. Empty outputs submit no work; zero K produces positive
+zeros without reading the empty inputs. There is no CPU fallback or implicit
+dtype/device conversion. This is a correctness baseline; tiled matmul and
+optimized throughput remain open.
+
+```python
+a = cx.ones((2, 1, 3, 4), device="vulkan")
+b = cx.ones((1, 5, 4, 6), device="vulkan")
+c = cx.matmul(a, b, backend="custom")
+print(c.shape)  # (2, 5, 3, 6)
+```
+
 ```python
 parts = cx.split(x[:, ::-1].T, [1], axis=-1)
 joined = cx.concat(parts, axis=-1)
@@ -87,7 +103,7 @@ print(joined.astype(cx.int32).numpy())
 #  [1 4]]
 ```
 
-Matmul, inference, activations, remaining math,
+Inference, activations, remaining math,
 DLPack and generated kernels/MLIR are not implemented on Vulkan.
 Unsupported operations raise errors. Inspect capabilities before choosing a
 backend for a larger workload.

@@ -44,6 +44,8 @@ def main():
         a = cx.tensor(rng.uniform(0.5, 5, (17, 1, 9)).astype(np.float32))
         b = cx.tensor(rng.uniform(0.5, 5, (1, 7, 1)).astype(np.float32))
         x, y = a.to(device), b.to(device)
+        ma = cx.tensor(rng.uniform(-1, 1, (2, 1, 3, 5)).astype(np.float32))
+        mb = cx.tensor(rng.uniform(-1, 1, (1, 4, 5, 7)).astype(np.float32))
         bool_source = np.resize(np.array([0, 2, 255, 1, 128], dtype=np.uint8), (3, 5)).view(np.bool_)
         bool_host = cx.from_dlpack(bool_source, copy=False)
         bool_device = bool_host.to(device)
@@ -74,6 +76,9 @@ def main():
             ('max', x.max(2), a.max(2)), ('mean', x.mean((2, 0)), a.mean((2, 0))),
             ('min', x.min((2, 0)), a.min((2, 0))), ('argmax', x.argmax(0), a.argmax(0)),
             ('int32_sum', cx.tensor([2147483647, 2], device=device).sum(), cx.tensor([2147483647, 2]).sum()),
+            ('matmul_batch_auto', cx.matmul(ma.to(device), mb.to(device)), cx.matmul(ma, mb)),
+            ('matmul_vector', cx.matmul(ma[0, 0, 0].to(device), mb[0, 0].to(device)), cx.matmul(ma[0, 0, 0], mb[0, 0])),
+            ('matmul_empty_k', cx.matmul(cx.empty((2, 0), device=device), cx.empty((0, 3), device=device)), cx.zeros((2, 3))),
         ]:
             check(actual.dtype == expected.dtype, name + ': dtype mismatch')
             if expected.dtype in (cx.int32, cx.bool):
@@ -96,6 +101,10 @@ def main():
             check(np.all((actual.view(np.uint32)[nan] & np.uint32(0x00400000)) != 0), 'arithmetic NaN not quiet')
             checks.append('float32_rne_' + name)
         if not args.hidden_gpu:
+            check(cx.matmul_backends(device) == ['auto', 'custom'], 'Vulkan matmul preferences')
+            np.testing.assert_allclose(cx.matmul(ma.to(device), mb.to(device), backend='custom').numpy(),
+                                       cx.matmul(ma, mb).numpy(), rtol=1e-4, atol=1e-4)
+            checks.append('matmul_custom')
             try:
                 cx.exp(x)
             except ValueError as error:

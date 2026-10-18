@@ -57,16 +57,31 @@ print(cx.capabilities("vulkan"))
 - `float32`, `int32`: `sum`, `max`, `min` and `argmax`; `mean` is float32-only.
   Sum/max/mean/min support all, single, multiple or no axes and `keepdims`.
   Argmax supports one axis or a flattened search and returns int32 indices.
+- `float32`: vector, matrix and broadcast-batched `matmul` / `@`, with
+  `auto` and `custom` selecting the same kernel.
 - Per-device capabilities and basic diagnostics: Vulkan API version, raw
   vendor-encoded driver version, storage-buffer limit and total device-local
   heap bytes. Available/free bytes are **not collected**. Heaps are device-wide,
   not a count of tensor-owned allocations.
 
-Matmul, remaining math, activations, norms,
+Remaining math, activations, norms,
 inference, DLPack, generated kernels/MLIR, profiling, memory
-pools, batching and asynchronous execution are not implemented on Vulkan.
+pools, command batching and asynchronous execution are not implemented on Vulkan.
 Unsupported operations raise explicit errors; no CPU fallback is performed.
 Other backends retain their existing capabilities.
+
+Matmul reuses the shared `MatmulPlan` for rank-one promotion, right-aligned
+batch broadcasting, output shape and overflow checks. One invocation owns an
+output and accumulates in row-major K order using the integer binary32 helpers
+for separately rounded multiply/add, including gradual underflow. No optional
+shaderInt64/float controls, host-value fallback or expanded operand copies are
+used. The four-buffer layout and bounded 2D dispatch are retained. Empty
+outputs submit no work; zero K writes positive zeros without reading empty
+input buffers. Unused huge empty dimensions remain valid. Unsupported
+preferences, malformed shapes/dtypes/owners and traversed uint32 limits reject
+without replacing the caller's output slot or mutating either input. This is
+a correctness baseline; tiling, library acceleration and measured optimization
+remain open. See [the shared matmul contract](TENSOR_API.md#batched-matrix-multiplication).
 
 Basic float32 add/subtract/multiply/divide now implement binary32
 round-to-nearest, ties-to-even, including gradual underflow, signed zeros,
@@ -194,6 +209,7 @@ TENSORCX_VULKAN_VALIDATION=1 TENSORCX_REQUIRE_BACKENDS=vulkan \
   tests/python/test_vulkan_transform.py tests/python/test_vulkan_predicate.py \
   tests/python/test_vulkan_float32.py \
   tests/python/test_vulkan_reduction.py tests/python/test_multi_axis_reductions.py \
+  tests/python/test_vulkan_matmul.py tests/python/test_batched_matmul.py \
   tests/python/test_boolean_masks.py tests/python/test_backend_parity.py
 # Build native tests with TENSORCX_BUILD_TESTS=ON and TENSORCX_ENABLE_VULKAN=ON:
 uv run --no-sync ctest --test-dir build/vulkan-native --output-on-failure
@@ -221,6 +237,11 @@ ordering, signed zeros, gradual underflow, wrapping int32, million-element
 reduction spaces, 2D output dispatch, high-rank/unused empty metadata, immutable
 inputs and composition with host export blocked. Native rejections retain the
 caller's output slot for malformed input ownership, dtype, shape and axes.
+Matmul acceptance includes vector promotion, asymmetric batch broadcasting,
+zero K and empty/high-rank/unused huge shapes, separate-rounding NumPy oracles,
+special/subnormal values, a >65535-workgroup output, threaded composition,
+private outputs and unsupported preferences. The shared native batched contract
+also runs for Vulkan, with both input owners and failure output retention checked.
 High-rank tensors remain valid internally. NumPy export follows NumPy's own
 rank limit and safely rejects larger ranks; reshape explicitly before export
 (see [the API contract](TENSOR_API.md)).
@@ -244,7 +265,7 @@ operation reference, and each advertised feature needs real-device acceptance.
 - [x] Comparisons, boolean logic, `where`, masked selection and boolean
   reductions, selected axes and `keepdims`.
 - [x] Numeric sum/max/mean/min/argmax reductions, selected axes and `keepdims`.
-- [ ] Vector, matrix and broadcast-batched matmul.
+- [x] Vector, matrix and broadcast-batched matmul.
 - [ ] Remaining math, activations, normalization and inference operations
   (`linear`, affine norms, embedding and attention), with CPU parity.
 - [ ] Repeatable benchmarks, host/device timing, allocation diagnostics and

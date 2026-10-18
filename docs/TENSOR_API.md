@@ -3,7 +3,7 @@
 The optional [Vulkan runtime](VULKAN_BACKEND.md) supports a smaller subset:
 copies/factories, shared shape views, basic arithmetic, all dtype casts,
 transpose, basic indexing/concat/stack/split, comparisons/masks and boolean
-`any`/`all`, numeric sum/max/mean/min and argmax. Check
+`any`/`all`, numeric sum/max/mean/min and argmax, float32 vector/batched matmul. Check
 `cx.capabilities(device)` before placing broader workloads.
 
 User-requested increment, 2026-10-04: basic arithmetic and Python/NumPy real
@@ -408,7 +408,7 @@ these local results do not cover additional NVIDIA architectures.
 ## Batched matrix multiplication
 
 `cx.matmul(lhs, rhs, backend="auto")` and `lhs @ rhs` now accept float32 tensors
-with rank >= 1 on CPU, Metal and CUDA. Dtype and device must match; scalar
+with rank >= 1 on CPU, Metal, CUDA and Vulkan. Dtype and device must match; scalar
 operands, implicit dtype promotion and implicit device transfer are rejected.
 
 The last two dimensions represent `(M, K)` and `(K, N)`; contracting dimensions
@@ -437,7 +437,15 @@ upload only O(batch rank) metadata and do not export input tensors to NumPy/CPU.
 The shared backend-neutral MatmulPlan owns promotion, broadcasting and overflow
 checks. This adds no batched generated-kernel/MLIR or integer matmul support.
 
-Backend choices stay explicit: CPU `auto`/`cpu`/`reference`, CUDA `auto`/`custom`,
+Vulkan uses one GPU invocation per output and sequential K accumulation, with
+separately rounded binary32 multiply/add and gradual underflow through integer
+significands. It supports `auto`/`custom` (the same kernel), not `optimized`;
+there is no host-value fallback. Empty outputs submit no work; K=0 writes +0
+without reading empty input buffers. Unvisited huge empty dimensions are valid,
+and input/output storage and traversed metadata retain Vulkan's uint32 limits.
+This is a correctness baseline, without tiled/optimized throughput claims.
+
+Backend choices stay explicit: CPU `auto`/`cpu`/`reference`, CUDA/Vulkan `auto`/`custom`,
 and Metal `auto`/`custom`/`optimized` when MPSGraph is enabled. The optimized
 path uses [MPSGraph broadcasting](https://developer.apple.com/documentation/metalperformanceshadersgraph/mpsgraph/matrixmultiplication(primary:secondary:name:)).
 It removes common singleton batch axes and promotes vectors in graph metadata,
@@ -453,7 +461,7 @@ compare float32 results at the existing matmul tolerance (rtol/atol 1e-4).
 available backend preference, vector/matrix combinations, broadcast axes,
 partial tiles, empty/high-rank inputs, grid-stride batches, special values,
 ownership and no-host-fallback behavior. The shared native
-`tests/cpp/batched_matmul_contract.h` checks CPU/Metal/CUDA parity and malformed
+`tests/cpp/batched_matmul_contract.h` checks CPU/Metal/CUDA/Vulkan parity and malformed
 input descriptors without replacing result slots on errors. The new Python
 file and native checks are included in the strict CUDA push gate.
 
