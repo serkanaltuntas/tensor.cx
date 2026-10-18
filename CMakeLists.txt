@@ -350,6 +350,7 @@ if(TENSORCX_ENABLE_VULKAN)
     COMMAND "${Python_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed_spirv.py"
       "${TENSORCX_VULKAN_GENERATED}/elementwise.spv" "${TENSORCX_VULKAN_GENERATED}/elementwise_spirv.h"
     DEPENDS "${TENSORCX_VULKAN_SHADER}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed_spirv.py"
+      "${CMAKE_CURRENT_SOURCE_DIR}/cpp/tensorcx/backends/vulkan/kernels/predicate.glsl"
     VERBATIM
   )
   add_library(tensorcx_vulkan STATIC
@@ -357,6 +358,7 @@ if(TENSORCX_ENABLE_VULKAN)
     cpp/tensorcx/backends/vulkan/vulkan_context.cpp
     cpp/tensorcx/backends/vulkan/vulkan_tensor.cpp
     cpp/tensorcx/backends/vulkan/vulkan_transform.cpp
+    cpp/tensorcx/backends/vulkan/vulkan_predicate.cpp
     "${TENSORCX_VULKAN_GENERATED}/elementwise_spirv.h"
   )
   target_compile_features(tensorcx_vulkan PUBLIC cxx_std_20)

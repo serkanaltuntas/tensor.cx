@@ -1525,6 +1525,10 @@ NB_MODULE(_core, module) {
     module.def(name, [kind](const VulkanTensor& a, const VulkanTensor& b) { return binary_op(a, b, kind); },
                nb::arg("lhs"), nb::arg("rhs"));
   // Explicit errors for unsupported public primitive overloads; never a CPU fallback.
+  for (auto [name, kind] : {std::pair{"sum", OpKind::kSum}, {"max", OpKind::kMax}, {"mean", OpKind::kMean}})
+    module.def(name, [kind](const VulkanTensor& x, std::int64_t axis) {
+      OpDesc op{kind}; op.axis = axis; return vulkan_primitive(x, op);
+    }, nb::arg("input"), nb::arg("axis"));
   for (auto [name, kind] : {std::pair{"exp", OpKind::kExp}, {"gelu", OpKind::kGelu}, {"silu", OpKind::kSilu}})
     module.def(name, [kind](const VulkanTensor& x) { return vulkan_primitive(x, OpDesc{kind}); }, nb::arg("input"));
   module.def("softmax", [](const VulkanTensor& x, std::int64_t axis) {

@@ -1,4 +1,5 @@
 #version 450
+#extension GL_GOOGLE_include_directive : require
 
 // Uint storage preserves wrapping int32 arithmetic without signed overflow.
 layout(local_size_x = 64) in;
@@ -81,12 +82,15 @@ void transform(uint word) {
     }
 }
 
+#include "predicate.glsl"
+
 void main() {
     uint group = gl_WorkGroupID.y * p.groups_x + gl_WorkGroupID.x;
     // The host bounds the rounded grid to uint32 before dispatch.
     uint i = group * 64u + gl_LocalInvocationID.x;
     if (i >= p.count) return;
     if (p.operation == 0u) { output_data[i] = p.scalar_bits; return; }
+    if (p.operation >= 20u) { predicate(i); return; }
     if (p.operation >= 10u) { transform(i); return; }
     uint a_index = 0u, b_index = 0u, rest = i;
     for (uint axis = p.rank; axis > 0u; --axis) {

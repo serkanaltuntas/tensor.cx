@@ -51,6 +51,14 @@ preserves stored bits. Float-to-int casts truncate toward zero and reject NaN,
 infinity and out-of-range values without mutating input storage. Float-to-bool
 treats nonzero subnormals as true and both signed zeros as false.
 
+Comparisons, boolean logic, `where`, leading-dimension mask selection and
+boolean `any`/`all` are supported, including broadcasting, selected axes and
+`keepdims`. Float32 comparison preserves NaN/signed-zero/subnormal rules through
+bit ordering. `where` and masked selection preserve selected data bits. Mask
+selection uses a GPU prefix scan; only the result row count is read back.
+Empty `any`/`all` reductions return false/true. Boolean reductions currently
+iterate serially per output; `where` uses two synchronized GPU passes.
+
 ```python
 parts = cx.split(x[:, ::-1].T, [1], axis=-1)
 joined = cx.concat(parts, axis=-1)
@@ -60,7 +68,7 @@ print(joined.astype(cx.int32).numpy())
 #  [1 4]]
 ```
 
-Matmul, reductions, inference, activations, masks,
+Matmul, numeric reductions, inference, activations,
 DLPack and generated kernels/MLIR are not implemented on Vulkan.
 Unsupported operations raise errors. Inspect capabilities before choosing a
 backend for a larger workload.

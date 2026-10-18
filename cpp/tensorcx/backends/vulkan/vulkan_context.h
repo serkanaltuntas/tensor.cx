@@ -72,7 +72,8 @@ struct Context : std::enable_shared_from_this<Context> {
   ~Context();
   std::shared_ptr<Allocation> allocate(std::size_t bytes, bool host_visible = false);
   void upload(const std::shared_ptr<Allocation>& destination, const void* data, std::size_t bytes);
-  void download(const std::shared_ptr<Allocation>& source, void* data, std::size_t bytes);
+  void download(const std::shared_ptr<Allocation>& source, void* data, std::size_t bytes,
+                std::size_t offset = 0);
   void compute(const std::array<std::shared_ptr<Allocation>, 4>& buffers, PushConstants push);
 
  private:

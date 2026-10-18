@@ -43,9 +43,12 @@ CUDA_OPERATIONS = _profile(dlpack=True)
 VULKAN_OPERATIONS = {
     **{name: _ALL for name in (
         "tensor", "empty", "copy", "zeros", "ones", "reshape", "squeeze", "expand_dims",
-        "astype", "transpose", "indexing", "concat", "stack", "split"
+        "astype", "transpose", "indexing", "concat", "stack", "split",
+        "equal", "not_equal", "less", "less_equal", "greater", "greater_equal",
+        "where", "masked_select"
     )},
     **{name: _NUMERIC for name in ("add", "subtract", "multiply", "negative")},
     "divide": _FLOAT,
     "randn": _FLOAT,
+    **{name: _BOOL for name in ("logical_and", "logical_or", "logical_xor", "logical_not", "any", "all")},
 }

@@ -85,6 +85,44 @@ void contract() {
   foreign.shape = {0}; foreign.buffer = fake_buffer;
   require(!vk::from_core_tensor(foreign), "foreign context accepted");
 
+  const auto mask = vk::to_core_tensor(vk::from_cpu(cpu::CpuTensor({3}, std::vector<std::uint8_t>{0, 2, 255})).value());
+  const auto check_predicate_rejection = [&](OpDesc op, std::vector<Tensor> arguments) {
+    std::array<Tensor, 1> output{original};
+    BackendExecution execution;
+    execution.op = op; execution.inputs = arguments; execution.outputs = output;
+    invalid(backend.execute(execution));
+    require(output[0].buffer == original.buffer, "rejected predicate published output");
+  };
+  check_predicate_rejection(OpDesc{OpKind::kWhere}, {original, original, original});
+  check_predicate_rejection(OpDesc{OpKind::kLogicalAnd}, {original, original});
+  check_predicate_rejection(OpDesc{OpKind::kMaskedSelect}, {original, original});
+  check_predicate_rejection(OpDesc{OpKind::kAny}, {original});
+  auto bad_axis = OpDesc{OpKind::kAll}; bad_axis.reduction_axes = Shape{0, 0};
+  check_predicate_rejection(bad_axis, {mask});
+  for (auto kind : {OpKind::kEqual, OpKind::kWhere, OpKind::kMaskedSelect}) {
+    auto args = kind == OpKind::kWhere ? std::vector<Tensor>{mask, original, original}
+              : kind == OpKind::kMaskedSelect ? std::vector<Tensor>{original, mask}
+              : std::vector<Tensor>{original, original};
+    for (std::size_t i = 0; i < args.size(); ++i) {
+      auto corrupted = args; corrupted[i].offset = 1;
+      check_predicate_rejection(OpDesc{kind}, corrupted);
+      corrupted = args; corrupted[i].device.index = 1;
+      check_predicate_rejection(OpDesc{kind}, corrupted);
+      corrupted = args; corrupted[i].buffer = fake_buffer;
+      check_predicate_rejection(OpDesc{kind}, corrupted);
+    }
+  }
+
+  float last = 0;
+  tensor.buffer()->owner()->download(tensor.buffer()->allocation(), &last, sizeof(last), 8);
+  require(last == 3, "offset control readback failed");
+  for (std::size_t offset : {1u, 12u, 16u}) {
+    bool rejected = false; last = 47;
+    try { tensor.buffer()->owner()->download(tensor.buffer()->allocation(), &last, sizeof(last), offset); }
+    catch (const std::invalid_argument&) { rejected = true; }
+    require(rejected && last == 47, "invalid offset download changed destination");
+  }
+
   // Primitive transform rejections must preserve the caller's output slot.
   std::array<Tensor, 1> inputs{original}, unchanged{original};
   BackendExecution transform;

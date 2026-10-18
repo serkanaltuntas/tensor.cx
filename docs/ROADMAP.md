@@ -50,7 +50,8 @@ for discovery and copies. See [validation evidence](CUDA_PHASE9_VALIDATION.md).
 ## What works today (runtime through Phase 9, plus the Phase 10 MLIR prototype)
 
 - Optional Linux [Vulkan/SPIR-V backend](VULKAN_BACKEND.md): float32/int32/bool
-  copies/factories/views, casts, transpose, indexing/joins and broadcast basic
+  copies/factories/views, casts, transpose, indexing/joins, comparisons/masks,
+  boolean reductions and broadcast basic
   float32/int32 arithmetic; synchronous
   real GTX 980 Ti execution. Broader operations and other GPUs remain open.
 - Optional CUDA backend: device 0 discovery, float32/int32 CPU↔CUDA copies,

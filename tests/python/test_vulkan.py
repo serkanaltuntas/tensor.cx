@@ -123,6 +123,10 @@ def test_vulkan_capabilities_and_diagnostics(vulkan_device):
     assert caps["copy"] == ["float32", "int32", "bool"]
     for name in ("astype", "transpose", "indexing", "concat", "stack", "split"):
         assert caps[name] == ["float32", "int32", "bool"]
+    for name in ("equal", "where", "masked_select"):
+        assert caps[name] == ["float32", "int32", "bool"]
+    for name in ("logical_and", "logical_not", "any", "all"):
+        assert caps[name] == ["bool"]
     assert not {"matmul", "sum", "from_dlpack", "attention"} & caps.keys()
     info = cx.diagnostics()["backends"][vulkan_device]
     assert info["available"] is True

@@ -64,6 +64,12 @@ def main():
             ('bool_packed_transform', cx.concat([bool_device.T] * 3, axis=-1),
                                       cx.concat([bool_host.T] * 3, axis=-1)),
             ('noncanonical_bool_cast', bool_device.astype(cx.int32), bool_host.astype(cx.int32)),
+            ('compare', x > 2, a > 2),
+            ('logical', bool_device & ~bool_device, bool_host & ~bool_host),
+            ('where', cx.where(x > 2, x, -x), cx.where(a > 2, a, -a)),
+            ('masked_select', bool_device[bool_device], bool_host[bool_host]),
+            ('any', bool_device.any(axis=1, keepdims=True), bool_host.any(axis=1, keepdims=True)),
+            ('all', bool_device.all(axis=(0, 1)), bool_host.all(axis=(0, 1))),
         ]:
             check(actual.dtype == expected.dtype, name + ': dtype mismatch')
             if expected.dtype in (cx.int32, cx.bool):

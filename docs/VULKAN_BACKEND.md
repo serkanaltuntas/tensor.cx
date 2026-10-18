@@ -51,12 +51,15 @@ print(cx.capabilities("vulkan"))
   axes), `concat`, `stack` and `split`. These execute on the GPU without
   exporting tensor data to the CPU. Same-dtype copies and reordering preserve
   stored bits, including float32 NaNs, signed zeros and subnormals.
+- All three dtypes: broadcast comparisons, `where` and leading-dimension
+  boolean mask selection. Boolean tensors also support logical and/or/xor/not
+  and `any`/`all` over scalar, single, multiple or all axes, with `keepdims`.
 - Per-device capabilities and basic diagnostics: Vulkan API version, raw
   vendor-encoded driver version, storage-buffer limit and total device-local
   heap bytes. Available/free bytes are **not collected**. Heaps are device-wide,
   not a count of tensor-owned allocations.
 
-Matmul, reductions, activations, norms, comparisons/masks,
+Matmul, numeric reductions, activations, norms,
 inference, DLPack, generated kernels/MLIR, profiling, memory
 pools, batching and asynchronous execution are not implemented on Vulkan.
 Unsupported operations raise explicit errors; no CPU fallback is performed.
@@ -76,6 +79,17 @@ false. Boolean transformations assign one invocation to each complete packed
 word, preventing races at unaligned byte boundaries. Concat currently makes
 one synchronous output pass per input; correctness is validated, throughput
 optimization remains in the checklist below.
+
+Float32 comparisons use IEEE-754 bit ordering, with NaN unordered, `!=` true
+for NaN, both signs of zero equal and subnormal ordering preserved independently
+of device float arithmetic controls. Bool predicates normalize any nonzero
+stored byte to true. `where` and mask selection preserve selected branch/data
+bits, including noncanonical bool bytes. `where` uses two synchronized passes
+to retain Vulkan 1.1's four-storage-buffer minimum. Mask selection uses a GPU
+inclusive prefix scan followed by stable gather; only the final four-byte
+selected-row count is read back for output allocation. `any`/`all` currently
+reduce serially per output element; empty reductions return false/true.
+These initial algorithms establish correctness, not optimized throughput.
 
 ## Device identity and ownership
 
@@ -139,7 +153,9 @@ zero. Raw validation logs, device UUIDs and local paths are not publication data
 
 ```bash
 TENSORCX_VULKAN_VALIDATION=1 TENSORCX_REQUIRE_BACKENDS=vulkan \
-  uv run --no-sync pytest -q tests/python/test_vulkan.py tests/python/test_backend_parity.py
+  uv run --no-sync pytest -q tests/python/test_vulkan.py \
+  tests/python/test_vulkan_transform.py tests/python/test_vulkan_predicate.py \
+  tests/python/test_boolean_masks.py tests/python/test_backend_parity.py
 # Build native tests with TENSORCX_BUILD_TESTS=ON and TENSORCX_ENABLE_VULKAN=ON:
 uv run --no-sync ctest --test-dir build/vulkan-native --output-on-failure
 # Fresh host-specific Vulkan wheel built from the source archive; requires GPU:
@@ -151,7 +167,12 @@ Real-device acceptance covers copies/fills (all three dtypes), empty/scalar/tail
 shapes, broadcasts/scalars, int32 wraparound, shared views, a 2D dispatch grid,
 concurrent threads and immutable inputs. Native contracts cover malformed
 metadata/owners, allocation limits, unchanged outputs on rejection, fence/idle
-failure retention and missing/incomplete loaders. Fresh source-archive/wheel
+failure retention and missing/incomplete loaders. Transformation and predicate
+acceptance also covers all nine cast pairs, noncanonical bool bytes, IEEE
+comparison ordering, bit-preserving conditional/leading-mask selection, empty
+and multi-axis boolean reductions, packed bool 2D dispatch and million-element
+mask scans. Native offset readback checks preserve destinations on rejection.
+Fresh source-archive/wheel
 installation checks CPU and GPU arithmetic and hidden-driver CPU execution.
 The optional CI job builds Vulkan and tests CPU/no-loader paths; it is **not**
 GPU execution evidence. Existing CUDA push acceptance remains required.
@@ -166,8 +187,9 @@ operation reference, and each advertised feature needs real-device acceptance.
 - [x] Copies, factories, shared views and basic numeric arithmetic.
 - [x] All dtype conversion pairs, transpose, basic indexing and
   concat/stack/split, including packed bool and float-to-int validation.
-- [ ] Comparisons, boolean logic, `where` and masked selection.
-- [ ] Numeric and boolean reductions, selected axes and `keepdims`.
+- [x] Comparisons, boolean logic, `where`, masked selection and boolean
+  reductions, selected axes and `keepdims`.
+- [ ] Numeric reductions, selected axes and `keepdims`.
 - [ ] Vector, matrix and broadcast-batched matmul.
 - [ ] Remaining math, activations, normalization and inference operations
   (`linear`, affine norms, embedding and attention), with CPU parity.

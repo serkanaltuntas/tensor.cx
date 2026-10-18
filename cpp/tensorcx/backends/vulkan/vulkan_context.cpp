@@ -406,12 +406,19 @@ void Context::upload(const std::shared_ptr<Allocation>& destination, const void*
   });
 }
 
-void Context::download(const std::shared_ptr<Allocation>& source, void* data, std::size_t bytes) {
+void Context::download(const std::shared_ptr<Allocation>& source, void* data, std::size_t bytes,
+                       std::size_t offset) {
   if (!bytes) return;
+  // Copies are padded to words. Validate the complete source range before
+  // allocating staging or encoding a command, including native offset callers.
+  if (!source || source->owner.get() != this || !source->buffer || !data || offset % 4 ||
+      offset > source->capacity || bytes > source->capacity - offset ||
+      (bytes + 3u) / 4u > (source->capacity - offset) / 4u)
+    throw std::invalid_argument("invalid Vulkan download range or owner");
   auto staging = allocate(bytes, true);
   std::lock_guard lock(mutex);
   submit({source, staging}, [&](VkCommandBuffer command) {
-    VkBufferCopy copy{0, 0, staging->capacity};
+    VkBufferCopy copy{offset, 0, staging->capacity};
     CmdCopyBuffer(command, source->buffer, staging->buffer, 1, &copy);
   });
   if (!staging->coherent) {
