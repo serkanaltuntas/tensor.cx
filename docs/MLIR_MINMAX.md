@@ -91,9 +91,10 @@ buffer counts. No native ABI, stream, device-index or general reduction change.
 
 Bodies use the existing `tensorcx_expr_v1`/`expr-f32-v1` CUDA manifest. Source
 and compilation options separate operations/policies in cache keys; native
-loading/validation remain mandatory. CPU/CUDA launches return a private output
-copy, redirect its input aliases, preserve unwritten suffixes and leave caller
-tensors unchanged. Direct Metal keeps in-place output. Zero work still
+loading/validation remain mandatory. CPU/CUDA launches return a private result,
+preserve unwritten suffixes and leave caller tensors unchanged. CUDA full writes
+use [conditional template-copy elision](CUDA_OUTPUT_COPY_ELISION.md).
+Direct Metal keeps in-place output. Zero work still
 validates inputs/artifacts. There is no NumPy fallback.
 
 ## Verification

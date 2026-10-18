@@ -157,6 +157,7 @@ def run(args):
     details = metadata("cuda")
     details.update(benchmark_sha256=digest(__file__), seed=731,
                    helper_sha256=digest(ROOT / "benchmarks/bench_runtime_profile.py"),
+                   cuda_compiler_sha256=digest(ROOT / "python/tensorcx/_compiler/cuda.py"),
                    llvm={name: command([str(path), "--version"]) for name, path in llvm.items()},
                    gpu_before=gpu_snapshot())
     kernels = compile_kernels("cuda")
@@ -197,7 +198,7 @@ def run(args):
                               scope={"fusion": "explicitly authored DSL expression, no automatic graph fusion",
                                      "compile": "outside timing; cache=False; OS/driver caches retained",
                                      "pool": "not enabled by this CLI",
-                                     "output": "private generated result with full output-template copy per launch",
+                                     "output": "private generated result; template-copy calls and bytes recorded in diagnostics",
                                      "cleanup": "returned result cleanup and validation excluded; temporaries inside calls included",
                                      "diagnostics": "event intervals include submission gaps/instrumentation/contention; not isolated kernel times; copy event timing absent",
                                      "recorded_bytes": "per host category; nested byte records must not be added as physical traffic"},

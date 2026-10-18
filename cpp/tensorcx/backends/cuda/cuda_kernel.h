@@ -8,7 +8,8 @@ struct KernelSignature {
   std::string kinds;
   std::uint32_t output_index{0}, guard_index{0};
 };
-std::string kernel_manifest(const KernelSignature& signature, const std::string& operation = "add");
+std::string kernel_manifest(const KernelSignature& signature, const std::string& operation = "add",
+                            bool write_per_thread_no_output_read = false);
 Status compiled_kernel_support();
 class CudaKernelModule {
  public:

@@ -37,9 +37,12 @@ The [comparison/select extension](MLIR_SELECT.md) adds float32 predicates and
 value selection through that expression ABI; general branches remain excluded.
 
 The returned CUDA tensor is a new value, matching the compiled CPU/reference
-ownership contract: privately copy the original output including its unwritten
-suffix, redirect all input aliases of that output to the copy, and publish only
-after successful synchronization. Existing inputs remain unchanged. Zero work
+ownership contract: allocate a private result, preserve any unwritten suffix,
+and publish only after successful synchronization. The
+[full-write optimization](CUDA_OUTPUT_COPY_ELISION.md) skips the template copy
+only for nonzero full-size launches of new v2 producer artifacts; aliased inputs
+then retain their original storage. Legacy, partial and zero-work launches keep
+the copy and all-alias remapping. Existing inputs remain unchanged. Zero work
 still validates arguments/module and returns the copy without a zero-sized
 Driver launch. This intentionally differs from the existing Metal DSL's output
 mutation; this distinction is documented on `CompiledCudaKernel`.

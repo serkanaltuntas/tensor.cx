@@ -91,6 +91,8 @@ x86_64 with external LLVM 21.1.8 tools. See the
   compile, copy, primitive and end-to-end benchmarks with CPU parity.
 - [`docs/CUDA_FUSION_EXPERIMENT.md`](docs/CUDA_FUSION_EXPERIMENT.md): balanced
   native/separate-MLIR/manual-fused comparisons with separate CUDA diagnostics.
+- [`docs/CUDA_OUTPUT_COPY_ELISION.md`](docs/CUDA_OUTPUT_COPY_ELISION.md): proved
+  full-write CUDA template-copy removal, legacy compatibility and paired measurements.
 - [`docs/PORTABLE_WHEELS.md`](docs/PORTABLE_WHEELS.md): audited CPU-only manylinux
   wheels for CPython 3.11–3.13, local/manual CI builds and current release limits.
 - [`docs/DISTRIBUTION.md`](docs/DISTRIBUTION.md): source archive and wheel

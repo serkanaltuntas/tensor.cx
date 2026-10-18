@@ -81,6 +81,8 @@ Runtime profiling:      opt-in CPU/CUDA host spans and separate CUDA kernel even
                         docs/RUNTIME_PROFILING.md; Metal/transfer timing remains open
 Fusion experiment:      explicit two/four-op CUDA grouping benchmark with separate diagnostics;
                         docs/CUDA_FUSION_EXPERIMENT.md; automatic fusion remains open
+Output-copy increment:  generated CUDA v2 full writes omit the template copy;
+                        docs/CUDA_OUTPUT_COPY_ELISION.md; private output and legacy fallback retained
 Next implementation:    compatibility and repository-wide continuous GPU validation
 Open scope:             other SM/host versions and broader compiler features
 API increment:          arithmetic/scalars, contiguous reshape and keepdims;

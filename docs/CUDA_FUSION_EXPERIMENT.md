@@ -51,9 +51,10 @@ Both boundaries return a new result:
   is included equally in all three end-to-end providers.
 
 Every generated launch preserves its left-input output template and allocates a
-private result. A full template copy still occurs per launch, including a fused
-launch that writes every output element. No in-place or suffix-preservation
-contract is weakened. This CLI does not enable a memory pool.
+private result. The original reports below include a full template copy per
+launch. Current v2 artifacts [omit that copy for proved full writes](CUDA_OUTPUT_COPY_ELISION.md);
+legacy, partial and zero-work behavior remains conservative. No in-place or
+suffix-preservation contract is weakened. This CLI does not enable a memory pool.
 
 ## Measurement and safety boundaries
 
@@ -148,11 +149,10 @@ host records. These are instrumented call/byte counts, not timing speed ratios:
 
 **Decision:** retain explicit manual fusion for suitable workloads; keep normal
 tensor dispatch unchanged. There is no new automatic fusion policy. A next
-local candidate is eliminating the generated output-template copy only when a
-full overwrite can be proved, while retaining private output ownership,
-input/template immutability, prefix/suffix and zero-work behavior. That is a
-proposal requiring its own implementation, numerical/ownership tests and paired
-measurements, not an accepted optimization from this experiment. Automatic graph
+local candidate was eliminating the generated output-template copy only when a
+full overwrite can be proved. That follow-up is now implemented with its own
+[ownership tests and before/after measurements](CUDA_OUTPUT_COPY_ELISION.md).
+The original results above remain pre-optimization evidence. Automatic graph
 fusion, broader workload acceptance and another NVIDIA architecture remain open.
 
 ## Verification

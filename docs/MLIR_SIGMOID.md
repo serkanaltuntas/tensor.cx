@@ -99,8 +99,9 @@ assert list(out.numpy()) == [0.0, 0.0, 0.0]
 ```
 
 Direct Metal compiles with `compile(target="metal")` and returns the in-place
-output. CPU/CUDA launches return a private output copy, redirect input aliases,
-preserve unwritten suffixes and leave callers unchanged. Zero work still
+output. CPU/CUDA launches return a private result, preserve unwritten suffixes
+and leave callers unchanged. CUDA full writes use
+[conditional template-copy elision](CUDA_OUTPUT_COPY_ELISION.md). Zero work still
 validates inputs/artifacts. CUDA retains two float32 inputs, one output and one
 uint32 bound; CPU can accept one input. Each sigmoid costs one DSL operation
 inside unchanged 64-operation, 32-local and depth-16 CUDA budgets. Expanded

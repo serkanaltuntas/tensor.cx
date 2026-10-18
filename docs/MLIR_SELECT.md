@@ -83,8 +83,9 @@ and legacy single-add/subtract/multiply entries are unchanged. The emitted
 source distinguishes predicates and value order in the private cache key;
 cache and native-load validation still run. See the [cache trust contract](COMPILATION_CACHE.md).
 
-CPU/CUDA MLIR launch returns a private output copy, redirects its input aliases
-to that copy, preserves unwritten suffixes and leaves caller tensors unchanged.
+CPU/CUDA MLIR launch returns a private result, preserves unwritten suffixes and
+leaves caller tensors unchanged. CUDA full writes use
+[conditional template-copy elision](CUDA_OUTPUT_COPY_ELISION.md).
 Zero work still validates arguments/artifacts. There is no NumPy fallback.
 
 Direct MSL kernels also accept the selector, emitted as the qualified Metal

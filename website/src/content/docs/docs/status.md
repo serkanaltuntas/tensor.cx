@@ -23,6 +23,7 @@ the [support matrix](/docs/backends/) defines backend availability.
 | Compilation tools | Persistent CPU/CUDA/Metal code cache; compile/launch latency measurements and separate compilation profiles | [Performance](/docs/performance/#compilation-cache-measurements) |
 | Runtime profiling | CPU/CUDA host spans and Chrome trace export; optional separate CUDA kernel event intervals | [Runtime profiling](/docs/performance/#native-runtime-profiling) |
 | Manual CUDA fusion experiment | Native/separate-MLIR/fused expression comparisons with balanced unprofiled calls and separate CUDA diagnostics | [Fusion measurements](/docs/performance/#manual-cuda-fusion-experiment) |
+| Generated CUDA outputs | Proved nonzero full writes omit the template copy; private output, immutable inputs and conservative legacy/partial behavior retained | [Output copies](/docs/performance/#generated-cuda-output-copies) |
 | CUDA allocation | Bounded opt-in exact-size reuse, pool stats/trim, and direct `empty` allocation without CPU staging | [Memory reuse](/docs/performance/#bounded-cuda-memory-reuse) |
 | Distribution | Reviewed Linux x86_64 CPU manylinux wheel pipeline for CPython 3.11–3.13; source builds for supported Metal/CUDA environments | [Installation](/docs/installation/) |
 

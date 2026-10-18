@@ -69,8 +69,9 @@ changes. Sqrt bodies use the existing `tensorcx_expr_v1`/`expr-f32-v1` contract.
 The emitted source separates sqrt from other expressions in cache keys.
 Existing cache validation and native module loading remain mandatory.
 
-CPU/CUDA launches return a private output copy, preserve unwritten suffixes,
-redirect input/output aliases to that copy and leave caller tensors unchanged.
+CPU/CUDA launches return a private result, preserve unwritten suffixes and leave
+caller tensors unchanged. CUDA full writes use
+[conditional template-copy elision](CUDA_OUTPUT_COPY_ELISION.md).
 Zero work still validates inputs and artifacts; there is no NumPy fallback.
 
 Direct MSL emits qualified `::metal::sqrt` and keeps the in-place output

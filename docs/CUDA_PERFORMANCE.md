@@ -36,13 +36,15 @@ Its spans are not device-only timings.
 The [manual fusion experiment](CUDA_FUSION_EXPERIMENT.md) adds a balanced
 native/separate-MLIR/fused comparison for two/four-op expressions, with
 unprofiled wall samples and separate host/CUDA-event diagnostics.
+The subsequent [generated-output copy optimization](CUDA_OUTPUT_COPY_ELISION.md)
+retains private output ownership and compares two before/two after sweeps.
 
 ## Measurement boundaries
 
 | Case | Included |
 | --- | --- |
 | Compile | Public `compile`, toolchain checks, external MLIR lowering, PTX extraction and fresh native module load; Python IR already parsed |
-| One-element launch | Public compiled launch validation, private output allocation/template copy, synchronous execution and returned tensor construction |
+| One-element launch | Public compiled launch validation, private output allocation, conditional template copy, synchronous execution and returned tensor construction; historical reports below predate copy elision |
 | Host/device copy | Public tensor transfer, destination allocation and synchronous copy; host NumPy validation excluded |
 | Primitive | Public dispatch, output allocation, native operation and synchronization; resident inputs |
 | Expression resident | `(a + b) * b` with resident inputs, either two primitive calls or one explicitly authored MLIR kernel |

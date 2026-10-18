@@ -253,7 +253,9 @@ def test_gpu_emitter_and_fixture_without_device(tmp_path, dsl, operation):
     source, ptx = cuda.lower(dsl.parse_ir())
     assert "gpu.block_id" in source and "scf.for" not in source
     fixture = (Path(__file__).parents[1] / f"cpp/fixtures/cuda_{operation}_sm52.ptx").read_text()
-    assert ptx == fixture
+    # Keep the legacy fixture for loader compatibility; only the producer
+    # contract changes. The generated PTX body must remain byte-for-byte equal.
+    assert ptx == "// " + cuda.manifest("tttu", 2, 3, operation) + "\n" + fixture.partition("\n")[2]
 
 
 def test_malformed_serialized_assembly():

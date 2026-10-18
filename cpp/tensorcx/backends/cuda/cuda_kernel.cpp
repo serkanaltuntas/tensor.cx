@@ -35,9 +35,12 @@ bool once(const std::string& text, const std::string& pattern) {
 }
 }  // namespace
 
-std::string kernel_manifest(const KernelSignature& s, const std::string& operation) {
-  return "tensorcx.cuda.v1|linux-x86_64|llvm-21.1.8|sm52|ptx78|" + operation + "-f32-v1|" +
-         s.kinds + "|" + std::to_string(s.output_index) + "|" + std::to_string(s.guard_index);
+std::string kernel_manifest(const KernelSignature& s, const std::string& operation,
+                            bool write_per_thread_no_output_read) {
+  return std::string(write_per_thread_no_output_read ? "tensorcx.cuda.v2|" : "tensorcx.cuda.v1|") +
+         "linux-x86_64|llvm-21.1.8|sm52|ptx78|" + operation + "-f32-v1|" +
+         s.kinds + "|" + std::to_string(s.output_index) + "|" + std::to_string(s.guard_index) +
+         (write_per_thread_no_output_read ? "|write-per-thread-no-output-read-v1" : "");
 }
 
 Status compiled_kernel_support() {
@@ -69,6 +72,7 @@ struct CudaKernelModule::Impl {
   CUmodule module{};
   CUfunction function{};
   int max_block{}, max_grid{};
+  bool write_per_thread_no_output_read{false};
   std::string ptx;
   ~Impl() {
     if (module) {
@@ -93,8 +97,13 @@ Expected<std::shared_ptr<CudaKernelModule>> CudaKernelModule::load(
     else if (entry == "tensorcx_mul_v1") operation = "mul";
     else if (entry == "tensorcx_expr_v1") operation = "expr";
     else return invalid("unsupported CUDA entry point");
+    // v2 is a producer contract from the guarded IR validator, not a PTX-body
+    // verifier. Legacy internal PTX may have arbitrary read/write ordering.
+    const bool write_per_thread =
+        ptx.starts_with("// " + kernel_manifest(signature, operation, true) + "\n");
+    const bool legacy = ptx.starts_with("// " + kernel_manifest(signature, operation) + "\n");
     if (ptx.size() > 1024 * 1024 || ptx.find('\0') != std::string::npos ||
-        !ptx.starts_with("// " + kernel_manifest(signature, operation) + "\n") ||
+        (!write_per_thread && !legacy) ||
         !once(ptx, R"((^|\n)\.version 7\.8(\r?\n))") ||
         !once(ptx, R"((^|\n)\.target sm_52(\r?\n))") ||
         !once(ptx, R"((^|\n)\.address_size 64(\r?\n))")) {
@@ -106,6 +115,7 @@ Expected<std::shared_ptr<CudaKernelModule>> CudaKernelModule::load(
     auto module = std::shared_ptr<CudaKernelModule>(new CudaKernelModule);
     module->impl_->context = scope.owner();
     module->impl_->ptx = ptx;
+    module->impl_->write_per_thread_no_output_read = write_per_thread;
     std::array<char, 4096> log{};
     CUjit_option options[] = {CU_JIT_ERROR_LOG_BUFFER, CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES};
     void* values[] = {log.data(), reinterpret_cast<void*>(static_cast<std::uintptr_t>(log.size()))};
@@ -192,7 +202,9 @@ Expected<CudaTensor> CudaKernelModule::launch(std::span<const KernelArgument> ar
     if (!context.ready()) return context.status();
     auto copied = CudaBuffer::create(DType::kFloat32, output.shape);
     if (!copied) return copied.status();
-    if (copied.value()->nbytes()) {
+    const bool full_write = impl_->write_per_thread_no_output_read && threads != 0 &&
+        threads == static_cast<std::uint64_t>(numel(output.shape));
+    if (!full_write && copied.value()->nbytes()) {
       if (auto status = runtime_status(profiled_memcpy(copied.value()->data(), out.value().buffer()->data(),
                   copied.value()->nbytes(), cudaMemcpyDeviceToDevice), "CUDA output copy"); !status.ok()) return status;
       if (auto status = runtime_status(profiled_synchronize(), "CUDA output copy synchronize"); !status.ok()) return status;
@@ -206,7 +218,12 @@ Expected<CudaTensor> CudaKernelModule::launch(std::span<const KernelArgument> ar
         slots[i] = &scalars[i];
       } else {
         auto buffer = std::static_pointer_cast<CudaBuffer>(arguments[i].tensor->buffer);
-        if (buffer->storage_relation(*out.value().buffer()) == StorageRelation::kSameRange) buffer = copied.value();
+        // On full-write launches input aliases must keep their initialized
+        // source: redirecting them would read the uninitialized private result.
+        if (i == signature_.output_index || (!full_write &&
+            buffer->storage_relation(*out.value().buffer()) == StorageRelation::kSameRange)) {
+          buffer = copied.value();
+        }
         pointers[i] = reinterpret_cast<CUdeviceptr>(buffer->data());
         slots[i] = &pointers[i];
       }

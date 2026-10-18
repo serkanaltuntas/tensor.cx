@@ -61,8 +61,9 @@ external toolchain; ordinary tensor use/import/build does not need it.
 
 ## Runtime, ABI and cache
 
-CPU/CUDA MLIR launch still copies the supplied output privately, redirects its input aliases
-to that copy, preserves unwritten suffixes and leaves caller tensors unchanged.
+CPU/CUDA MLIR launch returns a private result, preserves unwritten suffixes and
+leaves caller tensors unchanged. CUDA full writes use
+[conditional template-copy elision](CUDA_OUTPUT_COPY_ELISION.md).
 Zero work validates arguments/artifacts; errors do not publish partial output.
 No Python/NumPy execution fallback is added.
 Direct MSL kernels retain their existing in-place output contract; the Metal

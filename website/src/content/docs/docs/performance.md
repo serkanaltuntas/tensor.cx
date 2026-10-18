@@ -42,18 +42,33 @@ MLIR kernel. It balances all six provider orders and checks every output against
 CPU. Resident and transfer-inclusive cases use unprofiled public-call wall
 times; separate host/CUDA-event diagnostics verify the expected kernel counts.
 
-Generated results remain private and copy an output template per launch.
+Generated results remain private. The original reports copied an output
+template per launch; current v2 artifacts omit that copy for proved full writes.
 Grouping can reduce calls, allocations, copies and waits together, so this is
 not an isolated kernel-time comparison or automatic tensor-expression fusion.
 The GPU is shared with the desktop. Read the
 [complete experiment and retained results](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/CUDA_FUSION_EXPERIMENT.md)
 for measured limits, variation and regressions.
 
-In two shared-GPU runs, the 1M four-operation resident case had a native/fused
+In the original two shared-GPU runs, the 1M four-operation resident case had a native/fused
 median ratio of about 3.08, falling to about 1.28–1.29 with transfers included.
 The fused 1K two-operation resident call was about 2.19–2.22 times slower than
 native. These observations keep ordinary tensor dispatch unchanged and do not
 establish performance on another GPU or model.
+
+## Generated CUDA output copies
+
+New guarded MLIR CUDA artifacts carry a full-write producer contract. A nonzero
+launch covering the entire output allocates a private result and skips the
+output-template copy and its wait. Aliased inputs still read their original
+storage. Partial and zero-work launches, and legacy v1 artifacts, retain the
+conservative copy path. Caller tensors and unwritten suffix bits are preserved.
+There is no new API, in-place mode or asynchronous execution.
+
+The [implementation and paired measurements](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/CUDA_OUTPUT_COPY_ELISION.md)
+retain all before/after cases, variation and native controls on the shared sm_52
+GPU. Removed copy/wait counts establish the work avoided; timings do not isolate
+that cost from contention or establish a speedup on another workload or GPU.
 
 ## Compilation cache measurements
 

@@ -100,7 +100,7 @@ the same native buffer. The original shape is unchanged. The dtype, device,
 element count and buffer lifetime are preserved without a copy or GPU launch.
 Deleting the source tensor does not invalidate the view. Experimental Metal
 kernel output writes are visible through other views sharing that buffer.
-MLIR CPU/CUDA launches retain their existing output-copy semantics and preserve
+MLIR CPU/CUDA launches retain private result ownership and preserve
 caller tensors; the CPU interpreter also preserves callers while recognizing
 shared-storage arguments. Ordinary arithmetic is out of place; NumPy export copies.
 

@@ -67,6 +67,13 @@ not tool paths or environment values. Each entry is one atomic checksummed
 envelope with at most 32 MiB of artifact data. Damaged/truncated records are
 recompiled; failed compiles are not published.
 
+Generated CUDA artifacts now carry the
+[v2 full-write producer contract](CUDA_OUTPUT_COPY_ELISION.md). Its manifest is
+part of the cache identity, so current compilation misses an old v1 key and
+publishes a distinct entry. Legacy entries are neither relabeled nor deleted;
+native v1 loading retains conservative output copying. No cache schema or
+public cache controls change.
+
 This is trusted local executable code, not a sandbox or interchange format.
 Checksums detect damage; they do not authenticate against changes by the same
 user. Do not restore downloaded/untrusted entries or share storage between

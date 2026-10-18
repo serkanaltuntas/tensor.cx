@@ -61,7 +61,8 @@ boundary is the vendored DLPack ABI, not a promise of a stable C++ binary ABI.
 Independently imported identical memory ranges retain the experimental kernel
 API's alias semantics. Partially overlapping input/output ranges are rejected
 before kernel execution; the reference interpreter also rejects partial overlap
-between arguments. Kernels continue to write a private output copy.
+between arguments. Kernels continue to return a private result; generated CUDA
+full writes use [conditional template-copy elision](CUDA_OUTPUT_COPY_ELISION.md).
 
 ### CUDA synchronization and runtime compatibility
 

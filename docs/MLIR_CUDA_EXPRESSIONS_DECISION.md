@@ -97,9 +97,11 @@ this slice. If the pinned lowering/JIT cannot preserve separate rounding,
 leave the feature disabled and record the blocker rather than relax parity.
 
 Keep exact shape/dtype matching, the current synchronous context/module owners,
-immutable inputs and new-result semantics. Copy the supplied output privately,
-preserve its unwritten suffix, redirect its input aliases to the copy, and
-publish only on success. All accesses remain at the same guarded index, and
+immutable inputs and new-result semantics. Allocate a private result, preserve
+any unwritten suffix and publish only on success. New v2 producer artifacts
+[skip the template copy](CUDA_OUTPUT_COPY_ELISION.md) only for a nonzero full
+write; input aliases then retain original storage. Legacy, partial and zero-work
+launches keep the copy and all-alias remapping. All accesses remain at the same guarded index, and
 the single final store cannot affect another thread's inputs. Zero work still
 validates arguments and returns a copy without launching zero blocks.
 
@@ -112,7 +114,10 @@ metadata, private registry IDs and backend-neutral execution request.
 Retain `tensorcx_add_v1`, `tensorcx_sub_v1`, `tensorcx_mul_v1` and their manifests for
 the currently supported single-operation forms. Use a new `tensorcx_expr_v1`
 entry and `expr-f32-v1` operation tag for extended bodies under the existing
-`tensorcx.cuda.v1` envelope. Native loading must match entry, manifest and Driver
+`tensorcx.cuda.v1` envelope in the original implementation. Current generated
+artifacts use the v2 full-write producer contract; v1 remains loadable with
+conservative copying. Entry names and pointer/scalar slots are unchanged.
+Native loading must match entry, manifest and Driver
 parameter metadata; dispatch must match the entry to the resolved module.
 Different expressions may share an entry name because each module has a unique
 opaque registry ID. The manifest identifies a supported ABI/subset; it does
@@ -160,8 +165,10 @@ Required coverage:
 | Numerics | CPU interpreter, compiled CPU and explicit NumPy float32 steps; normal finite values at project tolerance; exact discriminator, signed zero and subnormal cases; NaN masks/infinity signs without NaN-payload promises |
 | Native lifecycle | Wrong shape/dtype/device/context, argument layout and guard, invalid block/grid, wrong entry/tag/artifact, concurrent lifetime and restored foreign context |
 
-No speedup or reduced memory-traffic claim follows from this decision. The
-private output copy remains. Benchmarking is a separate task after correctness;
+No speedup or reduced memory-traffic claim follows from this original decision.
+Its private output copy remained; subsequent full-write copy elision has
+[separate measurements and acceptance](CUDA_OUTPUT_COPY_ELISION.md).
+Benchmarking is a separate task after correctness;
 other GPUs/hosts, Metal parity and broader compiler features need separate gates.
 
 ## Evidence for this decision

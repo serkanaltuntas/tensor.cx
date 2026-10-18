@@ -191,7 +191,9 @@ def test_gpu_emitter_expression_fixture():
     source,ptx=cuda.lower(rounding.parse_ir())
     assert 'arith.mulf' in source and 'arith.subf' in source
     assert 'mul.rn.f32' in ptx and not re.search(r'\b(?:fma|mad)\.',ptx)
-    assert ptx==(Path(__file__).parents[1]/'cpp/fixtures/cuda_expr_sm52.ptx').read_text()
+    fixture=(Path(__file__).parents[1]/'cpp/fixtures/cuda_expr_sm52.ptx').read_text()
+    # Preserve the v1 fixture and exact PTX body while checking the new header.
+    assert ptx=='// '+cuda.manifest('tttu',2,3,'expr')+'\n'+fixture.partition('\n')[2]
 
 
 @pytest.mark.parametrize('case',['shape','dtype','device','guard','block','count'])

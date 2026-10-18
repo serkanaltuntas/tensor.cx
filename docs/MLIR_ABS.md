@@ -71,8 +71,9 @@ existing `tensorcx_expr_v1`/`expr-f32-v1` entry/manifest. Emitted source separat
 abs from sqrt in cache keys; cache validation and native loading remain
 mandatory.
 
-CPU/CUDA launch returns a private output copy, redirects input/output aliases
-to that copy, preserves unwritten suffixes and leaves caller tensors unchanged.
+CPU/CUDA launch returns a private result, preserves unwritten suffixes and
+leaves caller tensors unchanged. CUDA full writes use
+[conditional template-copy elision](CUDA_OUTPUT_COPY_ELISION.md).
 Zero work still validates inputs and artifacts. There is no NumPy fallback.
 
 Direct MSL emits qualified `::metal::fabs`, including when a parameter is named

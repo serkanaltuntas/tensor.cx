@@ -111,8 +111,9 @@ in the existing 64-node/32-local/depth-16 budget despite its internal instructio
 expansion. Native entry/ABI and `tensorcx_expr_v1`/`expr-f32-v1` are unchanged.
 Emitted source separates tanh in cache keys; validation still runs on hits.
 
-CPU/CUDA launches return a private output copy, redirect its input aliases,
-preserve unwritten suffixes and leave callers unchanged. Direct Metal keeps
+CPU/CUDA launches return a private result, preserve unwritten suffixes and leave
+callers unchanged. CUDA full writes use
+[conditional template-copy elision](CUDA_OUTPUT_COPY_ELISION.md). Direct Metal keeps
 in-place output. Zero work still validates inputs/artifacts. No NumPy fallback,
 general broadcasting, reductions, streams or device-index extension is added.
 

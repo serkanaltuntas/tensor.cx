@@ -7,6 +7,12 @@ records CUDA kernel event intervals on the validated local sm_52 host. Metal
 execution is **not instrumented**; every report declares that limitation.
 This does not add graph optimization, streams or an asynchronous execution API.
 
+Profiling reports the operations actually performed. The
+[generated CUDA full-write optimization](CUDA_OUTPUT_COPY_ELISION.md) omits a
+template copy and its wait for eligible v2 artifacts. Its final kernel wait is
+retained; partial, zero-work and legacy launches keep their conservative path.
+Historical wait counts below describe their original runtime revision.
+
 ```python
 import tensorcx as cx
 

@@ -200,8 +200,10 @@ def signature(ir):
 
 
 def manifest(kinds, output, guard, operation="add"):
-    return (f"tensorcx.cuda.v1|linux-x86_64|llvm-21.1.8|sm52|ptx78|{operation}-f32-v1|"
-            f"{kinds}|{output}|{guard}")
+    # signature() proves one canonical store per guarded thread, with no output
+    # reads. Carry that producer promise into native launch and cache identity.
+    return (f"tensorcx.cuda.v2|linux-x86_64|llvm-21.1.8|sm52|ptx78|{operation}-f32-v1|"
+            f"{kinds}|{output}|{guard}|write-per-thread-no-output-read-v1")
 
 
 def emit_cuda(ir):

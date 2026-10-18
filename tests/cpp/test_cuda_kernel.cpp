@@ -12,6 +12,7 @@
 #include <vector>
 #include "tensorcx/backends/cuda/cuda_kernel.h"
 #include "tensorcx/backends/cuda/cuda_buffer.h"
+#include "tensorcx/core/profiling.h"
 
 using namespace tensorcx;
 using namespace tensorcx::cuda;
@@ -77,6 +78,41 @@ int main(int argc, char** argv) {
     check(std::ranges::equal(to_cpu(destination.value()).value().float_data(), std::vector<float>({-1, -2, -3, -4})),
           "caller output mutated");
     restored();
+    // Only the guarded producer's v2 contract permits a full-output copy elision.
+    // The pointer ABI and private result ownership remain unchanged.
+    {
+      const auto body = ptx.substr(ptx.find('\n'));
+      const auto header = "// " + kernel_manifest({"tttu", 2, 3}, "add", true);
+      auto optimized = CudaKernelModule::load(header + body, "tensorcx_add_v1", {"tttu", 2, 3});
+      check(bool(optimized), "full-write module failed to load");
+      check(!CudaKernelModule::load(header + "|unknown" + body, "tensorcx_add_v1", {"tttu", 2, 3}),
+            "unknown full-write contract accepted");
+      if (optimized) {
+        for (const std::uint32_t count : {0u, 2u, 4u}) {
+          auto full_args = args;
+          full_args[2].tensor = &a;
+          full_args[3].uint32_value = count;
+          const auto token = begin_profile(1000);
+          auto value = optimized.value()->launch(full_args, a, count, 7);
+          const auto profile = end_profile(token);
+          const auto copies = std::ranges::count_if(profile.events,
+              [](const auto& event) { return event.category == ProfileCategory::kCopy; });
+          const auto waits = std::ranges::count_if(profile.events,
+              [](const auto& event) { return event.category == ProfileCategory::kSynchronize; });
+          check(copies == (count == 4 ? 0 : 1), "full-write template copy count mismatch");
+          check(waits == copies + (count != 0), "full-write wait count mismatch");
+          std::vector<float> expected{1, 2, 3, 4};
+          for (std::uint32_t i = 0; i < count; ++i) expected[i] += 5 + i;
+          check(value && std::ranges::equal(to_cpu(value.value()).value().float_data(), expected),
+                "full-write alias/prefix output mismatch");
+          check(value && value.value().buffer() != left.value().buffer(), "full-write output is not private");
+          check(std::ranges::equal(to_cpu(left.value()).value().float_data(), std::vector<float>{1, 2, 3, 4}),
+                "full-write source was mutated");
+          restored();
+        }
+      }
+      restored();
+    }
     // Each operation keeps its own entry/manifest and dispatches via the registry.
     {
       // ABI-level multi-store probe: private-output remapping must recognize
@@ -105,6 +141,13 @@ int main(int argc, char** argv) {
                 std::vector<float>{12, 16, 3, 4}), "borrowed CUDA exact alias remap failed");
           check(std::ranges::equal(to_cpu(left.value()).value().float_data(), std::vector<float>{1, 2, 3, 4}),
                 "borrowed CUDA alias mutated source");
+          auto full_args = alias_args;
+          full_args[3].uint32_value = 4;
+          auto full = alias_module.value()->launch(full_args, alias_out, 4, 7);
+          check(full && std::ranges::equal(to_cpu(full.value()).value().float_data(),
+                std::vector<float>{12, 16, 20, 24}), "legacy full-output multi-store alias remap changed");
+          check(std::ranges::equal(to_cpu(left.value()).value().float_data(), std::vector<float>{1, 2, 3, 4}),
+                "legacy full-output alias mutated source");
           auto partial = CudaBuffer::borrow(DType::kFloat32, {3}, static_cast<float*>(owner->data()) + 1, owner).value();
           auto prefix = CudaBuffer::borrow(DType::kFloat32, {3}, owner->data(), owner).value();
           auto pa = to_core_tensor(CudaTensor(DType::kFloat32, {3}, prefix));

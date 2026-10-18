@@ -88,8 +88,9 @@ and one uint32 bound; CPU can accept a single input. Exp counts as one node in
 the existing 64-operation/32-local/depth-16 CUDA budget. The native ABI and
 `tensorcx_expr_v1`/`expr-f32-v1` manifest remain unchanged.
 
-CPU/CUDA launches return a private output copy, redirect its input aliases,
-preserve unwritten suffixes and leave callers unchanged. Direct Metal keeps
+CPU/CUDA launches return a private result, preserve unwritten suffixes and leave
+callers unchanged. CUDA full writes use
+[conditional template-copy elision](CUDA_OUTPUT_COPY_ELISION.md). Direct Metal keeps
 in-place output. Zero work still validates inputs/artifacts. There is no NumPy
 fallback, general broadcasting, reduction, stream or device-index extension.
 

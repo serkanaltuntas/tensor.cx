@@ -20,6 +20,12 @@ balanced full-size runs, native/separate-MLIR/fused comparisons, separate event
 diagnostics and small-input regressions. It does not add automatic graph fusion
 or extend the validated GPU matrix.
 
+The subsequent [generated-output optimization](CUDA_OUTPUT_COPY_ELISION.md)
+omits the template copy only for proved nonzero full writes of v2 artifacts.
+Private allocation, caller immutability, partial suffix preservation, legacy
+copying and final synchronization are retained. Two before/two after reports
+separate removed copy/wait counts from shared-GPU latency observations.
+
 Implementation sequence: expressions and acceptance, operator coverage, an
 end-to-end float32 inference example using those operations, measurement and
 optimization, compatibility and continuous GPU validation, clean distribution

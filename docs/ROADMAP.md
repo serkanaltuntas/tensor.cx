@@ -166,7 +166,9 @@ documentation. This order does not claim that later packages are implemented.
    execution/waits and optional CUDA kernel event intervals. Metal/device-copy profiling, broader
    MLIR operations remain open. A [manual CUDA fusion experiment](CUDA_FUSION_EXPERIMENT.md)
    compares native/separate-MLIR/fused expressions; automatic fusion and broader
-   workload/architecture acceptance remain open.
+   workload/architecture acceptance remain open. Proved generated CUDA full
+   writes now [omit the output-template copy](CUDA_OUTPUT_COPY_ELISION.md),
+   retaining private output and conservative legacy/partial/zero-work behavior.
 9. **Dtypes:** CUDA int32 fill/arithmetic/sum/max implemented;
    [contract and verification](CUDA_INT32.md). FP16/BF16 remain open on suitable hardware.
 10. **Memory pool and asynchronous execution:** bounded opt-in synchronous
