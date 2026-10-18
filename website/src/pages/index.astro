@@ -62,10 +62,10 @@ const features = [
           <div class="workbench-header"><span><span class="file-dot" aria-hidden="true"></span> first_tensor.py</span><span>PYTHON</span></div>
           <div class="code-body"><Code code={firstTensor.trim()} lang="python" theme="github-dark-high-contrast" wrap /></div>
           <div class="output"><span class="output-label">OUTPUT</span><code>[2. 2. 2. 2. 2.]</code><span class="output-caption">One million elements. One familiar API.</span></div>
-          <div class="execution-path" aria-label="Execution path: Python API through C++20 core to the selected CPU, Metal or CUDA backend">
+          <div class="execution-path" aria-label="Execution path: Python API through C++20 core to the selected CPU, Metal, CUDA or Vulkan backend">
             <span>Python API</span><span aria-hidden="true">↓</span>
             <span class="core">C++20 core <small>backend-neutral</small></span><span aria-hidden="true">↓</span>
-            <div class="backend-chips"><span>CPU</span><span>Metal</span><span>CUDA</span></div>
+            <div class="backend-chips"><span>CPU</span><span>Metal</span><span>CUDA</span><span>Vulkan</span></div>
           </div>
           <div class="workbench-footer"><span class="status-dot" aria-hidden="true"></span> CPU reference. Accelerator execution. Shared contracts.</div>
         </div>
@@ -166,7 +166,7 @@ const features = [
   .execution-path > span[aria-hidden] { color: #8c9a83; }
   .core { padding: 10px 25px; background: #36412e; border: 1px solid #75855b; border-radius: 3px; }
   .core small { color: #c4d6ae; font-size: 9px; margin-left: 10px; }
-  .backend-chips { display: flex; width: 100%; justify-content: center; gap: 14px; }
+  .backend-chips { display: flex; flex-wrap: wrap; width: 100%; justify-content: center; gap: 14px; }
   .backend-chips span { border: 1px solid #617154; padding: 9px 18px; border-radius: 3px; background: #263024; }
   .workbench-footer { display: flex; gap: 8px; align-items: center; border-top: 1px solid #3a463c; padding: 13px 22px; font-size: 10px; color: #bcc7b4; line-height: 1.5; }
   .workbench-footer .status-dot { background: #d4ed88; }
@@ -189,7 +189,7 @@ const features = [
   .section-heading { display: flex; justify-content: space-between; gap: 24px; align-items: end; margin-bottom: 30px; }
   .section-heading .text-link { margin-bottom: 23px; }
   .feature-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
-  .feature-card { min-width: 0; padding: 26px; border: 1px solid #d3d9cb; border-radius: 6px; }
+  .feature-card { min-width: 0; overflow-wrap: anywhere; padding: 26px; border: 1px solid #d3d9cb; border-radius: 6px; }
   .feature-card a:hover { text-decoration: underline; text-underline-offset: 4px; }
   .feature-card h3 { line-height: 1.5; }
   .support-row { display: grid; grid-template-columns: 100px 130px 1fr 20px; align-items: center; gap: 24px; padding: 27px 0; border-top: 1px solid #d3d9cb; transition: background 150ms; }
