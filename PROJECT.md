@@ -88,6 +88,7 @@ Vulkan increment:       optional Linux SPIR-V copies/factories/basic arithmetic,
                         casts/transpose/indexing/concat/stack/split,
                         comparisons/masks/boolean and numeric reductions,
                         float32 vector/matrix/broadcast-batched matmul;
+                        log/sqrt/abs/clip/topk with device-resident values;
                         basic float32 integer-significand RNE/gradual underflow;
                         docs/VULKAN_BACKEND.md (2026-10-18, GTX 980 Ti validation)
 Next implementation:    wider device compatibility and continuous GPU validation

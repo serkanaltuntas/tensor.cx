@@ -119,6 +119,9 @@ def main():
                          'cpp/tensorcx/backends/vulkan/kernels/matmul.glsl',
                          'cpp/tensorcx/backends/vulkan/vulkan_matmul.cpp',
                          'cpp/tensorcx/backends/vulkan/vulkan_matmul.h',
+                         'cpp/tensorcx/backends/vulkan/kernels/math.glsl',
+                         'cpp/tensorcx/backends/vulkan/vulkan_math.cpp',
+                         'cpp/tensorcx/backends/vulkan/vulkan_math.h',
                          'python/tensorcx/_compiler/cuda.py', 'tools/distribution_probe.py',
                          'examples/cuda_mlp.py', 'bindings/dlpack.cpp',
                          'third_party/dlpack/dlpack.h', 'third_party/dlpack/LICENSE'):

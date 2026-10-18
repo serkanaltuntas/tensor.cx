@@ -12,6 +12,8 @@
 #include "tensorcx/backends/vulkan/vulkan_predicate.h"
 #include "tensorcx/backends/vulkan/vulkan_reduction.h"
 #include "tensorcx/backends/vulkan/vulkan_matmul.h"
+#include "tensorcx/backends/vulkan/vulkan_math.h"
+#include "tensorcx/core/math.h"
 #include "tensorcx/core/predicate.h"
 
 namespace tensorcx::vulkan {
@@ -54,6 +56,7 @@ Status VulkanBackend::execute(const BackendExecution& execution) {
       execution.op.kind == OpKind::kMean || execution.op.kind == OpKind::kMin ||
       execution.op.kind == OpKind::kArgmax)
     return execute_reduction(execution);
+  if (is_math_operation(execution.op.kind)) return execute_math(execution);
   if (is_predicate_elementwise(execution.op.kind) || execution.op.kind == OpKind::kAny ||
       execution.op.kind == OpKind::kAll || execution.op.kind == OpKind::kMaskedSelect)
     return execute_predicate(execution);

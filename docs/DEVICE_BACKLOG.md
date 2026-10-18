@@ -127,16 +127,18 @@ and end-to-end measurements. See product backlog item 10 for async/pool work.
   implement discovery, ownership, allocation/copy and a minimal float32
   fill/add/multiply slice through the shared backend contract. Validate CPU
   parity and multi-device behavior before expanding operation coverage.
-- [ ] **Vulkan/SPIR-V:** select a tested device/driver and compilation path,
-  define required compute/memory capabilities, then implement the same minimal
-  slice and multi-device contract. Expand the vendor/device matrix through
-  real execution evidence, not API availability alone.
+- [ ] **Wider Vulkan/SPIR-V acceptance:** the optional Linux runtime is
+  implemented on one GTX 980 Ti, including the initial slice, shape/mask/math
+  operations, reductions and float32 batched matmul. Continue the
+  [canonical Vulkan checklist](VULKAN_BACKEND.md#remaining-vulkan-work) and
+  expand the vendor/device matrix and real multi-device execution evidence.
 - [ ] For each backend, record primitive and generated-kernel capabilities
   separately; validate optional builds, missing-runtime behavior, clean package
   installation and supported-host limits before declaring support.
 
-ROCm followed by Vulkan is a proposed order; actual order depends on available
-hardware and product priorities. Neither has a committed delivery date.
+An earlier proposal listed ROCm before Vulkan; Linux Vulkan was implemented
+first on the available GPU on 2026-10-18. Remaining work depends on available
+hardware and product priorities, without committed delivery dates.
 
 ## 5 Workloads and continuous acceptance
 

@@ -131,6 +131,10 @@ def test_vulkan_capabilities_and_diagnostics(vulkan_device):
         assert caps[name] == ["float32", "int32"]
     assert caps["mean"] == ["float32"]
     assert caps["matmul"] == ["float32"]
+    for name in ("log", "sqrt"):
+        assert caps[name] == ["float32"]
+    for name in ("abs", "clip", "topk"):
+        assert caps[name] == ["float32", "int32"]
     assert not {"from_dlpack", "attention"} & caps.keys()
     info = cx.diagnostics()["backends"][vulkan_device]
     assert info["available"] is True

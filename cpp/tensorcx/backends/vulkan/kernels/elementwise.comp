@@ -4,7 +4,7 @@
 // Uint storage preserves wrapping int32 arithmetic without signed overflow.
 layout(local_size_x = 64) in;
 layout(set = 0, binding = 0, std430) readonly buffer Left { uint lhs[]; };
-// Right is writable only for the private float-to-int conversion error flag.
+// Right is writable for private float-to-int error flags and topk indices.
 layout(set = 0, binding = 1, std430) buffer Right { uint rhs[]; };
 layout(set = 0, binding = 2, std430) buffer Output { uint output_data[]; };
 layout(set = 0, binding = 3, std430) readonly buffer Metadata { uint metadata[]; };
@@ -86,6 +86,7 @@ void transform(uint word) {
 #include "float32.glsl"
 #include "reduction.glsl"
 #include "matmul.glsl"
+#include "math.glsl"
 
 void main() {
     uint group = gl_WorkGroupID.y * p.groups_x + gl_WorkGroupID.x;
@@ -93,6 +94,7 @@ void main() {
     uint i = group * 64u + gl_LocalInvocationID.x;
     if (i >= p.count) return;
     if (p.operation == 0u) { output_data[i] = p.scalar_bits; return; }
+    if (p.operation >= 60u) { math_operation(i); return; }
     if (p.operation == 50u) { matmul(i); return; }
     if (p.operation >= 40u) { numeric_reduction(i); return; }
     if (p.operation >= 20u) { predicate(i); return; }

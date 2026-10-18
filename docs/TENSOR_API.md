@@ -3,7 +3,8 @@
 The optional [Vulkan runtime](VULKAN_BACKEND.md) supports a smaller subset:
 copies/factories, shared shape views, basic arithmetic, all dtype casts,
 transpose, basic indexing/concat/stack/split, comparisons/masks and boolean
-`any`/`all`, numeric sum/max/mean/min and argmax, float32 vector/batched matmul. Check
+`any`/`all`, numeric sum/max/mean/min and argmax, float32 vector/batched matmul,
+log/sqrt/abs/clip/topk. Check
 `cx.capabilities(device)` before placing broader workloads.
 
 User-requested increment, 2026-10-04: basic arithmetic and Python/NumPy real
@@ -481,7 +482,7 @@ results do not cover additional NVIDIA architectures or make performance claims.
 
 The top-level APIs below also have Tensor methods; Python `abs(x)` calls
 `x.abs()`. All results own contiguous storage on the input device. Operations
-use native CPU/Metal/CUDA execution without exporting input tensors to the host.
+use native CPU/Metal/CUDA/Vulkan execution without exporting input tensors to the host.
 There is no implicit dtype promotion or device transfer. Generated kernels and
 MLIR operation subsets are unchanged.
 
@@ -530,14 +531,28 @@ per group (O(n log n) when k=n). GPU topk uses one thread per group and O(n*k)
 selection, plus O(k²) index ordering for `sorted=False`; it allocates only output
 and O(rank) metadata. This is a correctness-first synchronous implementation,
 not a tuned topk or throughput claim. Float comparison/selection on Metal uses
-IEEE word ordering to preserve subnormals and signed-zero ties. Log/sqrt
-normalize subnormal magnitudes before arithmetic to avoid device input flushing.
+IEEE word ordering to preserve subnormals and signed-zero ties. Metal/CUDA
+log/sqrt normalize subnormal magnitudes before arithmetic to avoid input flushing.
 Metal retains its 2^32-1 output-element limit.
+
+Vulkan also supports all seven math APIs through `MathPlan`, retaining four
+storage buffers and uint32 traversed metadata. Sqrt uses a two-word uint32
+restoring root with remainder and one ties-to-even rounding, including
+subnormal inputs and negative zero. Log uses integer-significand normalization,
+an odd degree-13 atanh series and split ln(2), evaluated with the binary32 RNE
+helpers; acceptance uses rtol=1e-6, atol=0, not a correctly-rounded-log claim.
+Both quiet input NaNs, return NaN for negative nonzero inputs and handle
+infinities/zeros explicitly. Abs clears the float sign bit or wraps int32
+magnitude. Clip executes lower/upper bounds in two synchronized GPU passes
+without publishing the intermediate; NaN and signed-zero selection retain
+stored bits. Topk publishes its two independent outputs together and retains
+the stable ordering and O(n*k)/unsorted O(k²) baseline above. No tensor values
+are exported to the host, and no optional 64-bit shader/float controls are needed.
 
 `tests/python/test_math_ops.py` covers NumPy/CPU parity, all seven APIs, dtype and
 argument validation, broadcasting, empty/scalar/high-rank tensors, ties,
 NaN/infinity/subnormal values, ownership and no-host-fallback behavior.
-`tests/cpp/math_contract.h` exercises native CPU/Metal/CUDA parity and malformed
+`tests/cpp/math_contract.h` exercises native CPU/Metal/CUDA/Vulkan parity and malformed
 metadata/arity, including preservation of both topk outputs on failure. Both
 are part of the strict CUDA push gate. Additional hardware and portable package
 publication still require their separate acceptance work.

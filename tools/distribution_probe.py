@@ -79,6 +79,11 @@ def main():
             ('matmul_batch_auto', cx.matmul(ma.to(device), mb.to(device)), cx.matmul(ma, mb)),
             ('matmul_vector', cx.matmul(ma[0, 0, 0].to(device), mb[0, 0].to(device)), cx.matmul(ma[0, 0, 0], mb[0, 0])),
             ('matmul_empty_k', cx.matmul(cx.empty((2, 0), device=device), cx.empty((0, 3), device=device)), cx.zeros((2, 3))),
+            ('log', x.log(), a.log()), ('sqrt', x.sqrt(), a.sqrt()),
+            ('abs', (-x).abs(), (-a).abs()),
+            ('clip', cx.clip(x, y, 3.), cx.clip(a, b, 3.)),
+            ('topk_values', cx.topk(x, 3, axis=-1, sorted=False)[0], cx.topk(a, 3, axis=-1, sorted=False)[0]),
+            ('topk_indices', cx.topk(x, 3, axis=-1, sorted=False)[1], cx.topk(a, 3, axis=-1, sorted=False)[1]),
         ]:
             check(actual.dtype == expected.dtype, name + ': dtype mismatch')
             if expected.dtype in (cx.int32, cx.bool):
@@ -100,6 +105,12 @@ def main():
             np.testing.assert_array_equal(actual.view(np.uint32)[~nan], expected.view(np.uint32)[~nan])
             check(np.all((actual.view(np.uint32)[nan] & np.uint32(0x00400000)) != 0), 'arithmetic NaN not quiet')
             checks.append('float32_rne_' + name)
+        positive = cx.tensor(np.array([1, 3, 0x007fffff, 0x00800000, 0x3f800001], np.uint32).view(np.float32))
+        for name in ('sqrt', 'log'):
+            result = getattr(positive.to(device), name)().numpy()
+            reference = getattr(positive, name)().numpy()
+            np.testing.assert_allclose(result, reference, rtol=1e-6, atol=0)
+            checks.append('subnormal_' + name)
         if not args.hidden_gpu:
             check(cx.matmul_backends(device) == ['auto', 'custom'], 'Vulkan matmul preferences')
             np.testing.assert_allclose(cx.matmul(ma.to(device), mb.to(device), backend='custom').numpy(),

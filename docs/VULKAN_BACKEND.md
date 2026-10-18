@@ -59,16 +59,40 @@ print(cx.capabilities("vulkan"))
   Argmax supports one axis or a flattened search and returns int32 indices.
 - `float32`: vector, matrix and broadcast-batched `matmul` / `@`, with
   `auto` and `custom` selecting the same kernel.
+- `float32`: `log` and `sqrt`; `float32`/`int32`: `abs`, broadcasted `clip`
+  and deterministic `topk` values/int32 indices.
 - Per-device capabilities and basic diagnostics: Vulkan API version, raw
   vendor-encoded driver version, storage-buffer limit and total device-local
   heap bytes. Available/free bytes are **not collected**. Heaps are device-wide,
   not a count of tensor-owned allocations.
 
-Remaining math, activations, norms,
+Activations, norms,
 inference, DLPack, generated kernels/MLIR, profiling, memory
 pools, command batching and asynchronous execution are not implemented on Vulkan.
 Unsupported operations raise explicit errors; no CPU fallback is performed.
 Other backends retain their existing capabilities.
+
+The remaining math APIs reuse `MathPlan`. Sqrt performs a restoring base-four
+integer root over two uint32 words, retaining an exact remainder for one
+binary32 ties-to-even rounding. Positive subnormal inputs are normalized by
+bits; signed zero is retained. Log normalizes by significand/exponent, reduces
+the mantissa near one, and evaluates the odd degree-13 atanh series with the
+existing RNE helpers and split ln(2). Its accepted relative tolerance is 1e-6
+with no absolute slack, including values near one and positive subnormals;
+correctly-rounded log is not claimed. Both handle domains/zeros/infinities
+explicitly and quiet input NaNs. Abs preserves magnitude bits (including NaNs)
+or wraps int32 magnitude. No shaderInt64 or optional float controls are used.
+
+Clip applies the broadcast lower then upper bound in two checked GPU passes,
+retaining a private expanded intermediate. NaN input/bound ordering and
+signed-zero ties match the CPU's stored-bit selections. Topk assigns one
+invocation per group, repeatedly selects in a stable total order, and writes
+separate private values and int32 indices. Unsorted mode returns the selected
+entries in original axis-index order. This is O(n*k) selection and O(k²)
+unsorted index insertion, without an optimized throughput claim. Zero work
+skips dispatch and unused metadata narrowing. Both output descriptors are
+published only after success; allocation/second-pass failure preserves caller
+slots and immutable inputs. See [the math contract](TENSOR_API.md#math-and-selection).
 
 Matmul reuses the shared `MatmulPlan` for rank-one promotion, right-aligned
 batch broadcasting, output shape and overflow checks. One invocation owns an
@@ -96,8 +120,8 @@ Non-NaN results match CPU float32 bits under round-to-nearest, ties-to-even.
 Arithmetic NaNs are canonical quiet NaNs; their input payload/sign is not
 preserved. Negate, copies, shape operations and selection retain their separate
 bit-preserving contracts. Int32 and bool parity are exact. This arithmetic
-contract does not establish other GPUs' hardware acceptance or implement the
-remaining math operations. Empty contents are unspecified.
+contract does not establish other GPUs' hardware acceptance or a numerical
+contract for other operations. Empty contents are unspecified.
 
 The integer path adds work, especially for division. A local shared-desktop
 snapshot (seven warmed synchronous host calls per size, allocation/metadata/
@@ -210,6 +234,7 @@ TENSORCX_VULKAN_VALIDATION=1 TENSORCX_REQUIRE_BACKENDS=vulkan \
   tests/python/test_vulkan_float32.py \
   tests/python/test_vulkan_reduction.py tests/python/test_multi_axis_reductions.py \
   tests/python/test_vulkan_matmul.py tests/python/test_batched_matmul.py \
+  tests/python/test_vulkan_math.py tests/python/test_math_ops.py \
   tests/python/test_boolean_masks.py tests/python/test_backend_parity.py
 # Build native tests with TENSORCX_BUILD_TESTS=ON and TENSORCX_ENABLE_VULKAN=ON:
 uv run --no-sync ctest --test-dir build/vulkan-native --output-on-failure
@@ -266,7 +291,8 @@ operation reference, and each advertised feature needs real-device acceptance.
   reductions, selected axes and `keepdims`.
 - [x] Numeric sum/max/mean/min/argmax reductions, selected axes and `keepdims`.
 - [x] Vector, matrix and broadcast-batched matmul.
-- [ ] Remaining math, activations, normalization and inference operations
+- [x] Remaining math: log/sqrt/abs/clip/topk, with CPU parity.
+- [ ] Activations, normalization and inference operations
   (`linear`, affine norms, embedding and attention), with CPU parity.
 - [ ] Repeatable benchmarks, host/device timing, allocation diagnostics and
   measured staging/command/descriptor/buffer reuse.

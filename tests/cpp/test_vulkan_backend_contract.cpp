@@ -10,6 +10,7 @@
 #include "tensorcx/backends/vulkan/vulkan_backend.h"
 #include "tensorcx/backends/vulkan/vulkan_context.h"
 #include "batched_matmul_contract.h"
+#include "math_contract.h"
 
 using namespace tensorcx;
 namespace vk = tensorcx::vulkan;
@@ -21,6 +22,53 @@ VKAPI_ATTR VkResult VKAPI_CALL failed_wait(VkDevice, std::uint32_t, const VkFenc
   return VK_ERROR_OUT_OF_HOST_MEMORY;
 }
 VKAPI_ATTR VkResult VKAPI_CALL failed_idle(VkDevice) { return VK_ERROR_OUT_OF_HOST_MEMORY; }
+
+PFN_vkAllocateDescriptorSets real_allocate_descriptors = nullptr;
+int descriptor_calls = 0;
+VKAPI_ATTR VkResult VKAPI_CALL fail_second_descriptors(
+    VkDevice device, const VkDescriptorSetAllocateInfo* info, VkDescriptorSet* sets) {
+  if (++descriptor_calls == 2) return VK_ERROR_OUT_OF_HOST_MEMORY;
+  return real_allocate_descriptors(device, info, sets);
+}
+
+void math_failure_contract(vk::VulkanBackend& backend) {
+  auto x = vk::from_cpu(cpu::CpuTensor({3}, std::vector<float>{1, 2, 3})).move_value();
+  auto lo = vk::from_cpu(cpu::CpuTensor({}, std::vector<float>{0})).move_value();
+  auto hi = vk::from_cpu(cpu::CpuTensor({}, std::vector<float>{2})).move_value();
+  std::array<Tensor, 3> inputs{vk::to_core_tensor(x), vk::to_core_tensor(lo), vk::to_core_tensor(hi)};
+  std::array<Tensor, 2> outputs{inputs[1], inputs[2]};
+  BackendExecution e;
+  e.op = OpDesc{OpKind::kTopK}; e.op.k = 2;
+  e.inputs = std::span<const Tensor>(inputs).first(1); e.outputs = outputs;
+  auto context = x.buffer()->owner();
+  const auto before = context->allocation_count.load();
+  const auto limit = context->limits.maxMemoryAllocationCount;
+  context->limits.maxMemoryAllocationCount = before + 1; // Fail the second result allocation.
+  const auto status = backend.execute(e);
+  context->limits.maxMemoryAllocationCount = limit;
+  require(!status.ok(), "topk accepted an allocation failure");
+  require(outputs[0].buffer == inputs[1].buffer && outputs[1].buffer == inputs[2].buffer,
+          "topk allocation failure partially published results");
+  require(context->allocation_count == before, "topk failed allocation leaked private output");
+  require(backend.execute(e).ok(), "topk did not recover after allocation failure");
+
+  outputs = {inputs[1], inputs[2]};
+  e.op = OpDesc{OpKind::kClip}; e.inputs = inputs; e.outputs = std::span<Tensor>(outputs).first(1);
+  const auto clip_before = context->allocation_count.load();
+  real_allocate_descriptors = context->AllocateDescriptorSets; descriptor_calls = 0;
+  context->AllocateDescriptorSets = &fail_second_descriptors;
+  const auto clip_status = backend.execute(e);
+  context->AllocateDescriptorSets = real_allocate_descriptors;
+  require(!clip_status.ok() && descriptor_calls == 2, "clip second-pass fault was not exercised");
+  require(outputs[0].buffer == inputs[1].buffer && outputs[1].buffer == inputs[2].buffer,
+          "clip second-pass failure published private intermediate");
+  require(context->allocation_count == clip_before && !context->poisoned,
+          "pre-submit clip failure leaked storage or poisoned device");
+  require(backend.execute(e).ok(), "clip did not recover after second-pass rejection");
+  const auto unchanged = vk::to_cpu(x).value();
+  require(unchanged.float_data()[0] == 1 && unchanged.float_data()[2] == 3,
+          "failed math modified input storage");
+}
 
 void failed_completion(bool unproven_idle) {
   auto context = vk::get_context(0).value();
@@ -47,6 +95,10 @@ void failed_completion(bool unproven_idle) {
 
 void contract() {
   vk::VulkanBackend backend;
+  math_contract(backend,
+      [](const cpu::CpuTensor& input) { return vk::to_core_tensor(vk::from_cpu(input).value()); },
+      [](const Tensor& output) { return vk::to_cpu(vk::from_core_tensor(output).value()).move_value(); });
+  math_failure_contract(backend);
   for (auto preference : {MatmulPreference::kAuto, MatmulPreference::kCustom})
     batched_matmul_contract(backend,
         [](const cpu::CpuTensor& input) { return vk::to_core_tensor(vk::from_cpu(input).value()); },
@@ -136,8 +188,9 @@ void contract() {
       check_predicate_rejection(OpDesc{OpKind::kMatmul}, args);
     }
   }
-  for (auto kind : {OpKind::kEqual, OpKind::kWhere, OpKind::kMaskedSelect}) {
+  for (auto kind : {OpKind::kEqual, OpKind::kWhere, OpKind::kMaskedSelect, OpKind::kClip}) {
     auto args = kind == OpKind::kWhere ? std::vector<Tensor>{mask, original, original}
+              : kind == OpKind::kClip ? std::vector<Tensor>{original, original, original}
               : kind == OpKind::kMaskedSelect ? std::vector<Tensor>{original, mask}
               : std::vector<Tensor>{original, original};
     for (std::size_t i = 0; i < args.size(); ++i) {

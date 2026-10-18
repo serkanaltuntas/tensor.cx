@@ -28,9 +28,9 @@ CPU/Metal/CUDA expose index 0; Vulkan has indexed routes with one physical GPU v
 | Int32 sum, max | Yes | Yes | Yes | Yes |
 | Sum/max/mean `keepdims` | Yes | Yes | Yes | Yes |
 | All-axis / multi-axis sum, max, mean | Yes | Yes | Yes | Yes |
-| Float32 log, sqrt | Yes | Yes | Yes | Not implemented |
+| Float32 log, sqrt | Yes | Yes | Yes | Yes |
 | Float32/int32 min, argmax | Yes | Yes | Yes | Yes |
-| Float32/int32 abs, clip, topk | Yes | Yes | Yes | Not implemented |
+| Float32/int32 abs, clip, topk | Yes | Yes | Yes | Yes |
 | Float32 linear, affine norms, embedding, attention | Yes | Yes | Yes | Not implemented |
 | Float32 exp, GELU, SiLU | Yes | Yes | Yes | Not implemented |
 | Float32 softmax, RMSNorm, LayerNorm | Yes | Yes | Yes | Not implemented |
@@ -93,8 +93,9 @@ are canonical quiet NaNs. Software Vulkan CPU devices are excluded from
 GPU discovery. Numeric sum/max/mean/min/argmax preserve CPU order and execute
 serially per output, with mean restricted to float32. Matmul supports
 `auto`/`custom`, separate multiply/add rounding and broadcast batches.
-Inference,
-remaining math, DLPack and MLIR are outside this
+Log/sqrt/abs/clip/topk also execute on-device; sqrt uses integer root rounding,
+log uses a bounded-error series, and clip/topk preserve selection bits.
+Inference, activations, normalization, DLPack and MLIR are outside this
 first slice. See [Vulkan setup and limits](/docs/vulkan/).
 
 ## Compiler boundary

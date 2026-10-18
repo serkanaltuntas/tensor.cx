@@ -1,6 +1,6 @@
 ---
 title: Vulkan / SPIR-V
-description: Build and use the optional Linux Vulkan backend for GPU arithmetic, matmul, reductions, dtype conversion, indexing and tensor joins.
+description: Build and use the optional Linux Vulkan backend for GPU arithmetic, math, selection, matmul, reductions and tensor preparation.
 ---
 
 Vulkan is an optional Linux backend with a deliberately smaller operation set
@@ -103,7 +103,16 @@ print(joined.astype(cx.int32).numpy())
 #  [1 4]]
 ```
 
-Inference, activations, remaining math,
+Float32 `log`/`sqrt` and float32/int32 `abs`/`clip`/`topk` execute on the GPU.
+Sqrt uses an integer restoring root with ties-to-even rounding; log uses
+significand normalization and a series near one, accepted at relative error
+1e-6. Both handle subnormals, domains and special values without native float
+flushing. Abs, clip and topk preserve selected stored bits. Clip supports
+three-way broadcasting through two GPU passes; topk returns separate values
+and int32 indices, with stable ties and original-index order for `sorted=False`.
+These are correctness baselines, without optimized-throughput claims.
+
+Inference, activations, normalization,
 DLPack and generated kernels/MLIR are not implemented on Vulkan.
 Unsupported operations raise errors. Inspect capabilities before choosing a
 backend for a larger workload.
