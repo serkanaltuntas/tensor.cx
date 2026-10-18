@@ -15,6 +15,11 @@ increments; a completed increment does not complete the overall objective.
 | Continuous GPU validation | Working GPU execution runner/process with strict no-skip acceptance and retained run evidence, alongside CPU/build CI | [Nightblade push gate and GitHub workflow](CUDA_CONTINUOUS_VALIDATION.md) implemented; local gate verified. Automatic remote GPU runs remain disabled until an isolated runner is provisioned and push/PR runs pass; fork PR policy and additional hardware remain open |
 | Product workload and distribution | Defined end-to-end workload, clean wheel installation, packaged artifacts/dependencies, documented supported environments and release checks | MLP and CPU/CUDA sdist→wheel clean-install checks locally verified on Nightblade; [distribution evidence and host limits](DISTRIBUTION.md). Remote CPU packaging job on `2281ca9` verified; this is not remote GPU acceptance |
 
+The [manual CUDA fusion experiment](CUDA_FUSION_EXPERIMENT.md) records two
+balanced full-size runs, native/separate-MLIR/fused comparisons, separate event
+diagnostics and small-input regressions. It does not add automatic graph fusion
+or extend the validated GPU matrix.
+
 Implementation sequence: expressions and acceptance, operator coverage, an
 end-to-end float32 inference example using those operations, measurement and
 optimization, compatibility and continuous GPU validation, clean distribution

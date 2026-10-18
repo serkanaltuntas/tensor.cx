@@ -164,7 +164,9 @@ documentation. This order does not claim that later packages are implemented.
    [kernel sigmoid](MLIR_SIGMOID.md) and [kernel SiLU](MLIR_SILU.md) are implemented. Opt-in CPU/CUDA
    [runtime profiling](RUNTIME_PROFILING.md) separates host allocation/copy,
    execution/waits and optional CUDA kernel event intervals. Metal/device-copy profiling, broader
-   MLIR operations and measured kernel fusion remain open.
+   MLIR operations remain open. A [manual CUDA fusion experiment](CUDA_FUSION_EXPERIMENT.md)
+   compares native/separate-MLIR/fused expressions; automatic fusion and broader
+   workload/architecture acceptance remain open.
 9. **Dtypes:** CUDA int32 fill/arithmetic/sum/max implemented;
    [contract and verification](CUDA_INT32.md). FP16/BF16 remain open on suitable hardware.
 10. **Memory pool and asynchronous execution:** bounded opt-in synchronous

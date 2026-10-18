@@ -33,6 +33,10 @@ For allocation/copy/launch/wait attribution without adding synchronization, use
 the separate [native host profiler and paired benchmark](RUNTIME_PROFILING.md).
 Its spans are not device-only timings.
 
+The [manual fusion experiment](CUDA_FUSION_EXPERIMENT.md) adds a balanced
+native/separate-MLIR/fused comparison for two/four-op expressions, with
+unprofiled wall samples and separate host/CUDA-event diagnostics.
+
 ## Measurement boundaries
 
 | Case | Included |

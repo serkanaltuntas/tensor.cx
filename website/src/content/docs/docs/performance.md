@@ -34,6 +34,27 @@ sm_52 GPU shared with a desktop. They do not establish a speedup for other GPUs
 or an overall workload improvement. The engineering report keeps the raw
 measurement boundaries, medians, variation, and regressions together.
 
+## Manual CUDA fusion experiment
+
+`benchmarks/bench_cuda_fusion.py` compares two- and four-operation expressions
+through native tensor calls, separate MLIR kernels and one manually authored
+MLIR kernel. It balances all six provider orders and checks every output against
+CPU. Resident and transfer-inclusive cases use unprofiled public-call wall
+times; separate host/CUDA-event diagnostics verify the expected kernel counts.
+
+Generated results remain private and copy an output template per launch.
+Grouping can reduce calls, allocations, copies and waits together, so this is
+not an isolated kernel-time comparison or automatic tensor-expression fusion.
+The GPU is shared with the desktop. Read the
+[complete experiment and retained results](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/CUDA_FUSION_EXPERIMENT.md)
+for measured limits, variation and regressions.
+
+In two shared-GPU runs, the 1M four-operation resident case had a native/fused
+median ratio of about 3.08, falling to about 1.28–1.29 with transfers included.
+The fused 1K two-operation resident call was about 2.19–2.22 times slower than
+native. These observations keep ordinary tensor dispatch unchanged and do not
+establish performance on another GPU or model.
+
 ## Compilation cache measurements
 
 Experimental CPU/CUDA/Metal compilation reuses private local code artifacts,

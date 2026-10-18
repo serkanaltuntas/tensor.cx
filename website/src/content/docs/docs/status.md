@@ -22,6 +22,7 @@ the [support matrix](/docs/backends/) defines backend availability.
 | Explicit kernels | Experimental Metal MSL and guarded float32 CPU/CUDA MLIR compilation; division, sqrt/abs/exp/log/rsqrt/tanh/sigmoid/SiLU, minimum/maximum, comparisons and value selection in the MLIR subset | [Experimental kernels](/docs/experimental/) |
 | Compilation tools | Persistent CPU/CUDA/Metal code cache; compile/launch latency measurements and separate compilation profiles | [Performance](/docs/performance/#compilation-cache-measurements) |
 | Runtime profiling | CPU/CUDA host spans and Chrome trace export; optional separate CUDA kernel event intervals | [Runtime profiling](/docs/performance/#native-runtime-profiling) |
+| Manual CUDA fusion experiment | Native/separate-MLIR/fused expression comparisons with balanced unprofiled calls and separate CUDA diagnostics | [Fusion measurements](/docs/performance/#manual-cuda-fusion-experiment) |
 | CUDA allocation | Bounded opt-in exact-size reuse, pool stats/trim, and direct `empty` allocation without CPU staging | [Memory reuse](/docs/performance/#bounded-cuda-memory-reuse) |
 | Distribution | Reviewed Linux x86_64 CPU manylinux wheel pipeline for CPython 3.11–3.13; source builds for supported Metal/CUDA environments | [Installation](/docs/installation/) |
 
@@ -41,7 +42,7 @@ remaining parts; completed pieces above are not reset by this list.
 | Track | Remaining scope |
 | --- | --- |
 | Diagnostics and profiling | Native Metal memory reporting and profiling; CUDA transfer timing and broader profiling coverage |
-| Compiler and performance | More generated MLIR operations and reductions, measured kernel fusion, and lower first-process toolchain fingerprinting cost; ordinary tensor expressions are not automatically fused |
+| Compiler and performance | More generated MLIR operations and reductions, automatic fusion and wider fusion validation, and lower first-process toolchain fingerprinting cost; ordinary tensor expressions are not automatically fused |
 | Dtypes | FP16/BF16 implementation and numerical/performance acceptance on suitable hardware |
 | Memory and execution | CPU/Metal pools, broader allocator policies, asynchronous submission/streams and command batching |
 | Distribution and releases | Portable macOS/CUDA wheels, versioned releases and package-index publication; Linux ARM64 and musl/Alpine wheels are outside the current matrix |
@@ -49,9 +50,9 @@ remaining parts; completed pieces above are not reset by this list.
 
 Float32 `sqrt`, `abs`, minimum/maximum and bounded-error `exp`/`log`/`rsqrt`/`tanh`/`sigmoid`/`silu`
 are implemented inside guarded experimental kernels, with their target-specific
-numerical contracts. Ordinary tensor operations remain separate. The next proposed
-product increment is a measured CUDA elementwise kernel-fusion experiment on the validated local GPU.
-This is a scoped candidate, not a release date or a promise of a full compiler.
+numerical contracts. Ordinary tensor operations remain separate. The manual CUDA
+fusion experiment compares explicit grouping on the validated local GPU; it does
+not add automatic fusion or establish performance on other GPUs.
 
 ## Validation boundaries
 

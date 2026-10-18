@@ -179,8 +179,9 @@ measurements before making an overhead/optimization claim. A shared desktop GPU
 and endpoint process snapshots cannot establish isolation. No other workload is
 stopped by this benchmark. Bounded opt-in [CUDA memory pooling](CUDA_MEMORY_POOL.md) is implemented.
 Optional CUDA kernel event intervals are implemented as described above.
-Metal/device-copy timing, broader accounting, async execution and measured fusion
-remain separate work. Add `--device-timing` with `--device cuda` to the paired
+Metal/device-copy timing, broader accounting and async execution remain separate
+work. The [manual fusion experiment](CUDA_FUSION_EXPERIMENT.md) uses separate
+diagnostics and unprofiled wall samples. Add `--device-timing` with `--device cuda` to the paired
 benchmark to retain a separate `device_time_breakdown` and device-record counts.
 This measures instrumentation overhead too; the paired unprofiled samples remain
 the public-call latency baseline. `--include-events` additionally retains the
