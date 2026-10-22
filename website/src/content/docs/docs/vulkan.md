@@ -8,6 +8,12 @@ than CPU, Metal or CUDA. Its first real-device validation is on a GTX 980 Ti
 with NVIDIA 580.178.04 and Vulkan device API 1.4.312. Support on other NVIDIA,
 AMD and Intel GPUs still requires hardware acceptance.
 
+The separate [Mesa lavapipe experiment](https://github.com/serkanaltuntas/tensor.cx/tree/main/experiments/vulkan)
+also passed 192 guarded float32 software execution cases with CPU references,
+two complete resource lifecycles and zero validation errors. This runs on the
+CPU and remains excluded from the runtime's GPU discovery. It does not add a
+supported GPU or establish the full runtime operation set on lavapipe.
+
 ## Build and run
 
 Install a C++20 compiler, Vulkan 1.1+ headers, `glslangValidator` and `spirv-val`

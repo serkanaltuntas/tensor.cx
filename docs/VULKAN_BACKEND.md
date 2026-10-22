@@ -358,8 +358,15 @@ operation reference, and each advertised feature needs real-device acceptance.
   The gate validates a fresh installed wheel, guarded compiler launches,
   native failure contracts and hidden-driver CPU behavior. Combined mode adds
   CUDA sharing and sanitizers after the existing mandatory CUDA push gate.
-- [ ] The separately planned lavapipe software execution probe, clearly
-  distinguished from GPU acceptance (see [device backlog](DEVICE_BACKLOG.md)).
+- [x] The separately planned [lavapipe software execution probe](../experiments/vulkan/README.md):
+  192 guarded float32 cases, two complete resource lifecycles, CPU parity,
+  zero validation errors and production GPU exclusion. This is software CPU
+  execution, distinct from real GPU acceptance.
+
+All planned current-host checklist items are implemented and locally verified
+as of 2026-10-23. The exact-commit gate repeats GPU and separate software
+acceptance; this does not remove the external acceptance and extension limits
+below.
 
 External acceptance still needs other NVIDIA/AMD/Intel GPUs and real two-GPU
 hardware. Windows/Android/MoltenVK, FP16/BF16 and asynchronous public execution

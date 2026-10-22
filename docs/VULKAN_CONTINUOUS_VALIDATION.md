@@ -27,9 +27,11 @@ isolated GitHub GPU runner or evidence for other vendors/architectures.
   no-loader/incomplete-loader fixtures; JUnit must contain every named anchor.
 - Installed-wheel GPU, MLIR and hidden-device probes, checked outside the
   checkout with Python `-I`.
-- A real Mesa CPU ICD discovery check before the production software-device
-  exclusion test. This is discovery/filter acceptance; the separate lavapipe
-  compute probe is still pending.
+- A real Mesa CPU ICD discovery check and separate
+  [lavapipe compute experiment](../experiments/vulkan/README.md): 192 actual
+  software execution/readback cases, two complete resource lifecycles, CPU
+  references, zero validation errors and production GPU exclusion. The software
+  result is never counted as GPU execution.
 
 The strict pytest controller rejects every skip, XFAIL and XPASS, including
 non-strict XPASS. A successful process exit is insufficient: JUnit also rejects

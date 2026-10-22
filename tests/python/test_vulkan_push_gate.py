@@ -160,6 +160,21 @@ def test_software_discovery_requires_real_cpu_and_publishes_only_selected_fields
         'driverName=llvmpipe', 'driverInfo=Mesa fixture', 'apiVersion=1.4.335']
 
 
+@pytest.mark.parametrize('key,value', [('status', 'failed'), ('execution', 'gpu'),
+    ('device_type', 'gpu'), ('driver_id', 4), ('driver_name', 'other'), ('validation_errors', 1),
+    ('production_gpu_filter_verified', False), ('cases', 191), ('cycles', 1),
+    ('owned_handles_created', 0), ('owned_handles_released', 1741)])
+def test_gate_rejects_missing_software_compute_acceptance(key, value):
+    report = {'status': 'passed', 'execution': 'software-cpu', 'device_type': 'cpu',
+              'driver_id': 13, 'driver_name': 'llvmpipe', 'validation_errors': 0,
+              'production_gpu_filter_verified': True, 'cases': 192, 'cycles': 2,
+              'owned_handles_created': 1742, 'owned_handles_released': 1742}
+    assert gate.software_compute_result(report) is report
+    report[key] = value
+    with pytest.raises(RuntimeError, match='lavapipe'):
+        gate.software_compute_result(report)
+
+
 def test_missing_prerequisite_records_failure_without_claiming_pass(monkeypatch, tmp_path):
     (tmp_path / 'tools').mkdir()
     for name in ('cuda_gate_pytest.py', 'acceptance_support.py'):

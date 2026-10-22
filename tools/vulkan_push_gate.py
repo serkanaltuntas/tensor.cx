@@ -112,6 +112,20 @@ def software_discovery(summary):
             if key.strip() in {'deviceType', 'driverName', 'driverInfo', 'apiVersion'}]
 
 
+def software_compute_result(report):
+    if (report.get('status') != 'passed' or report.get('execution') != 'software-cpu'
+            or report.get('device_type') != 'cpu' or report.get('driver_id') != 13
+            or report.get('driver_name') != 'llvmpipe' or report.get('validation_errors') != 0
+            or report.get('production_gpu_filter_verified') is not True
+            or type(report.get('cases')) is not int or report['cases'] < 192
+            or report.get('cycles') != 2):
+        raise RuntimeError('required lavapipe compute acceptance did not pass')
+    created, released = (report.get(k) for k in ('owned_handles_created', 'owned_handles_released'))
+    if type(created) is not int or created <= 0 or type(released) is not int or created != released:
+        raise RuntimeError('required lavapipe cleanup acceptance did not pass')
+    return report
+
+
 def validate(revision, args):
     env = clean_environment()
     resolved = subprocess.check_output(
@@ -235,6 +249,13 @@ print(json.dumps({'devices': cx.devices(), 'build': cx._core._build_info(),
                     run(['compute-sanitizer', '--tool', tool, '--error-exitcode', '1',
                          native / 'tensorcx_vulkan_cuda_shared_tests'], work, env, output / (tool + '.log'))
                 report['device_sanitizers'] = ['memcheck', 'racecheck']
+            software_command = [python, '-I', snapshot / 'experiments/vulkan/probe_lavapipe.py',
+                '--sdk', sdk, '--shader-bin', shaders, '--validation-layer', layer,
+                '--software-icd', software, '--cxx', args.cxx, '--output', output / 'lavapipe']
+            if args.library_dir:
+                software_command.extend(['--library-dir', args.library_dir.resolve()])
+            raw = run(software_command, work, env, output / 'software-compute.log')
+            report['software_compute'] = software_compute_result(json.loads(raw))
         report['status'] = 'passed'
     except BaseException as error:
         report.update(status='failed', error=str(error))

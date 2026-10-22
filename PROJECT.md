@@ -63,6 +63,8 @@ SiLU increment:         guarded float32 stable kernel SiLU; docs/MLIR_SILU.md (2
 Exp increment:          guarded float32 kernel exp; docs/MLIR_EXP.md (2026-10-18)
 Min/max increment:      guarded float32 minimum/maximum; docs/MLIR_MINMAX.md (2026-10-17)
 Active user goal:       optional Vulkan/SPIR-V runtime; docs/VULKAN_BACKEND.md
+                        current-host checklist implemented/locally verified (2026-10-23);
+                        other-hardware/platform acceptance remains separate
 CUDA product backlog:   docs/CUDA_PRODUCT_COMPLETION.md (wider validation remains open)
 CUDA primitives:        float32 matmul, reductions, activations and normalization
                         implemented; docs/CUDA_PRIMITIVES_VALIDATION.md
@@ -98,6 +100,7 @@ Vulkan increment:       optional Linux SPIR-V copies/factories/basic arithmetic,
                         docs/VULKAN_BACKEND.md (2026-10-22, GTX 980 Ti validation)
 Vulkan acceptance:      exact-commit local GPU/MLIR wheel and native acceptance;
                         optional combined CUDA sharing after mandatory CUDA push gate;
+                        separate lavapipe CPU compute probe, not GPU execution;
                         docs/VULKAN_CONTINUOUS_VALIDATION.md; isolated runner remains open
 Next implementation:    wider device compatibility and continuous GPU validation
 Open scope:             other SM/host versions and broader compiler features

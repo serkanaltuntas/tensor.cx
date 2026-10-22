@@ -24,8 +24,9 @@ Engine, oneAPI/SYCL and WebGPU have no committed implementation track here.
 Added 2026-10-18 at the user's request. These four experiments are planned on
 Nightblade's existing GTX 980 Ti and i7-6700K. They explore execution paths on the
 same physical hardware, not four additional devices or multi-GPU coverage.
-The Vulkan item was implemented and validated on 2026-10-18; the other three
-experiments remain unexecuted.
+The GPU Vulkan item was implemented and validated on 2026-10-18, followed by
+the separate lavapipe software probe on 2026-10-23. The two OpenCL experiments
+remain unexecuted.
 
 - [x] **GTX 980 Ti via Vulkan/SPIR-V:** NVIDIA compute discovery and real GPU
   execution integrated through the runtime; copies/factories/basic arithmetic,
@@ -34,9 +35,12 @@ experiments remain unexecuted.
 - [ ] **GTX 980 Ti via OpenCL:** establish the NVIDIA OpenCL environment,
   enumerate the selected GPU and compiler capabilities, then run the same
   minimal float32 probe against the CPU reference.
-- [ ] **i7-6700K via Mesa lavapipe:** establish a software Vulkan environment,
-  explicitly select lavapipe and run the float32 probe on the CPU. Record this
-  as software-device validation, not GPU execution or another GPU architecture.
+- [x] **i7-6700K via Mesa lavapipe:** explicit CPU ICD execution passed 192
+  guarded float32 add/multiply cases against CPU references, including empty,
+  partial/tail, alias and immutable-input checks. Two complete resource
+  lifecycles balanced 1,742 owned objects with zero validation errors;
+  production GPU discovery still excludes the software device.
+  [Experiment and reviewed acceptance](../experiments/vulkan/README.md).
 - [ ] **i7-6700K via PoCL:** establish the OpenCL CPU environment, explicitly
   select a PoCL CPU device and run the float32 probe against the existing CPU
   reference. This does not establish NVIDIA OpenCL support.
