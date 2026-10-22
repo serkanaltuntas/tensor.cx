@@ -33,6 +33,17 @@ the exact chosen artifact by path. Do not merge those directories or upload
 both as interchangeable wheels to a package index. This work validates local
 release artifacts; it does not publish a PyPI release.
 
+`--variants vulkan` selects a Vulkan-only host wheel. `--variants cuda-vulkan`
+builds both optional backends into one wheel and additionally requires real
+[shared-storage acceptance](SHARED_STORAGE.md) for both allocation origins,
+foreign CUDA mutations visible through Vulkan, DLPack owner lifetime and
+independent placement copies. Its hidden-GPU mode hides CUDA/Vulkan device discovery and checks
+CPU operation plus rejection of the unavailable sharing route. Supply
+`--vulkan-sdk` for the header/shader-tool prefix and a current validation layer
+through `VK_LAYER_PATH` with `TENSORCX_VULKAN_VALIDATION=1`. Combined wheels retain
+CUDA's import-time runtime/driver dependency; the Vulkan loader remains dynamic.
+The default `--variants both` continues to build separate CPU and CUDA wheels.
+
 | Requirement | CPU wheel | CUDA wheel |
 | --- | --- | --- |
 | Python dependency | NumPy `>=2,<3`, resolved by uv | Same |

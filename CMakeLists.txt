@@ -318,6 +318,7 @@ if(TENSORCX_ENABLE_CUDA)
     cpp/tensorcx/backends/cuda/kernels/math.cu
     cpp/tensorcx/backends/cuda/kernels/predicate.cu
     cpp/tensorcx/backends/cuda/cuda_context.cpp
+    cpp/tensorcx/backends/cuda/cuda_external_storage.cpp
     cpp/tensorcx/backends/cuda/cuda_memory_pool.cpp
     cpp/tensorcx/backends/cuda/cuda_kernel.cpp
     cpp/tensorcx/backends/cuda/kernels/elementwise.cu
@@ -395,8 +396,29 @@ if(TENSORCX_ENABLE_VULKAN)
   target_include_directories(tensorcx_vulkan PRIVATE "${TENSORCX_VULKAN_GENERATED}")
   target_compile_options(tensorcx_vulkan PRIVATE ${TENSORCX_WARNING_FLAGS})
   target_link_libraries(tensorcx_vulkan PUBLIC tensorcx_core ${CMAKE_DL_LIBS})
+  if(TENSORCX_ENABLE_CUDA)
+    target_sources(tensorcx_vulkan PRIVATE cpp/tensorcx/backends/vulkan/vulkan_cuda_shared.cpp)
+    target_link_libraries(tensorcx_vulkan PUBLIC tensorcx_cuda)
+  endif()
   set_target_properties(tensorcx_vulkan PROPERTIES POSITION_INDEPENDENT_CODE ON)
   if(TENSORCX_BUILD_TESTS)
+    if(TENSORCX_ENABLE_CUDA)
+      add_executable(tensorcx_vulkan_cuda_shared_tests tests/cpp/test_vulkan_cuda_shared.cpp)
+      target_link_libraries(tensorcx_vulkan_cuda_shared_tests PRIVATE tensorcx_vulkan)
+      add_test(NAME tensorcx_vulkan_cuda_shared_contract COMMAND tensorcx_vulkan_cuda_shared_tests)
+      set_tests_properties(tensorcx_vulkan_cuda_shared_contract PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)
+      add_executable(tensorcx_vulkan_cuda_shared_failure_tests tests/cpp/test_vulkan_cuda_shared_failure.cpp)
+      target_link_libraries(tensorcx_vulkan_cuda_shared_failure_tests PRIVATE tensorcx_vulkan)
+      foreach(TENSORCX_SHARED_ORIGIN IN ITEMS vulkan cuda)
+        foreach(TENSORCX_SHARED_FAULT IN ITEMS initialization record cuda_signal cuda_wait cuda_stream_wait
+            cuda_completion vk_wait vk_unproven final_sync final_destroy foreign_release fork)
+          set(TENSORCX_SHARED_TEST "tensorcx_shared_${TENSORCX_SHARED_ORIGIN}_${TENSORCX_SHARED_FAULT}")
+          add_test(NAME "${TENSORCX_SHARED_TEST}" COMMAND tensorcx_vulkan_cuda_shared_failure_tests
+            "${TENSORCX_SHARED_FAULT}" "${TENSORCX_SHARED_ORIGIN}")
+          set_tests_properties("${TENSORCX_SHARED_TEST}" PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 60)
+        endforeach()
+      endforeach()
+    endif()
     set(TENSORCX_VULKAN_KERNEL_FIXTURE "${TENSORCX_VULKAN_GENERATED}/kernel_fixture.spv")
     add_custom_command(OUTPUT "${TENSORCX_VULKAN_KERNEL_FIXTURE}"
       COMMAND "${TENSORCX_GLSLANG_VALIDATOR}" -V --target-env vulkan1.1

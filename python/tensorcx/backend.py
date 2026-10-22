@@ -34,6 +34,30 @@ _BACKENDS: dict[str, Backend] = {}
 _BACKEND_ORDER: list[str] = []
 
 
+@dataclass(frozen=True, slots=True)
+class StorageExchange:
+    """Explicit shared allocation route, ordered by the physical allocator."""
+
+    validate: Callable[[], None]
+    empty: Callable[[Any, str], tuple[Any, Any]]
+    tensor: Callable[[Any], tuple[Any, Any]]
+
+
+_STORAGE_EXCHANGES: dict[tuple[str, str], StorageExchange] = {}
+
+
+def shared_route(first: str, second: str) -> StorageExchange | None:
+    require_backend(first)
+    require_backend(second)
+    if first == second:
+        return None
+    route = _STORAGE_EXCHANGES.get((first, second))
+    if route is None:
+        raise ValueError(f"shared storage is unsupported for devices {first!r}, {second!r}")
+    route.validate()
+    return route
+
+
 def _register_backend(backend: Backend) -> None:
     if not backend.name:
         raise ValueError("backend name must be non-empty")
@@ -269,6 +293,16 @@ def _register_vulkan_device(index: int) -> None:
             clone=lambda impl: _core._vulkan_clone(impl),
         )
     )
+    if "cuda" in _BACKENDS and hasattr(_core, "_shared_cuda_vulkan_support"):
+        for cuda_origin in (False, True):
+            pair = ("cuda", name) if cuda_origin else (name, "cuda")
+            _STORAGE_EXCHANGES[pair] = StorageExchange(
+                validate=lambda cuda_origin=cuda_origin: _core._shared_cuda_vulkan_support(index, cuda_origin),
+                empty=lambda shape, dtype, cuda_origin=cuda_origin: _core._shared_cuda_vulkan_empty(
+                    shape, dtype, index, cuda_origin),
+                tensor=lambda host, cuda_origin=cuda_origin: _core._shared_cuda_vulkan_tensor(
+                    host, index, cuda_origin),
+            )
 
 
 if _core._build_info().get("vulkan", False):

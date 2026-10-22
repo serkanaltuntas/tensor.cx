@@ -15,6 +15,7 @@
 
 #include "tensorcx/backends/vulkan/vulkan_api.h"
 #include "tensorcx/core/expected.h"
+#include "tensorcx/core/buffer.h"
 
 namespace tensorcx::vulkan {
 
@@ -24,6 +25,21 @@ struct DescriptorPool;
 struct Frame;
 struct KernelPipeline;
 class MemoryPool;
+struct SharedStorage;
+
+struct ExternalSubmission {
+  VkBuffer buffer = VK_NULL_HANDLE;
+  VkSemaphore wait = VK_NULL_HANDLE, signal = VK_NULL_HANDLE;
+  bool acquire = false;
+};
+class ExternalAccess : public StorageAccess {
+ public:
+  virtual std::size_t logical_bytes() const = 0;
+  virtual ExternalSubmission prepare() = 0;
+  virtual void complete() = 0;
+  virtual void cancel() noexcept = 0;
+  virtual void poison() noexcept = 0;
+};
 class VulkanError : public std::runtime_error {
  public:
   VulkanError(VkResult result, const char* operation);
@@ -57,6 +73,9 @@ struct Allocation {
   AllocationKind kind = AllocationKind::kInternal;
   std::size_t requested_bytes = 0, memory_bytes = 0;
   void* mapped = nullptr;
+  // External access owns the physical handles; this Allocation is only a view.
+  // CUDA aliases may keep that owner alive after the Vulkan view disappears.
+  std::shared_ptr<ExternalAccess> external;
   ~Allocation();
 };
 
@@ -89,6 +108,11 @@ struct Context : std::enable_shared_from_this<Context> {
   int index = 0;
   DeviceInfo info;
   VkPhysicalDevice physical = VK_NULL_HANDLE;
+  std::uint32_t queue_family = 0;
+  std::uint64_t process = 0;
+  std::array<std::uint8_t, VK_UUID_SIZE> device_uuid{};
+  VkExternalMemoryFeatureFlags external_memory = 0;
+  VkExternalSemaphoreFeatureFlags external_semaphore = 0;
   VkDevice device = VK_NULL_HANDLE;
   VkQueue queue = VK_NULL_HANDLE;
   VkPhysicalDeviceMemoryProperties memory_properties{};
@@ -103,9 +127,13 @@ struct Context : std::enable_shared_from_this<Context> {
 #define TENSORCX_VK_DECLARE(name) PFN_vk##name name = nullptr;
   TENSORCX_VK_DEVICE_FUNCTIONS(TENSORCX_VK_DECLARE)
   TENSORCX_VK_QUERY_FUNCTIONS(TENSORCX_VK_DECLARE)
+  TENSORCX_VK_EXTERNAL_DEVICE_FUNCTIONS(TENSORCX_VK_DECLARE)
 #undef TENSORCX_VK_DECLARE
 
   ~Context();
+  bool current_process() const;
+  void require_process() const;
+  void synchronize_external(const std::shared_ptr<Allocation>& allocation);
   std::shared_ptr<Allocation> allocate(std::size_t bytes, bool host_visible = false,
                                      AllocationKind kind = AllocationKind::kInternal);
   void upload(const std::shared_ptr<Allocation>& destination, const void* data, std::size_t bytes);
@@ -122,6 +150,7 @@ struct Context : std::enable_shared_from_this<Context> {
  private:
   friend class MemoryPool;
   friend struct Allocation;
+  friend struct SharedStorage;
   std::unique_ptr<Allocation> allocate_raw(std::size_t capacity, bool host_visible);
   void lease_change(Allocation& allocation, bool insert);
   mutable std::mutex stats_mutex_;

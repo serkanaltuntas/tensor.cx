@@ -38,6 +38,7 @@ CPU/Metal/CUDA expose index 0; Vulkan has indexed routes with one physical GPU v
 | Generated kernels | Optional MLIR subset | Experimental MSL subset | Optional MLIR subset | Optional guarded MLIR/SPIR-V subset |
 | `empty` allocation | CPU storage | Existing CPU staging/copy | Direct device allocation | Direct device allocation |
 | DLPack exchange (contiguous float32/int32/bool) | Yes | Not implemented | Device 0 | Not implemented |
+| Explicit shared allocation | Same-device aliases | Same-device aliases | Matching Vulkan GPU | Matching CUDA device 0 |
 | Installation and operation/dtype diagnostics | Yes | Availability/capabilities | Yes | Yes |
 | Memory snapshots | System physical memory | Not implemented | Device-wide free/total | Device-local heap total |
 | Native host profiling | Bounded spans | Not instrumented | Bounded spans | Bounded spans |
@@ -53,8 +54,9 @@ allocation/upload and can reuse idle storage in an explicit pool. See
 Explicit accelerator-to-accelerator placement uses synchronous CPU staging;
 same-device `copy=True` allocates independent storage. See
 [placement and storage sharing](/docs/interoperability/#explicit-device-placement).
-Host-staged placement does not establish peer copies, zero-copy Vulkan exchange
-or actual two-GPU execution.
+The separate [shared-allocation API](/docs/interoperability/#explicit-cudavulkan-shared-allocations)
+creates native CUDA/Vulkan aliases on compatible matching Linux hardware, in
+either allocation direction. This does not establish actual two-GPU execution.
 
 ## CPU
 
@@ -108,7 +110,8 @@ GPU-validated embedding indices and masked/causal attention. Host/GPU timing,
 owned-allocation diagnostics and [bounded reuse](/docs/performance/#vulkan-timing-and-reuse)
 are available. Explicit [guarded MLIR/SPIR-V kernels](/docs/experimental/#vulkan-kernels)
 support the bounded float32 subset with private outputs and persistent code
-caching. DLPack remains outside this slice. See [Vulkan setup and limits](/docs/vulkan/).
+caching. Explicit shared CUDA/Vulkan allocations are available in a combined
+build; direct Vulkan DLPack remains outside this slice. See [Vulkan setup and limits](/docs/vulkan/).
 
 ## Compiler boundary
 

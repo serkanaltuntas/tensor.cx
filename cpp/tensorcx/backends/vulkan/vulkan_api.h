@@ -40,3 +40,11 @@
 #define TENSORCX_VK_QUERY_FUNCTIONS(X) \
   X(CreateQueryPool) X(DestroyQueryPool) X(CmdResetQueryPool) \
   X(CmdWriteTimestamp) X(GetQueryPoolResults)
+
+// Optional interoperability functions; absent support must not disable CPU or
+// ordinary Vulkan tensors, including incomplete-loader acceptance fixtures.
+#define TENSORCX_VK_EXTERNAL_INSTANCE_FUNCTIONS(X) \
+  X(GetPhysicalDeviceProperties2) X(EnumerateDeviceExtensionProperties) \
+  X(GetPhysicalDeviceExternalBufferProperties) X(GetPhysicalDeviceExternalSemaphoreProperties)
+#define TENSORCX_VK_EXTERNAL_DEVICE_FUNCTIONS(X) \
+  X(GetMemoryFdKHR) X(GetSemaphoreFdKHR) X(CreateSemaphore) X(DestroySemaphore)

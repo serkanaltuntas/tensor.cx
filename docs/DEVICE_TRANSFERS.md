@@ -71,9 +71,9 @@ The placement step copies data; DLPack may then share the destination's supporte
 storage. Native Vulkan storage is not exported under a CPU/CUDA device type or
 an unimplemented Vulkan capsule convention. `vulkan.__dlpack_device__()` and
 direct Vulkan DLPack exchange remain explicit errors. The
-[remaining Vulkan interoperability group](VULKAN_BACKEND.md#remaining-vulkan-work)
-also retains actual external-memory sharing, ownership/synchronization and
-lifetime acceptance. Host staging does not complete that work.
+[explicit shared-allocation API](SHARED_STORAGE.md) separately creates CUDA and
+Vulkan aliases on compatible matching hardware. It does not change placement
+semantics or retrofit sharing onto existing allocations.
 
 ## Measurement and acceptance
 

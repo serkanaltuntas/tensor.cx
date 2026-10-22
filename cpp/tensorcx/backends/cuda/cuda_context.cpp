@@ -1,11 +1,23 @@
 #include "tensorcx/backends/cuda/cuda_context.h"
 #include <mutex>
+#ifdef _WIN32
+#include <process.h>
+#else
+#include <unistd.h>
+#endif
 
 namespace tensorcx::cuda {
 namespace {
+#ifdef _WIN32
+auto process_id() { return ::_getpid(); }
+#else
+auto process_id() { return ::getpid(); }
+#endif
+const auto origin_process = process_id();
 std::mutex owner_mutex;
 std::weak_ptr<PrimaryContext> shared_owner;
 }
+bool current_process() { return process_id() == origin_process; }
 Status driver_status(CUresult error, const char* operation) {
   if (error == CUDA_SUCCESS) return Status::Ok();
   const char* text = nullptr;
@@ -23,6 +35,7 @@ Status runtime_status(cudaError_t error, const char* operation) {
   return {code, std::string(operation) + ": " + cudaGetErrorString(error)};
 }
 Expected<std::shared_ptr<PrimaryContext>> PrimaryContext::acquire() {
+  if (!current_process()) return Status(StatusCode::kUnavailable, "CUDA requires a fresh process after fork");
   std::lock_guard lock(owner_mutex);
   if (auto live = shared_owner.lock()) return live;
   if (auto status = driver_status(cuInit(0), "initialize CUDA Driver"); !status.ok()) return status;
@@ -33,7 +46,7 @@ Expected<std::shared_ptr<PrimaryContext>> PrimaryContext::acquire() {
   return owner;
 }
 PrimaryContext::~PrimaryContext() {
-  if (context_) (void)cuDevicePrimaryCtxRelease(0);
+  if (current_process() && context_) (void)cuDevicePrimaryCtxRelease(0);
 }
 ContextScope::ContextScope() {
   auto owner = PrimaryContext::acquire();
@@ -45,12 +58,13 @@ ContextScope::ContextScope(std::shared_ptr<PrimaryContext> owner) : owner_(std::
   push();
 }
 void ContextScope::push() {
+  if (!current_process()) { status_ = {StatusCode::kUnavailable, "CUDA requires a fresh process after fork"}; return; }
   if (!owner_) { status_ = {StatusCode::kInvalidArgument, "missing CUDA context owner"}; return; }
   status_ = driver_status(cuCtxPushCurrent(owner_->get()), "push CUDA primary context");
   pushed_ = status_.ok();
 }
 ContextScope::~ContextScope() {
-  if (pushed_) {
+  if (pushed_ && current_process()) {
     CUcontext popped{};
     (void)cuCtxPopCurrent(&popped);
   }

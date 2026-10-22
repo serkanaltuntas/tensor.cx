@@ -1,6 +1,7 @@
 #include "tensorcx/backends/vulkan/vulkan_kernel.h"
 #include "tensorcx/backends/vulkan/vulkan_resources.h"
 #include "tensorcx/core/profiling.h"
+#include "tensorcx/core/storage_access.h"
 
 #include <algorithm>
 #include <atomic>
@@ -232,6 +233,11 @@ Expected<VulkanTensor> VulkanKernelModule::launch(std::span<const KernelArgument
   ProfileScope profile(ProfileCategory::kDispatch, "vulkan_generated_launch", "vulkan");
   try {
     const auto& context = impl_->owner;
+    BackendExecution descriptor;
+    descriptor.kernel_arguments = arguments;
+    descriptor.inputs = std::span<const Tensor>(&output, 1);
+    StorageLease access(storage_accesses(descriptor));
+    if (!access.status().ok()) return access.status();
     require(block && block <= context->limits.maxComputeWorkGroupSize[0] &&
             block <= context->limits.maxComputeWorkGroupInvocations, "Vulkan kernel block size exceeds device limits");
     require(arguments.size() == signature_.kinds.size(), "Vulkan kernel argument count mismatch");

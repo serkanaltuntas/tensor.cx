@@ -47,6 +47,9 @@
 #include "tensorcx/backends/vulkan/vulkan_context.h"
 #include "tensorcx/backends/vulkan/vulkan_memory_pool.h"
 #include "tensorcx/backends/vulkan/vulkan_kernel.h"
+#if TENSORCX_ENABLE_CUDA
+#include "tensorcx/backends/vulkan/vulkan_cuda_shared.h"
+#endif
 #endif
 
 #ifndef TENSORCX_RUNTIME_VERSION
@@ -1711,6 +1714,36 @@ NB_MODULE(_core, module) {
     return cuda_primitive(lhs,op,&rhs);
   },nb::arg("lhs"),nb::arg("rhs"),nb::arg("backend")="auto");
 
+#endif
+
+#if TENSORCX_ENABLE_CUDA && TENSORCX_ENABLE_VULKAN
+  const auto shared_origin = [](bool cuda_origin) {
+    return cuda_origin ? tensorcx::vulkan::SharedOrigin::kCuda : tensorcx::vulkan::SharedOrigin::kVulkan;
+  };
+  const auto shared_pair = [](tensorcx::vulkan::SharedTensors pair, bool cuda_origin) {
+    if (cuda_origin) return nb::make_tuple(std::move(pair.cuda), std::move(pair.vulkan));
+    return nb::make_tuple(std::move(pair.vulkan), std::move(pair.cuda));
+  };
+  module.def("_shared_cuda_vulkan_support", [shared_origin](int index, bool cuda_origin) {
+    const auto status = without_gil([&] { return tensorcx::vulkan::shared_support(index, shared_origin(cuda_origin)); });
+    if (!status.ok()) throw_status(status);
+  }, nb::arg("index"), nb::arg("cuda_origin"));
+  module.def("_shared_cuda_vulkan_empty", [shared_origin, shared_pair](nb::handle shape, nb::handle dtype,
+      int index, bool cuda_origin) {
+    Shape parsed_shape = parse_shape(shape);
+    const DType parsed_dtype = parse_dtype(dtype, DType::kFloat32);
+    auto pair = unwrap(without_gil([&] {
+      return tensorcx::vulkan::shared_tensors(std::move(parsed_shape), parsed_dtype, index, shared_origin(cuda_origin));
+    }));
+    return shared_pair(std::move(pair), cuda_origin);
+  }, nb::arg("shape"), nb::arg("dtype"), nb::arg("index"), nb::arg("cuda_origin"));
+  module.def("_shared_cuda_vulkan_tensor", [shared_origin, shared_pair](const CpuTensor& tensor,
+      int index, bool cuda_origin) {
+    auto pair = unwrap(without_gil([&] {
+      return tensorcx::vulkan::shared_tensors(tensor.shape(), tensor.dtype(), index, shared_origin(cuda_origin), &tensor);
+    }));
+    return shared_pair(std::move(pair), cuda_origin);
+  }, nb::arg("tensor"), nb::arg("index"), nb::arg("cuda_origin"));
 #endif
 
 #if TENSORCX_ENABLE_METAL

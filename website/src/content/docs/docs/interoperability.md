@@ -1,6 +1,6 @@
 ---
 title: DLPack & PyTorch
-description: Share supported CPU and CUDA tensor storage and call a tensor.cx inference operation from PyTorch.
+description: Share CPU/CUDA DLPack storage, allocate explicit CUDA/Vulkan aliases, and call a tensor.cx inference operation from PyTorch.
 ---
 
 ## Share storage with DLPack
@@ -55,9 +55,48 @@ copy; DLPack's `copy=False` instead forbids copying.
 
 Vulkan copies within one device use its GPU copy path. CUDA↔Vulkan and different
 Vulkan indices use host staging, which does not share storage. Copy a Vulkan
-tensor to CPU/CUDA before DLPack exchange; direct Vulkan DLPack and external-memory
-sharing remain unimplemented. Only one physical Vulkan GPU is validated.
+tensor to CPU/CUDA before DLPack exchange, or explicitly allocate a shared pair as
+below. Direct Vulkan DLPack remains unimplemented. Only one physical Vulkan GPU is validated.
 See the [transfer contract and benchmark](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/DEVICE_TRANSFERS.md).
+
+## Explicit CUDA/Vulkan shared allocations
+
+With both backends enabled on compatible matching Linux hardware:
+
+```python
+import tensorcx as cx
+
+vk, cu = cx.shared_tensor([1., 2., 3.], devices=("vulkan", "cuda"))
+print((vk + 2).numpy())
+print((cu + 2).numpy())
+
+# First device selects the allocator; empty contents remain unspecified.
+cu, vk = cx.shared_empty((257,), dtype=cx.float32, devices=("cuda", "vulkan"))
+```
+
+The two returned tensors alias one allocation. Supported dtypes are float32,
+int32 and bool, including scalar, empty and tail shapes. Repeating one device
+returns two wrappers over one ordinary allocation. Other device pairs require
+a registered sharing route and fail before reading input data when unsupported.
+
+CUDA device 0 and the selected Vulkan index must refer to the same physical GPU
+and support external memory and binary semaphores. CUDA-origin storage also
+requires VMM/POSIX-FD export and may reserve much more memory than the logical
+tensor (2 MiB allocation granularity on the validated GPU). Shared storage is
+opt-in and bypasses allocation pools.
+
+After initialization, native handoffs share tensor data without CPU staging.
+Operations remain synchronous and hold shared ownership leases until completion.
+Both aliases, views and exported CUDA owners keep the allocation alive. Native
+completion failures poison the shared owner; unproven cleanup retains resources
+until process exit. CUDA completion may wait for unrelated device work.
+
+Only the **CUDA alias** exposes DLPack. Foreign CUDA consumers must retain their
+owner and complete writes before tensor.cx accesses either alias. In-range
+contiguous subviews retain ownership; logical overruns and bool padding are
+rejected. `.to()` still creates independent cross-device copies, and mixed-device
+arithmetic still raises an error. No universal performance improvement is claimed.
+See the [shared-storage contract and acceptance](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/SHARED_STORAGE.md).
 
 ## Optional PyTorch integration
 

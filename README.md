@@ -14,7 +14,9 @@ indexing/shape/join operations, comparisons/masks, boolean reductions and
 numeric sum/max/mean/min/argmax, float32 vector/batched matmul and
 log/sqrt/abs/clip/topk, activations, normalization and inference, plus opt-in
 [profiling, allocation diagnostics and bounded reuse](docs/VULKAN_PERFORMANCE.md)
-and explicit [guarded MLIR/SPIR-V kernels](docs/VULKAN_COMPILER.md). ROCm and broader
+and explicit [guarded MLIR/SPIR-V kernels](docs/VULKAN_COMPILER.md). Opt-in
+[CUDA/Vulkan shared allocations](docs/SHARED_STORAGE.md) use compatible external
+memory and semaphores on a matching physical GPU. ROCm and broader
 MLIR-based lowering remain longer-term directions.
 
 The project is useful today as:
@@ -105,6 +107,7 @@ x86_64 with external LLVM 21.1.8 tools. See the
 - [`docs/DISTRIBUTION.md`](docs/DISTRIBUTION.md): source archive and wheel
   validation, fresh installation, external dependencies and supported hosts.
 - [`docs/DEVICE_TRANSFERS.md`](docs/DEVICE_TRANSFERS.md): explicit host-staged device placement and independent same-device copies.
+- [`docs/SHARED_STORAGE.md`](docs/SHARED_STORAGE.md): explicit shared allocation, CUDA/Vulkan ownership, DLPack boundaries and lifetime.
 - [`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md): `tensorcx-doctor`, declared
   operation/dtype capabilities, installation and CPU/CUDA memory snapshots.
 - [`docs/COMPILATION_CACHE.md`](docs/COMPILATION_CACHE.md): persistent experimental

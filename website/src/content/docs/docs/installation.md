@@ -117,3 +117,14 @@ masks, reductions, batched matmul, math and inference primitives; see
 Ordinary tensor execution uses SPIR-V embedded at build time and needs neither
 shader tools nor LLVM. Explicit [Vulkan kernel compilation](/docs/experimental/#vulkan-kernels)
 additionally requires the documented LLVM and shader tools.
+
+For explicit CUDA/Vulkan shared allocations, enable **both** optional backends
+and meet the CUDA build requirements as well:
+
+```bash
+CMAKE_ARGS="-DTENSORCX_ENABLE_METAL=OFF -DTENSORCX_ENABLE_CUDA=ON -DTENSORCX_ENABLE_VULKAN=ON" \
+  uv pip install --reinstall -e ".[dev]"
+```
+
+The device pair must support the native sharing features described under
+[shared allocations](/docs/interoperability/#explicit-cudavulkan-shared-allocations).

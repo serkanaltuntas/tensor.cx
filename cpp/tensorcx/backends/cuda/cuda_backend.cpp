@@ -18,6 +18,7 @@
 #include "tensorcx/backends/cuda/cuda_buffer.h"
 #include "tensorcx/backends/cuda/cuda_kernel.h"
 #include "tensorcx/backends/cuda/cuda_memory_pool.h"
+#include "tensorcx/backends/cuda/cuda_external_storage.h"
 
 namespace tensorcx::cuda {
 namespace {
@@ -47,6 +48,7 @@ Expected<std::size_t> byte_size(DType dtype, const Shape& shape) {
 }  // namespace
 
 void DeviceDeleter::operator()(void* pointer) const noexcept {
+  if (!current_process()) return;
   if (!pointer) return;
   ContextScope context(owner);
   if (pool) pool->release(pointer, bytes, !exported || !exported->load(std::memory_order_relaxed), context.ready());
@@ -84,7 +86,8 @@ Expected<std::shared_ptr<CudaBuffer>> CudaBuffer::create(DType dtype, const Shap
 
 StorageRelation CudaBuffer::storage_relation(const Buffer& other) const {
   const auto* rhs = dynamic_cast<const CudaBuffer*>(&other);
-  if (!rhs || context() != rhs->context()) return StorageRelation::kDisjoint;
+  if (!rhs) return Buffer::storage_relation(other);
+  if (context() != rhs->context()) return StorageRelation::kDisjoint;
   if (this == rhs) return StorageRelation::kSameRange;
   if (!nbytes() || !rhs->nbytes()) return StorageRelation::kDisjoint;
   const auto a = reinterpret_cast<std::uintptr_t>(data());
@@ -93,12 +96,30 @@ StorageRelation CudaBuffer::storage_relation(const Buffer& other) const {
   const bool overlap = a <= b ? b - a < nbytes() : a - b < rhs->nbytes();
   return overlap ? StorageRelation::kPartialOverlap : StorageRelation::kDisjoint;
 }
+StorageIdentity CudaBuffer::storage_identity() const {
+  return external_storage_ ? external_storage_->identity(data(), nbytes()) : Buffer::storage_identity();
+}
+std::shared_ptr<StorageAccess> CudaBuffer::access() const {
+  return external_storage_ ? external_storage_->access() : nullptr;
+}
 
 Expected<std::shared_ptr<CudaBuffer>> CudaBuffer::borrow(
-    DType dtype, const Shape& shape, void* pointer, std::shared_ptr<void> owner) {
+    DType dtype, const Shape& shape, void* pointer, std::shared_ptr<void> owner,
+    std::shared_ptr<ExternalStorage> storage) {
   auto bytes = byte_size(dtype, shape);
   if (!bytes) return bytes.status();
   if (!owner || (bytes.value() && !pointer)) return invalid("borrowed CUDA storage requires an owner and data");
+  if (!storage) {
+    auto known = find_external_storage(pointer, bytes.value());
+    if (!known) return known.status();
+    storage = known.move_value();
+  }
+  StorageLease lease(storage ? std::vector{storage->access()} : std::vector<std::shared_ptr<StorageAccess>>{});
+  if (!lease.status().ok()) return lease.status();
+  if (storage) {
+    auto status = storage->validate_range(pointer, dtype, bytes.value());
+    if (!status.ok()) return status;
+  }
   ContextScope context;
   if (!context.ready()) return context.status();
   if (bytes.value()) {
@@ -111,20 +132,23 @@ Expected<std::shared_ptr<CudaBuffer>> CudaBuffer::borrow(
     status = driver_status(cuPointerGetAttribute(&pointer_context, CU_POINTER_ATTRIBUTE_CONTEXT,
                                                 reinterpret_cast<CUdeviceptr>(pointer)), "borrowed CUDA context");
     if (!status.ok()) return status;
-    if (pointer_context != context.owner()->get()) return invalid("borrowed CUDA pointer requires the primary context");
+    // Controlled VMM allocations have no ordinary primary-context pointer tag.
+    // Only a typed, range-validated native provider may take this route.
+    if (!storage && pointer_context != context.owner()->get()) return invalid("borrowed CUDA pointer requires the primary context");
     if (reinterpret_cast<std::uintptr_t>(pointer) % dtype_size(dtype))
       return invalid("borrowed CUDA pointer is misaligned");
   }
   // The runtime is synchronous. Complete producer work before accessing shared
   // memory, including callers supplying a legacy capsule without stream exchange.
   auto status = runtime_status(profiled_synchronize(), "borrowed CUDA readiness");
-  if (!status.ok()) return status;
+  if (!status.ok()) { if (storage) storage->poison(); return status; }
   auto buffer = std::make_shared<CudaBuffer>();
   buffer->dtype_ = dtype;
   buffer->bytes_ = bytes.value();
   buffer->data_.get_deleter().owner = context.owner();
   buffer->external_data_ = pointer;
   buffer->external_owner_ = std::move(owner);
+  buffer->external_storage_ = std::move(storage);
   return buffer;
 }
 
@@ -213,15 +237,24 @@ Expected<CudaTensor> from_cpu(const cpu::CpuTensor& tensor) {
 
 Expected<cpu::CpuTensor> to_cpu(const CudaTensor& tensor) {
   try {
-    ContextScope device;
-    if (auto status = device.status(); !status.ok()) return status;
-    cpu::CpuTensor result(tensor.dtype(), tensor.shape());
-    if (tensor.nbytes()) {
-      void* destination = result.mutable_data();
-      const auto error = profiled_memcpy(destination, tensor.buffer()->data(), tensor.nbytes(),
-                                    cudaMemcpyDeviceToHost);
-      if (error != cudaSuccess) return runtime_status(error, "CUDA to CPU copy");
-    }
+    ExternalLease access(tensor.buffer()->external_storage() ?
+        std::vector{tensor.buffer()->external_storage()} : std::vector<std::shared_ptr<ExternalStorage>>{});
+    if (!access.status().ok()) return access.status();
+    auto run = [&]() -> Expected<cpu::CpuTensor> {
+      ContextScope device;
+      if (auto status = device.status(); !status.ok()) return status;
+      cpu::CpuTensor result(tensor.dtype(), tensor.shape());
+      if (tensor.nbytes()) {
+        void* destination = result.mutable_data();
+        const auto error = profiled_memcpy(destination, tensor.buffer()->data(), tensor.nbytes(),
+                                      cudaMemcpyDeviceToHost);
+        if (error != cudaSuccess) return runtime_status(error, "CUDA to CPU copy");
+      }
+      return result;
+    };
+    auto result = run();
+    auto completed = access.finish();
+    if (!completed.ok()) return completed;
     return result;
   } catch (const std::invalid_argument& error) {
     return invalid(error.what());
@@ -244,6 +277,8 @@ Expected<CudaTensor> from_core_tensor(const Tensor& tensor) {
     }
     auto buffer = std::dynamic_pointer_cast<CudaBuffer>(tensor.buffer);
     if (!buffer) return invalid("CUDA tensor metadata requires a CUDA buffer");
+    if (auto access = buffer->access())
+      if (auto status = access->validate(); !status.ok()) return status;
     return CudaTensor(tensor.dtype, tensor.shape, std::move(buffer));
   } catch (const std::invalid_argument& error) {
     return invalid(error.what());
@@ -252,10 +287,22 @@ Expected<CudaTensor> from_core_tensor(const Tensor& tensor) {
   }
 }
 
-Status CudaBackend::execute(const BackendExecution& execution) {
+Status CudaBackend::execute(const BackendExecution& requested) {
   ProfileScope profile(ProfileCategory::kDispatch, "execute", "cuda", std::nullopt,
-                       execution.op_class == BackendOpClass::kPrimitive ? std::optional{execution.op.kind} : std::nullopt);
+                       requested.op_class == BackendOpClass::kPrimitive ? std::optional{requested.op.kind} : std::nullopt);
   try {
+    if (!current_process()) return {StatusCode::kUnavailable, "CUDA requires a fresh process after fork"};
+    auto owners = external_owners(requested);
+    const bool shared = !owners.empty();
+    ExternalLease access(std::move(owners));
+    if (!access.status().ok()) return access.status();
+    BackendExecution execution = requested;
+    std::vector<Tensor> private_outputs;
+    if (shared) {
+      private_outputs.assign(requested.outputs.begin(), requested.outputs.end());
+      execution.outputs = private_outputs;
+    }
+    auto run = [&]() -> Status {
     if (execution.op_class == BackendOpClass::kKernel) {
       return execute_compiled_kernel(execution);
     }
@@ -564,6 +611,13 @@ Status CudaBackend::execute(const BackendExecution& execution) {
     if (auto status = runtime_status(error, "CUDA kernel execution"); !status.ok()) return status;
     // Publish only on success; failed execution must leave result slots intact.
     execution.outputs[0] = to_core_tensor(CudaTensor(dtype, std::move(shape), buffer.move_value()));
+    return Status::Ok();
+    };
+    auto result = run();
+    auto completed = access.finish();
+    if (!result.ok()) return result;
+    if (!completed.ok()) return completed;
+    if (shared) std::copy(private_outputs.begin(), private_outputs.end(), requested.outputs.begin());
     return Status::Ok();
   } catch (const std::invalid_argument& error) {
     return invalid(error.what());

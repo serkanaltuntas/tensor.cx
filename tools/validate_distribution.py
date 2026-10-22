@@ -84,7 +84,7 @@ def audit_linkage(linkage, variant, work):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True, help='new directory; never overwrites a previous run')
-    parser.add_argument('--variants', choices=['cpu', 'cuda', 'vulkan', 'both'], default='both')
+    parser.add_argument('--variants', choices=['cpu', 'cuda', 'vulkan', 'cuda-vulkan', 'both'], default='both')
     parser.add_argument('--vulkan-sdk', type=Path, help='optional prefix containing Vulkan include/ and bin/ tools')
     parser.add_argument('--vulkan-bin', type=Path, help='optional Vulkan compiler shader-tool directory')
     parser.add_argument('--llvm-bin', type=Path, help='also require MLIR execution with this external LLVM toolchain')
@@ -138,6 +138,14 @@ def main():
                          'python/tensorcx/_compiler/vulkan.py',
                          'benchmarks/vulkan_runtime.py',
                          'benchmarks/bench_device_transfer.py', 'docs/DEVICE_TRANSFERS.md',
+                         'python/tensorcx/sharing.py', 'docs/SHARED_STORAGE.md',
+                         'cpp/tensorcx/core/storage_access.h',
+                         'cpp/tensorcx/backends/cuda/cuda_external_storage.cpp',
+                         'cpp/tensorcx/backends/cuda/cuda_external_storage.h',
+                         'cpp/tensorcx/backends/vulkan/vulkan_cuda_shared.cpp',
+                         'cpp/tensorcx/backends/vulkan/vulkan_cuda_shared.h',
+                         'tests/cpp/test_vulkan_cuda_shared.cpp',
+                         'tests/cpp/test_vulkan_cuda_shared_failure.cpp',
                          'python/tensorcx/_compiler/cuda.py', 'tools/distribution_probe.py',
                          'examples/cuda_mlp.py', 'bindings/dlpack.cpp',
                          'third_party/dlpack/dlpack.h', 'third_party/dlpack/LICENSE'):
@@ -150,12 +158,14 @@ def main():
         print(f'building and validating {variant}', flush=True)
         destination = output / variant
         destination.mkdir()
+        cuda_built = variant in {'cuda', 'cuda-vulkan'}
+        vulkan_built = variant in {'vulkan', 'cuda-vulkan'}
         cmake_args = ['-DTENSORCX_ENABLE_METAL=OFF',
-                      '-DTENSORCX_ENABLE_CUDA=' + ('ON' if variant == 'cuda' else 'OFF'),
-                      '-DTENSORCX_ENABLE_VULKAN=' + ('ON' if variant == 'vulkan' else 'OFF')]
-        if variant == 'cuda':
+                      '-DTENSORCX_ENABLE_CUDA=' + ('ON' if cuda_built else 'OFF'),
+                      '-DTENSORCX_ENABLE_VULKAN=' + ('ON' if vulkan_built else 'OFF')]
+        if cuda_built:
             cmake_args.append('-DCMAKE_CUDA_ARCHITECTURES=52')
-        if variant == 'vulkan' and args.vulkan_sdk:
+        if vulkan_built and args.vulkan_sdk:
             sdk = args.vulkan_sdk.resolve()
             cmake_args.extend([f'-DTENSORCX_VULKAN_INCLUDE_DIR={sdk}/include',
                                f'-DTENSORCX_GLSLANG_VALIDATOR={sdk}/bin/glslangValidator',
@@ -171,7 +181,8 @@ def main():
             if any(name.endswith('.pth') or 'editable' in name for name in names):
                 raise RuntimeError('editable artifacts in wheel')
             for required in ('tensorcx/__init__.py', 'tensorcx/_compiler/cuda.py', 'tensorcx_doctor.py',
-                             'tensorcx/_compiler/vulkan.py', 'tensorcx/_compiler/_vulkan_helpers.py'):
+                             'tensorcx/_compiler/vulkan.py', 'tensorcx/_compiler/_vulkan_helpers.py',
+                             'tensorcx/sharing.py'):
                 if required not in names:
                     raise RuntimeError(f'wheel missing {required}')
             if len([name for name in names if name.startswith('tensorcx/_core.') and name.endswith('.so')]) != 1:
@@ -211,12 +222,12 @@ def main():
                 selected_env = runtime_env.copy()
                 if mode == 'hidden-gpu':
                     selected_env['CUDA_VISIBLE_DEVICES'] = ''
-                    if variant == 'vulkan':
+                    if vulkan_built:
                         selected_env['VK_DRIVER_FILES'] = str(work / 'absent-icd.json')
                         selected_env['VK_ICD_FILENAMES'] = str(work / 'absent-icd.json')
                 if mode == 'with-llvm':
                     selected_env['TENSORCX_LLVM_BIN'] = str(args.llvm_bin.resolve())
-                    if variant == 'vulkan':
+                    if vulkan_built:
                         shader_bin = args.vulkan_bin or (args.vulkan_sdk / 'bin' if args.vulkan_sdk else None)
                         if shader_bin: selected_env['TENSORCX_VULKAN_BIN'] = str(shader_bin.resolve())
                 raw = run([*command, work / 'probe.py', '--variant', variant, *flags],
@@ -234,13 +245,13 @@ def main():
             versions = run(['readelf', '--version-info', extension], work, env, destination / 'elf-versions.log')
             record['elf_symbol_versions'] = sorted(set(re.findall(r'\b(?:GLIBC|GLIBCXX|CXXABI)_[0-9.]+', versions)))
             if variant != 'vulkan':
-                raw = run([*command, work / 'mlp.py', '--device', variant, '--repeats', '3'],
+                raw = run([*command, work / 'mlp.py', '--device', 'cuda' if cuda_built else 'cpu', '--repeats', '3'],
                           work, runtime_env, destination / 'mlp.log')
                 record['mlp'] = json.loads(raw)
             else:
                 record['mlp'] = {'status': 'not_supported_by_initial_vulkan_slice'}
-                if any('vulkan' in needed.lower() for needed in record['elf_needed']):
-                    raise RuntimeError('optional Vulkan loader became a mandatory ELF dependency')
+            if vulkan_built and any('vulkan' in needed.lower() for needed in record['elf_needed']):
+                raise RuntimeError('optional Vulkan loader became a mandatory ELF dependency')
         manifest['variants'][variant] = record
     manifest['finished_utc'] = datetime.now(timezone.utc).isoformat()
     write_public_report(output / 'manifest.json', manifest, root=ROOT)

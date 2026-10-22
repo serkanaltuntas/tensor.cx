@@ -1,5 +1,6 @@
 #include "tensorcx/backends/cuda/cuda_profiling.h"
 #include "tensorcx/backends/cuda/cuda_kernel.h"
+#include "tensorcx/backends/cuda/cuda_external_storage.h"
 #include "tensorcx/backends/cuda/cuda_buffer.h"
 
 #include <algorithm>
@@ -83,6 +84,7 @@ struct CudaKernelModule::Impl {
 };
 CudaKernelModule::CudaKernelModule() : impl_(std::make_unique<Impl>()) {}
 CudaKernelModule::~CudaKernelModule() {
+  if (!current_process()) return;
   std::lock_guard lock(registry_mutex);
   if (!id_.empty()) registry.erase(id_);
 }
@@ -170,80 +172,92 @@ Expected<std::shared_ptr<CudaKernelModule>> CudaKernelModule::load(
 Expected<CudaTensor> CudaKernelModule::launch(std::span<const KernelArgument> arguments,
     const Tensor& output, std::uint32_t threads, std::uint32_t block) const {
   try {
-    if (arguments.size() != 4) return invalid("CUDA kernel argument count mismatch");
-    if (!block || block > static_cast<unsigned>(impl_->max_block)) return invalid("CUDA block size exceeds limits");
-    const auto blocks = threads ? 1 + (static_cast<std::uint64_t>(threads) - 1) / block : 0;
-    if (blocks > static_cast<unsigned>(impl_->max_grid)) return invalid("CUDA grid size exceeds limits");
-    auto out = from_core_tensor(output);
-    if (!out) return out.status();
-    if (output.dtype != DType::kFloat32 || threads > static_cast<std::uint64_t>(numel(output.shape))) {
-      return invalid("CUDA kernel output dtype/size mismatch");
-    }
-    for (std::size_t i = 0; i < 4; ++i) {
-      const auto& arg = arguments[i];
-      if (signature_.kinds[i] == 'u') {
-        if (arg.kind != KernelArgumentKind::kUInt32 || arg.tensor || arg.uint32_value != threads) {
-          return invalid("CUDA guard argument must equal thread_count");
-        }
-      } else {
-        if (arg.kind != KernelArgumentKind::kTensor || !arg.tensor) return invalid("CUDA tensor argument kind mismatch");
-        auto tensor = from_core_tensor(*arg.tensor);
-        if (!tensor) return tensor.status();
-        if (tensor.value().dtype() != DType::kFloat32 || tensor.value().shape() != output.shape ||
-            tensor.value().buffer()->context() != impl_->context) return invalid("CUDA tensor dtype/shape/context mismatch");
-        if (tensor.value().buffer()->storage_relation(*out.value().buffer()) == StorageRelation::kPartialOverlap)
-          return invalid("CUDA kernel arguments have unsupported partial storage overlap");
-        if (i == signature_.output_index && tensor.value().buffer() != out.value().buffer()) {
-          return invalid("CUDA output argument mismatch");
+    if (!current_process()) return Status(StatusCode::kUnavailable, "CUDA kernels require a fresh process after fork");
+    BackendExecution access_descriptor;
+    access_descriptor.inputs = std::span(&output, 1);
+    access_descriptor.kernel_arguments = arguments;
+    ExternalLease access(external_owners(access_descriptor));
+    if (!access.status().ok()) return access.status();
+    auto run = [&]() -> Expected<CudaTensor> {
+      if (arguments.size() != 4) return invalid("CUDA kernel argument count mismatch");
+      if (!block || block > static_cast<unsigned>(impl_->max_block)) return invalid("CUDA block size exceeds limits");
+      const auto blocks = threads ? 1 + (static_cast<std::uint64_t>(threads) - 1) / block : 0;
+      if (blocks > static_cast<unsigned>(impl_->max_grid)) return invalid("CUDA grid size exceeds limits");
+      auto out = from_core_tensor(output);
+      if (!out) return out.status();
+      if (output.dtype != DType::kFloat32 || threads > static_cast<std::uint64_t>(numel(output.shape))) {
+        return invalid("CUDA kernel output dtype/size mismatch");
+      }
+      for (std::size_t i = 0; i < 4; ++i) {
+        const auto& arg = arguments[i];
+        if (signature_.kinds[i] == 'u') {
+          if (arg.kind != KernelArgumentKind::kUInt32 || arg.tensor || arg.uint32_value != threads) {
+            return invalid("CUDA guard argument must equal thread_count");
+          }
+        } else {
+          if (arg.kind != KernelArgumentKind::kTensor || !arg.tensor) return invalid("CUDA tensor argument kind mismatch");
+          auto tensor = from_core_tensor(*arg.tensor);
+          if (!tensor) return tensor.status();
+          if (tensor.value().dtype() != DType::kFloat32 || tensor.value().shape() != output.shape ||
+              tensor.value().buffer()->context() != impl_->context) return invalid("CUDA tensor dtype/shape/context mismatch");
+          if (tensor.value().buffer()->storage_relation(*out.value().buffer()) == StorageRelation::kPartialOverlap)
+            return invalid("CUDA kernel arguments have unsupported partial storage overlap");
+          if (i == signature_.output_index && tensor.value().buffer() != out.value().buffer()) {
+            return invalid("CUDA output argument mismatch");
+          }
         }
       }
-    }
-    ContextScope context(impl_->context);
-    if (!context.ready()) return context.status();
-    auto copied = CudaBuffer::create(DType::kFloat32, output.shape);
-    if (!copied) return copied.status();
-    const bool full_write = impl_->write_per_thread_no_output_read && threads != 0 &&
-        threads == static_cast<std::uint64_t>(numel(output.shape));
-    if (!full_write && copied.value()->nbytes()) {
-      if (auto status = runtime_status(profiled_memcpy(copied.value()->data(), out.value().buffer()->data(),
-                  copied.value()->nbytes(), cudaMemcpyDeviceToDevice), "CUDA output copy"); !status.ok()) return status;
-      if (auto status = runtime_status(profiled_synchronize(), "CUDA output copy synchronize"); !status.ok()) return status;
-    }
-    std::array<CUdeviceptr, 4> pointers{};
-    std::array<std::uint32_t, 4> scalars{};
-    std::array<void*, 4> slots{};
-    for (std::size_t i = 0; i < 4; ++i) {
-      if (signature_.kinds[i] == 'u') {
-        scalars[i] = arguments[i].uint32_value;
-        slots[i] = &scalars[i];
-      } else {
-        auto buffer = std::static_pointer_cast<CudaBuffer>(arguments[i].tensor->buffer);
-        // On full-write launches input aliases must keep their initialized
-        // source: redirecting them would read the uninitialized private result.
-        if (i == signature_.output_index || (!full_write &&
-            buffer->storage_relation(*out.value().buffer()) == StorageRelation::kSameRange)) {
-          buffer = copied.value();
+      ContextScope context(impl_->context);
+      if (!context.ready()) return context.status();
+      auto copied = CudaBuffer::create(DType::kFloat32, output.shape);
+      if (!copied) return copied.status();
+      const bool full_write = impl_->write_per_thread_no_output_read && threads != 0 &&
+          threads == static_cast<std::uint64_t>(numel(output.shape));
+      if (!full_write && copied.value()->nbytes()) {
+        if (auto status = runtime_status(profiled_memcpy(copied.value()->data(), out.value().buffer()->data(),
+                    copied.value()->nbytes(), cudaMemcpyDeviceToDevice), "CUDA output copy"); !status.ok()) return status;
+        if (auto status = runtime_status(profiled_synchronize(), "CUDA output copy synchronize"); !status.ok()) return status;
+      }
+      std::array<CUdeviceptr, 4> pointers{};
+      std::array<std::uint32_t, 4> scalars{};
+      std::array<void*, 4> slots{};
+      for (std::size_t i = 0; i < 4; ++i) {
+        if (signature_.kinds[i] == 'u') {
+          scalars[i] = arguments[i].uint32_value;
+          slots[i] = &scalars[i];
+        } else {
+          auto buffer = std::static_pointer_cast<CudaBuffer>(arguments[i].tensor->buffer);
+          // On full-write launches input aliases must keep their initialized
+          // source: redirecting them would read the uninitialized private result.
+          if (i == signature_.output_index || (!full_write &&
+              buffer->storage_relation(*out.value().buffer()) == StorageRelation::kSameRange)) {
+            buffer = copied.value();
+          }
+          pointers[i] = reinterpret_cast<CUdeviceptr>(buffer->data());
+          slots[i] = &pointers[i];
         }
-        pointers[i] = reinterpret_cast<CUdeviceptr>(buffer->data());
-        slots[i] = &pointers[i];
       }
-    }
-    if (threads) {
-      ProfileScope compute(ProfileCategory::kCompute, "generated_kernel", "cuda");
-      DeviceTimer timer("generated_kernel");
-      if (auto status = driver_status(cuLaunchKernel(impl_->function, static_cast<unsigned>(blocks),
-              1, 1, block, 1, 1, 0, nullptr, slots.data(), nullptr), "CUDA generated kernel launch");
-          !status.ok()) { timer.finish(false); return status; }
-      timer.stop();
-      Status status;
-      {
-        ProfileScope wait(ProfileCategory::kSynchronize, "cuCtxSynchronize", "cuda");
-        status = driver_status(cuCtxSynchronize(), "CUDA generated kernel synchronize");
+      if (threads) {
+        ProfileScope compute(ProfileCategory::kCompute, "generated_kernel", "cuda");
+        DeviceTimer timer("generated_kernel");
+        if (auto status = driver_status(cuLaunchKernel(impl_->function, static_cast<unsigned>(blocks),
+                1, 1, block, 1, 1, 0, nullptr, slots.data(), nullptr), "CUDA generated kernel launch");
+            !status.ok()) { timer.finish(false); return status; }
+        timer.stop();
+        Status status;
+        {
+          ProfileScope wait(ProfileCategory::kSynchronize, "cuCtxSynchronize", "cuda");
+          status = driver_status(cuCtxSynchronize(), "CUDA generated kernel synchronize");
+        }
+        timer.finish(status.ok());
+        if (!status.ok()) return status;
       }
-      timer.finish(status.ok());
-      if (!status.ok()) return status;
-    }
-    return CudaTensor(DType::kFloat32, output.shape, copied.move_value());
+      return CudaTensor(DType::kFloat32, output.shape, copied.move_value());
+    };
+    auto result = run();
+    auto completed = access.finish();
+    if (!completed.ok()) return completed;
+    return result;
   } catch (const std::invalid_argument& error) {
     return invalid(error.what());
   } catch (const std::exception& error) {

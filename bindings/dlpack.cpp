@@ -12,6 +12,7 @@
 #if TENSORCX_ENABLE_CUDA
 #include "tensorcx/backends/cuda/cuda_backend.h"
 #include "tensorcx/backends/cuda/cuda_buffer.h"
+#include "tensorcx/core/storage_access.h"
 #endif
 
 namespace nb = nanobind;
@@ -187,6 +188,13 @@ void bind_dlpack(nb::module_& module) {
     if (copy) tensor = clone(backend, tensor);
     auto native = tensorcx::cuda::from_core_tensor(tensor);
     if (!native) reject(native.status().message().c_str());
+    std::unique_ptr<StorageLease> access;
+    {
+      nb::gil_scoped_release release;
+      access = std::make_unique<StorageLease>(
+          std::vector<std::shared_ptr<StorageAccess>>{native.value().buffer()->access()});
+    }
+    if (!access->status().ok()) reject(access->status().message().c_str());
     // Foreign consumers may submit work on untracked streams. Permanently use
     // direct deletion for any storage exposed through DLPack, including copies.
     native.value().buffer()->mark_exported();

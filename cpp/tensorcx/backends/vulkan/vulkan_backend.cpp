@@ -18,6 +18,7 @@
 #include "tensorcx/core/math.h"
 #include "tensorcx/core/predicate.h"
 #include "tensorcx/core/profiling.h"
+#include "tensorcx/core/storage_access.h"
 
 namespace tensorcx::vulkan {
 namespace {
@@ -53,86 +54,94 @@ std::uint32_t shader_operation(OpKind kind) {
 }  // namespace
 
 Status VulkanBackend::execute(const BackendExecution& execution) {
-  if (execution.op_class == BackendOpClass::kKernel) {
-    ProfileScope profile(ProfileCategory::kDispatch, "vulkan_kernel_executor", "vulkan");
-    return execute_compiled_kernel(execution);
-  }
-  ProfileScope profile(ProfileCategory::kDispatch, "vulkan_executor", "vulkan", std::nullopt, execution.op.kind);
-  if (auto status = validate_primitive_execution_contract(execution, "vulkan"); !status.ok()) return status;
-  if (is_nn_operation(execution.op.kind)) return execute_nn(*this, execution);
-  if (execution.op.kind == OpKind::kMatmul) return execute_matmul(execution);
-  if (execution.op.kind == OpKind::kSum || execution.op.kind == OpKind::kMax ||
-      execution.op.kind == OpKind::kMean || execution.op.kind == OpKind::kMin ||
-      execution.op.kind == OpKind::kArgmax)
-    return execute_reduction(execution);
-  if (is_math_operation(execution.op.kind)) return execute_math(execution);
-  if (is_predicate_elementwise(execution.op.kind) || execution.op.kind == OpKind::kAny ||
-      execution.op.kind == OpKind::kAll || execution.op.kind == OpKind::kMaskedSelect)
-    return execute_predicate(execution);
-  if (execution.op.kind == OpKind::kCast || execution.op.kind == OpKind::kTranspose ||
-      execution.op.kind == OpKind::kSlice || execution.op.kind == OpKind::kConcat)
-    return execute_transform(execution);
   try {
-    const auto operation = shader_operation(execution.op.kind);
-    std::optional<VulkanTensor> lhs, rhs;
-    Shape shape;
-    DType dtype;
-    int index;
-    BroadcastPlan plan;
-    if (operation == 0) {
-      const auto& descriptor = execution.outputs[0];
-      shape = descriptor.shape; dtype = descriptor.dtype; index = descriptor.device.index;
-    } else {
-      auto result = from_core_tensor(execution.inputs[0]);
-      if (!result) return result.status();
-      lhs = result.move_value();
-      shape = lhs->shape(); dtype = lhs->dtype(); index = lhs->device().index;
-      if (dtype == DType::kBool) return invalid("Vulkan arithmetic requires float32 or int32");
-      if ((operation == 4 || operation == 8) && dtype != DType::kFloat32)
-        return invalid("division requires float32 tensors");
-      if (operation <= 4) {
-        auto right = from_core_tensor(execution.inputs[1]);
-        if (!right) return right.status();
-        rhs = right.move_value();
-        if (rhs->dtype() != dtype) return invalid("Vulkan arithmetic dtype mismatch");
-        if (rhs->buffer()->owner() != lhs->buffer()->owner())
-          return invalid("Vulkan arithmetic requires the same device owner");
-        plan = make_broadcast_plan(lhs->shape(), rhs->shape());
-        shape = plan.output_shape;
-      } else {
-        plan = make_broadcast_plan(shape, shape);
+    StorageLease access(storage_accesses(execution));
+    if (!access.status().ok()) return access.status();
+    auto run = [&]() -> Status {
+      if (execution.op_class == BackendOpClass::kKernel) {
+        ProfileScope profile(ProfileCategory::kDispatch, "vulkan_kernel_executor", "vulkan");
+        return execute_compiled_kernel(execution);
       }
-    }
-    // Validate scalar narrowing and the complete broadcast before allocating.
-    const auto bits = operation == 0 || (operation >= 5 && operation <= 8)
-        ? scalar_bits(dtype, execution.op.scalar_value) : 0u;
-    auto allocated = empty(shape, dtype, index);
-    if (!allocated) return allocated.status();
-    auto output = allocated.move_value();
-    auto count = narrow(output.size());
-    if (dtype == DType::kBool) count = static_cast<std::uint32_t>((output.nbytes() + 3) / 4);
-    if (count) {
-      auto context = output.buffer()->owner();
-      std::vector<std::uint32_t> metadata;
-      if (operation != 0) {
-        metadata.reserve(shape.size() * 3);
-        for (const auto dim : shape) metadata.push_back(narrow(dim));
-        for (const auto stride : plan.lhs_strides) metadata.push_back(narrow(stride));
-        for (const auto stride : plan.rhs_strides) metadata.push_back(narrow(stride));
-      }
-      if (metadata.empty()) metadata.push_back(0);
-      auto meta = context->allocate(metadata.size() * sizeof(std::uint32_t));
-      context->upload(meta, metadata.data(), metadata.size() * sizeof(std::uint32_t));
-      const auto& out = output.buffer()->allocation();
-      const auto& left = lhs ? lhs->buffer()->allocation() : out;
-      const auto& right = rhs ? rhs->buffer()->allocation() : left;
-      context->compute({left, right, out, meta}, PushConstants{
-          count, operation, bits, static_cast<std::uint32_t>(execution.op.scalar_left),
-          0, operation == 0 ? 0u : narrow(shape.size()),
-          static_cast<std::uint32_t>(dtype == DType::kInt32)});
-    }
-    execution.outputs[0] = to_core_tensor(output);
-    return Status::Ok();
+      ProfileScope profile(ProfileCategory::kDispatch, "vulkan_executor", "vulkan", std::nullopt, execution.op.kind);
+      if (auto status = validate_primitive_execution_contract(execution, "vulkan"); !status.ok()) return status;
+      if (is_nn_operation(execution.op.kind)) return execute_nn(*this, execution);
+      if (execution.op.kind == OpKind::kMatmul) return execute_matmul(execution);
+      if (execution.op.kind == OpKind::kSum || execution.op.kind == OpKind::kMax ||
+          execution.op.kind == OpKind::kMean || execution.op.kind == OpKind::kMin ||
+          execution.op.kind == OpKind::kArgmax)
+        return execute_reduction(execution);
+      if (is_math_operation(execution.op.kind)) return execute_math(execution);
+      if (is_predicate_elementwise(execution.op.kind) || execution.op.kind == OpKind::kAny ||
+          execution.op.kind == OpKind::kAll || execution.op.kind == OpKind::kMaskedSelect)
+        return execute_predicate(execution);
+      if (execution.op.kind == OpKind::kCast || execution.op.kind == OpKind::kTranspose ||
+          execution.op.kind == OpKind::kSlice || execution.op.kind == OpKind::kConcat)
+        return execute_transform(execution);
+      try {
+        const auto operation = shader_operation(execution.op.kind);
+        std::optional<VulkanTensor> lhs, rhs;
+        Shape shape;
+        DType dtype;
+        int index;
+        BroadcastPlan plan;
+        if (operation == 0) {
+          const auto& descriptor = execution.outputs[0];
+          shape = descriptor.shape; dtype = descriptor.dtype; index = descriptor.device.index;
+        } else {
+          auto result = from_core_tensor(execution.inputs[0]);
+          if (!result) return result.status();
+          lhs = result.move_value();
+          shape = lhs->shape(); dtype = lhs->dtype(); index = lhs->device().index;
+          if (dtype == DType::kBool) return invalid("Vulkan arithmetic requires float32 or int32");
+          if ((operation == 4 || operation == 8) && dtype != DType::kFloat32)
+            return invalid("division requires float32 tensors");
+          if (operation <= 4) {
+            auto right = from_core_tensor(execution.inputs[1]);
+            if (!right) return right.status();
+            rhs = right.move_value();
+            if (rhs->dtype() != dtype) return invalid("Vulkan arithmetic dtype mismatch");
+            if (rhs->buffer()->owner() != lhs->buffer()->owner())
+              return invalid("Vulkan arithmetic requires the same device owner");
+            plan = make_broadcast_plan(lhs->shape(), rhs->shape());
+            shape = plan.output_shape;
+          } else {
+            plan = make_broadcast_plan(shape, shape);
+          }
+        }
+        // Validate scalar narrowing and the complete broadcast before allocating.
+        const auto bits = operation == 0 || (operation >= 5 && operation <= 8)
+            ? scalar_bits(dtype, execution.op.scalar_value) : 0u;
+        auto allocated = empty(shape, dtype, index);
+        if (!allocated) return allocated.status();
+        auto output = allocated.move_value();
+        auto count = narrow(output.size());
+        if (dtype == DType::kBool) count = static_cast<std::uint32_t>((output.nbytes() + 3) / 4);
+        if (count) {
+          auto context = output.buffer()->owner();
+          std::vector<std::uint32_t> metadata;
+          if (operation != 0) {
+            metadata.reserve(shape.size() * 3);
+            for (const auto dim : shape) metadata.push_back(narrow(dim));
+            for (const auto stride : plan.lhs_strides) metadata.push_back(narrow(stride));
+            for (const auto stride : plan.rhs_strides) metadata.push_back(narrow(stride));
+          }
+          if (metadata.empty()) metadata.push_back(0);
+          auto meta = context->allocate(metadata.size() * sizeof(std::uint32_t));
+          context->upload(meta, metadata.data(), metadata.size() * sizeof(std::uint32_t));
+          const auto& out = output.buffer()->allocation();
+          const auto& left = lhs ? lhs->buffer()->allocation() : out;
+          const auto& right = rhs ? rhs->buffer()->allocation() : left;
+          context->compute({left, right, out, meta}, PushConstants{
+              count, operation, bits, static_cast<std::uint32_t>(execution.op.scalar_left),
+              0, operation == 0 ? 0u : narrow(shape.size()),
+              static_cast<std::uint32_t>(dtype == DType::kInt32)});
+        }
+        execution.outputs[0] = to_core_tensor(output);
+        return Status::Ok();
+      } catch (const std::invalid_argument& e) { return invalid(e.what()); }
+        catch (const std::exception& e) { return Status(StatusCode::kInternal, e.what()); }
+    };
+    return run();
   } catch (const std::invalid_argument& e) { return invalid(e.what()); }
     catch (const std::exception& e) { return Status(StatusCode::kInternal, e.what()); }
 }

@@ -9,6 +9,7 @@
 
 namespace tensorcx::cuda {
 class MemoryPool;
+class ExternalStorage;
 struct DeviceDeleter {
   std::shared_ptr<PrimaryContext> owner;
   std::shared_ptr<MemoryPool> pool{};
@@ -22,9 +23,12 @@ class CudaBuffer final : public Buffer {
  public:
   static Expected<std::shared_ptr<CudaBuffer>> create(DType dtype, const Shape& shape);
   static Expected<std::shared_ptr<CudaBuffer>> borrow(DType dtype, const Shape& shape,
-                                                     void* data, std::shared_ptr<void> owner);
+      void* data, std::shared_ptr<void> owner, std::shared_ptr<ExternalStorage> storage = {});
   std::size_t nbytes() const override { return bytes_; }
   StorageRelation storage_relation(const Buffer& other) const override;
+  StorageIdentity storage_identity() const override;
+  std::shared_ptr<StorageAccess> access() const override;
+  const std::shared_ptr<ExternalStorage>& external_storage() const { return external_storage_; }
   DType dtype() const { return dtype_; }
   void* data() const { return external_owner_ ? external_data_ : data_.get(); }
   const std::shared_ptr<PrimaryContext>& context() const { return data_.get_deleter().owner; }
@@ -37,5 +41,6 @@ class CudaBuffer final : public Buffer {
   std::unique_ptr<void, DeviceDeleter> data_;
   void* external_data_{nullptr};
   std::shared_ptr<void> external_owner_;
+  std::shared_ptr<ExternalStorage> external_storage_;
 };
 }  // namespace tensorcx::cuda

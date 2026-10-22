@@ -122,8 +122,10 @@ peer-enabled and peer-unavailable paths; memory-pressure errors; separate copy
 and end-to-end measurements. See product backlog item 10 for async/pool work.
 The [implemented placement contract](DEVICE_TRANSFERS.md) has real
 CPU/CUDA/Vulkan acceptance on Nightblade. Mocked Vulkan indices establish
-routing only; actual two-GPU execution, peer copies and external sharing remain
-open. This does not close the broader device or Vulkan interoperability groups.
+routing only. The [explicit shared-allocation API](SHARED_STORAGE.md) now supports
+matching CUDA/Vulkan aliases in both allocation directions. Actual two-GPU
+execution, peer copies and other device-pair sharing remain open; this does not
+close the broader device interoperability scope.
 
 ## 4 Remaining backend families
 

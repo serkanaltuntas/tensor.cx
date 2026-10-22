@@ -82,6 +82,13 @@ test('features are discoverable from the homepage and link to usage boundaries',
   const features = page.getByRole('region', { name: 'From tensor operations to runtime tools.' });
   await expect(features.getByRole('heading', { level: 3 })).toHaveCount(6);
   await expect(features).toContainText('host-staged placement');
+  await expect(features).toContainText('CUDA/Vulkan shared allocations on matching GPUs');
+  await features.getByRole('link', { name: 'Share supported storage' }).click();
+  await expect(page).toHaveURL('/docs/interoperability/');
+  await expect(page.getByRole('heading', { name: 'Explicit CUDA/Vulkan shared allocations', exact: true })).toBeVisible();
+  await expect(page.locator('main')).toContainText('Foreign CUDA consumers must retain their');
+  await expect(page.locator('main')).toContainText('mixed-device arithmetic still raises an error');
+  await page.goto('/');
   await features.getByRole('link', { name: 'Features & roadmap' }).click();
   await expect(page).toHaveURL('/docs/status/');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Features & roadmap');

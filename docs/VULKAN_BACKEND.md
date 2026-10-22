@@ -219,8 +219,11 @@ selection priority than CUDA/Metal, preserving existing accelerator choices.
 The same physical NVIDIA GPU may appear as both CUDA and Vulkan; their buffers
 and contexts remain separate. Explicit [`.to()` placement](DEVICE_TRANSFERS.md)
 now stages transfers between accelerator backends or Vulkan indices through
-CPU; `copy=True` forces independent same-device storage. There is no zero-copy interoperability
-or automatic topology/deduplication. Native operations reject mixed owners.
+CPU; `copy=True` forces independent same-device storage. Separately,
+[`shared_empty` / `shared_tensor`](SHARED_STORAGE.md) explicitly allocate aliases
+on matching CUDA/Vulkan hardware when both backends and native sharing features
+are available. Ordinary allocations remain separate; there is no automatic
+topology/deduplication. Native operations reject mixed device owners.
 
 Only one physical Vulkan GPU was available for acceptance. Mocked zero/one/two
 registry routes validate parsing and callback routing; they do not establish
@@ -339,11 +342,14 @@ operation reference, and each advertised feature needs real-device acceptance.
 - [x] Experimental custom kernels and MLIR-to-SPIR-V, with the existing
   guarded-kernel validation and compilation-cache contracts;
   [supported subset and acceptance](VULKAN_COMPILER.md).
-- [ ] Explicit accelerator/device transfer API and supported storage exchange
+- [x] Explicit accelerator/device transfer API and supported storage exchange
   where the API and driver can actually provide it; do not label a host copy
   zero-copy or publish an unsupported DLPack device type.
   The [host-staged placement baseline](DEVICE_TRANSFERS.md) is implemented;
-  validated external-memory sharing and synchronization remain open.
+  [explicit CUDA/Vulkan shared allocation](SHARED_STORAGE.md) now has native and
+  Python real-device acceptance for both origins, including a fresh combined
+  wheel, foreign CUDA mutations, DLPack lifetime/range checks and native
+  failure/quarantine acceptance. Other device pairs remain outside this route.
 - [ ] Portable Linux Vulkan wheels and repeatable local real-GPU acceptance
   alongside no-loader/hidden-ICD CI. Broader packaging must not require a Vulkan
   driver merely to import and use CPU.

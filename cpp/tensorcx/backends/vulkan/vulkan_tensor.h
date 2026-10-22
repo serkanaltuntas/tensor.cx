@@ -18,6 +18,8 @@ class VulkanBuffer final : public Buffer {
   VulkanBuffer(DType dtype, std::size_t bytes, std::shared_ptr<Context> owner,
                std::shared_ptr<Allocation> allocation);
   std::size_t nbytes() const override { return bytes_; }
+  StorageIdentity storage_identity() const override;
+  std::shared_ptr<StorageAccess> access() const override;
   DType dtype() const { return dtype_; }
   int index() const;
   const std::shared_ptr<Context>& owner() const { return owner_; }

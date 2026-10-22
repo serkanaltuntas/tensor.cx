@@ -23,6 +23,16 @@ VulkanBuffer::VulkanBuffer(DType dtype, std::size_t bytes, std::shared_ptr<Conte
   if (!owner_ || (bytes_ && (!allocation_ || allocation_->owner != owner_ ||
                             allocation_->capacity < bytes_)))
     throw std::invalid_argument("Vulkan buffer requires matching owned storage");
+  if (allocation_ && allocation_->external && bytes_ > allocation_->external->logical_bytes())
+    throw std::invalid_argument("Vulkan shared view exceeds the logical storage range");
+}
+StorageIdentity VulkanBuffer::storage_identity() const {
+  if (allocation_ && allocation_->external)
+    return {static_cast<StorageAccess*>(allocation_->external.get()), 0, bytes_};
+  return {allocation_.get(), 0, bytes_};
+}
+std::shared_ptr<StorageAccess> VulkanBuffer::access() const {
+  return allocation_ ? allocation_->external : nullptr;
 }
 int VulkanBuffer::index() const { return owner_->index; }
 
@@ -93,6 +103,8 @@ Expected<VulkanTensor> from_core_tensor(const Tensor& input) {
     auto buffer = std::dynamic_pointer_cast<VulkanBuffer>(input.buffer);
     if (!buffer || buffer->index() != input.device.index)
       return Status(StatusCode::kInvalidArgument, "Vulkan tensor buffer/device owner mismatch");
+    if (auto access = buffer->access())
+      if (auto status = access->validate(); !status.ok()) return status;
     auto context = get_context(input.device.index);
     if (!context) return context.status();
     if (context.value() != buffer->owner())

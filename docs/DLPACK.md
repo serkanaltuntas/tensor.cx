@@ -47,6 +47,10 @@ Explicit [device transfers](DEVICE_TRANSFERS.md) now support host-staged
 accelerator pairs, so a CPU/CUDA DLPack producer can be imported and then copied
 to Vulkan. Copy Vulkan to CPU/CUDA before exporting through that supported
 protocol. These placement copies do not add native Vulkan DLPack sharing.
+The separate [shared-allocation API](SHARED_STORAGE.md) creates CUDA/Vulkan
+aliases through supported native external memory; only its CUDA alias exposes
+this DLPack protocol. In-range imported subviews retain the shared owner and
+access checks; logical overruns and physical padding are rejected.
 
 ### Ownership and mutation
 

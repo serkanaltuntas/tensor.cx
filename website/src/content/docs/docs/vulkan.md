@@ -151,7 +151,10 @@ CPU, Metal and CUDA retain their device-0 limits. CUDA/Metal keep higher
 storage for each backend. Use `.to("cuda")` / `.to("vulkan")` for independent
 host-staged placement, or `copy=True` to force a same-device GPU copy. See
 [explicit device placement](/docs/interoperability/#explicit-device-placement).
-External-memory sharing and real two-GPU acceptance remain open.
+Explicit [CUDA/Vulkan shared allocation](/docs/interoperability/#explicit-cudavulkan-shared-allocations)
+is available on matching hardware in a combined build, for both allocation
+origins. Existing independent tensors stay separate; actual two-GPU acceptance
+remains open.
 
 `cx.diagnostics()` reports API version, vendor-encoded raw driver version,
 storage-buffer limit and total device-local heap bytes. Free/available bytes

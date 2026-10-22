@@ -56,7 +56,9 @@ for discovery and copies. See [validation evidence](CUDA_PHASE9_VALIDATION.md).
   float32/int32 arithmetic (float32 ties-to-even/gradual underflow); synchronous
   real GTX 980 Ti execution. [Profiling, diagnostics and bounded reuse](VULKAN_PERFORMANCE.md)
   and [guarded MLIR/SPIR-V kernels](VULKAN_COMPILER.md) are implemented;
-  interop/portable wheels and other GPUs remain open.
+  [matching CUDA/Vulkan shared allocation](SHARED_STORAGE.md) is implemented in
+  either origin. Broader interoperability, portable Vulkan wheels and other GPUs
+  remain open.
 - Optional CUDA backend: device 0 discovery, float32/int32 CPU↔CUDA copies,
   float32 fill/add/multiply, matmul, sum/max/mean, exp/GELU/SiLU, softmax/RMSNorm/LayerNorm;
   [int32 fill, arithmetic and sum/max](CUDA_INT32.md);

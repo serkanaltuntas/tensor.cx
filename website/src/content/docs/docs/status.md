@@ -18,7 +18,7 @@ the [support matrix](/docs/backends/) defines backend availability.
 | Masks | Six comparisons, boolean logic, `where`, `any`/`all` and boolean selection | [Masks](/docs/operations/#boolean-masks) |
 | Math | Tensor/scalar broadcasting, batched/vector matmul, all/multi-axis reductions with `keepdims`, log/sqrt/abs, min/argmax/clip/topk | [Math and selection](/docs/operations/#math-and-selection) |
 | Inference | Float32 linear, affine RMSNorm/LayerNorm, int32-indexed embedding and scaled dot-product attention with boolean/additive/causal masks | [Inference](/docs/operations/#inference) |
-| Storage exchange | CPU/CUDA device-0 DLPack sharing or explicit copy; optional inference-only PyTorch `linear` custom op | [DLPack & PyTorch](/docs/interoperability/) |
+| Storage exchange | CPU/CUDA device-0 DLPack; explicit CUDA/Vulkan shared allocation on matching Linux GPUs; optional inference-only PyTorch `linear` custom op | [Storage sharing](/docs/interoperability/) |
 | Diagnostics | Standalone `tensorcx-doctor`, installation checks, operation/dtype capabilities and CPU/CUDA memory snapshots | [Diagnostics](/docs/diagnostics/) |
 | Explicit kernels | Experimental Metal MSL and guarded float32 CPU/CUDA/Vulkan MLIR compilation; division, sqrt/abs/exp/log/rsqrt/tanh/sigmoid/SiLU, minimum/maximum, comparisons and value selection in the MLIR subset | [Experimental kernels](/docs/experimental/) |
 | Compilation tools | Persistent CPU/CUDA/Metal/Vulkan code cache; compile/launch latency measurements and separate compilation profiles | [Performance](/docs/performance/#compilation-cache-measurements) |
@@ -74,8 +74,8 @@ or cross-architecture support is promised. See [measurement guidance](/docs/perf
 ## Separate longer-term directions
 
 Autograd, model training, distributed/multi-GPU execution, a full PyTorch/ATen
-backend, general strided execution and ROCm are not implemented. Vulkan
-interoperability, portable wheels and wider hardware coverage remain open beyond
+backend, general strided execution and ROCm are not implemented. Broader Vulkan
+interoperability, portable Vulkan wheels and wider hardware coverage remain open beyond
 the [initial slice](/docs/vulkan/).
 They are separate directions rather than missing parts of the narrow PyTorch
 bridge or the completed original phases.

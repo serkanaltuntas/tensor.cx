@@ -1,5 +1,7 @@
 """Run with an isolated wheel interpreter, without the source checkout on sys.path."""
 import argparse
+import ctypes as C
+import gc
 import importlib.metadata
 import json
 import os
@@ -7,6 +9,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import weakref
 
 import numpy as np
 import tensorcx as cx
@@ -35,7 +38,7 @@ def check(condition, message):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--variant', choices=['cpu', 'cuda', 'vulkan'], required=True)
+    parser.add_argument('--variant', choices=['cpu', 'cuda', 'vulkan', 'cuda-vulkan'], required=True)
     parser.add_argument('--mlir', action='store_true')
     parser.add_argument('--hidden-gpu', action='store_true')
     parser.add_argument('--_vulkan-cache-child', action='store_true', help=argparse.SUPPRESS)
@@ -48,7 +51,7 @@ def main():
     check(not direct.get('dir_info', {}).get('editable', False), 'editable install is forbidden')
     check('archive_info' in direct, 'expected installation from a wheel archive')
     if args._vulkan_cache_child:
-        check(args.variant == 'vulkan' and args.mlir and not args.hidden_gpu, 'wrong cache-child variant')
+        check(args.variant in {'vulkan', 'cuda-vulkan'} and args.mlir and not args.hidden_gpu, 'wrong cache-child variant')
         module = expression.compile(target='vulkan', compiler='mlir')
         check(module.cache_hit, 'fresh process did not reuse cached SPIR-V')
         value = cx.ones((3,), device='vulkan')
@@ -56,8 +59,13 @@ def main():
         check(cx._core._vulkan_validation_errors() == 0, 'cache-child Vulkan validation errors')
         print(json.dumps({'cache_hit': True, 'cpu_parity': True}))
         return
-    if args.variant == 'vulkan':
-        check(cx._core._build_info()['vulkan'] and not cx._core._build_info()['cuda'],
+    # The mandatory CPU sharing reference is present in every wheel variant.
+    shared_cpu = cx.shared_tensor([1., 2., 3.], devices=('cpu', 'cpu'))
+    check(np.from_dlpack(shared_cpu[0]).ctypes.data == np.from_dlpack(shared_cpu[1]).ctypes.data,
+          'same-CPU shared allocation copied storage')
+    if args.variant in {'vulkan', 'cuda-vulkan'}:
+        combined = args.variant == 'cuda-vulkan'
+        check(cx._core._build_info()['vulkan'] and cx._core._build_info()['cuda'] == combined,
               'wrong Vulkan wheel backend variant')
         check(cx.is_available('vulkan') is not args.hidden_gpu, 'Vulkan visibility differs from required mode')
         device = 'cpu' if args.hidden_gpu else 'vulkan'
@@ -73,6 +81,50 @@ def main():
         bool_host = cx.from_dlpack(bool_source, copy=False)
         bool_device = bool_host.to(device)
         checks = []
+        if combined:
+            check(cx.is_available('cuda') is not args.hidden_gpu, 'CUDA visibility differs from required mode')
+            if args.hidden_gpu:
+                try: cx.shared_empty((3,), devices=('cuda', 'vulkan'))
+                except ValueError: pass
+                else: raise RuntimeError('hidden GPU shared allocation silently fell back')
+                checks.append('hidden_shared_pair_rejected')
+            else:
+                runtime = C.CDLL('libcudart.so.12')
+                runtime.cudaMemcpy.argtypes = [C.c_void_p, C.c_void_p, C.c_size_t, C.c_int]
+                runtime.cudaMemcpy.restype = C.c_int
+                runtime.cudaDeviceSynchronize.restype = C.c_int
+                capsule_pointer = C.pythonapi.PyCapsule_GetPointer
+                capsule_pointer.restype = C.c_void_p
+                capsule_pointer.argtypes = [C.py_object, C.c_char_p]
+                for pair in [('vulkan', 'cuda'), ('cuda', 'vulkan')]:
+                    for dtype in ('float32', 'int32', 'bool'):
+                        expected = (np.arange(257) % 2).astype(dtype)
+                        aliases = cx.shared_tensor(expected, devices=pair)
+                        independent = aliases[0].to(pair[1], copy=True)
+                        cuda = aliases[pair.index('cuda')]
+                        capsule = cuda.__dlpack__(stream=-1)
+                        # Legacy DLTensor is the first field; its first field is data.
+                        pointer = C.cast(capsule_pointer(capsule, b'dltensor'), C.POINTER(C.c_void_p)).contents.value
+                        changed = (1 - expected).astype(dtype)
+                        check(runtime.cudaMemcpy(pointer, changed.ctypes.data, changed.nbytes, 1) == 0,
+                              'installed-wheel foreign shared write failed')
+                        check(runtime.cudaDeviceSynchronize() == 0, 'foreign shared write incomplete')
+                        for alias in aliases:
+                            np.testing.assert_array_equal(alias.numpy(), changed)
+                            if dtype != 'bool': np.testing.assert_array_equal((alias + 2).numpy(), changed + 2)
+                        np.testing.assert_array_equal(independent.numpy(), expected)
+                        borrowed = cx.from_dlpack(capsule, copy=False)
+                        original_wrappers = [weakref.ref(value) for value in aliases]
+                        del aliases, cuda, capsule, alias
+                        gc.collect()
+                        check(all(reference() is None for reference in original_wrappers),
+                              'original shared wrappers survived DLPack lifetime check')
+                        np.testing.assert_array_equal(borrowed.numpy(), changed)
+                        for shape in [(), (0,), (3,), (5,)]:
+                            values = np.ones(shape, dtype=dtype)
+                            small = cx.shared_tensor(values, devices=pair)
+                            for alias in small: np.testing.assert_array_equal(alias.numpy(), values)
+                        checks.append('shared_' + pair[0] + '_' + dtype)
         for value in (x, bool_device, cx.empty((2,0,3), device=device)):
             forced = value.to(device, copy=True)
             check(forced is not value, 'forced same-device copy returned original')
@@ -221,7 +273,7 @@ def main():
                     warm = expression.compile(target='vulkan', compiler='mlir')
                     check(not cold.cache_hit and warm.cache_hit and cold._module is not warm._module,
                           'Vulkan cache did not reload a fresh native module')
-                    child = subprocess.run([sys.executable, '-I', __file__, '--variant', 'vulkan', '--mlir',
+                    child = subprocess.run([sys.executable, '-I', __file__, '--variant', args.variant, '--mlir',
                                             '--_vulkan-cache-child'], text=True, capture_output=True, timeout=60)
                     check(child.returncode == 0, 'installed-wheel cache-child failed')
                     check(json.loads(child.stdout) == {'cache_hit': True, 'cpu_parity': True}, 'cache-child report mismatch')

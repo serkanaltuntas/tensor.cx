@@ -110,7 +110,9 @@ API increment:          arithmetic/scalars, contiguous reshape and keepdims;
 DLPack increment:       CPU/CUDA storage exchange and optional inference-only
                         PyTorch linear custom op; docs/DLPACK.md
 Transfer increment:     explicit host-staged accelerator pairs and forced same-device copies;
-                        docs/DEVICE_TRANSFERS.md; external sharing and peer copies remain open
+                        docs/DEVICE_TRANSFERS.md; peer copies remain open
+Shared allocation:      explicit matching CUDA/Vulkan external-memory aliases in either origin;
+                        docs/SHARED_STORAGE.md; other device-pair sharing remains open
 Diagnostics increment:  CPU/CUDA capability, installation and memory snapshots;
                         standalone CLI; docs/DIAGNOSTICS.md (Metal memory deferred)
 Cache increment:        persistent experimental CPU/CUDA/Metal/Vulkan code artifacts;

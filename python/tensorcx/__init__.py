@@ -8,6 +8,7 @@ from .device import Device, best_device, device, device_name, devices, is_availa
 from .diagnostics import capabilities, diagnostics, memory_info
 from .profiling import profile
 from .memory import memory_pool
+from .sharing import shared_empty, shared_tensor
 from .tensor import (
     Tensor,
     log, sqrt, abs, min, argmax, clip, topk,
@@ -64,6 +65,7 @@ def version() -> str:
 
 
 __all__ = [
+    "shared_empty", "shared_tensor",
     "memory_pool",
     "profile",
     "capabilities", "diagnostics", "memory_info",

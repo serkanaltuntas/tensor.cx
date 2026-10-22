@@ -7,6 +7,7 @@
 #include "tensorcx/core/expected.h"
 
 namespace tensorcx::cuda {
+bool current_process();
 Status driver_status(CUresult error, const char* operation);
 Status runtime_status(cudaError_t error, const char* operation);
 

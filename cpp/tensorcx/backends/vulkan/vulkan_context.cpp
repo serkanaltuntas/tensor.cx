@@ -9,19 +9,22 @@
 #include <limits>
 #include <stdexcept>
 #include <utility>
+#include <unistd.h>
 
 #include "elementwise_spirv.h"
 #include "tensorcx/backends/vulkan/vulkan_memory_pool.h"
 #include "tensorcx/core/profiling.h"
+#include "tensorcx/core/storage_access.h"
 
 namespace tensorcx::vulkan {
 
 VulkanError::VulkanError(VkResult code, const char* operation)
     : std::runtime_error(std::string("Vulkan ") + operation + " failed (VkResult " + std::to_string(code) + ")"), result(code) {}
 DescriptorPool::~DescriptorPool() {
-  if (handle) owner->DestroyDescriptorPool(owner->device, handle, nullptr);
+  if (handle && owner->current_process()) owner->DestroyDescriptorPool(owner->device, handle, nullptr);
 }
 Frame::~Frame() {
+  if (!owner || !owner->current_process()) return;
   if (queries) owner->DestroyQueryPool(owner->device, queries, nullptr);
   if (fence) owner->DestroyFence(owner->device, fence, nullptr);
   if (command) owner->FreeCommandBuffers(owner->device, owner->command_pool, 1, &command);
@@ -30,6 +33,7 @@ Frame::~Frame() {
 namespace {
 
 std::atomic<std::uint64_t> error_count{0};
+const auto origin_process = ::getpid();
 
 void check(VkResult result, const char* operation) {
   if (result != VK_SUCCESS) {
@@ -80,8 +84,10 @@ struct Instance {
   PFN_vkGetInstanceProcAddr get_proc = nullptr;
 #define TENSORCX_VK_DECLARE(name) PFN_vk##name name = nullptr;
   TENSORCX_VK_INSTANCE_FUNCTIONS(TENSORCX_VK_DECLARE)
+  TENSORCX_VK_EXTERNAL_INSTANCE_FUNCTIONS(TENSORCX_VK_DECLARE)
 #undef TENSORCX_VK_DECLARE
   ~Instance() {
+    if (::getpid() != origin_process) return;
     if (messenger && DestroyDebugUtilsMessengerEXT) DestroyDebugUtilsMessengerEXT(handle, messenger, nullptr);
     if (handle && DestroyInstance) DestroyInstance(handle, nullptr);
     if (loader) dlclose(loader);
@@ -121,6 +127,7 @@ struct Instance {
 #define TENSORCX_VK_LOAD(name) \
     name = reinterpret_cast<PFN_vk##name>(get_proc(handle, "vk" #name));
     TENSORCX_VK_INSTANCE_FUNCTIONS(TENSORCX_VK_LOAD)
+    TENSORCX_VK_EXTERNAL_INSTANCE_FUNCTIONS(TENSORCX_VK_LOAD)
 #undef TENSORCX_VK_LOAD
     if (!DestroyInstance || !EnumeratePhysicalDevices || !GetPhysicalDeviceProperties ||
         !GetPhysicalDeviceMemoryProperties || !GetPhysicalDeviceQueueFamilyProperties ||
@@ -186,6 +193,8 @@ Discovery& discovery() { static Discovery value; return value; }
 void initialize_context(Context& context, const Instance::Physical& physical) {
   auto& instance = *context.instance;
   context.physical = physical.handle;
+  context.queue_family = physical.family;
+  context.process = static_cast<std::uint64_t>(::getpid());
   context.limits = physical.properties.limits;
   context.info.timestamp_bits = physical.timestamp_bits;
   context.info.timestamp_period = context.limits.timestampPeriod;
@@ -206,11 +215,53 @@ void initialize_context(Context& context, const Instance::Physical& physical) {
   VkDeviceCreateInfo device{};
   device.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
   device.queueCreateInfoCount = 1; device.pQueueCreateInfos = &queue;
+  std::array<const char*, 2> external_extensions{VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
+                                                VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME};
+  if (instance.GetPhysicalDeviceProperties2 && instance.EnumerateDeviceExtensionProperties &&
+      instance.GetPhysicalDeviceExternalBufferProperties && instance.GetPhysicalDeviceExternalSemaphoreProperties) {
+    std::uint32_t count = 0;
+    if (instance.EnumerateDeviceExtensionProperties(physical.handle, nullptr, &count, nullptr) == VK_SUCCESS) {
+      std::vector<VkExtensionProperties> extensions(count);
+      if (instance.EnumerateDeviceExtensionProperties(physical.handle, nullptr, &count, extensions.data()) == VK_SUCCESS) {
+        extensions.resize(count);
+        const auto present = [&](const char* name) {
+          return std::any_of(extensions.begin(), extensions.end(), [&](const auto& e) { return !std::strcmp(e.extensionName, name); });
+        };
+        if (present(external_extensions[0]) && present(external_extensions[1])) {
+          VkPhysicalDeviceExternalBufferInfo query{};
+          query.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_BUFFER_INFO;
+          query.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+          query.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
+          VkExternalBufferProperties memory{}; memory.sType = VK_STRUCTURE_TYPE_EXTERNAL_BUFFER_PROPERTIES;
+          instance.GetPhysicalDeviceExternalBufferProperties(physical.handle, &query, &memory);
+          VkPhysicalDeviceExternalSemaphoreInfo sem_query{};
+          sem_query.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_SEMAPHORE_INFO;
+          sem_query.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
+          VkExternalSemaphoreProperties semaphore{}; semaphore.sType = VK_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_PROPERTIES;
+          instance.GetPhysicalDeviceExternalSemaphoreProperties(physical.handle, &sem_query, &semaphore);
+          if ((memory.externalMemoryProperties.compatibleHandleTypes & VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT) &&
+              (semaphore.compatibleHandleTypes & VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT) &&
+              (semaphore.externalSemaphoreFeatures & VK_EXTERNAL_SEMAPHORE_FEATURE_EXPORTABLE_BIT)) {
+            context.external_memory = memory.externalMemoryProperties.externalMemoryFeatures;
+            context.external_semaphore = semaphore.externalSemaphoreFeatures;
+            VkPhysicalDeviceIDProperties identity{}; identity.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES;
+            VkPhysicalDeviceProperties2 properties{}; properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+            properties.pNext = &identity;
+            instance.GetPhysicalDeviceProperties2(physical.handle, &properties);
+            std::copy_n(identity.deviceUUID, VK_UUID_SIZE, context.device_uuid.begin());
+            device.enabledExtensionCount = external_extensions.size();
+            device.ppEnabledExtensionNames = external_extensions.data();
+          }
+        }
+      }
+    }
+  }
   check(instance.CreateDevice(physical.handle, &device, nullptr, &context.device), "vkCreateDevice");
 #define TENSORCX_VK_LOAD(name) \
   context.name = reinterpret_cast<PFN_vk##name>(instance.GetDeviceProcAddr(context.device, "vk" #name));
   TENSORCX_VK_DEVICE_FUNCTIONS(TENSORCX_VK_LOAD)
   TENSORCX_VK_QUERY_FUNCTIONS(TENSORCX_VK_LOAD)
+  TENSORCX_VK_EXTERNAL_DEVICE_FUNCTIONS(TENSORCX_VK_LOAD)
 #undef TENSORCX_VK_LOAD
 #define TENSORCX_VK_REQUIRE(name) \
   if (!context.name) throw std::runtime_error("Vulkan device entry point missing: vk" #name);
@@ -272,10 +323,11 @@ TimestampInterval timestamp_interval(std::uint64_t begin, std::uint64_t end,
   return {ms, nullptr};
 }
 
-std::size_t device_count() { return discovery().contexts.size(); }
-std::string discovery_error() { return discovery().error; }
+std::size_t device_count() { return ::getpid() == origin_process ? discovery().contexts.size() : 0; }
+std::string discovery_error() { return ::getpid() == origin_process ? discovery().error : "Vulkan requires a fresh process after fork"; }
 std::uint64_t validation_errors() { return error_count.load(); }
 Expected<std::shared_ptr<Context>> get_context(int index) {
+  if (::getpid() != origin_process) return Status(StatusCode::kUnavailable, "Vulkan requires a fresh process after fork");
   auto& state = discovery();
   std::lock_guard lock(state.mutex);
   if (index < 0 || static_cast<std::size_t>(index) >= state.contexts.size()) {
@@ -300,6 +352,7 @@ Expected<DeviceInfo> device_info(int index) {
 }
 
 Context::~Context() {
+  if (!current_process()) return;
   // All public operations are synchronous. Pending resources on an unproven
   // failed wait retain their context in quarantine instead of reaching here.
   if (pipeline) DestroyPipeline(device, pipeline, nullptr);
@@ -310,6 +363,7 @@ Context::~Context() {
 }
 
 Allocation::~Allocation() {
+  if (external || !owner || !owner->current_process()) return;
   ProfileScope profile(ProfileCategory::kDeallocation, "vulkan_buffer_free", "vulkan", memory_bytes);
   if (mapped) owner->UnmapMemory(owner->device, memory);
   if (buffer) owner->DestroyBuffer(owner->device, buffer, nullptr);
@@ -323,16 +377,23 @@ Allocation::~Allocation() {
   if (allocation_reserved) --owner->allocation_count;
 }
 
-ContextStats Context::statistics() const { std::lock_guard lock(stats_mutex_); return stats_; }
+bool Context::current_process() const { return process == static_cast<std::uint64_t>(::getpid()); }
+void Context::require_process() const {
+  if (!current_process()) throw std::invalid_argument("Vulkan resources require a fresh process after fork");
+}
+ContextStats Context::statistics() const { require_process(); std::lock_guard lock(stats_mutex_); return stats_; }
 void Context::count(std::uint64_t ContextStats::* field, std::uint64_t value) {
+  require_process();
   std::lock_guard lock(stats_mutex_); stats_.*field += value;
 }
 void Context::cache_change(const Allocation& allocation, bool insert) {
+  require_process();
   std::lock_guard lock(stats_mutex_);
   if (insert) { ++stats_.cached_blocks; stats_.cached_bytes += allocation.memory_bytes; }
   else { --stats_.cached_blocks; stats_.cached_bytes -= allocation.memory_bytes; }
 }
 void Context::lease_change(Allocation& allocation, bool insert) {
+  require_process();
   std::lock_guard lock(stats_mutex_);
   const auto kind = static_cast<std::size_t>(allocation.kind);
   if (insert) { ++stats_.live_blocks[kind]; stats_.live_bytes[kind] += allocation.requested_bytes; }
@@ -341,6 +402,7 @@ void Context::lease_change(Allocation& allocation, bool insert) {
 }
 
 std::shared_ptr<Allocation> Context::allocate(std::size_t bytes, bool host_visible, AllocationKind kind) {
+  require_process();
   ProfileScope profile(ProfileCategory::kAllocation, "vulkan_buffer_allocate", "vulkan", bytes);
   if (poisoned) throw std::runtime_error("Vulkan context is poisoned after a device error");
   if (static_cast<std::size_t>(kind) >= 3)
@@ -356,6 +418,7 @@ std::shared_ptr<Allocation> Context::allocate(std::size_t bytes, bool host_visib
   allocation->requested_bytes = bytes; allocation->kind = host_visible ? AllocationKind::kStaging : kind;
   lease_change(*allocation, true);
   return std::shared_ptr<Allocation>(allocation.release(), [pool](Allocation* item) noexcept {
+    if (!item->owner->current_process()) return;  // Retain inherited native handles in the child.
     item->owner->lease_change(*item, false);
     if (pool) pool->release(std::unique_ptr<Allocation>(item));
     else delete item;
@@ -418,6 +481,21 @@ std::unique_ptr<Allocation> Context::allocate_raw(std::size_t capacity, bool hos
 
 void Context::submit(const std::vector<std::shared_ptr<Allocation>>& resources,
                      const std::function<void(Frame&)>& encode, const char* device_name) {
+  require_process();
+  std::vector<std::shared_ptr<ExternalAccess>> shared;
+  for (const auto& allocation : resources)
+    if (allocation && allocation->external) shared.push_back(allocation->external);
+  std::sort(shared.begin(), shared.end(), [](const auto& a, const auto& b) {
+    return std::less<ExternalAccess*>{}(a.get(), b.get());
+  });
+  shared.erase(std::unique(shared.begin(), shared.end()), shared.end());
+  std::vector<std::shared_ptr<StorageAccess>> owners(shared.begin(), shared.end());
+  StorageLease access(std::move(owners));
+  if (!access.status().ok()) throw std::runtime_error(access.status().message());
+  std::vector<ExternalSubmission> handoffs;
+  handoffs.reserve(shared.size());
+  bool submission_attempted = false;
+  bool handoffs_completed = false;
   auto pool = active_memory_pool(index);
   auto frame = pool ? pool->take_frame() : nullptr;
   const auto token = reserve_device_profile(device_name, "vulkan");
@@ -457,26 +535,58 @@ void Context::submit(const std::vector<std::shared_ptr<Allocation>>& resources,
         timing = !query_error;
       }
     }
+    for (const auto& storage : shared) handoffs.push_back(storage->prepare());
+    const auto ownership_barrier = [&](bool acquire) {
+      std::vector<VkBufferMemoryBarrier> barriers;
+      barriers.reserve(handoffs.size());
+      for (const auto& handoff : handoffs) {
+        if (acquire && !handoff.acquire) continue;
+        VkBufferMemoryBarrier barrier{}; barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+        barrier.buffer = handoff.buffer; barrier.size = VK_WHOLE_SIZE;
+        barrier.srcQueueFamilyIndex = acquire ? VK_QUEUE_FAMILY_EXTERNAL : queue_family;
+        barrier.dstQueueFamilyIndex = acquire ? queue_family : VK_QUEUE_FAMILY_EXTERNAL;
+        if (acquire) barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
+        else barrier.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
+        barriers.push_back(barrier);
+      }
+      if (!barriers.empty()) CmdPipelineBarrier(frame->command,
+          acquire ? VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT : VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+          acquire ? VK_PIPELINE_STAGE_ALL_COMMANDS_BIT : VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+          0, 0, nullptr, static_cast<std::uint32_t>(barriers.size()), barriers.data(), 0, nullptr);
+    };
     {
       ProfileScope record(ProfileCategory::kDispatch, "vulkan_record_commands", "vulkan");
       VkCommandBufferBeginInfo begin{}; begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
       begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
       check(BeginCommandBuffer(frame->command, &begin), "vkBeginCommandBuffer");
       if (timing) CmdResetQueryPool(frame->command, frame->queries, 0, 2);
+      ownership_barrier(true);
       memory_barrier(*this, frame->command);
       if (timing) CmdWriteTimestamp(frame->command, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, frame->queries, 0);
       encode(*frame);
       if (timing) CmdWriteTimestamp(frame->command, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, frame->queries, 1);
       memory_barrier(*this, frame->command);
+      ownership_barrier(false);
       check(EndCommandBuffer(frame->command), "vkEndCommandBuffer");
     }
     VkSubmitInfo submission{}; submission.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submission.commandBufferCount = 1; submission.pCommandBuffers = &frame->command;
+    std::vector<VkSemaphore> waits, signals;
+    std::vector<VkPipelineStageFlags> stages;
+    for (const auto& handoff : handoffs) {
+      if (handoff.wait) { waits.push_back(handoff.wait); stages.push_back(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT); }
+      signals.push_back(handoff.signal);
+    }
+    submission.waitSemaphoreCount = static_cast<std::uint32_t>(waits.size());
+    submission.pWaitSemaphores = waits.data(); submission.pWaitDstStageMask = stages.data();
+    submission.signalSemaphoreCount = static_cast<std::uint32_t>(signals.size());
+    submission.pSignalSemaphores = signals.data();
     const auto started = token ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
     VkResult result;
     {
       ProfileScope api(ProfileCategory::kCompute, "vkQueueSubmit", "vulkan");
       count(&ContextStats::submissions);
+      submission_attempted = true;
       result = QueueSubmit(queue, 1, &submission, frame->fence);
     }
     if (result == VK_SUCCESS) {
@@ -489,6 +599,8 @@ void Context::submit(const std::vector<std::shared_ptr<Allocation>>& resources,
       if (!completion_allows_release(idle)) quarantine(std::move(frame));
       check(result, "queue submission/completion");
     }
+    for (const auto& storage : shared) storage->complete();
+    handoffs_completed = true;
     if (token) {
       const auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(
           std::chrono::steady_clock::now() - started).count();
@@ -515,13 +627,31 @@ void Context::submit(const std::vector<std::shared_ptr<Allocation>>& resources,
       pool->return_frame(std::move(frame), reset);
     }
   } catch (...) {
+    for (const auto& storage : shared) {
+      if (submission_attempted && !handoffs_completed) storage->poison();
+      else if (!submission_attempted) storage->cancel();
+    }
     finish_device_profile(token, std::nullopt, "execution_failed");
     throw;
   }
 }
 
+void Context::synchronize_external(const std::shared_ptr<Allocation>& allocation) {
+  require_process();
+  if (!allocation || allocation->owner.get() != this || !allocation->external)
+    throw std::invalid_argument("shared synchronization requires matching owned storage");
+  StorageLease access({allocation->external});
+  if (!access.status().ok()) throw std::runtime_error(access.status().message());
+  if (!allocation->requested_bytes) return;
+  std::lock_guard lock(mutex);
+  submit({allocation}, [](Frame&) {}, "vulkan_shared_handoff");
+}
+
 void Context::upload(const std::shared_ptr<Allocation>& destination, const void* data, std::size_t bytes) {
+  require_process();
   ProfileScope profile(ProfileCategory::kCopy, "vulkan_upload", "vulkan", bytes);
+  StorageLease access({destination ? destination->external : nullptr});
+  if (!access.status().ok()) throw std::runtime_error(access.status().message());
   if (!bytes) return;
   if (!destination || destination->owner.get() != this || !destination->buffer || !data || bytes > destination->capacity)
     throw std::invalid_argument("invalid Vulkan upload range or owner");
@@ -546,7 +676,10 @@ void Context::upload(const std::shared_ptr<Allocation>& destination, const void*
 
 void Context::download(const std::shared_ptr<Allocation>& source, void* data, std::size_t bytes,
                        std::size_t offset) {
+  require_process();
   ProfileScope profile(ProfileCategory::kCopy, "vulkan_download", "vulkan", bytes);
+  StorageLease access({source ? source->external : nullptr});
+  if (!access.status().ok()) throw std::runtime_error(access.status().message());
   if (!bytes) return;
   if (!source || source->owner.get() != this || !source->buffer || !data || offset % 4 ||
       offset > source->capacity || bytes > source->capacity - offset ||
@@ -570,11 +703,14 @@ void Context::download(const std::shared_ptr<Allocation>& source, void* data, st
 
 void Context::copy(const std::shared_ptr<Allocation>& destination,
                    const std::shared_ptr<Allocation>& source, std::size_t bytes) {
+  require_process();
   ProfileScope profile(ProfileCategory::kCopy, "vulkan_device_copy", "vulkan", bytes);
+  StorageLease access({source ? source->external : nullptr, destination ? destination->external : nullptr});
+  if (!access.status().ok()) throw std::runtime_error(access.status().message());
   if (!bytes) return;
   if (!source || !destination || source->owner.get() != this || destination->owner.get() != this ||
       !source->buffer || !destination->buffer || bytes > source->capacity || bytes > destination->capacity ||
-      source == destination || bytes % 4)
+      source->buffer == destination->buffer || bytes % 4)
     throw std::invalid_argument("invalid Vulkan device copy range or owner");
   std::lock_guard lock(mutex);
   if (poisoned) throw std::runtime_error("Vulkan context is poisoned after a device error");
@@ -586,8 +722,13 @@ void Context::copy(const std::shared_ptr<Allocation>& destination,
 
 void Context::compute(const std::array<std::shared_ptr<Allocation>, 4>& buffers, PushConstants push,
                       std::shared_ptr<KernelPipeline> generated, std::uint32_t block) {
+  require_process();
   const auto label = generated ? "vulkan_generated_kernel" : "vulkan_compute";
   ProfileScope profile(ProfileCategory::kCompute, label, "vulkan");
+  std::vector<std::shared_ptr<StorageAccess>> owners;
+  for (const auto& allocation : buffers) if (allocation && allocation->external) owners.push_back(allocation->external);
+  StorageLease access(std::move(owners));
+  if (!access.status().ok()) throw std::runtime_error(access.status().message());
   if (!block || block > limits.maxComputeWorkGroupInvocations || block > limits.maxComputeWorkGroupSize[0] ||
       (generated && (generated->owner.get() != this || !generated->handle)))
     throw std::invalid_argument("invalid Vulkan compute pipeline or block size");
