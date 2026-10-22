@@ -1,5 +1,6 @@
 #include <array>
 #include <cstdint>
+#include <cstring>
 #include <iostream>
 #include <cmath>
 #include <limits>
@@ -261,8 +262,44 @@ void failed_completion(bool unproven_idle, bool pooled = false) {
   if (pool) require(pool->exit().ok() && !pool->stats().cached_frames, "failed completion returned a frame to cache");
 }
 
+void clone_contract() {
+  for (auto dtype : {DType::kFloat32, DType::kInt32, DType::kBool}) {
+    for (auto count : {0, 1, 3, 5, 257}) {
+      cpu::CpuTensor input(dtype, {count});
+      if (dtype == DType::kBool) {
+        for (int i = 0; i < count; ++i) static_cast<std::uint8_t*>(input.mutable_data())[i] = static_cast<std::uint8_t>(i % 2);
+      } else {
+        const std::array<std::uint32_t, 5> bits{0x7f812345u, 0x80000000u, 1u, 0xffffffffu, 0x7fffffffu};
+        for (int i = 0; i < count; ++i)
+          std::memcpy(static_cast<char*>(input.mutable_data()) + 4 * i, &bits[i % bits.size()], 4);
+      }
+      auto source = vk::from_cpu(input).move_value();
+      auto copied = vk::clone(source);
+      require(static_cast<bool>(copied), "Vulkan independent clone failed");
+      require(copied.value().buffer() != source.buffer(), "Vulkan clone aliased buffer");
+      if (count) require(copied.value().buffer()->allocation() != source.buffer()->allocation(),
+                         "Vulkan clone aliased allocation");
+      auto output = vk::to_cpu(copied.value()).move_value();
+      require(output.shape() == input.shape() && output.dtype() == dtype, "Vulkan clone changed metadata");
+      if (source.nbytes()) require(!std::memcmp(output.data(), input.data(), source.nbytes()), "Vulkan clone changed stored bits");
+    }
+  }
+  auto source = vk::from_cpu(cpu::CpuTensor({3}, std::vector<float>{1,2,3})).move_value();
+  auto context = source.buffer()->owner();
+  const auto live = context->allocation_count.load();
+  real_allocate_memory = context->AllocateMemory; allocate_calls = 0;
+  context->AllocateMemory = &fail_first_memory;
+  auto failed = vk::clone(source);
+  context->AllocateMemory = real_allocate_memory;
+  require(!failed && !context->poisoned && allocate_calls == 1 && context->allocation_count == live,
+          "Vulkan clone allocation failure leaked, poisoned or silently fell back");
+  auto usable = vk::clone(source);
+  require(static_cast<bool>(usable), "Vulkan clone allocation failure damaged source/device");
+  require(vk::to_cpu(source).value().float_data()[2] == 3, "Vulkan failed clone changed source");
+}
 void contract() {
   vk::VulkanBackend backend;
+  clone_contract();
   performance_contract(backend);
   inference_contract(backend,
       [](const cpu::CpuTensor& input) { return vk::to_core_tensor(vk::from_cpu(input).value()); },

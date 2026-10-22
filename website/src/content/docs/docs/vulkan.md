@@ -148,7 +148,10 @@ lavapipe are excluded from the GPU list.
 
 CPU, Metal and CUDA retain their device-0 limits. CUDA/Metal keep higher
 `best_device()` priority. A GPU exposed through both CUDA and Vulkan has separate
-storage for each backend; use explicit CPU staging between them.
+storage for each backend. Use `.to("cuda")` / `.to("vulkan")` for independent
+host-staged placement, or `copy=True` to force a same-device GPU copy. See
+[explicit device placement](/docs/interoperability/#explicit-device-placement).
+External-memory sharing and real two-GPU acceptance remain open.
 
 `cx.diagnostics()` reports API version, vendor-encoded raw driver version,
 storage-buffer limit and total device-local heap bytes. Free/available bytes

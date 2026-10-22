@@ -53,6 +53,7 @@ std::string device_string(int index);
 Expected<VulkanTensor> empty(Shape shape, DType dtype, int index = 0);
 Expected<VulkanTensor> from_cpu(const cpu::CpuTensor& input, int index = 0);
 Expected<cpu::CpuTensor> to_cpu(const VulkanTensor& input);
+Expected<VulkanTensor> clone(const VulkanTensor& input);
 Tensor to_core_tensor(const VulkanTensor& input);
 Expected<VulkanTensor> from_core_tensor(const Tensor& input);
 

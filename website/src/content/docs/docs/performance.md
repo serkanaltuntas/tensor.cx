@@ -20,6 +20,18 @@ uv run --no-sync python benchmarks/bench_matmul.py --sizes 16x16x16 --repeats 2
 These short runs check the measurement workflow. They are not a basis for a
 performance comparison.
 
+## Device transfer measurements
+
+`benchmarks/bench_device_transfer.py --source cuda --target vulkan` measures
+explicit placement and a copy → target arithmetic → copy-back pipeline
+separately, with CPU parity/source checks outside timing. It requires the named
+devices and fails instead of silently falling back. Float32/int32/bool and the
+standard 1K–16M element sizes are supported; `--profile` adds separate captures.
+Times include allocation and synchronous CPU staging, rather than claiming
+device-only bandwidth or zero-copy. See the
+[complete method](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/DEVICE_TRANSFERS.md#measurement-and-acceptance)
+and [placement rules](/docs/interoperability/#explicit-device-placement).
+
 ## CUDA and MLIR measurements
 
 `benchmarks/bench_cuda.py` separately measures compilation, copies, primitives,

@@ -17,6 +17,10 @@ Shared-storage exchange and the optional PyTorch custom op are documented in
 [DLPACK.md](DLPACK.md). `.numpy()` continues to return a copy; `np.from_dlpack`
 uses the separate sharing protocol.
 
+Explicit `.to(device, copy=False)` placement supports registered CPU/device and
+host-staged accelerator pairs; `copy=True` also forces independent same-device
+storage. Dtype/shape/bits are preserved. See [transfer and ownership rules](DEVICE_TRANSFERS.md).
+
 `.numpy()` preserves shape within the installed NumPy's supported rank. A
 larger rank raises `ValueError`; it is never silently flattened and must not
 terminate the process. This does not cap the rank of internal runtime tensors.

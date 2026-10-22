@@ -217,8 +217,9 @@ as lavapipe are excluded, including when they are the only Vulkan ICD.
 CPU, Metal and CUDA still accept index 0 only. Vulkan has lower automatic
 selection priority than CUDA/Metal, preserving existing accelerator choices.
 The same physical NVIDIA GPU may appear as both CUDA and Vulkan; their buffers
-and contexts remain separate. Use explicit CPU staging for transfers between
-accelerator backends or Vulkan indices. There is no zero-copy interoperability
+and contexts remain separate. Explicit [`.to()` placement](DEVICE_TRANSFERS.md)
+now stages transfers between accelerator backends or Vulkan indices through
+CPU; `copy=True` forces independent same-device storage. There is no zero-copy interoperability
 or automatic topology/deduplication. Native operations reject mixed owners.
 
 Only one physical Vulkan GPU was available for acceptance. Mocked zero/one/two
@@ -341,6 +342,8 @@ operation reference, and each advertised feature needs real-device acceptance.
 - [ ] Explicit accelerator/device transfer API and supported storage exchange
   where the API and driver can actually provide it; do not label a host copy
   zero-copy or publish an unsupported DLPack device type.
+  The [host-staged placement baseline](DEVICE_TRANSFERS.md) is implemented;
+  validated external-memory sharing and synchronization remain open.
 - [ ] Portable Linux Vulkan wheels and repeatable local real-GPU acceptance
   alongside no-loader/hidden-ICD CI. Broader packaging must not require a Vulkan
   driver merely to import and use CPU.

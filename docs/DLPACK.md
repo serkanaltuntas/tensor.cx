@@ -43,6 +43,10 @@ exports a legacy capsule unless `max_version >= (1, 0)`. Versioned copies set
 `DLPACK_FLAG_BITMASK_IS_COPIED`; the legacy representation has no flags field.
 `dl_device` can only name the tensor's existing device. Use `.to(...)` explicitly
 for transfers. Consumed capsules cannot be reused.
+Explicit [device transfers](DEVICE_TRANSFERS.md) now support host-staged
+accelerator pairs, so a CPU/CUDA DLPack producer can be imported and then copied
+to Vulkan. Copy Vulkan to CPU/CUDA before exporting through that supported
+protocol. These placement copies do not add native Vulkan DLPack sharing.
 
 ### Ownership and mutation
 

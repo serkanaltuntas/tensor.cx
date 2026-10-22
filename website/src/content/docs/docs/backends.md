@@ -10,6 +10,7 @@ CPU/Metal/CUDA expose index 0; Vulkan has indexed routes with one physical GPU v
 | Capability | CPU | Metal | CUDA | Vulkan (initial slice) |
 | --- | --- | --- | --- | --- |
 | Float32/int32/bool tensor copy | Yes | Yes | Yes | Yes |
+| Explicit `.to()` placement / forced same-device copy | Yes | Yes | Yes | Yes |
 | Float32 fill, add, multiply | Yes | Yes | Yes | Yes |
 | Int32 fill, add, multiply | Yes | Yes | Yes | Yes |
 | Float32 subtract, divide, negate and scalar arithmetic | Yes | Yes | Yes | Yes |
@@ -48,6 +49,12 @@ CPU/Metal/CUDA expose index 0; Vulkan has indexed routes with one physical GPU v
 allocation/upload and can reuse idle storage in an explicit pool. See
 [memory reuse and profiling](/docs/performance/) and the
 [feature overview](/docs/status/) for the remaining scope.
+
+Explicit accelerator-to-accelerator placement uses synchronous CPU staging;
+same-device `copy=True` allocates independent storage. See
+[placement and storage sharing](/docs/interoperability/#explicit-device-placement).
+Host-staged placement does not establish peer copies, zero-copy Vulkan exchange
+or actual two-GPU execution.
 
 ## CPU
 

@@ -67,6 +67,21 @@ Expected<cpu::CpuTensor> to_cpu(const VulkanTensor& input) {
     return result;
   } catch (const std::exception& e) { return Status(StatusCode::kInternal, e.what()); }
 }
+Expected<VulkanTensor> clone(const VulkanTensor& input) {
+  auto validated = from_core_tensor(to_core_tensor(input));
+  if (!validated) return validated.status();
+  auto result = empty(input.shape(), input.dtype(), input.device().index);
+  if (!result) return result.status();
+  try {
+    // Vulkan copies require four-byte alignment, including packed bool tails.
+    // Padding belongs to both allocations and is never exposed as tensor data.
+    const auto bytes = (input.nbytes() + 3) & ~std::size_t{3};
+    input.buffer()->owner()->copy(result.value().buffer()->allocation(),
+                                 input.buffer()->allocation(), bytes);
+    return result.move_value();
+  } catch (const std::invalid_argument& e) { return Status(StatusCode::kInvalidArgument, e.what()); }
+    catch (const std::exception& e) { return Status(StatusCode::kInternal, e.what()); }
+}
 Tensor to_core_tensor(const VulkanTensor& input) {
   return Tensor{input.dtype(), input.shape(), input.strides(), input.device(), input.buffer(), 0};
 }

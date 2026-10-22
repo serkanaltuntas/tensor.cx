@@ -60,11 +60,14 @@ class Tensor:
             return self
         return Tensor(_backend.copy_tensor(self._impl, self.device, "cpu"))
 
-    def to(self, device: str | Device) -> "Tensor":
+    def to(self, device: str | Device, *, copy: bool = False) -> "Tensor":
+        """Place synchronously, preserving dtype/shape; force new storage with copy=True."""
+        if type(copy) is not bool:
+            raise TypeError("copy must be bool")
         target = _normalize_device(device)
-        if target == self.device:
+        if target == self.device and not copy:
             return self
-        return Tensor(_backend.copy_tensor(self._impl, self.device, target))
+        return Tensor(_backend.copy_tensor(self._impl, self.device, target, copy=copy))
 
     def __add__(self, other: "Tensor") -> "Tensor":
         return _arithmetic(self, other, "add")

@@ -104,6 +104,7 @@ x86_64 with external LLVM 21.1.8 tools. See the
   wheels for CPython 3.11–3.13, local/manual CI builds and current release limits.
 - [`docs/DISTRIBUTION.md`](docs/DISTRIBUTION.md): source archive and wheel
   validation, fresh installation, external dependencies and supported hosts.
+- [`docs/DEVICE_TRANSFERS.md`](docs/DEVICE_TRANSFERS.md): explicit host-staged device placement and independent same-device copies.
 - [`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md): `tensorcx-doctor`, declared
   operation/dtype capabilities, installation and CPU/CUDA memory snapshots.
 - [`docs/COMPILATION_CACHE.md`](docs/COMPILATION_CACHE.md): persistent experimental

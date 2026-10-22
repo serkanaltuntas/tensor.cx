@@ -109,6 +109,8 @@ API increment:          arithmetic/scalars, contiguous reshape and keepdims;
                         docs/TENSOR_API.md (acceptance tracked separately)
 DLPack increment:       CPU/CUDA storage exchange and optional inference-only
                         PyTorch linear custom op; docs/DLPACK.md
+Transfer increment:     explicit host-staged accelerator pairs and forced same-device copies;
+                        docs/DEVICE_TRANSFERS.md; external sharing and peer copies remain open
 Diagnostics increment:  CPU/CUDA capability, installation and memory snapshots;
                         standalone CLI; docs/DIAGNOSTICS.md (Metal memory deferred)
 Cache increment:        persistent experimental CPU/CUDA/Metal/Vulkan code artifacts;

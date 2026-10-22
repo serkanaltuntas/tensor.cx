@@ -81,6 +81,7 @@ test('features are discoverable from the homepage and link to usage boundaries',
   await page.goto('/');
   const features = page.getByRole('region', { name: 'From tensor operations to runtime tools.' });
   await expect(features.getByRole('heading', { level: 3 })).toHaveCount(6);
+  await expect(features).toContainText('host-staged placement');
   await features.getByRole('link', { name: 'Features & roadmap' }).click();
   await expect(page).toHaveURL('/docs/status/');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Features & roadmap');

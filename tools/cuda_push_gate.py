@@ -24,7 +24,7 @@ finally:
 TEST_FILES = ('test_cuda.py', 'test_cuda_primitives.py', 'test_mlir_cuda_runtime.py',
               'test_mlir_cuda_expressions.py', 'test_mlir_division.py', 'test_mlir_select.py', 'test_mlir_sqrt.py', 'test_mlir_abs.py', 'test_mlir_minmax.py', 'test_mlir_exp.py', 'test_mlir_log.py', 'test_mlir_rsqrt.py', 'test_mlir_tanh.py', 'test_mlir_sigmoid.py', 'test_mlir_silu.py',
               'test_int32_primitives.py', 'test_runtime_profile.py', 'test_device_profile.py', 'test_fusion_benchmark.py', 'test_output_copy.py', 'test_memory_pool.py', 'test_empty.py', 'test_tensor_api.py', 'test_cast_broadcast.py',
-              'test_shape_ops.py', 'test_multi_axis_reductions.py', 'test_indexing_joining.py', 'test_boolean_masks.py', 'test_batched_matmul.py', 'test_math_ops.py', 'test_inference_ops.py', 'test_dlpack.py')
+              'test_shape_ops.py', 'test_multi_axis_reductions.py', 'test_indexing_joining.py', 'test_boolean_masks.py', 'test_batched_matmul.py', 'test_math_ops.py', 'test_inference_ops.py', 'test_dlpack.py', 'test_device_transfer.py')
 
 
 def push_revisions(lines):
@@ -166,6 +166,8 @@ def validate(revision, llvm_bin):
                  'test_astype_values_shape_device_and_storage',
                  'test_broadcast_float32_numpy_and_cpu_parity',
                  'test_transpose_numpy_cpu_parity_and_copy',
+                 'test_transfer_matrix_bits_metadata_alias_and_lifetime',
+                 'test_forced_clone_failure_propagates_without_staging',
                  'test_squeeze_numpy_and_shared_storage',
                  'test_expand_dims_numpy_and_shared_storage',
                  'test_multi_axis_numpy_cpu_parity',

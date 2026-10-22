@@ -106,10 +106,10 @@ to close execution acceptance.
 
 ## 3 Explicit transfers between devices
 
-- [ ] Specify `Tensor.to(...)` for same-device, same-backend/different-device
+- [x] Specify `Tensor.to(...)` for same-device, same-backend/different-device
   and cross-backend transfers, including dtype/shape preservation, copy versus
   alias behavior, empty tensors and source/destination lifetime.
-- [ ] Establish a synchronous host-staged transfer baseline for supported
+- [x] Establish a synchronous host-staged transfer baseline for supported
   device pairs, with clear errors for unsupported pairs and allocation failure.
 - [ ] Add capability-gated direct peer copies where available, with a tested
   host-staged fallback when peer access is absent or cannot be enabled.
@@ -120,6 +120,10 @@ to close execution acceptance.
 Acceptance: round trips and CPU parity for supported dtypes and device pairs;
 peer-enabled and peer-unavailable paths; memory-pressure errors; separate copy
 and end-to-end measurements. See product backlog item 10 for async/pool work.
+The [implemented placement contract](DEVICE_TRANSFERS.md) has real
+CPU/CUDA/Vulkan acceptance on Nightblade. Mocked Vulkan indices establish
+routing only; actual two-GPU execution, peer copies and external sharing remain
+open. This does not close the broader device or Vulkan interoperability groups.
 
 ## 4 Remaining backend families
 

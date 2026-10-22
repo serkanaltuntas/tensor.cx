@@ -30,6 +30,35 @@ CUDA import synchronizes producer work. Later writes from another framework
 must be synchronized before tensor.cx uses the shared buffer. This is a
 synchronous exchange implementation, even though it avoids copying the data.
 
+## Explicit device placement
+
+`Tensor.to(device, copy=False)` preserves shape/dtype/stored element bits and
+returns the same Tensor on the same device. `copy=True` forces independent
+same-device storage. Different devices always receive an independent copy;
+accelerator pairs stage synchronously through a temporary CPU tensor.
+
+With both CUDA and Vulkan available:
+
+```python
+import tensorcx as cx
+
+source = cx.ones((257,), device="cuda")
+placed = source.to("vulkan")
+back = placed.to("cuda")
+independent = placed.to("vulkan:0", copy=True)
+```
+
+The destination is ready when the call returns, and the source stays unchanged.
+Unavailable routes and allocation failures raise errors. Mixed-device arithmetic
+still requires explicit placement. The `.to()` copy flag forces a same-device
+copy; DLPack's `copy=False` instead forbids copying.
+
+Vulkan copies within one device use its GPU copy path. CUDA↔Vulkan and different
+Vulkan indices use host staging, which does not share storage. Copy a Vulkan
+tensor to CPU/CUDA before DLPack exchange; direct Vulkan DLPack and external-memory
+sharing remain unimplemented. Only one physical Vulkan GPU is validated.
+See the [transfer contract and benchmark](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/DEVICE_TRANSFERS.md).
+
 ## Optional PyTorch integration
 
 Install tensorcx and a compatible PyTorch build, then from the repository root:

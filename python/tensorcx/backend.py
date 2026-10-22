@@ -27,6 +27,7 @@ class Backend:
     memory_pool: Callable[[int, int], Any] | None = None
     empty: Callable[[Any, str], Any] | None = None
     indexed: bool = False
+    clone: Callable[[Any], Any] | None = None
 
 
 _BACKENDS: dict[str, Backend] = {}
@@ -88,22 +89,40 @@ def best_device() -> str:
     return max(available, key=lambda backend: backend.priority).name
 
 
-def copy_tensor(impl: Any, source: str, target: str) -> Any:
-    if target == source:
+def copy_tensor(impl: Any, source: str, target: str, *, copy: bool = False) -> Any:
+    """Synchronous explicit placement; accelerator pairs stage through CPU."""
+    if type(copy) is not bool:
+        raise TypeError("copy must be bool")
+    if target == source and not copy:
         return impl
 
     target_backend = require_backend(target)
+    source_backend = require_backend(source)
+    if target == source:
+        if target_backend.clone is None:
+            raise ValueError(f"device does not support an independent copy: {target!r}")
+        return target_backend.clone(impl)
     if target == "cpu":
-        source_backend = require_backend(source)
         if source_backend.copy_to_cpu is None:
             raise ValueError(f"cannot copy tensor from device {source!r} to CPU")
         return source_backend.copy_to_cpu(impl)
 
-    if source != "cpu":
-        raise ValueError(f"unsupported device transfer: {source!r} -> {target!r}")
     if target_backend.copy_from_cpu is None:
         raise ValueError(f"unsupported device transfer: {source!r} -> {target!r}")
-    return target_backend.copy_from_cpu(impl)
+    if source == "cpu":
+        return target_backend.copy_from_cpu(impl)
+    if source_backend.copy_to_cpu is None:
+        raise ValueError(f"unsupported device transfer: {source!r} -> {target!r}")
+    # Both legs complete before returning. Keep staging alive through upload;
+    # never replace an allocation/copy failure with another device or an alias.
+    staging = source_backend.copy_to_cpu(impl)
+    return target_backend.copy_from_cpu(staging)
+
+
+def _clone_contiguous(impl: Any) -> Any:
+    # Existing identity transpose returns independent contiguous storage and
+    # preserves dtype/shape/bits. Vulkan provides its direct device-copy route.
+    return _core.transpose(impl, tuple(range(len(impl.shape))))
 
 
 def empty(name: str, shape: Any, dtype: str) -> Any:
@@ -185,6 +204,7 @@ _register_backend(
         matmul_backends=_cpu_matmul_backends,
         operations=CPU_OPERATIONS,
         diagnostic_info=_cpu_diagnostic_info,
+        clone=_clone_contiguous,
     )
 )
 _register_backend(
@@ -199,6 +219,7 @@ _register_backend(
         fill=_metal_fill,
         matmul_backends=_metal_matmul_backends,
         operations=METAL_OPERATIONS,
+        clone=_clone_contiguous,
     )
 )
 
@@ -221,6 +242,7 @@ if _core.is_available("cuda"):
             diagnostic_info=lambda: dict(_core._cuda_device_info()),
             memory_pool=lambda size, blocks: _core._CudaMemoryPool.create(size, blocks),
             empty=lambda shape, dtype: _core._cuda_empty(shape, dtype=dtype),
+            clone=_clone_contiguous,
         )
     )
 
@@ -244,6 +266,7 @@ def _register_vulkan_device(index: int) -> None:
             operations=VULKAN_OPERATIONS,
             diagnostic_info=lambda: dict(_core._vulkan_device_info(index=index)),
             memory_pool=lambda size, blocks: _core._VulkanMemoryPool.create(index, size, blocks),
+            clone=lambda impl: _core._vulkan_clone(impl),
         )
     )
 

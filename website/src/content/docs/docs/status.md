@@ -13,6 +13,7 @@ the [support matrix](/docs/backends/) defines backend availability.
 | Area | Available today | Guide |
 | --- | --- | --- |
 | Tensor storage | Contiguous float32/int32/bool, scalars and empty shapes; explicit device copies and casts; shared reshape/squeeze/expand-dims views | [Operations](/docs/operations/) |
+| Device placement | Synchronous host-staged accelerator pairs; `.to(device, copy=True)` forces independent same-device storage | [Explicit placement](/docs/interoperability/#explicit-device-placement) |
 | Data preparation | Basic indexing/slicing, concat, stack and split as independent contiguous copies | [Index and join](/docs/operations/#api-overview) |
 | Masks | Six comparisons, boolean logic, `where`, `any`/`all` and boolean selection | [Masks](/docs/operations/#boolean-masks) |
 | Math | Tensor/scalar broadcasting, batched/vector matmul, all/multi-axis reductions with `keepdims`, log/sqrt/abs, min/argmax/clip/topk | [Math and selection](/docs/operations/#math-and-selection) |

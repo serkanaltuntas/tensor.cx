@@ -1619,6 +1619,9 @@ NB_MODULE(_core, module) {
   module.def("vulkan_to_cpu", [](const VulkanTensor& tensor) {
     return unwrap(without_gil([&] { return tensorcx::vulkan::to_cpu(tensor); }));
   }, nb::arg("tensor"));
+  module.def("_vulkan_clone", [](const VulkanTensor& tensor) {
+    return unwrap(without_gil([&] { return tensorcx::vulkan::clone(tensor); }));
+  }, nb::arg("tensor"));
   bind_tensor_extensions<VulkanTensor>(module, [](const VulkanTensor& x, const OpDesc& op) {
     return vulkan_primitive(x, op);
   });

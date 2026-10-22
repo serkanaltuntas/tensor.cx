@@ -73,6 +73,13 @@ def main():
         bool_host = cx.from_dlpack(bool_source, copy=False)
         bool_device = bool_host.to(device)
         checks = []
+        for value in (x, bool_device, cx.empty((2,0,3), device=device)):
+            forced = value.to(device, copy=True)
+            check(forced is not value, 'forced same-device copy returned original')
+            if value.nbytes:
+                check(not cx._core._shares_storage(value._impl, forced._impl), 'forced copy shares storage')
+            np.testing.assert_array_equal(forced.numpy(), value.numpy())
+        checks.append('forced_same_device_copy')
         for name, actual, expected in [
             ('copy', x, a), ('fill', cx.ones((65,), device=device), cx.ones((65,))),
             ('add', x + y, a + b), ('subtract', x - y, a - b),
@@ -249,6 +256,9 @@ def main():
         checks.append(name)
 
     compare('copy', da, a)
+    forced = da.to(device, copy=True)
+    check(forced is not da and not cx._core._shares_storage(da._impl, forced._impl), 'forced same-device copy shares storage')
+    compare('forced_same_device_copy', forced, a)
     compare('dlpack_shared', cx.from_dlpack(da, copy=False), a)
     compare('dlpack_copy', cx.from_dlpack(da, copy=True), a)
     array = np.arange(6, dtype=np.float32)

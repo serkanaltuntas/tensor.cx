@@ -137,6 +137,7 @@ def main():
                          'tests/cpp/vulkan_kernel_fixture.comp', 'cmake/embed_vulkan_helpers.py',
                          'python/tensorcx/_compiler/vulkan.py',
                          'benchmarks/vulkan_runtime.py',
+                         'benchmarks/bench_device_transfer.py', 'docs/DEVICE_TRANSFERS.md',
                          'python/tensorcx/_compiler/cuda.py', 'tools/distribution_probe.py',
                          'examples/cuda_mlp.py', 'bindings/dlpack.cpp',
                          'third_party/dlpack/dlpack.h', 'third_party/dlpack/LICENSE'):
