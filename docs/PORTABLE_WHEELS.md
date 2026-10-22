@@ -108,9 +108,10 @@ source/CUDA/Metal build settings are unaffected by the cibuildwheel configuratio
 
 The portable containers do not receive GPU devices. Their passing tests prove
 the distribution/CPU boundary, not a driver's GPU behavior. Real Vulkan
-installed-wheel checks on the selected host complement this pipeline; the
-repeatable exact-commit local Vulkan acceptance gate remains a separate open
-item in the [Vulkan checklist](VULKAN_BACKEND.md#remaining-vulkan-work).
+installed-wheel checks on the selected host complement this pipeline. The
+[exact-commit local Vulkan gate](VULKAN_CONTINUOUS_VALIDATION.md) provides
+repeatable real-device acceptance; an isolated remote GPU runner and wider
+hardware coverage remain open in the [Vulkan checklist](VULKAN_BACKEND.md#remaining-vulkan-work).
 
 macOS wheels, portable CUDA packaging, versioned releases and package-index
 publication remain separate work. The [host-specific validator](DISTRIBUTION.md)
