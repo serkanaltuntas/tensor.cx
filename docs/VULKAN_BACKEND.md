@@ -133,7 +133,8 @@ snapshot (seven warmed synchronous host calls per size, allocation/metadata/
 fence included, upload/readback excluded) measured 1M-element medians of
 1.04–1.19 ms before and 1.05–1.54 ms after this change across the four operations.
 These are host intervals, not device times, controlled throughput comparisons
-or guarantees. Profiling and measured optimization remain in the checklist.
+or guarantees. [Profiling and measured bounded reuse](VULKAN_PERFORMANCE.md)
+are now implemented and validated separately from this earlier snapshot.
 
 `astype` supports every pair among float32/int32/bool. Float-to-int truncates
 toward zero and rejects NaN, infinity and values outside `[-2^31, 2^31)`.
@@ -142,8 +143,9 @@ does not mutate the input or poison the context. Float-to-bool uses the stored
 bits so even subnormal nonzero values are true, while both signed zeros are
 false. Boolean transformations assign one invocation to each complete packed
 word, preventing races at unaligned byte boundaries. Concat currently makes
-one synchronous output pass per input; correctness is validated, throughput
-optimization remains in the checklist below.
+one synchronous output pass per input; correctness is validated. Combining those
+passes is a possible future optimization, beyond the
+[measured resource-reuse baseline](VULKAN_PERFORMANCE.md).
 
 Float32 comparisons use IEEE-754 bit ordering, with NaN unordered, `!=` true
 for NaN, both signs of zero equal and subnormal ordering preserved independently
