@@ -111,7 +111,7 @@ test('Vulkan guide states the supported subset and links to the matrix', async (
   await expect(page.locator('main')).toContainText('sum/max/mean/min');
   await expect(page.locator('main')).toContainText('vectors, matrices and right-aligned batch');
   await expect(page.locator('main')).toContainText('log/sqrt');
-  await expect(page.locator('main')).toContainText('Inference, activations, normalization');
+  await expect(page.locator('main')).toContainText('Float32 activations and normalization');
   await expect(page.locator('main')).toContainText('boolean any/all');
   await expect(page.locator('main')).toContainText('Only one physical Vulkan GPU has been tested');
   await expect(page.locator('main')).toContainText('TENSORCX_ENABLE_VULKAN=ON');

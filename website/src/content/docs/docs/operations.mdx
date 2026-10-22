@@ -6,9 +6,9 @@ description: The current tensor API, its numerical behavior, and its explicit li
 The optional [Vulkan backend](/docs/vulkan/) implements a smaller subset: copies,
 factories, shared shape views, basic arithmetic, casts, transpose and basic
 indexing/concat/stack/split, comparisons/masks, boolean `any`/`all` and numeric
-sum/max/mean/min/argmax, float32 vector/batched matmul and log/sqrt/abs/clip/topk.
-The broader operations below
-apply to the CPU/Metal/CUDA profiles; inspect `cx.capabilities(device)` for placement.
+sum/max/mean/min/argmax, float32 vector/batched matmul, log/sqrt/abs/clip/topk,
+float32 activations/norms and inference. Inspect `cx.capabilities(device)` for
+operation/dtype placement; storage exchange and generated kernels have separate limits.
 
 
 import { Code } from '@astrojs/starlight/components';

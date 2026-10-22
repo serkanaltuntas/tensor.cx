@@ -11,6 +11,7 @@
 #include "tensorcx/backends/vulkan/vulkan_context.h"
 #include "batched_matmul_contract.h"
 #include "math_contract.h"
+#include "inference_contract.h"
 
 using namespace tensorcx;
 namespace vk = tensorcx::vulkan;
@@ -25,9 +26,10 @@ VKAPI_ATTR VkResult VKAPI_CALL failed_idle(VkDevice) { return VK_ERROR_OUT_OF_HO
 
 PFN_vkAllocateDescriptorSets real_allocate_descriptors = nullptr;
 int descriptor_calls = 0;
-VKAPI_ATTR VkResult VKAPI_CALL fail_second_descriptors(
+int descriptor_failure_at = 2;
+VKAPI_ATTR VkResult VKAPI_CALL fail_selected_descriptors(
     VkDevice device, const VkDescriptorSetAllocateInfo* info, VkDescriptorSet* sets) {
-  if (++descriptor_calls == 2) return VK_ERROR_OUT_OF_HOST_MEMORY;
+  if (++descriptor_calls == descriptor_failure_at) return VK_ERROR_OUT_OF_HOST_MEMORY;
   return real_allocate_descriptors(device, info, sets);
 }
 
@@ -56,7 +58,8 @@ void math_failure_contract(vk::VulkanBackend& backend) {
   e.op = OpDesc{OpKind::kClip}; e.inputs = inputs; e.outputs = std::span<Tensor>(outputs).first(1);
   const auto clip_before = context->allocation_count.load();
   real_allocate_descriptors = context->AllocateDescriptorSets; descriptor_calls = 0;
-  context->AllocateDescriptorSets = &fail_second_descriptors;
+  descriptor_failure_at = 2;
+  context->AllocateDescriptorSets = &fail_selected_descriptors;
   const auto clip_status = backend.execute(e);
   context->AllocateDescriptorSets = real_allocate_descriptors;
   require(!clip_status.ok() && descriptor_calls == 2, "clip second-pass fault was not exercised");
@@ -68,6 +71,42 @@ void math_failure_contract(vk::VulkanBackend& backend) {
   const auto unchanged = vk::to_cpu(x).value();
   require(unchanged.float_data()[0] == 1 && unchanged.float_data()[2] == 3,
           "failed math modified input storage");
+}
+
+void nn_failure_contract(vk::VulkanBackend& backend) {
+  auto upload = [](const cpu::CpuTensor& source) {
+    return vk::to_core_tensor(vk::from_cpu(source).value());
+  };
+  const auto x = upload(cpu::CpuTensor({2, 2}, std::vector<float>{1, 2, 3, 4}));
+  const auto vector = upload(cpu::CpuTensor({2}, std::vector<float>{1, 2}));
+  cpu::CpuTensor host_indices(DType::kInt32, {2});
+  host_indices.mutable_int32_data()[0] = 1; host_indices.mutable_int32_data()[1] = 0;
+  const auto indices = upload(host_indices);
+  auto context = vk::from_core_tensor(x).value().buffer()->owner();
+  for (auto kind : {OpKind::kLinear, OpKind::kAffineLayerNorm, OpKind::kEmbedding, OpKind::kAttention}) {
+    std::vector<Tensor> inputs;
+    OpDesc op{kind};
+    if (kind == OpKind::kLinear) { inputs = {x, x, vector}; descriptor_failure_at = 3; }
+    if (kind == OpKind::kAffineLayerNorm) {
+      inputs = {x, vector, vector}; op.axis = -1; op.has_weight = true; op.has_bias = true;
+      descriptor_failure_at = 3;
+    }
+    if (kind == OpKind::kEmbedding) { inputs = {indices, x}; descriptor_failure_at = 2; }
+    if (kind == OpKind::kAttention) { inputs = {x, x, x}; descriptor_failure_at = 4; }
+    std::array<Tensor, 1> outputs{vector};
+    BackendExecution e{BackendOpClass::kPrimitive, op, inputs, outputs, std::nullopt, std::nullopt, {}};
+    const auto before = context->allocation_count.load();
+    real_allocate_descriptors = context->AllocateDescriptorSets; descriptor_calls = 0;
+    context->AllocateDescriptorSets = &fail_selected_descriptors;
+    const auto status = backend.execute(e);
+    context->AllocateDescriptorSets = real_allocate_descriptors;
+    require(!status.ok() && descriptor_calls == descriptor_failure_at, "inference final-stage failure not exercised");
+    require(outputs[0].buffer == vector.buffer, "failed inference published a private intermediate");
+    require(context->allocation_count == before && !context->poisoned, "failed inference leaked or poisoned context");
+    require(backend.execute(e).ok(), "inference failed to recover after rejected submission");
+  }
+  const auto unchanged = vk::to_cpu(vk::from_core_tensor(x).value()).value();
+  require(unchanged.float_data()[0] == 1 && unchanged.float_data()[3] == 4, "inference failure modified input");
 }
 
 void failed_completion(bool unproven_idle) {
@@ -95,6 +134,10 @@ void failed_completion(bool unproven_idle) {
 
 void contract() {
   vk::VulkanBackend backend;
+  inference_contract(backend,
+      [](const cpu::CpuTensor& input) { return vk::to_core_tensor(vk::from_cpu(input).value()); },
+      [](const Tensor& output) { return vk::to_cpu(vk::from_core_tensor(output).value()).move_value(); });
+  nn_failure_contract(backend);
   math_contract(backend,
       [](const cpu::CpuTensor& input) { return vk::to_core_tensor(vk::from_cpu(input).value()); },
       [](const Tensor& output) { return vk::to_cpu(vk::from_core_tensor(output).value()).move_value(); });
@@ -132,6 +175,12 @@ void contract() {
       execution.op = OpDesc{kind}; execution.op.axis = 0;
       invalid(backend.execute(execution));
       require(outputs[0].buffer == original.buffer, "rejected reduction published an output");
+    }
+    for (auto kind : {OpKind::kExp, OpKind::kGelu, OpKind::kSilu, OpKind::kSoftmax,
+                      OpKind::kRmsNorm, OpKind::kLayerNorm}) {
+      execution.op = OpDesc{kind};
+      invalid(backend.execute(execution));
+      require(outputs[0].buffer == original.buffer, "rejected activation/norm published output");
     }
     for (auto kind : {OpKind::kCast, OpKind::kTranspose, OpKind::kSlice, OpKind::kConcat}) {
       execution.op = OpDesc{kind};

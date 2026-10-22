@@ -61,13 +61,14 @@ print(cx.capabilities("vulkan"))
   `auto` and `custom` selecting the same kernel.
 - `float32`: `log` and `sqrt`; `float32`/`int32`: `abs`, broadcasted `clip`
   and deterministic `topk` values/int32 indices.
+- `float32`: exp/GELU/SiLU, softmax/RMSNorm/LayerNorm, linear, affine
+  normalization, int32-indexed embedding and masked/causal scaled dot-product attention.
 - Per-device capabilities and basic diagnostics: Vulkan API version, raw
   vendor-encoded driver version, storage-buffer limit and total device-local
   heap bytes. Available/free bytes are **not collected**. Heaps are device-wide,
   not a count of tensor-owned allocations.
 
-Activations, norms,
-inference, DLPack, generated kernels/MLIR, profiling, memory
+DLPack, generated kernels/MLIR, profiling, memory
 pools, command batching and asynchronous execution are not implemented on Vulkan.
 Unsupported operations raise explicit errors; no CPU fallback is performed.
 Other backends retain their existing capabilities.
@@ -167,6 +168,39 @@ metadata on empty outputs need not fit shader indices. No tensor values are
 read back for numeric reductions. Long serial reductions are a correctness
 baseline; parallel algorithms and measured optimization remain open.
 
+## Activations, normalization and inference
+
+This increment was validated on the recorded GTX 980 Ti on 2026-10-22.
+
+Float32 `exp`, `gelu`, `silu`, `softmax`, `rmsnorm` and `layernorm` execute
+entirely on the GPU. Exp reduces by a split ln(2), evaluates a degree-ten
+polynomial and scales the exponent with gradual underflow. Its acceptance is
+relative error 1e-6 plus one minimum subnormal (2^-149), including underflow
+and overflow boundaries. It is not claimed to be correctly rounded. GELU/SiLU
+retain the ordinary CPU formulas, with relative/absolute tolerance 1e-6:
+GELU uses the tanh approximation; negative infinity produces NaN for both
+operations under those formulas. This is separate from the stable experimental
+kernel DSL's activation contracts. Input signed zeros and subnormal arithmetic
+are retained by the uint32 helpers.
+
+One invocation owns a whole normalized axis, including non-last axes. Norms
+retain sequential RNE sum/product order, correctly rounded sqrt and the CPU's
+constant-row/zero-epsilon behavior. Ordinary softmax propagates nonfinite rows
+under max subtraction; only attention has the all-masked-row exception.
+
+Linear, affine normalization and attention use the shared
+[inference composites](TENSOR_API.md#inference-operations) through the Vulkan
+execution ABI. Native owners of every input, mask and affine parameter are
+validated first. Embedding validates int32 indices on the GPU and reads back
+only a private four-byte error flag; even zero-width outputs reject invalid
+indices. Gathered values preserve stored bits. Attention's masked softmax
+handles broadcast bool/additive masks, causal masking and subnormal scales.
+Fully excluded/all-negative-infinity rows have zero probabilities; unmasked
+NaNs propagate. Intermediate outputs remain private until every stage succeeds.
+These synchronous algorithms retain the four-SSBO minimum and allocate full
+attention score/probability matrices; optimized throughput and FlashAttention
+are not claimed.
+
 ## Device identity and ownership
 
 `vulkan` and `vulkan:0` select the first eligible GPU. Further eligible GPUs use
@@ -235,6 +269,7 @@ TENSORCX_VULKAN_VALIDATION=1 TENSORCX_REQUIRE_BACKENDS=vulkan \
   tests/python/test_vulkan_reduction.py tests/python/test_multi_axis_reductions.py \
   tests/python/test_vulkan_matmul.py tests/python/test_batched_matmul.py \
   tests/python/test_vulkan_math.py tests/python/test_math_ops.py \
+  tests/python/test_vulkan_nn.py tests/python/test_inference_ops.py \
   tests/python/test_boolean_masks.py tests/python/test_backend_parity.py
 # Build native tests with TENSORCX_BUILD_TESTS=ON and TENSORCX_ENABLE_VULKAN=ON:
 uv run --no-sync ctest --test-dir build/vulkan-native --output-on-failure
@@ -292,7 +327,7 @@ operation reference, and each advertised feature needs real-device acceptance.
 - [x] Numeric sum/max/mean/min/argmax reductions, selected axes and `keepdims`.
 - [x] Vector, matrix and broadcast-batched matmul.
 - [x] Remaining math: log/sqrt/abs/clip/topk, with CPU parity.
-- [ ] Activations, normalization and inference operations
+- [x] Activations, normalization and inference operations
   (`linear`, affine norms, embedding and attention), with CPU parity.
 - [ ] Repeatable benchmarks, host/device timing, allocation diagnostics and
   measured staging/command/descriptor/buffer reuse.

@@ -1,6 +1,6 @@
 ---
 title: Vulkan / SPIR-V
-description: Build and use the optional Linux Vulkan backend for GPU arithmetic, math, selection, matmul, reductions and tensor preparation.
+description: Build and use the optional Linux Vulkan backend for tensor operations, activations, normalization and inference.
 ---
 
 Vulkan is an optional Linux backend with a deliberately smaller operation set
@@ -112,7 +112,20 @@ three-way broadcasting through two GPU passes; topk returns separate values
 and int32 indices, with stable ties and original-index order for `sorted=False`.
 These are correctness baselines, without optimized-throughput claims.
 
-Inference, activations, normalization,
+Float32 activations and normalization (`exp`, `gelu`, `silu`, `softmax`,
+`rmsnorm`, `layernorm`) execute on-device. Linear, affine norms, embedding and
+scaled dot-product attention use the same native execution path. Attention
+supports broadcast bool/additive masks and causal masking; fully masked rows
+have zero probabilities. Embedding validates indices on the GPU and reads
+back only a four-byte error flag, including when the output width is zero.
+
+Exp uses split-ln(2) range reduction and a bounded-error polynomial with gradual
+underflow (relative tolerance 1e-6 plus one minimum subnormal). GELU/SiLU retain
+the ordinary CPU formulas and special-value behavior; GELU is the tanh
+approximation. Norms preserve sequential binary32 accumulation and the CPU
+constant-row/epsilon rules. Attention allocates the full score/probability
+matrices and makes no FlashAttention or optimized-throughput claim.
+
 DLPack and generated kernels/MLIR are not implemented on Vulkan.
 Unsupported operations raise errors. Inspect capabilities before choosing a
 backend for a larger workload.

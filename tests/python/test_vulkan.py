@@ -97,10 +97,10 @@ def test_vulkan_threaded_reuse_preserves_inputs(vulkan_device):
 
 def test_vulkan_unsupported_operations_and_bad_metadata(vulkan_device):
     x = cx.ones((2, 3), device=vulkan_device)
-    for action in (lambda: cx.exp(x),
-                   lambda: cx.softmax(x, axis=-1), lambda: cx.rmsnorm(x, axis=-1), lambda: cx.layernorm(x, axis=-1)):
-        with pytest.raises(ValueError, match="not supported"):
-            action()
+    integers = cx.ones((2, 3), dtype=cx.int32, device=vulkan_device)
+    for operation in (cx.exp, cx.gelu, cx.silu, cx.softmax, cx.rmsnorm, cx.layernorm):
+        with pytest.raises(ValueError, match="float32"):
+            operation(integers, **({"axis": -1} if operation in (cx.softmax, cx.rmsnorm, cx.layernorm) else {}))
     with pytest.raises(BufferError, match="CPU and CUDA"):
         x.__dlpack__()
     with pytest.raises(ValueError, match="shape mismatch"):
@@ -135,7 +135,10 @@ def test_vulkan_capabilities_and_diagnostics(vulkan_device):
         assert caps[name] == ["float32"]
     for name in ("abs", "clip", "topk"):
         assert caps[name] == ["float32", "int32"]
-    assert not {"from_dlpack", "attention"} & caps.keys()
+    for name in ("exp", "gelu", "silu", "softmax", "rmsnorm", "layernorm", "linear",
+                 "embedding", "attention", "scaled_dot_product_attention"):
+        assert caps[name] == ["float32"]
+    assert "from_dlpack" not in caps
     info = cx.diagnostics()["backends"][vulkan_device]
     assert info["available"] is True
     assert info["api_version"]

@@ -52,9 +52,9 @@ for discovery and copies. See [validation evidence](CUDA_PHASE9_VALIDATION.md).
 - Optional Linux [Vulkan/SPIR-V backend](VULKAN_BACKEND.md): float32/int32/bool
   copies/factories/views, casts, transpose, indexing/joins, comparisons/masks,
   boolean/numeric reductions (sum/max/mean/min/argmax), float32 vector/batched
-  matmul, log/sqrt/abs/clip/topk and broadcast basic
+  matmul, log/sqrt/abs/clip/topk, activations/norms/inference and broadcast basic
   float32/int32 arithmetic (float32 ties-to-even/gradual underflow); synchronous
-  real GTX 980 Ti execution. Broader operations and other GPUs remain open.
+  real GTX 980 Ti execution. Compiler/interop/performance and other GPUs remain open.
 - Optional CUDA backend: device 0 discovery, float32/int32 CPU↔CUDA copies,
   float32 fill/add/multiply, matmul, sum/max/mean, exp/GELU/SiLU, softmax/RMSNorm/LayerNorm;
   [int32 fill, arithmetic and sum/max](CUDA_INT32.md);

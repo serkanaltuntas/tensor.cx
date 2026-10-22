@@ -4,7 +4,7 @@ The optional [Vulkan runtime](VULKAN_BACKEND.md) supports a smaller subset:
 copies/factories, shared shape views, basic arithmetic, all dtype casts,
 transpose, basic indexing/concat/stack/split, comparisons/masks and boolean
 `any`/`all`, numeric sum/max/mean/min and argmax, float32 vector/batched matmul,
-log/sqrt/abs/clip/topk. Check
+log/sqrt/abs/clip/topk, float32 activations/norms and inference. Check
 `cx.capabilities(device)` before placing broader workloads.
 
 User-requested increment, 2026-10-04: basic arithmetic and Python/NumPy real
@@ -570,8 +570,8 @@ architectures, portable wheel publication or a throughput claim.
 
 ## Inference operations
 
-All inference values and parameters are float32 on the same device. CPU, Metal
-and CUDA use native execution through the shared backend ABI; no operation
+All inference values and parameters are float32 on the same device. CPU, Metal,
+CUDA and Vulkan use native execution through the shared backend ABI; no operation
 implicitly casts, transfers devices, or exports tensor data to Python/NumPy.
 Results own independent contiguous buffers. Tensor methods mirror the functions;
 the attention method is `Tensor.attention` (the long-form name is a module function).

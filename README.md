@@ -12,7 +12,7 @@ is also available. An optional Linux [Vulkan/SPIR-V backend](docs/VULKAN_BACKEND
 now supports GPU copies, factories, basic arithmetic, casts and contiguous
 indexing/shape/join operations, comparisons/masks, boolean reductions and
 numeric sum/max/mean/min/argmax, float32 vector/batched matmul and
-log/sqrt/abs/clip/topk. ROCm and broader
+log/sqrt/abs/clip/topk, activations, normalization and inference. ROCm and broader
 MLIR-based lowering remain longer-term directions.
 
 The project is useful today as:

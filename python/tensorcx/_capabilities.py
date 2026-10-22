@@ -51,6 +51,8 @@ VULKAN_OPERATIONS = {
     "divide": _FLOAT,
     "mean": _FLOAT,
     "matmul": _FLOAT,
+    **{name: _FLOAT for name in ("exp", "gelu", "silu", "softmax", "rmsnorm", "layernorm",
+        "linear", "embedding", "scaled_dot_product_attention", "attention")},
     **{name: _FLOAT for name in ("log", "sqrt")},
     **{name: _NUMERIC for name in ("abs", "clip", "topk")},
     "randn": _FLOAT,

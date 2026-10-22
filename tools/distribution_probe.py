@@ -84,6 +84,16 @@ def main():
             ('clip', cx.clip(x, y, 3.), cx.clip(a, b, 3.)),
             ('topk_values', cx.topk(x, 3, axis=-1, sorted=False)[0], cx.topk(a, 3, axis=-1, sorted=False)[0]),
             ('topk_indices', cx.topk(x, 3, axis=-1, sorted=False)[1], cx.topk(a, 3, axis=-1, sorted=False)[1]),
+            ('exp', x.exp(), a.exp()), ('gelu', x.gelu(), a.gelu()), ('silu', x.silu(), a.silu()),
+            ('softmax', x.softmax(-1), a.softmax(-1)),
+            ('rmsnorm', x.rmsnorm(-1), a.rmsnorm(-1)), ('layernorm', x.layernorm(-1), a.layernorm(-1)),
+            ('affine_layernorm', x.layernorm(-1, weight=cx.ones((9,), device=device), bias=cx.ones((9,), device=device)),
+                                 a.layernorm(-1, weight=cx.ones((9,)), bias=cx.ones((9,)))),
+            ('linear', cx.linear(x, cx.ones((4, 9), device=device)), cx.linear(a, cx.ones((4, 9)))),
+            ('embedding', cx.embedding(cx.tensor([1, 0, 2], dtype=cx.int32, device=device), ma[0, 0].to(device)),
+                          cx.embedding(cx.tensor([1, 0, 2], dtype=cx.int32), ma[0, 0])),
+            ('attention', cx.attention(ma[0, 0].to(device), ma[1, 0].to(device), cx.ones((3, 2), device=device)),
+                          cx.attention(ma[0, 0], ma[1, 0], cx.ones((3, 2)))),
         ]:
             check(actual.dtype == expected.dtype, name + ': dtype mismatch')
             if expected.dtype in (cx.int32, cx.bool):
@@ -117,13 +127,13 @@ def main():
                                        cx.matmul(ma, mb).numpy(), rtol=1e-4, atol=1e-4)
             checks.append('matmul_custom')
             try:
-                cx.exp(x)
-            except ValueError as error:
-                check('not supported' in str(error), str(error))
+                x.__dlpack__()
+            except BufferError as error:
+                check('CPU and CUDA' in str(error), str(error))
             else:
-                raise RuntimeError('unsupported Vulkan exponential accepted')
+                raise RuntimeError('unsupported Vulkan DLPack export accepted')
             check(cx._core._vulkan_validation_errors() == 0, 'Vulkan validation errors')
-            checks.append('unsupported_operation_error')
+            checks.append('unsupported_dlpack_error')
             invalid_cast = cx.tensor([1., np.nan, 2.], device=device)
             try:
                 invalid_cast.astype(cx.int32)

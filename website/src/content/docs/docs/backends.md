@@ -31,9 +31,9 @@ CPU/Metal/CUDA expose index 0; Vulkan has indexed routes with one physical GPU v
 | Float32 log, sqrt | Yes | Yes | Yes | Yes |
 | Float32/int32 min, argmax | Yes | Yes | Yes | Yes |
 | Float32/int32 abs, clip, topk | Yes | Yes | Yes | Yes |
-| Float32 linear, affine norms, embedding, attention | Yes | Yes | Yes | Not implemented |
-| Float32 exp, GELU, SiLU | Yes | Yes | Yes | Not implemented |
-| Float32 softmax, RMSNorm, LayerNorm | Yes | Yes | Yes | Not implemented |
+| Float32 linear, affine norms, embedding, attention | Yes | Yes | Yes | Yes |
+| Float32 exp, GELU, SiLU | Yes | Yes | Yes | Yes |
+| Float32 softmax, RMSNorm, LayerNorm | Yes | Yes | Yes | Yes |
 | Generated kernels | Optional MLIR subset | Experimental MSL subset | Optional MLIR subset | Not implemented |
 | `empty` allocation | CPU storage | Existing CPU staging/copy | Direct device allocation | Direct device allocation |
 | DLPack exchange (contiguous float32/int32/bool) | Yes | Not implemented | Device 0 | Not implemented |
@@ -95,8 +95,9 @@ serially per output, with mean restricted to float32. Matmul supports
 `auto`/`custom`, separate multiply/add rounding and broadcast batches.
 Log/sqrt/abs/clip/topk also execute on-device; sqrt uses integer root rounding,
 log uses a bounded-error series, and clip/topk preserve selection bits.
-Inference, activations, normalization, DLPack and MLIR are outside this
-first slice. See [Vulkan setup and limits](/docs/vulkan/).
+Float32 activations/norms and inference now execute on-device, including
+GPU-validated embedding indices and masked/causal attention. DLPack and MLIR
+remain outside this slice. See [Vulkan setup and limits](/docs/vulkan/).
 
 ## Compiler boundary
 

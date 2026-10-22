@@ -25,7 +25,7 @@ the [support matrix](/docs/backends/) defines backend availability.
 | Manual CUDA fusion experiment | Native/separate-MLIR/fused expression comparisons with balanced unprofiled calls and separate CUDA diagnostics | [Fusion measurements](/docs/performance/#manual-cuda-fusion-experiment) |
 | Generated CUDA outputs | Proved nonzero full writes omit the template copy; private output, immutable inputs and conservative legacy/partial behavior retained | [Output copies](/docs/performance/#generated-cuda-output-copies) |
 | CUDA allocation | Bounded opt-in exact-size reuse, pool stats/trim, and direct `empty` allocation without CPU staging | [Memory reuse](/docs/performance/#bounded-cuda-memory-reuse) |
-| Vulkan / SPIR-V | Optional Linux GPU copies/factories/views, casts, transpose, indexing/joins, comparisons/masks, reductions, arithmetic, float32 vector/batched matmul and log/sqrt/abs/clip/topk; one GTX 980 Ti validated | [Setup and limits](/docs/vulkan/) |
+| Vulkan / SPIR-V | Optional Linux GPU copies/factories/views, casts, transpose, indexing/joins, comparisons/masks, reductions, arithmetic, float32 vector/batched matmul, log/sqrt/abs/clip/topk, activations/norms and inference; one GTX 980 Ti validated | [Setup and limits](/docs/vulkan/) |
 | Distribution | Reviewed Linux x86_64 CPU manylinux wheel pipeline for CPython 3.11–3.13; source builds for supported Metal/CUDA environments | [Installation](/docs/installation/) |
 
 Operation/dtype combinations have explicit limits. For example, matmul,
@@ -72,8 +72,8 @@ or cross-architecture support is promised. See [measurement guidance](/docs/perf
 ## Separate longer-term directions
 
 Autograd, model training, distributed/multi-GPU execution, a full PyTorch/ATen
-backend, general strided execution and ROCm are not implemented. Wider Vulkan operation
-and hardware coverage remains open beyond the [initial slice](/docs/vulkan/).
+backend, general strided execution and ROCm are not implemented. Vulkan compiler, interoperability, performance
+and hardware coverage remain open beyond the [initial slice](/docs/vulkan/).
 They are separate directions rather than missing parts of the narrow PyTorch
 bridge or the completed original phases.
 

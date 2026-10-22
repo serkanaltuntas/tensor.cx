@@ -13,6 +13,7 @@
 #include "tensorcx/backends/vulkan/vulkan_reduction.h"
 #include "tensorcx/backends/vulkan/vulkan_matmul.h"
 #include "tensorcx/backends/vulkan/vulkan_math.h"
+#include "tensorcx/backends/vulkan/vulkan_nn.h"
 #include "tensorcx/core/math.h"
 #include "tensorcx/core/predicate.h"
 
@@ -51,6 +52,7 @@ std::uint32_t shader_operation(OpKind kind) {
 
 Status VulkanBackend::execute(const BackendExecution& execution) {
   if (auto status = validate_primitive_execution_contract(execution, "vulkan"); !status.ok()) return status;
+  if (is_nn_operation(execution.op.kind)) return execute_nn(*this, execution);
   if (execution.op.kind == OpKind::kMatmul) return execute_matmul(execution);
   if (execution.op.kind == OpKind::kSum || execution.op.kind == OpKind::kMax ||
       execution.op.kind == OpKind::kMean || execution.op.kind == OpKind::kMin ||
