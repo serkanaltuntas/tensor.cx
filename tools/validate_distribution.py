@@ -125,6 +125,10 @@ def main():
                          'cpp/tensorcx/backends/vulkan/vulkan_nn.h',
                          'cpp/tensorcx/backends/vulkan/vulkan_math.cpp',
                          'cpp/tensorcx/backends/vulkan/vulkan_math.h',
+                         'cpp/tensorcx/backends/vulkan/vulkan_memory_pool.cpp',
+                         'cpp/tensorcx/backends/vulkan/vulkan_memory_pool.h',
+                         'cpp/tensorcx/backends/vulkan/vulkan_resources.h',
+                         'benchmarks/vulkan_runtime.py',
                          'python/tensorcx/_compiler/cuda.py', 'tools/distribution_probe.py',
                          'examples/cuda_mlp.py', 'bindings/dlpack.cpp',
                          'third_party/dlpack/dlpack.h', 'third_party/dlpack/LICENSE'):

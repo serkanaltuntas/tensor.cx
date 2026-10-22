@@ -45,6 +45,7 @@
 #if TENSORCX_ENABLE_VULKAN
 #include "tensorcx/backends/vulkan/vulkan_backend.h"
 #include "tensorcx/backends/vulkan/vulkan_context.h"
+#include "tensorcx/backends/vulkan/vulkan_memory_pool.h"
 #endif
 
 #ifndef TENSORCX_RUNTIME_VERSION
@@ -1489,6 +1490,36 @@ NB_MODULE(_core, module) {
 
 #if TENSORCX_ENABLE_VULKAN
   using tensorcx::vulkan::VulkanTensor;
+  nb::class_<tensorcx::vulkan::MemoryPool>(module, "_VulkanMemoryPool")
+      .def_static("create", [](int index, nb::handle bytes, nb::handle blocks) {
+        if (is_bool_like(bytes) || is_bool_like(blocks)) throw std::invalid_argument("memory pool limits must be integers");
+        return std::make_shared<tensorcx::vulkan::MemoryPool>(index, nb::cast<std::size_t>(bytes), nb::cast<std::size_t>(blocks));
+      })
+      .def("enter", [](tensorcx::vulkan::MemoryPool& pool) {
+        const auto status = without_gil([&] { return pool.enter(); }); if (!status.ok()) throw_status(status);
+      })
+      .def("exit", [](tensorcx::vulkan::MemoryPool& pool) {
+        const auto status = without_gil([&] { return pool.exit(); }); if (!status.ok()) throw_status(status);
+      })
+      .def("trim", [](tensorcx::vulkan::MemoryPool& pool) {
+        const auto status = without_gil([&] { return pool.trim(); }); if (!status.ok()) throw_status(status);
+      })
+      .def("stats", [](const tensorcx::vulkan::MemoryPool& pool) {
+        const auto stats = without_gil([&] { return pool.stats(); }); nb::dict result;
+#define TENSORCX_VK_POOL_FIELD(field) result[#field] = stats.field
+        TENSORCX_VK_POOL_FIELD(max_cached_bytes); TENSORCX_VK_POOL_FIELD(max_cached_blocks);
+        TENSORCX_VK_POOL_FIELD(cached_bytes); TENSORCX_VK_POOL_FIELD(cached_blocks);
+        TENSORCX_VK_POOL_FIELD(in_use_bytes); TENSORCX_VK_POOL_FIELD(peak_in_use_bytes);
+        TENSORCX_VK_POOL_FIELD(peak_cached_bytes); TENSORCX_VK_POOL_FIELD(hits); TENSORCX_VK_POOL_FIELD(misses);
+        TENSORCX_VK_POOL_FIELD(allocation_calls); TENSORCX_VK_POOL_FIELD(free_calls);
+        TENSORCX_VK_POOL_FIELD(allocation_failures); TENSORCX_VK_POOL_FIELD(oom_retries);
+        TENSORCX_VK_POOL_FIELD(uncached_returns); TENSORCX_VK_POOL_FIELD(frame_hits);
+        TENSORCX_VK_POOL_FIELD(frame_misses); TENSORCX_VK_POOL_FIELD(frame_returns);
+        TENSORCX_VK_POOL_FIELD(frame_reset_failures); TENSORCX_VK_POOL_FIELD(cached_frames);
+        TENSORCX_VK_POOL_FIELD(active);
+#undef TENSORCX_VK_POOL_FIELD
+        return result;
+      });
   nb::class_<VulkanTensor>(module, "VulkanTensor")
       .def_prop_ro("shape", [](const VulkanTensor& x) { return shape_tuple(x.shape()); })
       .def_prop_ro("strides", [](const VulkanTensor& x) { return shape_tuple(x.strides()); })
@@ -1499,7 +1530,9 @@ NB_MODULE(_core, module) {
   module.def("_vulkan_validation_errors", &tensorcx::vulkan::validation_errors);
   module.def("_vulkan_discovery_error", &tensorcx::vulkan::discovery_error);
   module.def("_vulkan_device_info", [](int index) {
-    const auto info = unwrap(tensorcx::vulkan::device_info(index));
+    const auto context = unwrap(without_gil([&] { return tensorcx::vulkan::get_context(index); }));
+    const auto info = context->info;
+    const auto stats = context->statistics();
     nb::dict result, memory;
     result["name"] = info.name;
     result["api_version"] = std::to_string(VK_API_VERSION_MAJOR(info.api_version)) + "." +
@@ -1510,6 +1543,35 @@ NB_MODULE(_core, module) {
     memory["total_bytes"] = info.device_local_bytes;
     memory["available_bytes"] = nb::none(); memory["scope"] = "device_local_heaps";
     result["memory"] = memory;
+    nb::dict allocations, execution, roles, timestamps;
+#define TENSORCX_VK_ALLOCATION(field) allocations[#field] = stats.field
+    TENSORCX_VK_ALLOCATION(physical_blocks); TENSORCX_VK_ALLOCATION(physical_bytes);
+    TENSORCX_VK_ALLOCATION(peak_physical_bytes); TENSORCX_VK_ALLOCATION(cached_blocks);
+    TENSORCX_VK_ALLOCATION(cached_bytes); TENSORCX_VK_ALLOCATION(allocation_calls);
+    TENSORCX_VK_ALLOCATION(free_calls); TENSORCX_VK_ALLOCATION(allocation_failures);
+#undef TENSORCX_VK_ALLOCATION
+    const std::array<const char*, 3> names{"tensor", "internal", "staging"};
+    for (std::size_t i = 0; i < names.size(); ++i) {
+      nb::dict role; role["live_blocks"] = stats.live_blocks[i]; role["requested_bytes"] = stats.live_bytes[i];
+      roles[names[i]] = role;
+    }
+    allocations["live"] = roles; allocations["scope"] = "tensorcx_owned_vulkan_allocations";
+    allocations["physical_bytes_unit"] = "VkMemoryRequirements.size";
+    result["allocations"] = allocations;
+#define TENSORCX_VK_EXECUTION(field) execution[#field] = stats.field
+    TENSORCX_VK_EXECUTION(uploads); TENSORCX_VK_EXECUTION(downloads); TENSORCX_VK_EXECUTION(dispatches);
+    TENSORCX_VK_EXECUTION(submissions); TENSORCX_VK_EXECUTION(command_buffer_creations);
+    TENSORCX_VK_EXECUTION(fence_creations); TENSORCX_VK_EXECUTION(descriptor_pool_creations);
+    TENSORCX_VK_EXECUTION(descriptor_set_allocations); TENSORCX_VK_EXECUTION(query_pool_creations);
+    TENSORCX_VK_EXECUTION(frame_reuses);
+#undef TENSORCX_VK_EXECUTION
+    result["execution"] = execution;
+    timestamps["supported"] = info.timestamp_bits > 0 && info.timestamp_bits <= 64 &&
+        context->CreateQueryPool && context->DestroyQueryPool && context->CmdResetQueryPool &&
+        context->CmdWriteTimestamp && context->GetQueryPoolResults;
+    timestamps["valid_bits"] = info.timestamp_bits;
+    timestamps["period_ns"] = info.timestamp_period;
+    result["timestamps"] = timestamps;
     return result;
   }, nb::arg("index") = 0);
   module.def("_vulkan_empty", [](nb::handle shape, nb::handle dtype, int index) {

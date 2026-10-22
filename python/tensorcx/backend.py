@@ -243,6 +243,7 @@ def _register_vulkan_device(index: int) -> None:
             matmul_backends=lambda: list(_core.matmul_backends(name)),
             operations=VULKAN_OPERATIONS,
             diagnostic_info=lambda: dict(_core._vulkan_device_info(index=index)),
+            memory_pool=lambda size, blocks: _core._VulkanMemoryPool.create(index, size, blocks),
         )
     )
 

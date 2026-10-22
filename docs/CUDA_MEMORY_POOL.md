@@ -1,5 +1,8 @@
 # Bounded synchronous CUDA allocation reuse
 
+For Vulkan's distinct physical-byte and command-frame limits, see
+[Vulkan measurement and reuse](VULKAN_PERFORMANCE.md).
+
 `cx.memory_pool("cuda")` explicitly reuses idle, exact-byte-size CUDA device-0
 buffers on the current thread. Ordinary execution keeps direct allocation/free.
 CPU and Metal pools are not implemented. Operations retain their existing

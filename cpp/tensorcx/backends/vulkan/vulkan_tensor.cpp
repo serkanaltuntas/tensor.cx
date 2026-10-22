@@ -38,9 +38,12 @@ std::string device_string(int index) { return index == 0 ? "vulkan" : "vulkan:" 
 Expected<VulkanTensor> empty(Shape shape, DType dtype, int index) {
   try {
     const auto bytes = checked_bytes(dtype, shape);
+    // A zero element count does not prove the row-major stride products fit.
+    // Reject all invalid metadata before entering allocation or pool routing.
+    (void)contiguous_strides(shape);
     auto context = get_context(index);
     if (!context) return context.status();
-    auto allocation = context.value()->allocate(bytes);
+    auto allocation = context.value()->allocate(bytes, false, AllocationKind::kTensor);
     auto buffer = std::make_shared<VulkanBuffer>(dtype, bytes, context.value(), std::move(allocation));
     return VulkanTensor(dtype, std::move(shape), std::move(buffer));
   } catch (const std::invalid_argument& e) { return Status(StatusCode::kInvalidArgument, e.what()); }

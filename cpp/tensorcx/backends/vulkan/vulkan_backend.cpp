@@ -16,6 +16,7 @@
 #include "tensorcx/backends/vulkan/vulkan_nn.h"
 #include "tensorcx/core/math.h"
 #include "tensorcx/core/predicate.h"
+#include "tensorcx/core/profiling.h"
 
 namespace tensorcx::vulkan {
 namespace {
@@ -51,6 +52,7 @@ std::uint32_t shader_operation(OpKind kind) {
 }  // namespace
 
 Status VulkanBackend::execute(const BackendExecution& execution) {
+  ProfileScope profile(ProfileCategory::kDispatch, "vulkan_executor", "vulkan", std::nullopt, execution.op.kind);
   if (auto status = validate_primitive_execution_contract(execution, "vulkan"); !status.ok()) return status;
   if (is_nn_operation(execution.op.kind)) return execute_nn(*this, execution);
   if (execution.op.kind == OpKind::kMatmul) return execute_matmul(execution);

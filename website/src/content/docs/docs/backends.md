@@ -39,9 +39,10 @@ CPU/Metal/CUDA expose index 0; Vulkan has indexed routes with one physical GPU v
 | DLPack exchange (contiguous float32/int32/bool) | Yes | Not implemented | Device 0 | Not implemented |
 | Installation and operation/dtype diagnostics | Yes | Availability/capabilities | Yes | Yes |
 | Memory snapshots | System physical memory | Not implemented | Device-wide free/total | Device-local heap total |
-| Native host profiling | Bounded spans | Not instrumented | Bounded spans | Not implemented |
+| Native host profiling | Bounded spans | Not instrumented | Bounded spans | Bounded spans |
+| Optional GPU timing | No | Not instrumented | Kernel events | Copy/compute timestamps |
 | Persistent compiled-code cache | Optional MLIR | Experimental MSL | Optional MLIR | Not implemented |
-| Bounded buffer pool | Not implemented | Not implemented | Explicit opt-in scope | Not implemented |
+| Bounded buffer pool | Not implemented | Not implemented | Explicit opt-in scope | Explicit opt-in scope + command reuse |
 
 `empty` has unspecified contents on every backend. CUDA skips CPU payload
 allocation/upload and can reuse idle storage in an explicit pool. See
@@ -96,7 +97,9 @@ serially per output, with mean restricted to float32. Matmul supports
 Log/sqrt/abs/clip/topk also execute on-device; sqrt uses integer root rounding,
 log uses a bounded-error series, and clip/topk preserve selection bits.
 Float32 activations/norms and inference now execute on-device, including
-GPU-validated embedding indices and masked/causal attention. DLPack and MLIR
+GPU-validated embedding indices and masked/causal attention. Host/GPU timing,
+owned-allocation diagnostics and [bounded reuse](/docs/performance/#vulkan-timing-and-reuse)
+are available. DLPack and MLIR
 remain outside this slice. See [Vulkan setup and limits](/docs/vulkan/).
 
 ## Compiler boundary

@@ -54,7 +54,8 @@ for discovery and copies. See [validation evidence](CUDA_PHASE9_VALIDATION.md).
   boolean/numeric reductions (sum/max/mean/min/argmax), float32 vector/batched
   matmul, log/sqrt/abs/clip/topk, activations/norms/inference and broadcast basic
   float32/int32 arithmetic (float32 ties-to-even/gradual underflow); synchronous
-  real GTX 980 Ti execution. Compiler/interop/performance and other GPUs remain open.
+  real GTX 980 Ti execution. [Profiling, diagnostics and bounded reuse](VULKAN_PERFORMANCE.md)
+  are implemented; compiler/interop/portable wheels and other GPUs remain open.
 - Optional CUDA backend: device 0 discovery, float32/int32 CPU↔CUDA copies,
   float32 fill/add/multiply, matmul, sum/max/mean, exp/GELU/SiLU, softmax/RMSNorm/LayerNorm;
   [int32 fill, arithmetic and sum/max](CUDA_INT32.md);
@@ -170,9 +171,9 @@ documentation. This order does not claim that later packages are implemented.
    [kernel abs](MLIR_ABS.md), [kernel minimum/maximum](MLIR_MINMAX.md),
    [kernel exp](MLIR_EXP.md), [kernel log](MLIR_LOG.md) and
    [kernel rsqrt](MLIR_RSQRT.md) and [kernel tanh](MLIR_TANH.md) and
-   [kernel sigmoid](MLIR_SIGMOID.md) and [kernel SiLU](MLIR_SILU.md) are implemented. Opt-in CPU/CUDA
+   [kernel sigmoid](MLIR_SIGMOID.md) and [kernel SiLU](MLIR_SILU.md) are implemented. Opt-in CPU/CUDA/Vulkan
    [runtime profiling](RUNTIME_PROFILING.md) separates host allocation/copy,
-   execution/waits and optional CUDA kernel event intervals. Metal/device-copy profiling, broader
+   execution/waits and optional CUDA kernel event / Vulkan copy/compute timestamp intervals. Metal/CUDA-copy profiling, broader
    MLIR operations remain open. A [manual CUDA fusion experiment](CUDA_FUSION_EXPERIMENT.md)
    compares native/separate-MLIR/fused expressions; automatic fusion and broader
    workload/architecture acceptance remain open. Proved generated CUDA full
@@ -181,7 +182,8 @@ documentation. This order does not claim that later packages are implemented.
 9. **Dtypes:** CUDA int32 fill/arithmetic/sum/max implemented;
    [contract and verification](CUDA_INT32.md). FP16/BF16 remain open on suitable hardware.
 10. **Memory pool and asynchronous execution:** bounded opt-in synchronous
-    [CUDA allocation reuse](CUDA_MEMORY_POOL.md) implemented. CPU/Metal pools,
+    [CUDA allocation reuse](CUDA_MEMORY_POOL.md) and [Vulkan reuse](VULKAN_PERFORMANCE.md)
+    implemented. CPU/Metal pools,
     broader allocator policies and asynchronous execution remain open.
     CUDA `empty` also [allocates without CPU staging](CUDA_EMPTY.md).
 11. **Portable distribution:** Linux x86_64 CPU manylinux wheel pipeline implemented

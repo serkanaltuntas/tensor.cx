@@ -78,10 +78,12 @@ class MemoryPool:
 
 
 def memory_pool(device="cuda", *, max_cached_bytes=64 * 1024 * 1024, max_cached_blocks=64):
-    """Cache exact-size CUDA device-0 blocks in an explicit thread-local scope.
+    """Cache CUDA or Vulkan allocations in an explicit thread-local scope.
 
     Limits cover idle cached storage, not live tensors. External DLPack storage
-    is never cached. Operations remain synchronous; CPU/Metal pools are absent.
+    is never cached. Vulkan limits cover actual backing-memory bytes and also
+    permit one completed command/fence/descriptor/query frame per scope.
+    Operations remain synchronous; CPU/Metal pools are absent.
     """
     size = _limit(max_cached_bytes, "max_cached_bytes", 0, (1 << (8 * struct.calcsize("P"))) - 1)
     blocks = _limit(max_cached_blocks, "max_cached_blocks", 1, 4096)

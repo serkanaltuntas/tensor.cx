@@ -361,6 +361,7 @@ if(TENSORCX_ENABLE_VULKAN)
   add_library(tensorcx_vulkan STATIC
     cpp/tensorcx/backends/vulkan/vulkan_backend.cpp
     cpp/tensorcx/backends/vulkan/vulkan_context.cpp
+    cpp/tensorcx/backends/vulkan/vulkan_memory_pool.cpp
     cpp/tensorcx/backends/vulkan/vulkan_tensor.cpp
     cpp/tensorcx/backends/vulkan/vulkan_transform.cpp
     cpp/tensorcx/backends/vulkan/vulkan_predicate.cpp
@@ -383,12 +384,18 @@ if(TENSORCX_ENABLE_VULKAN)
     target_link_libraries(tensorcx_vulkan_no_loader PRIVATE ${CMAKE_DL_LIBS})
     add_library(tensorcx_vulkan_incomplete_loader SHARED tests/cpp/vulkan_incomplete_loader.cpp)
     target_include_directories(tensorcx_vulkan_incomplete_loader SYSTEM PRIVATE "${TENSORCX_VULKAN_INCLUDE_DIR}")
-    foreach(TENSORCX_VULKAN_TEST IN ITEMS contract wait_failure unproven_idle)
+    foreach(TENSORCX_VULKAN_TEST IN ITEMS contract wait_failure unproven_idle pooled_wait_failure pooled_unproven_idle timing)
       set(TENSORCX_VULKAN_TEST_ARGS)
       if(TENSORCX_VULKAN_TEST STREQUAL "wait_failure")
         set(TENSORCX_VULKAN_TEST_ARGS --wait-failure)
       elseif(TENSORCX_VULKAN_TEST STREQUAL "unproven_idle")
         set(TENSORCX_VULKAN_TEST_ARGS --unproven-idle)
+      elseif(TENSORCX_VULKAN_TEST STREQUAL "pooled_wait_failure")
+        set(TENSORCX_VULKAN_TEST_ARGS --pooled-wait-failure)
+      elseif(TENSORCX_VULKAN_TEST STREQUAL "pooled_unproven_idle")
+        set(TENSORCX_VULKAN_TEST_ARGS --pooled-unproven-idle)
+      elseif(TENSORCX_VULKAN_TEST STREQUAL "timing")
+        set(TENSORCX_VULKAN_TEST_ARGS --timing)
       endif()
       add_test(NAME tensorcx_vulkan_${TENSORCX_VULKAN_TEST}
         COMMAND tensorcx_vulkan_backend_tests ${TENSORCX_VULKAN_TEST_ARGS})

@@ -103,7 +103,7 @@ remains separate work.
 
 ## Native runtime profiling
 
-Use opt-in host profiling around a CPU or CUDA workload:
+Use opt-in host profiling around a CPU, CUDA or Vulkan workload:
 
 ```python
 import tensorcx as cx
@@ -208,6 +208,47 @@ the pool. This removes those calls; it does not guarantee an overall speedup.
 The older pool measurements include CPU staging, while the
 [direct-allocation comparison](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/CUDA_EMPTY.md)
 records the changed factory path separately. `empty` contents remain unspecified.
+
+## Vulkan timing and reuse
+
+```python
+x = cx.ones((1024,), device="vulkan")
+with cx.profile(device_timing=True) as p:
+    with cx.memory_pool("vulkan", max_cached_bytes=64 * 1024 * 1024,
+                        max_cached_blocks=64) as pool:
+        for _ in range(5):
+            y = (x + 1).softmax(-1)
+        print(pool.stats())
+print(p.summary())
+print(p.device_summary())
+```
+
+Vulkan host spans cover allocation/free, staging copies, execution, recording,
+submission, existing waits and pool bookkeeping. Optional GPU timestamps bracket
+nonempty copy/compute commands and are read after the existing fence wait. GPU
+milliseconds remain separate from host nanoseconds. Unsupported/failed query
+measurements report an error and no duration; valid tensor results are preserved.
+Timing remains opt-in, with no extra wait or public asynchronous execution.
+
+The pool reuses exact padded buffer sizes, including staging and metadata.
+Idle limits count physical memory requirements, including driver alignment;
+they do not bound live tensors or total VRAM. One completed command/fence/
+descriptor/query frame may also be cached outside the byte/block limits.
+`trim()` and scope exit drain idle resources. Live views and escaped tensors
+remain valid; only last-reference release returns storage to its origin pool.
+
+```bash
+mkdir -p build/vulkan-performance
+uv run --no-sync python benchmarks/vulkan_runtime.py --mode paired \
+  --output build/vulkan-performance/paired.json
+```
+
+This CPU-parity benchmark alternates direct/pooled latency samples and reports
+cold/warm timing, allocation/object counter deltas and a separate profile capture.
+Local GTX 980 Ti measurements reduced driver allocation and command creation
+calls; a single shared-desktop GPU does not establish a general speedup.
+See the [full contract and reproducible measurements](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/VULKAN_PERFORMANCE.md)
+for clock labels, failure lifetimes, bounds and the local results table.
 
 ## A useful report includes
 

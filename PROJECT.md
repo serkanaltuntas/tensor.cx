@@ -74,12 +74,14 @@ Distribution:           portable Linux CPU manylinux wheels (CPython 3.11–3.13
                         docs/DISTRIBUTION.md (Nightblade host/ABI limits)
 CUDA performance:       long contiguous axis optimization measured on Nightblade;
                         docs/CUDA_PERFORMANCE.md (shared-desktop limits)
-Memory pool:            bounded opt-in CUDA exact-size reuse with synchronous ops;
-                        docs/CUDA_MEMORY_POOL.md; CPU/Metal pools and async remain open
+Memory pool:            bounded opt-in CUDA/Vulkan reuse with synchronous ops;
+                        docs/CUDA_MEMORY_POOL.md, docs/VULKAN_PERFORMANCE.md;
+                        CPU/Metal pools and async remain open
 Empty allocation:       CUDA empty uses direct device storage without CPU staging;
                         docs/CUDA_EMPTY.md; contents remain unspecified
-Runtime profiling:      opt-in CPU/CUDA host spans and separate CUDA kernel event intervals;
-                        docs/RUNTIME_PROFILING.md; Metal/transfer timing remains open
+Runtime profiling:      opt-in CPU/CUDA/Vulkan host spans; CUDA kernel event and Vulkan
+                        copy/compute timestamp intervals; docs/RUNTIME_PROFILING.md;
+                        Metal/CUDA-transfer timing remains open
 Fusion experiment:      explicit two/four-op CUDA grouping benchmark with separate diagnostics;
                         docs/CUDA_FUSION_EXPERIMENT.md; automatic fusion remains open
 Output-copy increment:  generated CUDA v2 full writes omit the template copy;
@@ -90,6 +92,7 @@ Vulkan increment:       optional Linux SPIR-V copies/factories/basic arithmetic,
                         float32 vector/matrix/broadcast-batched matmul;
                         log/sqrt/abs/clip/topk, activations/norms and inference;
                         shared composites, GPU embedding validation and masked softmax;
+                        owned-allocation diagnostics, host/GPU timing and bounded reuse;
                         basic float32 integer-significand RNE/gradual underflow;
                         docs/VULKAN_BACKEND.md (2026-10-22, GTX 980 Ti validation)
 Next implementation:    wider device compatibility and continuous GPU validation

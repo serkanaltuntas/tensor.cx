@@ -149,8 +149,10 @@ CPU, Metal and CUDA retain their device-0 limits. CUDA/Metal keep higher
 storage for each backend; use explicit CPU staging between them.
 
 `cx.diagnostics()` reports API version, vendor-encoded raw driver version,
-storage-buffer limit and total device-local heap bytes. Free/available bytes,
-profiling and memory pools are not collected or implemented. For validation,
+storage-buffer limit and total device-local heap bytes. Free/available bytes
+are not collected. Separate owned-allocation counters, host profiling, optional
+GPU timestamps and bounded buffer/staging/command reuse are available; see
+[Vulkan timing and reuse](/docs/performance/#vulkan-timing-and-reuse). For validation,
 install `VK_LAYER_KHRONOS_validation` and set `TENSORCX_VULKAN_VALIDATION=1`
 before import; missing requested layer support leaves Vulkan unavailable.
 

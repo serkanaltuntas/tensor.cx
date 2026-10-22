@@ -22,6 +22,7 @@
   X(AllocateCommandBuffers) X(FreeCommandBuffers) \
   X(BeginCommandBuffer) X(EndCommandBuffer) X(QueueSubmit) \
   X(CreateFence) X(DestroyFence) X(WaitForFences) \
+  X(ResetFences) X(ResetCommandBuffer) \
   X(CreateBuffer) X(DestroyBuffer) X(GetBufferMemoryRequirements) \
   X(AllocateMemory) X(FreeMemory) X(BindBufferMemory) \
   X(MapMemory) X(UnmapMemory) \
@@ -34,3 +35,8 @@
   X(CreateDescriptorPool) X(DestroyDescriptorPool) \
   X(AllocateDescriptorSets) X(UpdateDescriptorSets) \
   X(CmdBindPipeline) X(CmdBindDescriptorSets) X(CmdPushConstants) X(CmdDispatch)
+
+// Timing is optional: missing query functions do not disable tensor execution.
+#define TENSORCX_VK_QUERY_FUNCTIONS(X) \
+  X(CreateQueryPool) X(DestroyQueryPool) X(CmdResetQueryPool) \
+  X(CmdWriteTimestamp) X(GetQueryPoolResults)

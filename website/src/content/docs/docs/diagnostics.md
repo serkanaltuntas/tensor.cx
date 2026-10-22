@@ -1,6 +1,6 @@
 ---
 title: Diagnostics
-description: Inspect tensor.cx installation, operation support and CPU/CUDA memory.
+description: Inspect tensor.cx installation, operation support, CPU/CUDA memory and Vulkan owned allocations.
 ---
 
 Inspect your installed runtime with:
@@ -54,3 +54,10 @@ API version, vendor-encoded raw driver version, storage-buffer limit and total
 device-local heap bytes. Available/free bytes are not collected. CUDA/Metal keep
 higher automatic selection priority; Vulkan indices are process-local and only
 one physical Vulkan GPU has been validated.
+
+Separate `allocations` fields report tensor.cx-owned physical, live requested and
+cached bytes; they do not represent free VRAM. `execution` counts allocation-related
+command/fence/descriptor/query creation and reuse, while `timestamps` describes
+queue clock support. Pool limits use physical memory requirements, including
+alignment. See [Vulkan timing and reuse](/docs/performance/#vulkan-timing-and-reuse)
+for the distinct heap, allocation and pool scopes.

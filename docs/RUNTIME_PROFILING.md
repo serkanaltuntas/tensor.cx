@@ -1,9 +1,11 @@
 # Native runtime profiling
 
-`cx.profile()` records bounded, current-thread host spans for CPU and CUDA.
+`cx.profile()` records bounded, current-thread host spans for CPU, CUDA and Vulkan.
 It separates native allocation, copies, execution and existing waits without
 adding device synchronization. `cx.profile(device_timing=True)` additionally
-records CUDA kernel event intervals on the validated local sm_52 host. Metal
+records CUDA kernel event intervals or Vulkan command timestamp intervals on
+the validated local GPU. The [Vulkan contract](VULKAN_PERFORMANCE.md) covers
+GPU copy/compute timing, mixed-backend clock labels and bounded reuse. Metal
 execution is **not instrumented**; every report declares that limitation.
 This does not add graph optimization, streams or an asynchronous execution API.
 
@@ -95,15 +97,15 @@ that the operation succeeded. Public exceptions and tensor results are unchanged
 
 | Category | Measured host region |
 | --- | --- |
-| `dispatch` | Backend execution validation, planning and routing outside nested work |
-| `allocation` | CPU owned-vector allocation/initialization or `cudaMalloc` |
-| `deallocation` | `cudaFree` calls occurring inside the context |
-| `copy_api` | CUDA copy API call or CPU concat copy/planning, excluding nested allocation |
+| `dispatch` | Backend execution validation, planning and routing outside nested work; Vulkan command recording |
+| `allocation` | CPU owned-vector allocation/initialization, `cudaMalloc` or Vulkan buffer/memory creation |
+| `deallocation` | CUDA/Vulkan buffer/memory release inside the context |
+| `copy_api` | CUDA copy API call, CPU concat copy/planning or Vulkan staging memcpy/upload/download, excluding nested work |
 | `copy_allocate` | CPU sequence import, same-dtype clone, NumPy export or generated-output clone; allocation and copy combined |
-| `compute_sync` | CPU executors (including validation/indexing) or CUDA launch wrappers including their existing nested wait |
+| `compute_sync` | CPU executors, CUDA launch wrappers including their existing nested wait, or Vulkan compute/queue submission host region |
 | `memset_api` | `cudaMemset` API call; device completion is not implied |
-| `memory_pool` | Opt-in CUDA acquire/return bookkeeping; actual runtime allocations/frees remain nested spans |
-| `synchronize` | Existing `cudaDeviceSynchronize` / generated-kernel `cuCtxSynchronize` calls |
+| `memory_pool` | Opt-in CUDA/Vulkan acquire/return bookkeeping; actual runtime allocations/frees remain nested spans |
+| `synchronize` | Existing CUDA synchronization calls or Vulkan fence waits |
 
 `duration_ns` is inclusive; `self_ns` subtracts directly nested spans. Only
 **self times** may be added across events. In particular, CUDA `compute_sync`
@@ -118,7 +120,7 @@ minus recorded self times. It includes Python work, binding work outside spans,
 profiler overhead, unsupported paths and, on truncation, dropped spans. CPU
 vector constructors that adopt an already-filled vector do not record another
 allocation. Imports/exports and clones combine their storage work. CPU frees,
-arbitrary internal temporary/metadata allocations, CUDA context/module startup,
+CPU/CUDA internal temporary/metadata allocations, CUDA context/module startup,
 external library work and other threads are not independently attributed.
 Compilation has a [separate profiler](COMPILATION_CACHE.md#compile-and-launch-profiling).
 
@@ -141,8 +143,11 @@ No Metal kernel, allocation or wait duration is claimed.
 - When disabled, native scopes only check thread-local state: they do not read
   a clock or allocate profiling storage. This is not a zero-overhead claim.
 - Event fields include stable local IDs/parent IDs, static region/backend labels,
-  optional operation and optional byte counts. Bytes are known requested payload
-  sizes, not allocator capacity, live-memory usage or achieved bandwidth.
+  optional operation and optional byte counts. CPU/CUDA bytes describe requested
+  payloads. Vulkan buffer allocation/upload/download/host-copy spans use requested
+  bytes; `vkAllocateMemory`, buffer/memory free and pool release use physical
+  `VkMemoryRequirements.size`; pool acquire uses padded buffer capacity. These
+  counts are per-region work, not live-memory usage or achieved bandwidth.
 - No tensor values, pointers, user paths, real process/thread IDs or device UUIDs
   are collected. Chrome trace export uses synthetic IDs, microsecond offsets,
   inclusive spans and `self_ns` arguments. It writes atomically only when asked;

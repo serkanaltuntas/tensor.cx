@@ -9,6 +9,8 @@
 #include "tensorcx/backends/cpu/cpu_backend.h"
 #include "tensorcx/backends/vulkan/vulkan_backend.h"
 #include "tensorcx/backends/vulkan/vulkan_context.h"
+#include "tensorcx/backends/vulkan/vulkan_memory_pool.h"
+#include "tensorcx/core/profiling.h"
 #include "batched_matmul_contract.h"
 #include "math_contract.h"
 #include "inference_contract.h"
@@ -18,6 +20,130 @@ namespace vk = tensorcx::vulkan;
 namespace {
 void require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
 void invalid(const Status& status) { require(status.code() == StatusCode::kInvalidArgument, status.message().c_str()); }
+
+void timestamp_contract() {
+  const auto wrapped = vk::timestamp_interval((UINT64_C(1) << 36) - 5, 7, 36, 1, 1000);
+  require(wrapped.milliseconds && std::abs(*wrapped.milliseconds - 0.000012F) < 1e-11F,
+          "timestamp wrap interval incorrect");
+  const auto full = vk::timestamp_interval(UINT64_MAX - 5, 4, 64, 2, 1000);
+  require(full.milliseconds && std::abs(*full.milliseconds - 0.000020F) < 1e-11F,
+          "64-bit timestamp subtraction overflow");
+  require(vk::timestamp_interval(1, 2, 36, 1, UINT64_C(1) << 36).error,
+          "ambiguous multiple timestamp wraps accepted");
+  for (auto bits : {0u, 65u}) require(vk::timestamp_interval(1, 2, bits, 1, 1).error,
+                                    "invalid timestamp width accepted");
+  for (auto period : {0.0F, -1.0F, std::numeric_limits<float>::infinity(),
+                       std::numeric_limits<float>::quiet_NaN()})
+    require(vk::timestamp_interval(1, 2, 64, period, 1).error, "invalid timestamp period accepted");
+}
+
+PFN_vkAllocateMemory real_allocate_memory = nullptr;
+int allocate_calls = 0;
+VKAPI_ATTR VkResult VKAPI_CALL fail_first_memory(VkDevice device, const VkMemoryAllocateInfo* info,
+    const VkAllocationCallbacks* callbacks, VkDeviceMemory* memory) {
+  if (++allocate_calls == 1) { *memory = VK_NULL_HANDLE; return VK_ERROR_OUT_OF_DEVICE_MEMORY; }
+  return real_allocate_memory(device, info, callbacks, memory);
+}
+VKAPI_ATTR VkResult VKAPI_CALL failed_reset(VkCommandBuffer, VkCommandBufferResetFlags) {
+  return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+}
+VKAPI_ATTR VkResult VKAPI_CALL failed_fence_reset(VkDevice, std::uint32_t, const VkFence*) {
+  return VK_ERROR_OUT_OF_HOST_MEMORY;
+}
+VKAPI_ATTR VkResult VKAPI_CALL failed_begin(VkCommandBuffer, const VkCommandBufferBeginInfo*) {
+  return VK_ERROR_OUT_OF_HOST_MEMORY;
+}
+VKAPI_ATTR VkResult VKAPI_CALL unavailable_queries(VkDevice, VkQueryPool, std::uint32_t, std::uint32_t,
+    std::size_t, void*, VkDeviceSize, VkQueryResultFlags) { return VK_NOT_READY; }
+VKAPI_ATTR VkResult VKAPI_CALL failed_queries(VkDevice, const VkQueryPoolCreateInfo*,
+    const VkAllocationCallbacks*, VkQueryPool* pool) { *pool = VK_NULL_HANDLE; return VK_ERROR_OUT_OF_DEVICE_MEMORY; }
+
+void performance_contract(vk::VulkanBackend& backend) {
+  auto context = vk::get_context(0).value();
+  const auto before = context->allocation_count.load();
+  auto pool = std::make_shared<vk::MemoryPool>(0, 4096, 64);
+  require(pool->enter().ok(), "Vulkan pool entry failed");
+  auto small = context->allocate(4); small.reset();
+  real_allocate_memory = context->AllocateMemory; allocate_calls = 0;
+  context->AllocateMemory = &fail_first_memory;
+  auto retry = context->allocate(64);
+  context->AllocateMemory = real_allocate_memory;
+  require(pool->stats().oom_retries == 1 && allocate_calls == 2 && !context->poisoned,
+          "Vulkan pool OOM trim/retry failed");
+  retry.reset();
+
+  std::array<Tensor, 1> outputs{Tensor{DType::kFloat32, {3}, {1}, {"vulkan", 0}, nullptr, 0}};
+  BackendExecution e; e.op = OpDesc{OpKind::kFill}; e.op.scalar_value = 3; e.outputs = outputs;
+  auto run = [&] {
+    outputs[0] = Tensor{DType::kFloat32, {3}, {1}, {"vulkan", 0}, nullptr, 0};
+    require(backend.execute(e).ok(), "profiled/pooled fill failed");
+    const auto result = vk::to_cpu(vk::from_core_tensor(outputs[0]).value()).move_value();
+    require(result.float_data()[0] == 3 && result.float_data()[2] == 3, "pooled fill numerical failure");
+  };
+  const auto token = begin_profile(1000, true);
+  run(); run();
+  auto measured = end_profile(token);
+  require(!measured.device_events.empty(), "Vulkan device intervals missing");
+  for (const auto& event : measured.device_events) {
+    require(event.host_event_id, "Vulkan interval lost host association");
+    if (context->info.timestamp_bits)
+      require(!event.error && event.elapsed_ms && *event.elapsed_ms >= 0, "Vulkan timestamp interval invalid");
+    else require(event.error && !event.elapsed_ms, "unsupported timestamp route reported a duration");
+  }
+  require(pool->stats().frame_hits > 0 && pool->stats().cached_frames == 1, "completed frames were not reused");
+
+  const auto reset = context->ResetCommandBuffer;
+  context->ResetCommandBuffer = &failed_reset;
+  run();
+  context->ResetCommandBuffer = reset;
+  require(pool->stats().frame_reset_failures > 0 && !context->poisoned,
+          "completed cache reset failure affected operation or device health");
+  run();
+  const auto reset_fences = context->ResetFences;
+  const auto failed_resets = pool->stats().frame_reset_failures;
+  context->ResetFences = &failed_fence_reset;
+  run();
+  context->ResetFences = reset_fences;
+  require(pool->stats().frame_reset_failures > failed_resets && !context->poisoned,
+          "completed fence reset failure affected operation or device health");
+  run();
+  const auto begin = context->BeginCommandBuffer;
+  outputs[0] = Tensor{DType::kFloat32, {3}, {1}, {"vulkan", 0}, nullptr, 0};
+  context->BeginCommandBuffer = &failed_begin;
+  const auto rejected = backend.execute(e);
+  context->BeginCommandBuffer = begin;
+  require(!rejected.ok() && !context->poisoned && !pool->stats().cached_frames,
+          "pre-submit cached command failure was reused or poisoned the device");
+  run();
+  for (int fault = 0; fault < 4; ++fault) {
+    pool->trim();
+    const auto get = context->GetQueryPoolResults;
+    const auto create = context->CreateQueryPool;
+    const auto write = context->CmdWriteTimestamp;
+    const auto bits = context->info.timestamp_bits;
+    if (fault == 0) context->GetQueryPoolResults = &unavailable_queries;
+    if (fault == 1) context->CreateQueryPool = &failed_queries;
+    if (fault == 2) context->CmdWriteTimestamp = nullptr;
+    if (fault == 3) context->info.timestamp_bits = 0;
+    const auto session = begin_profile(1000, true);
+    run();
+    auto report = end_profile(session);
+    context->GetQueryPoolResults = get; context->CreateQueryPool = create;
+    context->CmdWriteTimestamp = write; context->info.timestamp_bits = bits;
+    require(!report.device_events.empty(), "failed timing disappeared from report");
+    for (const auto& event : report.device_events)
+      require(event.error && !event.elapsed_ms, "failed timing reported a successful duration");
+    require(!context->poisoned, "optional timing failure poisoned valid computation");
+  }
+  const auto queries = context->statistics().query_pool_creations;
+  run();
+  require(context->statistics().query_pool_creations == queries, "disabled timing allocated query resources");
+  outputs[0] = {};
+  require(pool->exit().ok(), "Vulkan pool close failed");
+  require(!pool->stats().active && !pool->stats().cached_bytes && !pool->stats().cached_frames &&
+          !pool->stats().in_use_bytes, "closed Vulkan pool retains idle or live resources");
+  require(context->allocation_count == before, "profiling/pool resources leaked allocations");
+}
 
 VKAPI_ATTR VkResult VKAPI_CALL failed_wait(VkDevice, std::uint32_t, const VkFence*, VkBool32, std::uint64_t) {
   return VK_ERROR_OUT_OF_HOST_MEMORY;
@@ -109,8 +235,10 @@ void nn_failure_contract(vk::VulkanBackend& backend) {
   require(unchanged.float_data()[0] == 1 && unchanged.float_data()[3] == 4, "inference failure modified input");
 }
 
-void failed_completion(bool unproven_idle) {
+void failed_completion(bool unproven_idle, bool pooled = false) {
   auto context = vk::get_context(0).value();
+  auto pool = pooled ? std::make_shared<vk::MemoryPool>(0, 4096, 64) : nullptr;
+  if (pool) require(pool->enter().ok(), "completion-fault pool enter failed");
   auto a = vk::from_cpu(cpu::CpuTensor({3}, std::vector<float>{1, 2, 3})).move_value();
   auto staging = context->allocate(12, true);
   auto target = context->allocate(12);
@@ -130,10 +258,12 @@ void failed_completion(bool unproven_idle) {
   require(original_idle(context->device) == VK_SUCCESS, "real idle failed after fault injection");
   require(!vk::available(), "poisoned device was rediscovered as healthy");
   require(vk::validation_errors() == 0, "fault path produced Vulkan validation errors");
+  if (pool) require(pool->exit().ok() && !pool->stats().cached_frames, "failed completion returned a frame to cache");
 }
 
 void contract() {
   vk::VulkanBackend backend;
+  performance_contract(backend);
   inference_contract(backend,
       [](const cpu::CpuTensor& input) { return vk::to_core_tensor(vk::from_cpu(input).value()); },
       [](const Tensor& output) { return vk::to_cpu(vk::from_core_tensor(output).value()).move_value(); });
@@ -333,6 +463,7 @@ void contract() {
 
 int main(int argc, char** argv) {
   try {
+    if (argc == 2 && std::string_view(argv[1]) == "--timing") { timestamp_contract(); return 0; }
     if (argc == 2 && std::string_view(argv[1]) == "--no-loader") {
       require(vk::device_count() == 0 && !vk::available(), "missing loader discovered a GPU");
       cpu::CpuTensor x({2}, std::vector<float>{1, 2});
@@ -344,7 +475,10 @@ int main(int argc, char** argv) {
       return 0;
     }
     if (!vk::available()) { std::cout << "Vulkan GPU unavailable\n"; return 77; }
-    if (argc == 2) failed_completion(std::string_view(argv[1]) == "--unproven-idle");
+    if (argc == 2) {
+      const auto arg = std::string_view(argv[1]);
+      failed_completion(arg == "--unproven-idle" || arg == "--pooled-unproven-idle", arg.starts_with("--pooled-"));
+    }
     else contract();
     std::cout << "Vulkan backend contract passed\n";
     return 0;

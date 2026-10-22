@@ -1,4 +1,4 @@
-"""Bounded native host spans and optional CUDA event intervals."""
+"""Bounded host spans and separate CUDA/Vulkan device-clock intervals."""
 from __future__ import annotations
 
 import copy
@@ -29,7 +29,7 @@ def _atomic_write(path, text):
 
 
 class RuntimeProfile:
-    """Single-use native host profiling, with optional CUDA event intervals."""
+    """Single-use host profiling, with optional backend device intervals."""
 
     def __init__(self, *, max_events=10000, device_timing=False):
         if type(device_timing) is not bool:
@@ -68,16 +68,24 @@ class RuntimeProfile:
         measured = sum(event["self_ns"] for event in result["events"])
         failures = sum(event["error"] is not None for event in result["device_events"])
         device_complete = result["dropped_device_events"] == 0 and failures == 0
+        clocks = {"cuda": "cuda_events_elapsed_ms", "vulkan": "vulkan_timestamps_elapsed_ms"}
+        measured_backends = {e["backend"] for e in result["device_events"]}
+        # Preserve existing CUDA/CPU reports while naming new Vulkan and mixed
+        # sessions truthfully. Device clocks are never aligned to host spans.
+        clock = (clocks.get(next(iter(measured_backends)), "backend_device_intervals") if len(measured_backends) == 1
+                 else "backend_device_intervals" if measured_backends else clocks["cuda"])
         result.update(schema_version=1, clock="steady_clock_host", timing="synchronous_host_spans",
                       complete=result["dropped_events"] == 0 and device_complete,
                       host_complete=result["dropped_events"] == 0,
                       device_complete=device_complete if self._device_timing else None,
-                      device_errors=failures, device_clock="cuda_events_elapsed_ms",
+                      device_errors=failures, device_clock=clock, device_clocks=clocks,
                       unattributed_ns=result["elapsed_ns"] - measured,
                       coverage={"cpu": "native executors and owned-buffer allocation; sequence imports, clones and NumPy exports combine allocation and copy",
                                 "cuda": "native dispatch, allocation/free, copy API, static/generated launch and existing waits",
+                                "vulkan": "native dispatch, owned allocation/free, staging/copy, command recording, submission and fence waits",
                                 "metal": "not instrumented"},
                       device_coverage={"cuda": "static/generated kernel event intervals on the backend default stream; no copies, allocations or memset",
+                                       "vulkan": "compute and copy command timestamp intervals on the selected synchronous queue; no host staging or allocation",
                                        "cpu": "not instrumented", "metal": "not instrumented"})
         self._result = result
         return False
@@ -125,7 +133,7 @@ class RuntimeProfile:
             key: value for key, value in report.items() if key != "events"}}, indent=2))
 
     def device_summary(self):
-        """Group CUDA event intervals separately from all host clock totals."""
+        """Group device intervals separately from all host clock totals."""
         groups = {}
         for event in self.report()["device_events"]:
             key = (event["backend"], event["name"], event["operation"] or "")
@@ -141,5 +149,5 @@ class RuntimeProfile:
 
 
 def profile(*, max_events=10000, device_timing=False):
-    """Collect host spans and optional CUDA event intervals; Metal is uninstrumented."""
+    """Collect host spans and CUDA/Vulkan device intervals; Metal is uninstrumented."""
     return RuntimeProfile(max_events=max_events, device_timing=device_timing)

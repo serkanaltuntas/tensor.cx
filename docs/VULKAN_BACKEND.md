@@ -67,9 +67,12 @@ print(cx.capabilities("vulkan"))
   vendor-encoded driver version, storage-buffer limit and total device-local
   heap bytes. Available/free bytes are **not collected**. Heaps are device-wide,
   not a count of tensor-owned allocations.
+- Native host profiling, separate GPU copy/compute timestamp intervals,
+  owned-allocation diagnostics and bounded opt-in staging/buffer/command reuse;
+  see [measurement, limits and benchmark evidence](VULKAN_PERFORMANCE.md).
 
-DLPack, generated kernels/MLIR, profiling, memory
-pools, command batching and asynchronous execution are not implemented on Vulkan.
+DLPack, generated kernels/MLIR, command batching and asynchronous execution
+are not implemented on Vulkan.
 Unsupported operations raise explicit errors; no CPU fallback is performed.
 Other backends retain their existing capabilities.
 
@@ -329,8 +332,8 @@ operation reference, and each advertised feature needs real-device acceptance.
 - [x] Remaining math: log/sqrt/abs/clip/topk, with CPU parity.
 - [x] Activations, normalization and inference operations
   (`linear`, affine norms, embedding and attention), with CPU parity.
-- [ ] Repeatable benchmarks, host/device timing, allocation diagnostics and
-  measured staging/command/descriptor/buffer reuse.
+- [x] Repeatable benchmarks, host/device timing, allocation diagnostics and
+  measured staging/command/descriptor/buffer reuse; [contract](VULKAN_PERFORMANCE.md).
 - [ ] Experimental custom kernels and MLIR-to-SPIR-V, with the existing
   guarded-kernel validation and compilation-cache contracts.
 - [ ] Explicit accelerator/device transfer API and supported storage exchange

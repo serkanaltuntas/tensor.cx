@@ -30,8 +30,8 @@ backend contracts, and testing small tensor workloads. APIs may change.
 - A separate [experimental kernel API](/docs/experimental/) with persistent compilation caching.
 - [Installation, operation support and memory diagnostics](/docs/diagnostics/).
 - [DLPack storage sharing and an optional PyTorch inference custom op](/docs/interoperability/).
-- [CPU/CUDA host profiling, compilation measurements and bounded CUDA memory reuse](/docs/performance/),
-  with direct CUDA `empty` allocation and unspecified initial contents.
+- [CPU/CUDA/Vulkan profiling, compilation measurements and bounded CUDA/Vulkan memory reuse](/docs/performance/),
+  with direct CUDA/Vulkan `empty` allocation and unspecified initial contents.
 
 Autograd, model training, asynchronous streams, distributed
 execution, and broad dtype coverage are outside the current runtime. There is

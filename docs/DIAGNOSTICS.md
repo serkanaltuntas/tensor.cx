@@ -56,6 +56,10 @@ see [the int32 validation record](CUDA_INT32.md).
 - CUDA `cuda_device`: an instantaneous CUDA free/total memory query in the
   backend-owned device 0 primary context. Other processes and driver reservations
   can affect these values; total minus available is not tensor.cx-owned usage.
+- Vulkan `device_local_heaps`: device-local heap total, with unknown
+  available/free bytes. Separate diagnostic `allocations`, `execution` and
+  `timestamps` fields describe owned physical/requested/cached memory, driver
+  calls and timing support; see [Vulkan diagnostics](VULKAN_PERFORMANCE.md#diagnostics).
 - Providers without measurements use `not_collected` and null values. Direct
   provider failures raise; the aggregate report records `query_status: failed`.
 

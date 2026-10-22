@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cstring>
+#include <chrono>
+#include <cmath>
 #include <dlfcn.h>
 #include <cstdlib>
 #include <limits>
@@ -9,16 +11,21 @@
 #include <utility>
 
 #include "elementwise_spirv.h"
+#include "tensorcx/backends/vulkan/vulkan_memory_pool.h"
+#include "tensorcx/core/profiling.h"
 
 namespace tensorcx::vulkan {
 
-struct DescriptorPool {
-  std::shared_ptr<Context> owner;
-  VkDescriptorPool handle = VK_NULL_HANDLE;
-  ~DescriptorPool() {
-    if (handle) owner->DestroyDescriptorPool(owner->device, handle, nullptr);
-  }
-};
+VulkanError::VulkanError(VkResult code, const char* operation)
+    : std::runtime_error(std::string("Vulkan ") + operation + " failed (VkResult " + std::to_string(code) + ")"), result(code) {}
+DescriptorPool::~DescriptorPool() {
+  if (handle) owner->DestroyDescriptorPool(owner->device, handle, nullptr);
+}
+Frame::~Frame() {
+  if (queries) owner->DestroyQueryPool(owner->device, queries, nullptr);
+  if (fence) owner->DestroyFence(owner->device, fence, nullptr);
+  if (command) owner->FreeCommandBuffers(owner->device, owner->command_pool, 1, &command);
+}
 
 namespace {
 
@@ -26,8 +33,7 @@ std::atomic<std::uint64_t> error_count{0};
 
 void check(VkResult result, const char* operation) {
   if (result != VK_SUCCESS) {
-    throw std::runtime_error(std::string("Vulkan ") + operation +
-                             " failed (VkResult " + std::to_string(result) + ")");
+    throw VulkanError(result, operation);
   }
 }
 
@@ -51,18 +57,6 @@ void memory_barrier(Context& context, VkCommandBuffer command) {
   context.CmdPipelineBarrier(command, stages, stages, 0, 1, &barrier, 0, nullptr, 0, nullptr);
 }
 
-struct Frame {
-  std::shared_ptr<Context> owner;
-  std::vector<std::shared_ptr<Allocation>> resources;
-  VkCommandBuffer command = VK_NULL_HANDLE;
-  VkFence fence = VK_NULL_HANDLE;
-  std::shared_ptr<DescriptorPool> descriptors;
-  ~Frame() {
-    if (fence) owner->DestroyFence(owner->device, fence, nullptr);
-    if (command) owner->FreeCommandBuffers(owner->device, owner->command_pool, 1, &command);
-  }
-};
-
 // A failed idle call (other than device loss) gives no lifetime guarantee. Keep
 // that poisoned context and its pending resources alive until process exit.
 // This exceptional path favors bounded retention over freeing in-flight memory.
@@ -77,6 +71,7 @@ struct Instance {
     VkPhysicalDevice handle;
     VkPhysicalDeviceProperties properties;
     std::uint32_t family;
+    std::uint32_t timestamp_bits;
   };
   void* loader = nullptr;
   VkInstance handle = VK_NULL_HANDLE;
@@ -162,7 +157,7 @@ struct Instance {
       GetPhysicalDeviceQueueFamilyProperties(physical, &families, queues.data());
       for (std::uint32_t i = 0; i < families; ++i) {
         if (queues[i].queueCount && (queues[i].queueFlags & VK_QUEUE_COMPUTE_BIT)) {
-          physicals.push_back({physical, properties, i});
+          physicals.push_back({physical, properties, i, queues[i].timestampValidBits});
           break;
         }
       }
@@ -192,6 +187,8 @@ void initialize_context(Context& context, const Instance::Physical& physical) {
   auto& instance = *context.instance;
   context.physical = physical.handle;
   context.limits = physical.properties.limits;
+  context.info.timestamp_bits = physical.timestamp_bits;
+  context.info.timestamp_period = context.limits.timestampPeriod;
   context.info.name = physical.properties.deviceName;
   context.info.api_version = physical.properties.apiVersion;
   context.info.driver_version = physical.properties.driverVersion;
@@ -213,6 +210,7 @@ void initialize_context(Context& context, const Instance::Physical& physical) {
 #define TENSORCX_VK_LOAD(name) \
   context.name = reinterpret_cast<PFN_vk##name>(instance.GetDeviceProcAddr(context.device, "vk" #name));
   TENSORCX_VK_DEVICE_FUNCTIONS(TENSORCX_VK_LOAD)
+  TENSORCX_VK_QUERY_FUNCTIONS(TENSORCX_VK_LOAD)
 #undef TENSORCX_VK_LOAD
 #define TENSORCX_VK_REQUIRE(name) \
   if (!context.name) throw std::runtime_error("Vulkan device entry point missing: vk" #name);
@@ -221,7 +219,7 @@ void initialize_context(Context& context, const Instance::Physical& physical) {
   context.GetDeviceQueue(context.device, physical.family, 0, &context.queue);
   VkCommandPoolCreateInfo pool{};
   pool.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-  pool.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT; pool.queueFamilyIndex = physical.family;
+  pool.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT; pool.queueFamilyIndex = physical.family;
   check(context.CreateCommandPool(context.device, &pool, nullptr, &context.command_pool), "vkCreateCommandPool");
   std::array<VkDescriptorSetLayoutBinding, 4> bindings{};
   for (std::uint32_t i = 0; i < bindings.size(); ++i) {
@@ -258,6 +256,20 @@ void initialize_context(Context& context, const Instance::Physical& physical) {
 
 bool completion_allows_release(VkResult result) {
   return result == VK_SUCCESS || result == VK_ERROR_DEVICE_LOST;
+}
+
+TimestampInterval timestamp_interval(std::uint64_t begin, std::uint64_t end,
+    std::uint32_t bits, float period, std::uint64_t host_elapsed_ns) {
+  if (!bits || bits > 64 || !std::isfinite(period) || period <= 0)
+    return {std::nullopt, "timestamps_unsupported"};
+  const auto wrap_ns = std::ldexp(static_cast<long double>(period), static_cast<int>(bits));
+  if (static_cast<long double>(host_elapsed_ns) >= wrap_ns)
+    return {std::nullopt, "timestamp_wrap_ambiguous"};
+  const auto mask = bits == 64 ? UINT64_MAX : (UINT64_C(1) << bits) - 1;
+  const auto ticks = (end - begin) & mask;
+  const auto ms = static_cast<float>(static_cast<long double>(ticks) * period / 1000000.0L);
+  if (!std::isfinite(ms)) return {std::nullopt, "invalid_duration"};
+  return {ms, nullptr};
 }
 
 std::size_t device_count() { return discovery().contexts.size(); }
@@ -298,22 +310,63 @@ Context::~Context() {
 }
 
 Allocation::~Allocation() {
+  ProfileScope profile(ProfileCategory::kDeallocation, "vulkan_buffer_free", "vulkan", memory_bytes);
   if (mapped) owner->UnmapMemory(owner->device, memory);
   if (buffer) owner->DestroyBuffer(owner->device, buffer, nullptr);
-  if (memory) owner->FreeMemory(owner->device, memory, nullptr);
+  if (memory) {
+    ProfileScope api(ProfileCategory::kDeallocation, "vkFreeMemory", "vulkan", memory_bytes);
+    owner->FreeMemory(owner->device, memory, nullptr);
+    std::lock_guard lock(owner->stats_mutex_);
+    --owner->stats_.physical_blocks; owner->stats_.physical_bytes -= memory_bytes;
+    ++owner->stats_.free_calls;
+  }
   if (allocation_reserved) --owner->allocation_count;
 }
 
-std::shared_ptr<Allocation> Context::allocate(std::size_t bytes, bool host_visible) {
+ContextStats Context::statistics() const { std::lock_guard lock(stats_mutex_); return stats_; }
+void Context::count(std::uint64_t ContextStats::* field, std::uint64_t value) {
+  std::lock_guard lock(stats_mutex_); stats_.*field += value;
+}
+void Context::cache_change(const Allocation& allocation, bool insert) {
+  std::lock_guard lock(stats_mutex_);
+  if (insert) { ++stats_.cached_blocks; stats_.cached_bytes += allocation.memory_bytes; }
+  else { --stats_.cached_blocks; stats_.cached_bytes -= allocation.memory_bytes; }
+}
+void Context::lease_change(Allocation& allocation, bool insert) {
+  std::lock_guard lock(stats_mutex_);
+  const auto kind = static_cast<std::size_t>(allocation.kind);
+  if (insert) { ++stats_.live_blocks[kind]; stats_.live_bytes[kind] += allocation.requested_bytes; }
+  else { --stats_.live_blocks[kind]; stats_.live_bytes[kind] -= allocation.requested_bytes; }
+  allocation.leased = insert;
+}
+
+std::shared_ptr<Allocation> Context::allocate(std::size_t bytes, bool host_visible, AllocationKind kind) {
+  ProfileScope profile(ProfileCategory::kAllocation, "vulkan_buffer_allocate", "vulkan", bytes);
   if (poisoned) throw std::runtime_error("Vulkan context is poisoned after a device error");
+  if (static_cast<std::size_t>(kind) >= 3)
+    throw std::invalid_argument("invalid Vulkan allocation kind");
   if (bytes == 0) return nullptr;
   if (bytes > static_cast<std::size_t>(limits.maxStorageBufferRange) || bytes > UINT32_MAX - 3u)
     throw std::invalid_argument("Vulkan allocation exceeds the storage-buffer limit");
   const VkDeviceSize capacity = (static_cast<VkDeviceSize>(bytes) + 3) & ~VkDeviceSize{3};
   if (capacity > limits.maxStorageBufferRange)
     throw std::invalid_argument("Vulkan padded allocation exceeds the storage-buffer limit");
-  auto allocation = std::make_shared<Allocation>();
+  auto pool = active_memory_pool(index);
+  auto allocation = pool ? pool->acquire(capacity, host_visible) : allocate_raw(capacity, host_visible);
+  allocation->requested_bytes = bytes; allocation->kind = host_visible ? AllocationKind::kStaging : kind;
+  lease_change(*allocation, true);
+  return std::shared_ptr<Allocation>(allocation.release(), [pool](Allocation* item) noexcept {
+    item->owner->lease_change(*item, false);
+    if (pool) pool->release(std::unique_ptr<Allocation>(item));
+    else delete item;
+  });
+}
+
+std::unique_ptr<Allocation> Context::allocate_raw(std::size_t capacity, bool host_visible) {
+  auto allocation = std::make_unique<Allocation>();
   allocation->owner = shared_from_this(); allocation->capacity = capacity;
+  allocation->host_visible = host_visible;
+  try {
   VkBufferCreateInfo buffer{};
   buffer.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
   buffer.size = capacity; buffer.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
@@ -346,128 +399,214 @@ std::shared_ptr<Allocation> Context::allocate(std::size_t bytes, bool host_visib
       throw std::runtime_error("Vulkan device memory allocation count limit reached");
   } while (!allocation_count.compare_exchange_weak(live, live + 1));
   allocation->allocation_reserved = true;
-  check(AllocateMemory(device, &memory, nullptr, &allocation->memory), "vkAllocateMemory");
+  count(&ContextStats::allocation_calls);
+  {
+    ProfileScope api(ProfileCategory::kAllocation, "vkAllocateMemory", "vulkan", requirements.size);
+    check(AllocateMemory(device, &memory, nullptr, &allocation->memory), "vkAllocateMemory");
+  }
+  allocation->memory_bytes = requirements.size;
+  {
+    std::lock_guard lock(stats_mutex_);
+    ++stats_.physical_blocks; stats_.physical_bytes += requirements.size;
+    stats_.peak_physical_bytes = std::max(stats_.peak_physical_bytes, stats_.physical_bytes);
+  }
   check(BindBufferMemory(device, allocation->buffer, allocation->memory, 0), "vkBindBufferMemory");
   if (host_visible) check(MapMemory(device, allocation->memory, 0, VK_WHOLE_SIZE, 0, &allocation->mapped), "vkMapMemory");
   return allocation;
+  } catch (...) { count(&ContextStats::allocation_failures); throw; }
 }
 
 void Context::submit(const std::vector<std::shared_ptr<Allocation>>& resources,
-                     const std::function<void(VkCommandBuffer)>& encode, std::shared_ptr<DescriptorPool> descriptors) {
-  auto frame = std::make_unique<Frame>();
-  frame->owner = shared_from_this(); frame->resources = resources; frame->descriptors = descriptors;
-  if (poisoned) throw std::runtime_error("Vulkan context is poisoned after a device error");
-  VkCommandBufferAllocateInfo allocate{};
-  allocate.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-  allocate.commandPool = command_pool; allocate.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-  allocate.commandBufferCount = 1;
-  check(AllocateCommandBuffers(device, &allocate, &frame->command), "vkAllocateCommandBuffers");
-  VkCommandBufferBeginInfo begin{};
-  begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-  begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-  check(BeginCommandBuffer(frame->command, &begin), "vkBeginCommandBuffer");
-  memory_barrier(*this, frame->command);
-  encode(frame->command);
-  memory_barrier(*this, frame->command);
-  check(EndCommandBuffer(frame->command), "vkEndCommandBuffer");
-  VkFenceCreateInfo fence{};
-  fence.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-  check(CreateFence(device, &fence, nullptr, &frame->fence), "vkCreateFence");
-  VkSubmitInfo submission{};
-  submission.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-  submission.commandBufferCount = 1; submission.pCommandBuffers = &frame->command;
-  VkResult result = QueueSubmit(queue, 1, &submission, frame->fence);
-  if (result == VK_SUCCESS) result = WaitForFences(device, 1, &frame->fence, VK_TRUE, UINT64_MAX);
-  if (result != VK_SUCCESS) {
-    poisoned = true;
-    // Even a failed submit can leave device-lost work pending from the driver's
-    // perspective. Device idle resolves lifetime; ordinary OOM does not.
-    const VkResult idle = DeviceWaitIdle(device);
-    if (!completion_allows_release(idle)) quarantine(std::move(frame));
-    check(result, "queue submission/completion");
+                     const std::function<void(Frame&)>& encode, const char* device_name) {
+  auto pool = active_memory_pool(index);
+  auto frame = pool ? pool->take_frame() : nullptr;
+  const auto token = reserve_device_profile(device_name, "vulkan");
+  try {
+    if (!frame) {
+      frame = std::make_unique<Frame>(); frame->owner = shared_from_this();
+      VkCommandBufferAllocateInfo allocate{};
+      allocate.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+      allocate.commandPool = command_pool; allocate.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+      allocate.commandBufferCount = 1;
+      check(AllocateCommandBuffers(device, &allocate, &frame->command), "vkAllocateCommandBuffers");
+      count(&ContextStats::command_buffer_creations);
+      VkFenceCreateInfo fence{}; fence.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+      check(CreateFence(device, &fence, nullptr, &frame->fence), "vkCreateFence");
+      count(&ContextStats::fence_creations);
+    }
+    frame->resources = resources;
+    if (poisoned) throw std::runtime_error("Vulkan context is poisoned after a device error");
+    const char* query_error = nullptr;
+    bool timing = false;
+    if (token) {
+      if (!info.timestamp_bits || info.timestamp_bits > 64 ||
+          !std::isfinite(info.timestamp_period) || info.timestamp_period <= 0)
+        query_error = "timestamps_unsupported";
+      else if (!CreateQueryPool || !DestroyQueryPool || !CmdResetQueryPool ||
+               !CmdWriteTimestamp || !GetQueryPoolResults)
+        query_error = "timestamp_functions_unavailable";
+      else {
+        if (!frame->queries) {
+          VkQueryPoolCreateInfo info{}; info.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+          info.queryType = VK_QUERY_TYPE_TIMESTAMP; info.queryCount = 2;
+          VkQueryPool queries = VK_NULL_HANDLE;
+          if (CreateQueryPool(device, &info, nullptr, &queries) == VK_SUCCESS) {
+            frame->queries = queries; count(&ContextStats::query_pool_creations);
+          } else query_error = "timestamp_query_creation_failed";
+        }
+        timing = !query_error;
+      }
+    }
+    {
+      ProfileScope record(ProfileCategory::kDispatch, "vulkan_record_commands", "vulkan");
+      VkCommandBufferBeginInfo begin{}; begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+      begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+      check(BeginCommandBuffer(frame->command, &begin), "vkBeginCommandBuffer");
+      if (timing) CmdResetQueryPool(frame->command, frame->queries, 0, 2);
+      memory_barrier(*this, frame->command);
+      if (timing) CmdWriteTimestamp(frame->command, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, frame->queries, 0);
+      encode(*frame);
+      if (timing) CmdWriteTimestamp(frame->command, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, frame->queries, 1);
+      memory_barrier(*this, frame->command);
+      check(EndCommandBuffer(frame->command), "vkEndCommandBuffer");
+    }
+    VkSubmitInfo submission{}; submission.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submission.commandBufferCount = 1; submission.pCommandBuffers = &frame->command;
+    const auto started = token ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+    VkResult result;
+    {
+      ProfileScope api(ProfileCategory::kCompute, "vkQueueSubmit", "vulkan");
+      count(&ContextStats::submissions);
+      result = QueueSubmit(queue, 1, &submission, frame->fence);
+    }
+    if (result == VK_SUCCESS) {
+      ProfileScope wait(ProfileCategory::kSynchronize, "vkWaitForFences", "vulkan");
+      result = WaitForFences(device, 1, &frame->fence, VK_TRUE, UINT64_MAX);
+    }
+    if (result != VK_SUCCESS) {
+      poisoned = true;
+      const VkResult idle = DeviceWaitIdle(device);
+      if (!completion_allows_release(idle)) quarantine(std::move(frame));
+      check(result, "queue submission/completion");
+    }
+    if (token) {
+      const auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now() - started).count();
+      if (timing) {
+        std::array<std::uint64_t, 4> values{}; // (timestamp, availability) per query.
+        const auto result = GetQueryPoolResults(device, frame->queries, 0, 2, sizeof(values),
+            values.data(), 2 * sizeof(std::uint64_t),
+            VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WITH_AVAILABILITY_BIT);
+        if (result != VK_SUCCESS || !values[1] || !values[3]) query_error = "timestamp_results_unavailable";
+        else {
+          const auto interval = timestamp_interval(values[0], values[2], info.timestamp_bits,
+                                                    info.timestamp_period, elapsed);
+          finish_device_profile(token, interval.milliseconds, interval.error);
+        }
+      }
+      if (query_error) finish_device_profile(token, std::nullopt, query_error);
+    }
+    if (pool) {
+      // Completion is proven. Reset command references before releasing any
+      // buffer; a reset failure only discards this completed resource cache.
+      const bool reset = ResetCommandBuffer(frame->command, 0) == VK_SUCCESS &&
+                         ResetFences(device, 1, &frame->fence) == VK_SUCCESS;
+      if (reset) frame->resources.clear();
+      pool->return_frame(std::move(frame), reset);
+    }
+  } catch (...) {
+    finish_device_profile(token, std::nullopt, "execution_failed");
+    throw;
   }
 }
 
 void Context::upload(const std::shared_ptr<Allocation>& destination, const void* data, std::size_t bytes) {
+  ProfileScope profile(ProfileCategory::kCopy, "vulkan_upload", "vulkan", bytes);
   if (!bytes) return;
+  if (!destination || destination->owner.get() != this || !destination->buffer || !data || bytes > destination->capacity)
+    throw std::invalid_argument("invalid Vulkan upload range or owner");
   auto staging = allocate(bytes, true);
-  std::memset(staging->mapped, 0, staging->capacity);
-  std::memcpy(staging->mapped, data, bytes);
+  {
+    ProfileScope host(ProfileCategory::kCopy, "vulkan_host_write", "vulkan", bytes);
+    std::memset(staging->mapped, 0, staging->capacity);
+    std::memcpy(staging->mapped, data, bytes);
+  }
   if (!staging->coherent) {
-    VkMappedMemoryRange range{};
-  range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+    VkMappedMemoryRange range{}; range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
     range.memory = staging->memory; range.size = VK_WHOLE_SIZE;
     check(FlushMappedMemoryRanges(device, 1, &range), "vkFlushMappedMemoryRanges");
   }
   std::lock_guard lock(mutex);
-  submit({staging, destination}, [&](VkCommandBuffer command) {
+  count(&ContextStats::uploads);
+  submit({staging, destination}, [&](Frame& frame) {
     VkBufferCopy copy{0, 0, staging->capacity};
-    CmdCopyBuffer(command, staging->buffer, destination->buffer, 1, &copy);
-  });
+    CmdCopyBuffer(frame.command, staging->buffer, destination->buffer, 1, &copy);
+  }, "vulkan_upload");
 }
 
 void Context::download(const std::shared_ptr<Allocation>& source, void* data, std::size_t bytes,
                        std::size_t offset) {
+  ProfileScope profile(ProfileCategory::kCopy, "vulkan_download", "vulkan", bytes);
   if (!bytes) return;
-  // Copies are padded to words. Validate the complete source range before
-  // allocating staging or encoding a command, including native offset callers.
   if (!source || source->owner.get() != this || !source->buffer || !data || offset % 4 ||
       offset > source->capacity || bytes > source->capacity - offset ||
       (bytes + 3u) / 4u > (source->capacity - offset) / 4u)
     throw std::invalid_argument("invalid Vulkan download range or owner");
   auto staging = allocate(bytes, true);
   std::lock_guard lock(mutex);
-  submit({source, staging}, [&](VkCommandBuffer command) {
+  count(&ContextStats::downloads);
+  submit({source, staging}, [&](Frame& frame) {
     VkBufferCopy copy{offset, 0, staging->capacity};
-    CmdCopyBuffer(command, source->buffer, staging->buffer, 1, &copy);
-  });
+    CmdCopyBuffer(frame.command, source->buffer, staging->buffer, 1, &copy);
+  }, "vulkan_download");
   if (!staging->coherent) {
-    VkMappedMemoryRange range{};
-  range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+    VkMappedMemoryRange range{}; range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
     range.memory = staging->memory; range.size = VK_WHOLE_SIZE;
     check(InvalidateMappedMemoryRanges(device, 1, &range), "vkInvalidateMappedMemoryRanges");
   }
+  ProfileScope host(ProfileCategory::kCopy, "vulkan_host_read", "vulkan", bytes);
   std::memcpy(data, staging->mapped, bytes);
 }
 
 void Context::compute(const std::array<std::shared_ptr<Allocation>, 4>& buffers, PushConstants push) {
+  ProfileScope profile(ProfileCategory::kCompute, "vulkan_compute", "vulkan");
   if (!push.count) return;
   const std::uint64_t groups = (static_cast<std::uint64_t>(push.count) + 63) / 64;
   push.groups_x = static_cast<std::uint32_t>(std::min<std::uint64_t>({groups, limits.maxComputeWorkGroupCount[0], 65535u}));
   const std::uint64_t groups_y = (groups + push.groups_x - 1) / push.groups_x;
-  if (groups_y > limits.maxComputeWorkGroupCount[1] ||
-      groups_y * push.groups_x > UINT32_MAX / 64u)
+  if (groups_y > limits.maxComputeWorkGroupCount[1] || groups_y * push.groups_x > UINT32_MAX / 64u)
     throw std::invalid_argument("Vulkan dispatch exceeds the supported grid limit");
   std::lock_guard lock(mutex);
   if (poisoned) throw std::runtime_error("Vulkan context is poisoned after a device error");
-  VkDescriptorPoolSize size{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4};
-  VkDescriptorPoolCreateInfo pool_info{};
-  pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-  pool_info.maxSets = 1; pool_info.poolSizeCount = 1; pool_info.pPoolSizes = &size;
-  auto pool = std::make_shared<DescriptorPool>();
-  pool->owner = shared_from_this();
-  check(CreateDescriptorPool(device, &pool_info, nullptr, &pool->handle), "vkCreateDescriptorPool");
-  VkDescriptorSet set = VK_NULL_HANDLE;
-  VkDescriptorSetAllocateInfo allocate{};
-  allocate.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-  allocate.descriptorPool = pool->handle; allocate.descriptorSetCount = 1; allocate.pSetLayouts = &descriptor_layout;
-  const auto result = AllocateDescriptorSets(device, &allocate, &set);
-  check(result, "vkAllocateDescriptorSets");
-  std::array<VkDescriptorBufferInfo, 4> info{};
-  std::array<VkWriteDescriptorSet, 4> writes{};
-  for (std::uint32_t i = 0; i < buffers.size(); ++i) {
-    info[i] = {buffers[i]->buffer, 0, buffers[i]->capacity};
-    writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    writes[i].dstSet = set; writes[i].dstBinding = i; writes[i].descriptorCount = 1;
-    writes[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER; writes[i].pBufferInfo = &info[i];
-  }
-  UpdateDescriptorSets(device, writes.size(), writes.data(), 0, nullptr);
-  submit({buffers.begin(), buffers.end()}, [&](VkCommandBuffer command) {
-    CmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
-    CmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline_layout, 0, 1, &set, 0, nullptr);
-    CmdPushConstants(command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push), &push);
-    CmdDispatch(command, push.groups_x, static_cast<std::uint32_t>(groups_y), 1);
-  }, pool);
+  count(&ContextStats::dispatches);
+  submit({buffers.begin(), buffers.end()}, [&](Frame& frame) {
+    if (!frame.descriptors) {
+      VkDescriptorPoolSize size{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4};
+      VkDescriptorPoolCreateInfo pool_info{}; pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+      pool_info.maxSets = 1; pool_info.poolSizeCount = 1; pool_info.pPoolSizes = &size;
+      auto pool = std::make_shared<DescriptorPool>(); pool->owner = shared_from_this();
+      check(CreateDescriptorPool(device, &pool_info, nullptr, &pool->handle), "vkCreateDescriptorPool");
+      count(&ContextStats::descriptor_pool_creations);
+      VkDescriptorSetAllocateInfo allocate{}; allocate.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+      allocate.descriptorPool = pool->handle; allocate.descriptorSetCount = 1; allocate.pSetLayouts = &descriptor_layout;
+      check(AllocateDescriptorSets(device, &allocate, &frame.set), "vkAllocateDescriptorSets");
+      count(&ContextStats::descriptor_set_allocations);
+      frame.descriptors = std::move(pool);
+    }
+    std::array<VkDescriptorBufferInfo, 4> info{};
+    std::array<VkWriteDescriptorSet, 4> writes{};
+    for (std::uint32_t i = 0; i < buffers.size(); ++i) {
+      info[i] = {buffers[i]->buffer, 0, buffers[i]->capacity};
+      writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+      writes[i].dstSet = frame.set; writes[i].dstBinding = i; writes[i].descriptorCount = 1;
+      writes[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER; writes[i].pBufferInfo = &info[i];
+    }
+    UpdateDescriptorSets(device, writes.size(), writes.data(), 0, nullptr);
+    CmdBindPipeline(frame.command, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+    CmdBindDescriptorSets(frame.command, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline_layout, 0, 1, &frame.set, 0, nullptr);
+    CmdPushConstants(frame.command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push), &push);
+    CmdDispatch(frame.command, push.groups_x, static_cast<std::uint32_t>(groups_y), 1);
+  }, "vulkan_compute");
 }
 
 }  // namespace tensorcx::vulkan

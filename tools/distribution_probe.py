@@ -122,6 +122,21 @@ def main():
             np.testing.assert_allclose(result, reference, rtol=1e-6, atol=0)
             checks.append('subnormal_' + name)
         if not args.hidden_gpu:
+            before = cx.diagnostics()['backends'][device]['allocations']['physical_blocks']
+            with cx.profile(device_timing=True) as profile:
+                with cx.memory_pool(device, max_cached_bytes=8192, max_cached_blocks=16) as pool:
+                    for _ in range(3):
+                        pooled = (x + 1).softmax(-1)
+                        np.testing.assert_allclose(pooled.numpy(), (a + 1).softmax(-1).numpy(), rtol=1e-6, atol=1e-6)
+                        del pooled
+                    check(pool.stats()['hits'] > 0 and pool.stats()['frame_hits'] > 0, 'Vulkan reuse missing')
+            check(pool.stats()['cached_bytes'] == pool.stats()['cached_frames'] == 0, 'Vulkan scope did not drain')
+            check(cx.diagnostics()['backends'][device]['allocations']['physical_blocks'] == before, 'Vulkan owned memory leaked')
+            recorded = profile.report()
+            check(recorded['device_clock'] == 'vulkan_timestamps_elapsed_ms' and recorded['device_events'], 'Vulkan clock missing')
+            if cx.diagnostics()['backends'][device]['timestamps']['supported']:
+                check(recorded['device_complete'] and recorded['device_errors'] == 0, 'Vulkan timestamps failed')
+            checks.extend(['bounded_pool', 'owned_allocations', 'vulkan_profile'])
             check(cx.matmul_backends(device) == ['auto', 'custom'], 'Vulkan matmul preferences')
             np.testing.assert_allclose(cx.matmul(ma.to(device), mb.to(device), backend='custom').numpy(),
                                        cx.matmul(ma, mb).numpy(), rtol=1e-4, atol=1e-4)

@@ -12,7 +12,8 @@ is also available. An optional Linux [Vulkan/SPIR-V backend](docs/VULKAN_BACKEND
 now supports GPU copies, factories, basic arithmetic, casts and contiguous
 indexing/shape/join operations, comparisons/masks, boolean reductions and
 numeric sum/max/mean/min/argmax, float32 vector/batched matmul and
-log/sqrt/abs/clip/topk, activations, normalization and inference. ROCm and broader
+log/sqrt/abs/clip/topk, activations, normalization and inference, plus opt-in
+[profiling, allocation diagnostics and bounded reuse](docs/VULKAN_PERFORMANCE.md). ROCm and broader
 MLIR-based lowering remain longer-term directions.
 
 The project is useful today as:
@@ -412,10 +413,12 @@ print(ln.cpu().numpy().shape)
 - Opt-in bounded `cx.memory_pool("cuda")` reuses idle exact-size owned buffers
   within a current-thread scope, preserving synchronous operations and excluding
   DLPack-exposed storage; see [the memory pool contract](docs/CUDA_MEMORY_POOL.md).
-- Opt-in `cx.profile()` separates CPU/CUDA native allocation, copy, execution
+- Opt-in Vulkan pools reuse staging/buffers and one completed command frame;
+  [physical-byte limits and diagnostics](docs/VULKAN_PERFORMANCE.md) differ from CUDA.
+- Opt-in `cx.profile()` separates CPU/CUDA/Vulkan native allocation, copy, execution
   and existing wait regions using host timings; Metal is not instrumented.
   Optional `cx.profile(device_timing=True)` adds separate CUDA kernel event
-  intervals; host and device durations are not combined.
+  intervals and Vulkan copy/compute timestamps; host and device durations are not combined.
   See [runtime profiling](docs/RUNTIME_PROFILING.md).
 - Execution is synchronous, but native backend calls release the Python GIL, so
   operations issued from multiple Python threads run concurrently in the native
