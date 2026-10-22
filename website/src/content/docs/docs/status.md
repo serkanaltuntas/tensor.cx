@@ -75,8 +75,11 @@ or cross-architecture support is promised. See [measurement guidance](/docs/perf
 
 Autograd, model training, distributed/multi-GPU execution, a full PyTorch/ATen
 backend, general strided execution and ROCm are not implemented. Broader Vulkan
-interoperability, portable Vulkan wheels and wider hardware coverage remain open beyond
+interoperability and wider hardware coverage remain open beyond
 the [initial slice](/docs/vulkan/).
+Separate [portable CPU/Vulkan wheels](/docs/installation/#portable-linux-artifacts)
+are available through the reviewed build pipeline; real GPU acceptance remains
+distinct from no-loader container tests.
 They are separate directions rather than missing parts of the narrow PyTorch
 bridge or the completed original phases.
 

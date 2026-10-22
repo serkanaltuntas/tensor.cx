@@ -57,8 +57,8 @@ for discovery and copies. See [validation evidence](CUDA_PHASE9_VALIDATION.md).
   real GTX 980 Ti execution. [Profiling, diagnostics and bounded reuse](VULKAN_PERFORMANCE.md)
   and [guarded MLIR/SPIR-V kernels](VULKAN_COMPILER.md) are implemented;
   [matching CUDA/Vulkan shared allocation](SHARED_STORAGE.md) is implemented in
-  either origin. Broader interoperability, portable Vulkan wheels and other GPUs
-  remain open.
+  either origin. Separate [portable CPU/Vulkan wheels](PORTABLE_WHEELS.md) are
+  implemented. Broader interoperability and other GPUs remain open.
 - Optional CUDA backend: device 0 discovery, float32/int32 CPU↔CUDA copies,
   float32 fill/add/multiply, matmul, sum/max/mean, exp/GELU/SiLU, softmax/RMSNorm/LayerNorm;
   [int32 fill, arithmetic and sum/max](CUDA_INT32.md);
@@ -189,7 +189,7 @@ documentation. This order does not claim that later packages are implemented.
     implemented. CPU/Metal pools,
     broader allocator policies and asynchronous execution remain open.
     CUDA `empty` also [allocates without CPU staging](CUDA_EMPTY.md).
-11. **Portable distribution:** Linux x86_64 CPU manylinux wheel pipeline implemented
+11. **Portable distribution:** separate Linux x86_64 CPU/Vulkan manylinux wheel pipelines implemented
     for CPython 3.11–3.13; [contract](PORTABLE_WHEELS.md). macOS/CUDA portable
     wheels, versioned releases and package-index publication remain open.
 

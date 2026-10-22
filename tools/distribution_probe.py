@@ -290,6 +290,8 @@ def main():
         return
     cuda_built = hasattr(cx._core, 'CudaTensor')
     check(cuda_built == (args.variant == 'cuda'), 'wrong wheel backend variant')
+    if args.variant == 'cpu':
+        check(not cx._core._build_info()['vulkan'], 'CPU-only wheel unexpectedly contains Vulkan')
     if args.hidden_gpu or args.variant == 'cpu':
         check(not cx.is_available('cuda'), 'unexpected available CUDA device')
         device = 'cpu'

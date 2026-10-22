@@ -81,7 +81,8 @@ markers = [
   "backend_capability(capability, include_cpu=True): parametrize a test over backends that declare a runtime capability",
 ]
 
-# Linux CPU artifacts only; ordinary source/CUDA/Metal builds are unaffected.
+# CPU artifact defaults; the portable builder selects the optional Vulkan variant.
+# Ordinary source/CUDA/Metal builds are unaffected.
 [tool.cibuildwheel]
 build = ["cp311-manylinux_x86_64", "cp312-manylinux_x86_64", "cp313-manylinux_x86_64"]
 archs = ["x86_64"]

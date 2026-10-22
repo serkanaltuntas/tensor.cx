@@ -4,19 +4,26 @@ description: Build tensor.cx from source with uv, beginning with the CPU referen
 ---
 
 The public getting-started path is a source build. There is no published PyPI
-release. A portable Linux CPU wheel build is available for reviewed local/manual
-CI artifacts; it is separate from the Metal and CUDA source builds below. The source is available on
+release. Separate portable Linux CPU and Vulkan wheel builds are available for
+reviewed local/manual CI artifacts; Metal and CUDA use the source builds below.
+The source is available on
 [GitHub](https://github.com/serkanaltuntas/tensor.cx) under Apache-2.0.
 
-## Portable Linux CPU artifacts
+## Portable Linux artifacts
 
-The repository can build CPU-only wheels for **CPython 3.11–3.13, Linux x86_64
-and glibc 2.28+**, using the pinned manylinux/auditwheel pipeline. These wheels
+The repository can build separate CPU-only and Vulkan-enabled wheels for
+**CPython 3.11–3.13, Linux x86_64 and glibc 2.28+**, using the pinned
+manylinux/auditwheel pipeline. These wheels
 require no GPU, C++ compiler or LLVM for ordinary tensor operations. They do not
-include Metal or CUDA, and are not published to a package index yet.
+include Metal or CUDA, and are not published to a package index yet. The Vulkan
+variant also works on CPU when the Vulkan loader is absent. GPU execution needs
+a compatible system loader and GPU driver; [hardware limits](/docs/vulkan/) apply.
+The Vulkan wheel needs no shader compiler for ordinary tensor operations.
 
 When you have the reviewed wheel matching your interpreter, compare its SHA-256
-with its completion manifest and install the exact file:
+with its completion manifest and install the exact file. CPU and Vulkan variants
+have the same filename; keep their output directories separate and select the
+intended variant by its manifest:
 
 ```bash
 uv venv --python 3.12
@@ -27,7 +34,7 @@ uv pip install --python .venv/bin/python /path/to/tensorcx-0.1.0-cp312-cp312-man
 See the [portable build and validation contract](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/PORTABLE_WHEELS.md)
 for local generation and the manual Actions workflow. There is no macOS, CUDA,
 Linux ARM64 or musl/Alpine portable wheel in this matrix. Build from source for
-the accelerator backends.
+Metal, CUDA or a combined CUDA/Vulkan shared-allocation build.
 
 ## Prerequisites
 

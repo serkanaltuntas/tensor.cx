@@ -12,7 +12,7 @@ extension paths, rejects editable installs or the wrong backend variant, and
 checks runtime dependencies. This complements the operation/ABI test suites;
 it does not replace them.
 
-A separate [portable Linux CPU wheel pipeline](PORTABLE_WHEELS.md) now builds
+A separate [portable Linux CPU/Vulkan wheel pipeline](PORTABLE_WHEELS.md) now builds
 CPython 3.11–3.13 manylinux artifacts. The host-specific scope below describes
 `validate_distribution.py`; it is still required for CUDA/MLIR validation.
 
@@ -175,7 +175,8 @@ must identify the new revision separately.
 builds from the source archive and requires real Vulkan GPU execution in a fresh
 wheel environment, plus hidden-driver CPU checks. `--vulkan-sdk PREFIX` can select
 nonstandard build headers/tools. These are Linux host-specific wheels, not a
-portable Vulkan release. CPU wheels keep Vulkan disabled; Vulkan-enabled wheels
+portable Vulkan release. Use the [manylinux builder](PORTABLE_WHEELS.md) for
+portable Vulkan artifacts. CPU wheels keep Vulkan disabled; Vulkan-enabled wheels
 load the runtime dynamically and embed their build-time validated SPIR-V.
 See [Vulkan setup and acceptance limits](VULKAN_BACKEND.md).
 

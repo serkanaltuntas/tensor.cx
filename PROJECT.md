@@ -68,7 +68,7 @@ CUDA primitives:        float32 matmul, reductions, activations and normalizatio
                         implemented; docs/CUDA_PRIMITIVES_VALIDATION.md
 Int32 increment:        native CUDA fill, arithmetic/scalars/negate and sum/max;
                         docs/CUDA_INT32.md; division and mean remain float32-only
-Distribution:           portable Linux CPU manylinux wheels (CPython 3.11–3.13);
+Distribution:           separate portable Linux CPU/Vulkan manylinux wheels (CPython 3.11–3.13);
                         docs/PORTABLE_WHEELS.md; macOS/releases remain open
                         CPU/CUDA host-specific sdist and wheel installs verified;
                         docs/DISTRIBUTION.md (Nightblade host/ABI limits)

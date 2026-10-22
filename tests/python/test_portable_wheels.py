@@ -78,10 +78,11 @@ def test_never_overwrites_a_previous_run(tmp_path):
 
 def test_external_overrides_cannot_skip_tests_or_change_backend(monkeypatch):
     for key in ('CIBW_TEST_SKIP', 'CIBW_TEST_COMMAND', 'CIBW_ENVIRONMENT', 'CIBW_CONTAINER_ENGINE',
-                'CMAKE_ARGS', 'CC', 'CXXFLAGS', 'LD_PRELOAD', 'PYTEST_ADDOPTS'):
+                'CMAKE_ARGS', 'CC', 'CXXFLAGS', 'LD_PRELOAD', 'PYTEST_ADDOPTS',
+                'TENSORCX_VULKAN_LIBRARY', 'VK_DRIVER_FILES', 'SKBUILD_CMAKE_ARGS'):
         monkeypatch.setenv(key, 'unsafe override')
     env = portable.clean_environment()
-    assert not any(key.startswith('CIBW_') for key in env)
+    assert not any(key.startswith(('CIBW_', 'TENSORCX_', 'VK_', 'SKBUILD_')) for key in env)
     assert not any(key in env for key in ('CMAKE_ARGS', 'CC', 'CXXFLAGS', 'LD_PRELOAD', 'PYTEST_ADDOPTS'))
 
 
@@ -103,3 +104,30 @@ def test_older_compatible_policy_and_cpu_dependency_boundary():
 def test_audit_accepts_real_line_wrapped_auditwheel_output():
     portable.check_audit('tensorcx-0.1.0-cp312-cp312-manylinux_2_28_x86_64.whl is consistent\n'
                          'with the following platform tag: "manylinux_2_27_x86_64".\n')
+
+
+def test_vulkan_variant_keeps_cpu_baseline_and_requires_compiled_backend_probe():
+    env = {}
+    portable.configure_variant(env, 'cpu')
+    assert env == {}
+    portable.configure_variant(env, 'vulkan')
+    assert '{package}/tools/build_vulkan_sdk.py' in env['CIBW_BEFORE_ALL_LINUX']
+    assert '-DTENSORCX_ENABLE_VULKAN=ON' in env['CIBW_ENVIRONMENT_LINUX']
+    assert '-DTENSORCX_ENABLE_CUDA=OFF' in env['CIBW_ENVIRONMENT_LINUX']
+    assert '--variant vulkan --hidden-gpu' in env['CIBW_TEST_COMMAND_LINUX']
+    assert 'pytest {project}/tests/python' in env['CIBW_TEST_COMMAND_LINUX']
+
+
+@pytest.mark.parametrize('dependency', ['libvulkan.so.1', 'libcuda.so.1', 'libLLVM.so.21'])
+def test_driver_or_compiler_linkage_is_never_a_portable_dependency(dependency):
+    output = 'is consistent with the following platform tag: "manylinux_2_28_x86_64".'
+    with pytest.raises(RuntimeError, match='GPU/LLVM'):
+        portable.check_audit(output + ' ' + dependency)
+
+
+def test_bundling_a_driver_cannot_hide_a_dependency_from_auditwheel(tmp_path):
+    path = wheel(tmp_path)
+    with zipfile.ZipFile(path, 'a') as archive:
+        archive.writestr('tensorcx.libs/libvulkan-renamed.so.1', b'driver fixture')
+    with pytest.raises(RuntimeError, match='bundles'):
+        portable.inspect_wheels(tmp_path, ['3.12'])

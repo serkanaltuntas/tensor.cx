@@ -102,7 +102,7 @@ x86_64 with external LLVM 21.1.8 tools. See the
   native/separate-MLIR/manual-fused comparisons with separate CUDA diagnostics.
 - [`docs/CUDA_OUTPUT_COPY_ELISION.md`](docs/CUDA_OUTPUT_COPY_ELISION.md): proved
   full-write CUDA template-copy removal, legacy compatibility and paired measurements.
-- [`docs/PORTABLE_WHEELS.md`](docs/PORTABLE_WHEELS.md): audited CPU-only manylinux
+- [`docs/PORTABLE_WHEELS.md`](docs/PORTABLE_WHEELS.md): separate CPU/Vulkan manylinux
   wheels for CPython 3.11–3.13, local/manual CI builds and current release limits.
 - [`docs/DISTRIBUTION.md`](docs/DISTRIBUTION.md): source archive and wheel
   validation, fresh installation, external dependencies and supported hosts.

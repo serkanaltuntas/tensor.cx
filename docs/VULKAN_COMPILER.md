@@ -153,7 +153,8 @@ suite passed 11,994 tests with 226 expected platform/capability skips; all 144
 compiler tests and all 16 native tests passed. Fresh host-specific Vulkan and
 CPU wheels passed ordinary, hidden-GPU and explicit-compiler installation modes.
 Independent review and test/acceptance QA found no remaining blocking issues.
-This does not establish portable Vulkan wheels or acceptance on other GPUs.
+Compiler acceptance alone does not establish portable packaging or acceptance
+on other GPUs; see the separate [portable wheel pipeline](PORTABLE_WHEELS.md).
 
 References: [MLIR SPIR-V dialect](https://mlir.llvm.org/docs/Dialects/SPIR-V/),
 [Khronos SPIR-V Tools](https://github.com/KhronosGroup/SPIRV-Tools).

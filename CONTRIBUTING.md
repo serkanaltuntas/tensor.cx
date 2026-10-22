@@ -19,8 +19,9 @@ CUDA build when running tests.
 
 For packaging changes, run the source-to-wheel check in
 [DISTRIBUTION.md](docs/DISTRIBUTION.md); it verifies notice files and rejects
-private files and bytecode caches. Current local wheels are not portable
-manylinux releases, and CPU/CUDA variants must remain in separate directories.
+private files and bytecode caches. Its host-specific wheels are not portable
+manylinux artifacts. Use the separate [portable CPU/Vulkan pipeline](docs/PORTABLE_WHEELS.md)
+for those artifacts; all backend variants must remain in separate directories.
 
 ## Publish only reviewed evidence
 

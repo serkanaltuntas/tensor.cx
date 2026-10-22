@@ -1,4 +1,4 @@
-name: Portable CPU wheels
+name: Portable Linux wheels
 
 # Explicit build only; never publishes to PyPI or creates a release/tag.
 on:
@@ -9,22 +9,26 @@ permissions:
 
 jobs:
   manylinux:
-    name: manylinux CPU (CPython 3.11–3.13)
+    name: manylinux ${{ matrix.variant }} (CPython 3.11–3.13)
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [cpu, vulkan]
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@v5
       - name: Build from sdist, repair and test installed wheels
-        run: uv run --no-project --python 3.12 python tools/build_portable_wheels.py --output build/portable-cpu
+        run: uv run --no-project --python 3.12 python tools/build_portable_wheels.py --variant ${{ matrix.variant }} --output build/portable-${{ matrix.variant }}
       - name: Retain only validated wheels, source and public manifest
         uses: actions/upload-artifact@v4
         with:
-          name: tensorcx-manylinux-cpu
+          name: tensorcx-manylinux-${{ matrix.variant }}
           path: |
-            build/portable-cpu/manifest.json
-            build/portable-cpu/source/*.tar.gz
-            build/portable-cpu/wheels/*.whl
+            build/portable-${{ matrix.variant }}/manifest.json
+            build/portable-${{ matrix.variant }}/source/*.tar.gz
+            build/portable-${{ matrix.variant }}/wheels/*.whl
           retention-days: 14
