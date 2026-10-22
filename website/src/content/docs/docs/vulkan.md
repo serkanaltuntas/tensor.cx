@@ -164,6 +164,12 @@ GPU timestamps and bounded buffer/staging/command reuse are available; see
 install `VK_LAYER_KHRONOS_validation` and set `TENSORCX_VULKAN_VALIDATION=1`
 before import; missing requested layer support leaves Vulkan unavailable.
 
+An optional [local Vulkan acceptance gate](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/VULKAN_CONTINUOUS_VALIDATION.md)
+tests an exact commit in a fresh wheel environment, including real MLIR launches,
+native failure contracts and hidden-driver CPU checks. Its combined mode also
+requires CUDA/Vulkan shared-storage acceptance. It complements GPU-free CI;
+it does not provide an isolated remote GPU runner or wider hardware coverage.
+
 The [source backend guide](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/VULKAN_BACKEND.md)
 contains native ownership/failure rules, validation commands and the remaining
 hardware limits. See the [full support matrix](/docs/backends/) for comparisons.

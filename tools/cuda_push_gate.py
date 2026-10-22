@@ -7,68 +7,23 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import re
 import subprocess
 import sys
 import tarfile
 import tempfile
-import xml.etree.ElementTree as ET
 
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
 try:
     from publication_report import write_public_report
+    from acceptance_support import push_revisions, run, junit_result
 finally:
     sys.path.pop(0)
 TEST_FILES = ('test_cuda.py', 'test_cuda_primitives.py', 'test_mlir_cuda_runtime.py',
               'test_mlir_cuda_expressions.py', 'test_mlir_division.py', 'test_mlir_select.py', 'test_mlir_sqrt.py', 'test_mlir_abs.py', 'test_mlir_minmax.py', 'test_mlir_exp.py', 'test_mlir_log.py', 'test_mlir_rsqrt.py', 'test_mlir_tanh.py', 'test_mlir_sigmoid.py', 'test_mlir_silu.py',
               'test_int32_primitives.py', 'test_runtime_profile.py', 'test_device_profile.py', 'test_fusion_benchmark.py', 'test_output_copy.py', 'test_memory_pool.py', 'test_empty.py', 'test_tensor_api.py', 'test_cast_broadcast.py',
               'test_shape_ops.py', 'test_multi_axis_reductions.py', 'test_indexing_joining.py', 'test_boolean_masks.py', 'test_batched_matmul.py', 'test_math_ops.py', 'test_inference_ops.py', 'test_dlpack.py', 'test_device_transfer.py')
-
-
-def push_revisions(lines):
-    revisions = []
-    for line in lines.splitlines():
-        fields = line.split()
-        if len(fields) != 4:
-            raise RuntimeError('malformed pre-push input')
-        _, local_sha, remote_ref, _ = fields
-        if remote_ref != 'refs/heads/main':
-            continue
-        if not re.fullmatch(r'[0-9a-f]{40}', local_sha) or local_sha == '0' * 40:
-            raise RuntimeError('main requires a valid non-deletion commit')
-        if local_sha not in revisions:
-            revisions.append(local_sha)
-    return revisions
-
-
-def run(command, cwd, env, log):
-    try:
-        result = subprocess.run([str(x) for x in command], cwd=cwd, env=env,
-                                text=True, capture_output=True, timeout=3600)
-    except subprocess.TimeoutExpired as error:
-        def decoded(value):
-            return value.decode(errors='replace') if isinstance(value, bytes) else (value or '')
-        log.write_text(decoded(error.stdout) + decoded(error.stderr))
-        raise RuntimeError(f'command timed out; partial output: {log}') from error
-    log.write_text(result.stdout + result.stderr)
-    if result.returncode:
-        raise RuntimeError(f'command failed ({result.returncode}); see {log}')
-    return result.stdout.strip()
-
-
-def junit_result(path, minimum, required_names=()):
-    cases = ET.parse(path).getroot().findall('.//testcase')
-    if len(cases) < minimum:
-        raise RuntimeError(f'{path}: expected at least {minimum} tests, found {len(cases)}')
-    for case in cases:
-        if any(case.find(tag) is not None for tag in ('skipped', 'failure', 'error')):
-            raise RuntimeError(f'{path}: non-passing test {case.get("name")}')
-    names = {case.get('name', '').split('[')[0] for case in cases}
-    if not set(required_names) <= names:
-        raise RuntimeError(f'{path}: missing required acceptance tests')
-    return {'tests': len(cases), 'skipped': 0, 'failures': 0, 'errors': 0}
 
 
 def validate(revision, llvm_bin):
@@ -94,6 +49,7 @@ def validate(revision, llvm_bin):
     output.mkdir(parents=True, exist_ok=False)
     report = {'schema_version': 1, 'revision': resolved, 'started_utc': stamp,
               'controller_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+              'support_sha256': hashlib.sha256((ROOT / 'tools/acceptance_support.py').read_bytes()).hexdigest(),
               'pytest_controller_sha256': hashlib.sha256((ROOT / 'tools/cuda_gate_pytest.py').read_bytes()).hexdigest(),
               'status': 'running'}
     print(f'CUDA gate: {resolved}; logs: {output}', flush=True)

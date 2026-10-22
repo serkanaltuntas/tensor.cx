@@ -117,7 +117,8 @@ def test_vulkan_registry_callbacks_keep_concrete_index(monkeypatch):
 
 def test_software_vulkan_is_not_listed_as_a_gpu():
     from pathlib import Path
-    manifests = sorted(Path('/usr/share/vulkan/icd.d').glob('lvp_icd*.json'))
+    explicit = os.environ.get('TENSORCX_TEST_VULKAN_SOFTWARE_ICD')
+    manifests = [Path(explicit)] if explicit else sorted(Path('/usr/share/vulkan/icd.d').glob('lvp_icd*.json'))
     if not manifests:
         pytest.skip('lavapipe ICD unavailable for CPU-device filtering test')
     environment = dict(os.environ, VK_DRIVER_FILES=str(manifests[0]), VK_ICD_FILENAMES=str(manifests[0]))

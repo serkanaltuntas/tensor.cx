@@ -350,11 +350,14 @@ operation reference, and each advertised feature needs real-device acceptance.
   Python real-device acceptance for both origins, including a fresh combined
   wheel, foreign CUDA mutations, DLPack lifetime/range checks and native
   failure/quarantine acceptance. Other device pairs remain outside this route.
-- [ ] Portable Linux Vulkan wheels and repeatable local real-GPU acceptance
+- [x] Portable Linux Vulkan wheels and repeatable local real-GPU acceptance
   alongside no-loader/hidden-ICD CI. Broader packaging must not require a Vulkan
   driver merely to import and use CPU.
-  The [separate manylinux Vulkan build](PORTABLE_WHEELS.md) is implemented;
-  repeatable exact-commit local GPU acceptance still remains open.
+  The [separate manylinux Vulkan build](PORTABLE_WHEELS.md) and
+  [exact-commit local GPU gate](VULKAN_CONTINUOUS_VALIDATION.md) are implemented.
+  The gate validates a fresh installed wheel, guarded compiler launches,
+  native failure contracts and hidden-driver CPU behavior. Combined mode adds
+  CUDA sharing and sanitizers after the existing mandatory CUDA push gate.
 - [ ] The separately planned lavapipe software execution probe, clearly
   distinguished from GPU acceptance (see [device backlog](DEVICE_BACKLOG.md)).
 

@@ -96,6 +96,9 @@ Vulkan increment:       optional Linux SPIR-V copies/factories/basic arithmetic,
                         explicit guarded MLIR/SPIR-V kernels and persistent code cache;
                         basic float32 integer-significand RNE/gradual underflow;
                         docs/VULKAN_BACKEND.md (2026-10-22, GTX 980 Ti validation)
+Vulkan acceptance:      exact-commit local GPU/MLIR wheel and native acceptance;
+                        optional combined CUDA sharing after mandatory CUDA push gate;
+                        docs/VULKAN_CONTINUOUS_VALIDATION.md; isolated runner remains open
 Next implementation:    wider device compatibility and continuous GPU validation
 Open scope:             other SM/host versions and broader compiler features
 API increment:          arithmetic/scalars, contiguous reshape and keepdims;

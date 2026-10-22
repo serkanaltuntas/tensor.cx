@@ -64,6 +64,9 @@ CPU tests, package checks, macOS jobs with MPSGraph enabled/disabled and a
 GPU-free CUDA build job cover different parts of the runtime. Recorded CUDA
 execution is on Linux x86_64, GTX 980 Ti sm_52, CUDA 12.4 and GCC 13. A local
 exact-commit push gate runs real CUDA tests, native contracts and GPU sanitizers.
+An opt-in [Vulkan gate](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/VULKAN_CONTINUOUS_VALIDATION.md)
+adds real Vulkan/MLIR, native lifetime failures and combined CUDA sharing checks
+from the exact outgoing commit.
 It does not cover pushes from every computer or replace an isolated GPU runner;
 the separate remote CUDA acceptance workflow remains disabled until that runner
 is provisioned and validated. A skipped GPU job is not execution evidence.

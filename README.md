@@ -114,6 +114,8 @@ x86_64 with external LLVM 21.1.8 tools. See the
   CPU/CUDA/Metal/Vulkan artifacts, compatibility keys, private storage and compile/launch profiling.
 - [`docs/CUDA_CONTINUOUS_VALIDATION.md`](docs/CUDA_CONTINUOUS_VALIDATION.md):
   exact-commit CUDA acceptance and Nightblade's opt-in local push gate.
+- [`docs/VULKAN_CONTINUOUS_VALIDATION.md`](docs/VULKAN_CONTINUOUS_VALIDATION.md):
+  exact-commit real-GPU Vulkan/MLIR acceptance and optional combined CUDA sharing.
 - [`docs/CUDA_PRIMITIVES_VALIDATION.md`](docs/CUDA_PRIMITIVES_VALIDATION.md):
   CUDA primitive semantics, CPU parity and a runnable inference example.
 

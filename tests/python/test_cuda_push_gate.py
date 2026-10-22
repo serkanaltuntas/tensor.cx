@@ -91,6 +91,7 @@ def test_failed_gate_writes_public_report_without_changing_failure(monkeypatch, 
 
     (tmp_path / 'tools').mkdir()
     (tmp_path / 'tools/cuda_gate_pytest.py').write_text('# fixture')
+    (tmp_path / 'tools/acceptance_support.py').write_text('# fixture')
     monkeypatch.setattr(gate, 'ROOT', tmp_path)
     monkeypatch.setattr(gate.subprocess, 'check_output',
                         lambda argv, **kwargs: '' if '--local-env-vars' in argv else 'a' * 40)

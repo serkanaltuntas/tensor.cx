@@ -150,6 +150,10 @@ git push origin main
 
 The versioned hook must be executable. It uses uv with Python 3.12 and executes
 the local controller, while the tested product source is the outgoing commit.
+The hook now delegates through `pre_push_acceptance.py`, which preserves Git's
+exact stdin and always runs CUDA first. Explicit local opt-in can then add the
+[Vulkan/combined-sharing gate](VULKAN_CONTINUOUS_VALIDATION.md); default CUDA
+setup and its failure behavior remain unchanged.
 The LLVM path is machine-local Git configuration; no credential is stored in
 the repository. `LD_LIBRARY_PATH`/`LD_PRELOAD`, Python import overrides and
 pytest argument/plugin overrides are cleared for child processes.
