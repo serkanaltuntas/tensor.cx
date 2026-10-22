@@ -111,6 +111,9 @@ CMAKE_ARGS="-DTENSORCX_ENABLE_METAL=OFF -DTENSORCX_ENABLE_CUDA=OFF -DTENSORCX_EN
   uv pip install --reinstall -e ".[dev]"
 ```
 
-This first slice supports copies/factories/views and basic arithmetic, not the
-full CPU/CUDA operator set. SPIR-V is embedded at build time; the installed
-runtime does not need shader tools or LLVM. See [Vulkan setup and limits](/docs/vulkan/).
+The supported Vulkan tensor operations include copies, arithmetic, indexing,
+masks, reductions, batched matmul, math and inference primitives; see
+[Vulkan setup and limits](/docs/vulkan/) for the exact dtype and hardware scope.
+Ordinary tensor execution uses SPIR-V embedded at build time and needs neither
+shader tools nor LLVM. Explicit [Vulkan kernel compilation](/docs/experimental/#vulkan-kernels)
+additionally requires the documented LLVM and shader tools.

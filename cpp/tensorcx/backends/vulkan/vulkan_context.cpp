@@ -511,7 +511,7 @@ void Context::submit(const std::vector<std::shared_ptr<Allocation>>& resources,
       // buffer; a reset failure only discards this completed resource cache.
       const bool reset = ResetCommandBuffer(frame->command, 0) == VK_SUCCESS &&
                          ResetFences(device, 1, &frame->fence) == VK_SUCCESS;
-      if (reset) frame->resources.clear();
+      if (reset) { frame->resources.clear(); frame->executable.reset(); }
       pool->return_frame(std::move(frame), reset);
     }
   } catch (...) {
@@ -568,18 +568,41 @@ void Context::download(const std::shared_ptr<Allocation>& source, void* data, st
   std::memcpy(data, staging->mapped, bytes);
 }
 
-void Context::compute(const std::array<std::shared_ptr<Allocation>, 4>& buffers, PushConstants push) {
-  ProfileScope profile(ProfileCategory::kCompute, "vulkan_compute", "vulkan");
+void Context::copy(const std::shared_ptr<Allocation>& destination,
+                   const std::shared_ptr<Allocation>& source, std::size_t bytes) {
+  ProfileScope profile(ProfileCategory::kCopy, "vulkan_device_copy", "vulkan", bytes);
+  if (!bytes) return;
+  if (!source || !destination || source->owner.get() != this || destination->owner.get() != this ||
+      !source->buffer || !destination->buffer || bytes > source->capacity || bytes > destination->capacity ||
+      source == destination || bytes % 4)
+    throw std::invalid_argument("invalid Vulkan device copy range or owner");
+  std::lock_guard lock(mutex);
+  if (poisoned) throw std::runtime_error("Vulkan context is poisoned after a device error");
+  submit({source, destination}, [&](Frame& frame) {
+    VkBufferCopy region{0, 0, bytes};
+    CmdCopyBuffer(frame.command, source->buffer, destination->buffer, 1, &region);
+  }, "vulkan_device_copy");
+}
+
+void Context::compute(const std::array<std::shared_ptr<Allocation>, 4>& buffers, PushConstants push,
+                      std::shared_ptr<KernelPipeline> generated, std::uint32_t block) {
+  const auto label = generated ? "vulkan_generated_kernel" : "vulkan_compute";
+  ProfileScope profile(ProfileCategory::kCompute, label, "vulkan");
+  if (!block || block > limits.maxComputeWorkGroupInvocations || block > limits.maxComputeWorkGroupSize[0] ||
+      (generated && (generated->owner.get() != this || !generated->handle)))
+    throw std::invalid_argument("invalid Vulkan compute pipeline or block size");
   if (!push.count) return;
-  const std::uint64_t groups = (static_cast<std::uint64_t>(push.count) + 63) / 64;
+  const std::uint64_t groups = (static_cast<std::uint64_t>(push.count) + block - 1) / block;
   push.groups_x = static_cast<std::uint32_t>(std::min<std::uint64_t>({groups, limits.maxComputeWorkGroupCount[0], 65535u}));
+  if (!push.groups_x) throw std::invalid_argument("Vulkan device has no compute workgroup capacity");
   const std::uint64_t groups_y = (groups + push.groups_x - 1) / push.groups_x;
-  if (groups_y > limits.maxComputeWorkGroupCount[1] || groups_y * push.groups_x > UINT32_MAX / 64u)
+  if (groups_y > limits.maxComputeWorkGroupCount[1] || groups_y * push.groups_x > UINT32_MAX / block)
     throw std::invalid_argument("Vulkan dispatch exceeds the supported grid limit");
   std::lock_guard lock(mutex);
   if (poisoned) throw std::runtime_error("Vulkan context is poisoned after a device error");
   count(&ContextStats::dispatches);
   submit({buffers.begin(), buffers.end()}, [&](Frame& frame) {
+    frame.executable = generated;
     if (!frame.descriptors) {
       VkDescriptorPoolSize size{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4};
       VkDescriptorPoolCreateInfo pool_info{}; pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -602,11 +625,11 @@ void Context::compute(const std::array<std::shared_ptr<Allocation>, 4>& buffers,
       writes[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER; writes[i].pBufferInfo = &info[i];
     }
     UpdateDescriptorSets(device, writes.size(), writes.data(), 0, nullptr);
-    CmdBindPipeline(frame.command, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+    CmdBindPipeline(frame.command, VK_PIPELINE_BIND_POINT_COMPUTE, generated ? generated->handle : pipeline);
     CmdBindDescriptorSets(frame.command, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline_layout, 0, 1, &frame.set, 0, nullptr);
     CmdPushConstants(frame.command, pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push), &push);
     CmdDispatch(frame.command, push.groups_x, static_cast<std::uint32_t>(groups_y), 1);
-  }, "vulkan_compute");
+  }, label);
 }
 
 }  // namespace tensorcx::vulkan

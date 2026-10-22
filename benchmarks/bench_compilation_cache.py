@@ -231,7 +231,7 @@ def run(args):
               "parameters": {"repeats": args.repeats, "warmup": args.warmup,
                              "restart_repeats": args.restart_repeats, "seed": 17},
               "boundaries": {
-                  "compile": "public compile wall latency; IR primed; validation/identity plus CPU/CUDA loading/JIT; Metal metallib only",
+                  "compile": "public compile wall latency; IR primed; validation/identity plus CPU/CUDA/Vulkan loading/JIT; Metal metallib only",
                   "restart": "first compile in each new process; excludes interpreter/tensorcx import/device/IR setup; lazy adapter imports included",
                   "launch": "synchronous public launch with resident inputs/artifact, output poisoned before clock; no device-only claim",
                   "excluded": "validation, result cleanup, tensor setup and subprocess startup",
@@ -282,7 +282,7 @@ def run(args):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--target", choices=("cpu", "cuda", "metal"), default="cpu")
+    parser.add_argument("--target", choices=("cpu", "cuda", "metal", "vulkan"), default="cpu")
     parser.add_argument("--repeats", type=positive_int, default=5)
     parser.add_argument("--warmup", type=int, default=1)
     parser.add_argument("--restart-repeats", type=positive_int, default=3)

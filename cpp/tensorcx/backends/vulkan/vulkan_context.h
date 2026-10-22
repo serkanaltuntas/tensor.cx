@@ -22,6 +22,7 @@ struct Instance;
 struct Context;
 struct DescriptorPool;
 struct Frame;
+struct KernelPipeline;
 class MemoryPool;
 class VulkanError : public std::runtime_error {
  public:
@@ -110,7 +111,10 @@ struct Context : std::enable_shared_from_this<Context> {
   void upload(const std::shared_ptr<Allocation>& destination, const void* data, std::size_t bytes);
   void download(const std::shared_ptr<Allocation>& source, void* data, std::size_t bytes,
                 std::size_t offset = 0);
-  void compute(const std::array<std::shared_ptr<Allocation>, 4>& buffers, PushConstants push);
+  void copy(const std::shared_ptr<Allocation>& destination,
+            const std::shared_ptr<Allocation>& source, std::size_t bytes);
+  void compute(const std::array<std::shared_ptr<Allocation>, 4>& buffers, PushConstants push,
+               std::shared_ptr<KernelPipeline> generated = {}, std::uint32_t block = 64);
   ContextStats statistics() const;
   void count(std::uint64_t ContextStats::* field, std::uint64_t value = 1);
   void cache_change(const Allocation& allocation, bool insert);

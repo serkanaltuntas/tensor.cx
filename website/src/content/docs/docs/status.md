@@ -19,8 +19,8 @@ the [support matrix](/docs/backends/) defines backend availability.
 | Inference | Float32 linear, affine RMSNorm/LayerNorm, int32-indexed embedding and scaled dot-product attention with boolean/additive/causal masks | [Inference](/docs/operations/#inference) |
 | Storage exchange | CPU/CUDA device-0 DLPack sharing or explicit copy; optional inference-only PyTorch `linear` custom op | [DLPack & PyTorch](/docs/interoperability/) |
 | Diagnostics | Standalone `tensorcx-doctor`, installation checks, operation/dtype capabilities and CPU/CUDA memory snapshots | [Diagnostics](/docs/diagnostics/) |
-| Explicit kernels | Experimental Metal MSL and guarded float32 CPU/CUDA MLIR compilation; division, sqrt/abs/exp/log/rsqrt/tanh/sigmoid/SiLU, minimum/maximum, comparisons and value selection in the MLIR subset | [Experimental kernels](/docs/experimental/) |
-| Compilation tools | Persistent CPU/CUDA/Metal code cache; compile/launch latency measurements and separate compilation profiles | [Performance](/docs/performance/#compilation-cache-measurements) |
+| Explicit kernels | Experimental Metal MSL and guarded float32 CPU/CUDA/Vulkan MLIR compilation; division, sqrt/abs/exp/log/rsqrt/tanh/sigmoid/SiLU, minimum/maximum, comparisons and value selection in the MLIR subset | [Experimental kernels](/docs/experimental/) |
+| Compilation tools | Persistent CPU/CUDA/Metal/Vulkan code cache; compile/launch latency measurements and separate compilation profiles | [Performance](/docs/performance/#compilation-cache-measurements) |
 | Runtime profiling | CPU/CUDA/Vulkan host spans and Chrome trace export; optional separate CUDA kernel events and Vulkan copy/compute timestamps | [Runtime profiling](/docs/performance/#native-runtime-profiling) |
 | Manual CUDA fusion experiment | Native/separate-MLIR/fused expression comparisons with balanced unprofiled calls and separate CUDA diagnostics | [Fusion measurements](/docs/performance/#manual-cuda-fusion-experiment) |
 | Generated CUDA outputs | Proved nonzero full writes omit the template copy; private output, immutable inputs and conservative legacy/partial behavior retained | [Output copies](/docs/performance/#generated-cuda-output-copies) |
@@ -73,7 +73,7 @@ or cross-architecture support is promised. See [measurement guidance](/docs/perf
 ## Separate longer-term directions
 
 Autograd, model training, distributed/multi-GPU execution, a full PyTorch/ATen
-backend, general strided execution and ROCm are not implemented. Vulkan compiler,
+backend, general strided execution and ROCm are not implemented. Vulkan
 interoperability, portable wheels and wider hardware coverage remain open beyond
 the [initial slice](/docs/vulkan/).
 They are separate directions rather than missing parts of the narrow PyTorch

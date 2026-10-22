@@ -1,5 +1,10 @@
 # Persistent compilation cache
 
+Vulkan guarded kernels also use this contract. Their typed MLIR, canonical
+numerical helper source, LLVM/shader-tool identities and resource ABI are part
+of the key; every hit validates SPIR-V and loads a fresh device-owned module.
+See [Vulkan compiler requirements and limits](VULKAN_COMPILER.md).
+
 Experimental kernel compilation reuses local CPU shared-library, CUDA PTX and
 Metal metallib artifacts across calls and process restarts. This implements the
 persistent-cache portion of feature 8; operations, fusion and a production

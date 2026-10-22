@@ -72,7 +72,7 @@ that cost from contention or establish a speedup on another workload or GPU.
 
 ## Compilation cache measurements
 
-Experimental CPU/CUDA/Metal compilation reuses private local code artifacts,
+Experimental CPU/CUDA/Metal/Vulkan compilation reuses private local code artifacts,
 including across process restarts. Measure public compile and launch latency,
 with optional separate compilation profiles:
 
@@ -210,6 +210,10 @@ The older pool measurements include CPU staging, while the
 records the changed factory path separately. `empty` contents remain unspecified.
 
 ## Vulkan timing and reuse
+
+The guarded [Vulkan compiler](/docs/experimental/#vulkan-kernels) also supports
+`benchmarks/bench_compilation_cache.py --target vulkan` for explicit cold/warm
+and process-restart measurements, with CPU parity and fresh native loads.
 
 ```python
 x = cx.ones((1024,), device="vulkan")

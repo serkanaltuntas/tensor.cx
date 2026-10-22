@@ -55,7 +55,8 @@ for discovery and copies. See [validation evidence](CUDA_PHASE9_VALIDATION.md).
   matmul, log/sqrt/abs/clip/topk, activations/norms/inference and broadcast basic
   float32/int32 arithmetic (float32 ties-to-even/gradual underflow); synchronous
   real GTX 980 Ti execution. [Profiling, diagnostics and bounded reuse](VULKAN_PERFORMANCE.md)
-  are implemented; compiler/interop/portable wheels and other GPUs remain open.
+  and [guarded MLIR/SPIR-V kernels](VULKAN_COMPILER.md) are implemented;
+  interop/portable wheels and other GPUs remain open.
 - Optional CUDA backend: device 0 discovery, float32/int32 CPU↔CUDA copies,
   float32 fill/add/multiply, matmul, sum/max/mean, exp/GELU/SiLU, softmax/RMSNorm/LayerNorm;
   [int32 fill, arithmetic and sum/max](CUDA_INT32.md);
@@ -164,7 +165,7 @@ documentation. This order does not claim that later packages are implemented.
 7. **Diagnostics:** CPU/CUDA operation/dtype, installation and memory reports
    implemented, including a standalone CLI; Metal metadata is included, native
    Metal memory reporting remains open. See [DIAGNOSTICS.md](DIAGNOSTICS.md).
-8. **Compiler/performance:** persistent CPU/CUDA/Metal cache, public compile/launch
+8. **Compiler/performance:** persistent CPU/CUDA/Metal/Vulkan cache, public compile/launch
    latency measurements and separate compilation profiles implemented;
    [contract](COMPILATION_CACHE.md). [Float32 kernel division](MLIR_DIVISION.md),
    [comparison/select](MLIR_SELECT.md), [kernel sqrt](MLIR_SQRT.md) and

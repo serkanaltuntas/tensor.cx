@@ -60,6 +60,7 @@ sdist.include = [
   "third_party/dlpack/*",
   "python/**/*.py",
   "tests/cpp/**/*.cpp", "tests/cpp/**/*.ptx",
+  "tests/cpp/**/*.comp",
   "examples/*.py",
   "tools/*.py",
   "docs/**/*.md", "docs/**/*.json",

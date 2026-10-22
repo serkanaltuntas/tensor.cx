@@ -71,8 +71,9 @@ print(cx.capabilities("vulkan"))
   owned-allocation diagnostics and bounded opt-in staging/buffer/command reuse;
   see [measurement, limits and benchmark evidence](VULKAN_PERFORMANCE.md).
 
-DLPack, generated kernels/MLIR, command batching and asynchronous execution
-are not implemented on Vulkan.
+Explicit guarded float32 [MLIR/SPIR-V custom kernels](VULKAN_COMPILER.md) use
+private outputs and the shared compilation cache. DLPack, command batching and
+asynchronous execution are not implemented on Vulkan.
 Unsupported operations raise explicit errors; no CPU fallback is performed.
 Other backends retain their existing capabilities.
 
@@ -334,8 +335,9 @@ operation reference, and each advertised feature needs real-device acceptance.
   (`linear`, affine norms, embedding and attention), with CPU parity.
 - [x] Repeatable benchmarks, host/device timing, allocation diagnostics and
   measured staging/command/descriptor/buffer reuse; [contract](VULKAN_PERFORMANCE.md).
-- [ ] Experimental custom kernels and MLIR-to-SPIR-V, with the existing
-  guarded-kernel validation and compilation-cache contracts.
+- [x] Experimental custom kernels and MLIR-to-SPIR-V, with the existing
+  guarded-kernel validation and compilation-cache contracts;
+  [supported subset and acceptance](VULKAN_COMPILER.md).
 - [ ] Explicit accelerator/device transfer API and supported storage exchange
   where the API and driver can actually provide it; do not label a host copy
   zero-copy or publish an unsupported DLPack device type.

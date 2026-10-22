@@ -167,3 +167,13 @@ nonstandard build headers/tools. These are Linux host-specific wheels, not a
 portable Vulkan release. CPU wheels keep Vulkan disabled; Vulkan-enabled wheels
 load the runtime dynamically and embed their build-time validated SPIR-V.
 See [Vulkan setup and acceptance limits](VULKAN_BACKEND.md).
+
+Add `--llvm-bin LLVM_BIN` to require the installed wheel's guarded
+[MLIR/SPIR-V compiler](VULKAN_COMPILER.md), including private partial outputs,
+stable intrinsics, fresh native loads on cache hits and fresh-process cache
+reuse. `--vulkan-bin SHADER_BIN` selects the four external shader tools; it
+defaults to `PREFIX/bin` when `--vulkan-sdk PREFIX` is supplied, otherwise
+uses `PATH`. Ordinary Vulkan execution needs neither LLVM nor shader tools.
+Every wheel, including CPU-only builds, contains the optional Python compiler
+and generated canonical helper source without linking LLVM or Vulkan into CPU
+imports. A Vulkan wheel still needs a loader and GPU to execute GPU work.

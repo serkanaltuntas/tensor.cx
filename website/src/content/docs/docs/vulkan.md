@@ -126,7 +126,9 @@ approximation. Norms preserve sequential binary32 accumulation and the CPU
 constant-row/epsilon rules. Attention allocates the full score/probability
 matrices and makes no FlashAttention or optimized-throughput claim.
 
-DLPack and generated kernels/MLIR are not implemented on Vulkan.
+Explicit [guarded MLIR/SPIR-V kernels](/docs/experimental/#vulkan-kernels)
+support float32 expressions with private outputs and persistent code caching.
+DLPack is not implemented on Vulkan.
 Unsupported operations raise errors. Inspect capabilities before choosing a
 backend for a larger workload.
 

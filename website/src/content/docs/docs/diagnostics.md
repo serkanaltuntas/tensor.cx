@@ -45,6 +45,11 @@ LLVM checks do not execute tools by default. `--check-tools` runs bounded versio
 checks for the optional LLVM 21.1.8 toolchain. Ordinary tensor operations do not
 need LLVM, and compiler readiness does not establish support for every kernel.
 
+For available Vulkan devices, opt-in checks also inspect glslang and SPIR-V
+Tools. `llvm.ready_targets.vulkan` uses the two LLVM tools needed by that target
+and its shader tools; it does not require Clang. No kernel is compiled or
+launched by diagnostics. See [Vulkan kernels](/docs/experimental/#vulkan-kernels).
+
 See the [detailed contract and limitations](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/DIAGNOSTICS.md).
 
 ## Vulkan diagnostics

@@ -115,6 +115,7 @@ test('Vulkan guide states the supported subset and links to the matrix', async (
   await expect(page.locator('main')).toContainText('boolean any/all');
   await expect(page.locator('main')).toContainText('Only one physical Vulkan GPU has been tested');
   await expect(page.locator('main')).toContainText('TENSORCX_ENABLE_VULKAN=ON');
+  await expect(page.getByRole('link', { name: 'guarded MLIR/SPIR-V kernels', exact: true })).toHaveAttribute('href', '/docs/experimental/#vulkan-kernels');
   await expect(page.getByRole('link', { name: 'Vulkan timing and reuse', exact: true })).toHaveAttribute('href', '/docs/performance/#vulkan-timing-and-reuse');
   await page.getByRole('link', { name: 'full support matrix', exact: true }).click();
   await expect(page).toHaveURL('/docs/backends/');

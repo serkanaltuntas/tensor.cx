@@ -10,6 +10,7 @@ import ast
 from dataclasses import dataclass
 import inspect
 import operator
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -20,7 +21,7 @@ import weakref
 from typing import Callable, NoReturn, TypeAlias
 
 
-_SUPPORTED_TARGETS = {"auto", "cpu", "metal", "cuda"}
+_SUPPORTED_TARGETS = {"auto", "cpu", "metal", "cuda", "vulkan"}
 _SUPPORTED_BINARY_OPS = {
     ast.Add: "add",
     ast.Sub: "sub",
@@ -225,6 +226,28 @@ class CompiledCudaKernel:
 
 
 @dataclass(frozen=True, slots=True)
+class CompiledVulkanKernel:
+    """Optional MLIR/SPIR-V artifact bound to one concrete Vulkan device."""
+
+    name: str
+    target: str
+    ir: IRKernel
+    mlir_source: str
+    _module: object
+    cache_hit: bool = False
+
+    def launch(self, *args, thread_count: int | None = None, block_size: int = 256):
+        _, _, ordered, _, _, _, threads, block = _launch_contract(
+            self.ir, args, thread_count, block_size, device=self.target,
+            prefix="experimental MLIR Vulkan kernel", requires="launch requires matching Vulkan tensors",
+        )
+        from . import _core
+        from .tensor import Tensor
+        values = [value._impl if kind == "buffer" else value for kind, _, value in ordered]
+        return Tensor(_core._launch_vulkan_kernel(self._module, values, threads, block))
+
+
+@dataclass(frozen=True, slots=True)
 class IRName:
     name: str
 
@@ -322,7 +345,7 @@ class Kernel:
 
     def compile(
         self, *, target: str | None = None, compiler: str = "auto", cache: bool = True,
-    ) -> CompiledKernel | CompiledCpuKernel | CompiledCudaKernel:
+    ) -> CompiledKernel | CompiledCpuKernel | CompiledCudaKernel | CompiledVulkanKernel:
         selected = self.target if target is None else _validate_target(target)
         if not isinstance(cache, bool):
             raise TypeError("experimental kernel cache must be bool")
@@ -335,8 +358,11 @@ class Kernel:
                 from ._compiler.cpu import compile_kernel
             elif selected == "cuda":
                 from ._compiler.cuda import compile_kernel
+            elif selected.partition(":")[0] == "vulkan":
+                from ._compiler.vulkan import compile_kernel
+                return compile_kernel(self.parse_ir(), target=selected, cache=cache)
             else:
-                raise ValueError("MLIR compilation requires target 'cpu' or 'cuda'")
+                raise ValueError("MLIR compilation requires target 'cpu', 'cuda', or 'vulkan'")
             return compile_kernel(self.parse_ir(), cache=cache)
         resolved = "metal" if selected == "auto" else selected
         if resolved != "metal":
@@ -445,8 +471,15 @@ class Kernel:
 def _validate_target(target: str) -> str:
     if not isinstance(target, str):
         raise TypeError("experimental kernel target must be a string")
+    # Compilation targets can be selected without a device/toolchain probe.
+    # Concrete device ownership is established by the Vulkan adapter on load.
+    if target.startswith("vulkan:"):
+        suffix = target.partition(":")[2]
+        if not re.fullmatch(r"[0-9]+", suffix) or int(suffix) > 2**31 - 1:
+            raise ValueError("Vulkan compilation requires a nonnegative device index")
+        return "vulkan" if int(suffix) == 0 else "vulkan:" + str(int(suffix))
     if target not in _SUPPORTED_TARGETS:
-        raise ValueError("experimental kernel target must be 'auto', 'cpu', 'metal', or 'cuda'")
+        raise ValueError("experimental kernel target must be 'auto', 'cpu', 'metal', 'cuda', or 'vulkan'")
     return target
 
 
@@ -2151,6 +2184,7 @@ def maximum(lhs, rhs):
 
 __all__ = [
     "CompiledKernel",
+    "CompiledVulkanKernel",
     "IRAssign",
     "IRBinaryOp",
     "IRCall",

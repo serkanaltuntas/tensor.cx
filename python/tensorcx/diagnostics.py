@@ -56,7 +56,7 @@ def memory_info(device: str | Device = "cpu") -> dict:
     return dict(route.diagnostic_info()["memory"])
 
 
-def _llvm_info(check_tools, cuda_available=False):
+def _llvm_info(check_tools, cuda_available=False, vulkan_available=False):
     from ._compiler.cpu import LLVM_VERSION
     explicit = os.environ.get("TENSORCX_LLVM_BIN")
     tools = {}
@@ -88,18 +88,41 @@ def _llvm_info(check_tools, cuda_available=False):
             cuda_target = True
         except (RuntimeError, OSError):
             pass
+    from ._compiler.vulkan import VULKAN_TOOLS, tool_version
+    explicit_vulkan = os.environ.get('TENSORCX_VULKAN_BIN')
+    vulkan_tools = {}
+    for name in VULKAN_TOOLS:
+        candidate = str(Path(explicit_vulkan) / name) if explicit_vulkan is not None else shutil.which(name)
+        found = bool(explicit_vulkan != '' and candidate and Path(candidate).is_file()
+                     and os.access(candidate, os.X_OK))
+        record = {'status': 'not_checked' if found else 'missing', 'version': None}
+        if found and check_tools and vulkan_available:
+            try:
+                result = subprocess.run([candidate, '--version'], capture_output=True,
+                                        text=True, timeout=3, check=False)
+                record['version'] = tool_version(name, result.stdout + result.stderr)
+                record['status'] = 'ready' if result.returncode == 0 and record['version'] else 'incompatible'
+            except subprocess.TimeoutExpired: record['status'] = 'timeout'
+            except (OSError, UnicodeError): record['status'] = 'error'
+        vulkan_tools[name] = record
+    vulkan_target = vulkan_available and hasattr(_core, '_vulkan_kernel_support')
+    vulkan_ready = (vulkan_target and all(tools[name]['status'] == 'ready' for name in ('mlir-opt', 'mlir-translate'))
+                    and all(tool['status'] == 'ready' for tool in vulkan_tools.values()))
     return {"required_version": LLVM_VERSION, "status": status, "tools": tools,
-            "runtime_targets": {"cpu": cpu_target, "cuda": cuda_target},
+            "vulkan_tools": vulkan_tools,
+            "runtime_targets": {"cpu": cpu_target, "cuda": cuda_target, "vulkan": vulkan_target},
             "ready_targets": {"cpu": cpu_target and status == "ready",
-                              "cuda": cuda_target and status == "ready"},
+                              "cuda": cuda_target and status == "ready", "vulkan": vulkan_ready},
+            "vulkan_hint": "Vulkan kernels need mlir-opt/mlir-translate plus glslangValidator and SPIR-V Tools; set TENSORCX_VULKAN_BIN for a custom shader-tool directory.",
             "hint": "Set TENSORCX_LLVM_BIN to an executable LLVM 21.1.8 toolchain; ordinary tensor operations do not require LLVM."}
 
 
 def diagnostics(*, check_tools: bool = False) -> dict:
     """Return a JSON-compatible local report without paths or credentials.
 
-    ``check_tools=True`` runs three external LLVM version probes (3 seconds
-    each). No kernels, allocations, downloads or configuration writes are made;
+    ``check_tools=True`` runs bounded LLVM version probes and, for an available
+    Vulkan backend, shader-tool probes (3 seconds each). No kernels, allocations,
+    downloads or configuration writes are made;
     device discovery can initialize the accelerator context.
     """
     if not isinstance(check_tools, bool):
@@ -131,4 +154,5 @@ def diagnostics(*, check_tools: bool = False) -> dict:
     return {"schema_version": 1, "status": "ok", "version": _core.version(),
             "python": platform.python_version(), "system": platform.system(),
             "machine": platform.machine(), "backends": backends,
-            "llvm": _llvm_info(check_tools, backends.get("cuda", {}).get("available") is True)}
+            "llvm": _llvm_info(check_tools, backends.get("cuda", {}).get("available") is True,
+                               backends.get("vulkan", {}).get("available") is True)}

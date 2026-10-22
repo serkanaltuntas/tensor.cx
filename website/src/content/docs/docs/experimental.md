@@ -11,11 +11,13 @@ require a compiler SDK at runtime. Explicit custom-kernel compilation does.
 | Metal / MSL | Restricted Python kernel DSL, float32 elementwise and bounded rowwise reductions | Apple Metal compiler tools and an available Metal device |
 | CPU / MLIR | Guarded float32 arithmetic, division, sqrt/abs/exp/log/rsqrt/tanh/sigmoid/SiLU, minimum/maximum, comparisons and select; bounded local/nested expressions | Validated on Linux x86_64 with LLVM/MLIR 21.1.8 |
 | CUDA / MLIR | Guarded float32 add/subtract/multiply/divide, sqrt/abs/exp/log/rsqrt/tanh/sigmoid/SiLU, minimum/maximum, comparisons and select; bounded local/nested expressions | Validated CPU toolchain plus CUDA toolkit 12.4, CUDA Driver API 13.0, and sm_52 hardware |
+| Vulkan / MLIR → SPIR-V | Guarded float32 arithmetic, the same math intrinsics, minimum/maximum, comparisons and select; bounded expressions and private outputs | LLVM 21.1.8 mlir-opt/mlir-translate, glslang/SPIR-V Tools and an available Vulkan compute GPU; one GTX 980 Ti validated |
 
 ## Explicit compilation
 
 The MLIR path is selected using `kernel.compile(target="cpu", compiler="mlir")`
-or `kernel.compile(target="cuda", compiler="mlir")` on a supported experimental
+or `kernel.compile(target="cuda", compiler="mlir")` or
+`kernel.compile(target="vulkan", compiler="mlir")` on a supported experimental
 kernel. External LLVM tools must be discoverable through the documented
 toolchain setup. A missing toolchain or unsupported kernel fails explicitly.
 
@@ -121,11 +123,39 @@ and the negative interval `(-128, -80)` are outside its accuracy promise.
 Ordinary tensor `cx.silu` is an existing separate API. See the
 [SiLU contract and example](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/MLIR_SILU.md).
 
-Compiled CPU/CUDA/Metal code is cached in private local storage by default,
+Compiled CPU/CUDA/Metal/Vulkan code is cached in private local storage by default,
 including across process restarts. Inspect `compiled.cache_hit` for reuse, or
 use `kernel.compile(..., cache=False)` to bypass storage.
 `TENSORCX_DISABLE_CACHE=1` disables persistence globally. Toolchain and target
 checks still run on hits; this does not make kernels standalone packages.
+
+## Vulkan kernels
+
+```python
+compiled = kernel.compile(target="vulkan", compiler="mlir")
+result = compiled.launch(a, b, out, n, block_size=256)
+```
+
+Here `kernel` is a supported guarded kernel; `a`, `b` and the output template
+are matching float32 Vulkan tensors, and `n` equals the requested thread count.
+Zero, one or two inputs are supported. The compiler accepts up to 32 locals,
+expression depth 16 and 64 operations, followed by one final store. Arbitrary
+indices, output reads, loops, broadcasting and additional dtypes are rejected.
+Results own private GPU storage, retain unwritten suffixes and preserve inputs
+and the output template even when they alias. Operations remain synchronous.
+
+The body is generated as typed MLIR and linked with the same integer RNE math
+helpers used by ordinary Vulkan operations, preserving gradual underflow.
+`target="vulkan:0"` is the first-device alias; indexed targets bind to their
+actual device. Missing tools or devices produce errors without CPU substitution.
+Tools are optional for ordinary tensor work. Set `TENSORCX_LLVM_BIN` for LLVM
+21.1.8 and `TENSORCX_VULKAN_BIN` for shader tools outside `PATH`.
+
+Cache hits revalidate SPIR-V and create a fresh native module/JIT; they do not
+reuse loaded device handles. Use `benchmarks/bench_compilation_cache.py --target
+vulkan` for paired compilation, launch and process-restart measurements. See the
+[Vulkan compiler contract](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/VULKAN_COMPILER.md)
+for numerical bounds, ownership and validation limits.
 See the [cache controls and trust contract](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/COMPILATION_CACHE.md).
 
 The kernel parser reads Python source. Define kernels in source files, not an

@@ -1,0 +1,12 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+layout(local_size_x=1) in;
+layout(set=0,binding=0,std430) readonly buffer A { uint a[]; };
+layout(set=0,binding=1,std430) readonly buffer B { uint b[]; };
+layout(set=0,binding=2,std430) buffer Output { uint result[]; };
+layout(push_constant) uniform Config { uint count, reserved, block, reserved2, groups_x; } p;
+#include "float32.glsl"
+void main() {
+    uint index = (gl_WorkGroupID.y * p.groups_x + gl_WorkGroupID.x) * p.block + gl_LocalInvocationID.x;
+    if (index < p.count) result[index] = cx_f32_add_bits(a[index], b[index]);
+}

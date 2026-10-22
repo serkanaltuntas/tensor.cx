@@ -93,6 +93,7 @@ Vulkan increment:       optional Linux SPIR-V copies/factories/basic arithmetic,
                         log/sqrt/abs/clip/topk, activations/norms and inference;
                         shared composites, GPU embedding validation and masked softmax;
                         owned-allocation diagnostics, host/GPU timing and bounded reuse;
+                        explicit guarded MLIR/SPIR-V kernels and persistent code cache;
                         basic float32 integer-significand RNE/gradual underflow;
                         docs/VULKAN_BACKEND.md (2026-10-22, GTX 980 Ti validation)
 Next implementation:    wider device compatibility and continuous GPU validation
@@ -110,7 +111,7 @@ DLPack increment:       CPU/CUDA storage exchange and optional inference-only
                         PyTorch linear custom op; docs/DLPACK.md
 Diagnostics increment:  CPU/CUDA capability, installation and memory snapshots;
                         standalone CLI; docs/DIAGNOSTICS.md (Metal memory deferred)
-Cache increment:        persistent experimental CPU/CUDA/Metal code artifacts;
+Cache increment:        persistent experimental CPU/CUDA/Metal/Vulkan code artifacts;
                         compile/launch measurements and compilation profiles implemented;
                         CPU linker queries overlap while retaining fresh validation;
                         docs/COMPILATION_CACHE.md; broader compiler work remains open

@@ -34,14 +34,14 @@ CPU/Metal/CUDA expose index 0; Vulkan has indexed routes with one physical GPU v
 | Float32 linear, affine norms, embedding, attention | Yes | Yes | Yes | Yes |
 | Float32 exp, GELU, SiLU | Yes | Yes | Yes | Yes |
 | Float32 softmax, RMSNorm, LayerNorm | Yes | Yes | Yes | Yes |
-| Generated kernels | Optional MLIR subset | Experimental MSL subset | Optional MLIR subset | Not implemented |
+| Generated kernels | Optional MLIR subset | Experimental MSL subset | Optional MLIR subset | Optional guarded MLIR/SPIR-V subset |
 | `empty` allocation | CPU storage | Existing CPU staging/copy | Direct device allocation | Direct device allocation |
 | DLPack exchange (contiguous float32/int32/bool) | Yes | Not implemented | Device 0 | Not implemented |
 | Installation and operation/dtype diagnostics | Yes | Availability/capabilities | Yes | Yes |
 | Memory snapshots | System physical memory | Not implemented | Device-wide free/total | Device-local heap total |
 | Native host profiling | Bounded spans | Not instrumented | Bounded spans | Bounded spans |
 | Optional GPU timing | No | Not instrumented | Kernel events | Copy/compute timestamps |
-| Persistent compiled-code cache | Optional MLIR | Experimental MSL | Optional MLIR | Not implemented |
+| Persistent compiled-code cache | Optional MLIR | Experimental MSL | Optional MLIR | Optional MLIR/SPIR-V |
 | Bounded buffer pool | Not implemented | Not implemented | Explicit opt-in scope | Explicit opt-in scope + command reuse |
 
 `empty` has unspecified contents on every backend. CUDA skips CPU payload
@@ -99,13 +99,14 @@ log uses a bounded-error series, and clip/topk preserve selection bits.
 Float32 activations/norms and inference now execute on-device, including
 GPU-validated embedding indices and masked/causal attention. Host/GPU timing,
 owned-allocation diagnostics and [bounded reuse](/docs/performance/#vulkan-timing-and-reuse)
-are available. DLPack and MLIR
-remain outside this slice. See [Vulkan setup and limits](/docs/vulkan/).
+are available. Explicit [guarded MLIR/SPIR-V kernels](/docs/experimental/#vulkan-kernels)
+support the bounded float32 subset with private outputs and persistent code
+caching. DLPack remains outside this slice. See [Vulkan setup and limits](/docs/vulkan/).
 
 ## Compiler boundary
 
 MLIR is an optional compiler path, not a hardware backend. Its current
-CPU/CUDA runtime integration handles a guarded float32 elementwise subset.
+CPU/CUDA/Vulkan runtime integration handles a guarded float32 elementwise subset.
 See [experimental kernels](/docs/experimental/) for requirements and non-goals.
 
 ROCm, float16/bfloat16, asynchronous streams and multi-device execution are not

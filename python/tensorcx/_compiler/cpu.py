@@ -29,7 +29,7 @@ CLANG_FLAGS = ["-O2", "-fPIC", "-shared", "-ffp-contract=off",
                "-Wno-override-module", "-Wl,-Bsymbolic"]
 
 
-def _run(command: list[str]) -> str:
+def _run(command: list[str], *, include_stderr=False) -> str:
     try:
         result = subprocess.run(command, capture_output=True, text=True,
                                 timeout=COMMAND_TIMEOUT, check=False)
@@ -40,7 +40,7 @@ def _run(command: list[str]) -> str:
             f"MLIR tool failed ({result.returncode}): {command[0]}\n"
             f"{result.stderr[-4000:]}"
         )
-    return result.stdout
+    return result.stdout + (result.stderr if include_stderr else "")
 
 
 def _run_parallel(commands: list[list[str]]) -> list[str]:
@@ -80,12 +80,12 @@ def _run_parallel(commands: list[list[str]]) -> list[str]:
     return outputs
 
 
-def toolchain() -> dict[str, str]:
+def toolchain(*, names=("mlir-opt", "mlir-translate", "clang")) -> dict[str, str]:
     explicit = os.environ.get("TENSORCX_LLVM_BIN")
     if explicit == "":
         raise RuntimeError("TENSORCX_LLVM_BIN must name an LLVM directory")
     tools = {}
-    for name in ("mlir-opt", "mlir-translate", "clang"):
+    for name in names:
         path = str(Path(explicit) / name) if explicit is not None else shutil.which(name)
         if not path or not Path(path).is_file() or not os.access(path, os.X_OK):
             raise RuntimeError(f"MLIR requires executable {name}; set TENSORCX_LLVM_BIN to LLVM {LLVM_VERSION}")

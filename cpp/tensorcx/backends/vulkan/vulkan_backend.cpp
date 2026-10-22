@@ -1,4 +1,5 @@
 #include "tensorcx/backends/vulkan/vulkan_backend.h"
+#include "tensorcx/backends/vulkan/vulkan_kernel.h"
 
 #include <array>
 #include <bit>
@@ -52,6 +53,10 @@ std::uint32_t shader_operation(OpKind kind) {
 }  // namespace
 
 Status VulkanBackend::execute(const BackendExecution& execution) {
+  if (execution.op_class == BackendOpClass::kKernel) {
+    ProfileScope profile(ProfileCategory::kDispatch, "vulkan_kernel_executor", "vulkan");
+    return execute_compiled_kernel(execution);
+  }
   ProfileScope profile(ProfileCategory::kDispatch, "vulkan_executor", "vulkan", std::nullopt, execution.op.kind);
   if (auto status = validate_primitive_execution_contract(execution, "vulkan"); !status.ok()) return status;
   if (is_nn_operation(execution.op.kind)) return execute_nn(*this, execution);

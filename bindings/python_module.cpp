@@ -46,6 +46,7 @@
 #include "tensorcx/backends/vulkan/vulkan_backend.h"
 #include "tensorcx/backends/vulkan/vulkan_context.h"
 #include "tensorcx/backends/vulkan/vulkan_memory_pool.h"
+#include "tensorcx/backends/vulkan/vulkan_kernel.h"
 #endif
 
 #ifndef TENSORCX_RUNTIME_VERSION
@@ -1490,6 +1491,39 @@ NB_MODULE(_core, module) {
 
 #if TENSORCX_ENABLE_VULKAN
   using tensorcx::vulkan::VulkanTensor;
+  nb::class_<tensorcx::vulkan::VulkanKernelModule>(module, "_VulkanKernelModule");
+  module.def("_vulkan_kernel_support", [](int index) {
+    const auto status = without_gil([&] { return tensorcx::vulkan::compiled_kernel_support(index); });
+    if (!status.ok()) throw_status(status);
+  });
+  module.def("_load_vulkan_kernel", [](nb::bytes data, const std::string& kinds,
+      nb::handle output, nb::handle guard, int index) {
+    const std::string artifact(data.c_str(), data.size());
+    const auto out = cast_uint32_or_throw(output, "kernel output index must be uint32");
+    const auto bound = cast_uint32_or_throw(guard, "kernel guard index must be uint32");
+    return unwrap(without_gil([&] {
+      return tensorcx::vulkan::VulkanKernelModule::load(artifact, {kinds, out, bound}, index);
+    }));
+  });
+  module.def("_launch_vulkan_kernel", [](std::shared_ptr<tensorcx::vulkan::VulkanKernelModule> compiled,
+      nb::sequence values, nb::handle threads, nb::handle block) {
+    std::deque<tensorcx::Tensor> tensors;
+    std::vector<tensorcx::KernelArgument> arguments;
+    for (nb::handle value : values) {
+      if (nb::isinstance<VulkanTensor>(value)) {
+        tensors.push_back(tensorcx::vulkan::to_core_tensor(nb::cast<const VulkanTensor&>(value)));
+        arguments.push_back({tensorcx::KernelArgumentKind::kTensor, &tensors.back(), 0});
+      } else {
+        arguments.push_back({tensorcx::KernelArgumentKind::kUInt32, nullptr,
+                            cast_uint32_or_throw(value, "kernel scalar arguments must be uint32")});
+      }
+    }
+    const auto count = cast_uint32_or_throw(threads, "thread_count must be uint32");
+    const auto group = cast_uint32_or_throw(block, "block_size must be uint32");
+    return unwrap(without_gil([&] {
+      return tensorcx::vulkan::launch_compiled_kernel(compiled, arguments, count, group);
+    }));
+  });
   nb::class_<tensorcx::vulkan::MemoryPool>(module, "_VulkanMemoryPool")
       .def_static("create", [](int index, nb::handle bytes, nb::handle blocks) {
         if (is_bool_like(bytes) || is_bool_like(blocks)) throw std::invalid_argument("memory pool limits must be integers");

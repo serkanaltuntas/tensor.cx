@@ -86,6 +86,7 @@ def main():
     parser.add_argument('--output', type=Path, required=True, help='new directory; never overwrites a previous run')
     parser.add_argument('--variants', choices=['cpu', 'cuda', 'vulkan', 'both'], default='both')
     parser.add_argument('--vulkan-sdk', type=Path, help='optional prefix containing Vulkan include/ and bin/ tools')
+    parser.add_argument('--vulkan-bin', type=Path, help='optional Vulkan compiler shader-tool directory')
     parser.add_argument('--llvm-bin', type=Path, help='also require MLIR execution with this external LLVM toolchain')
     args = parser.parse_args()
     if platform.system() != 'Linux':
@@ -93,7 +94,7 @@ def main():
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
     env = os.environ.copy()
-    for key in ('PYTHONPATH', 'PYTHONHOME', 'VIRTUAL_ENV', 'CMAKE_ARGS', 'TENSORCX_LLVM_BIN',
+    for key in ('PYTHONPATH', 'PYTHONHOME', 'VIRTUAL_ENV', 'CMAKE_ARGS', 'TENSORCX_LLVM_BIN', 'TENSORCX_VULKAN_BIN',
                 'LD_LIBRARY_PATH', 'LD_PRELOAD'):
         env.pop(key, None)
     env['CMAKE_BUILD_PARALLEL_LEVEL'] = '2'
@@ -128,6 +129,13 @@ def main():
                          'cpp/tensorcx/backends/vulkan/vulkan_memory_pool.cpp',
                          'cpp/tensorcx/backends/vulkan/vulkan_memory_pool.h',
                          'cpp/tensorcx/backends/vulkan/vulkan_resources.h',
+                         'cpp/tensorcx/backends/vulkan/vulkan_kernel.cpp',
+                         'cpp/tensorcx/backends/vulkan/vulkan_kernel.h',
+                         'cpp/tensorcx/backends/vulkan/kernels/math_functions.glsl',
+                         'cpp/tensorcx/backends/vulkan/kernels/nn_functions.glsl',
+                         'cpp/tensorcx/backends/vulkan/kernels/dsl_functions.glsl',
+                         'tests/cpp/vulkan_kernel_fixture.comp', 'cmake/embed_vulkan_helpers.py',
+                         'python/tensorcx/_compiler/vulkan.py',
                          'benchmarks/vulkan_runtime.py',
                          'python/tensorcx/_compiler/cuda.py', 'tools/distribution_probe.py',
                          'examples/cuda_mlp.py', 'bindings/dlpack.cpp',
@@ -161,7 +169,8 @@ def main():
             audit_wheel_notices(archive)
             if any(name.endswith('.pth') or 'editable' in name for name in names):
                 raise RuntimeError('editable artifacts in wheel')
-            for required in ('tensorcx/__init__.py', 'tensorcx/_compiler/cuda.py', 'tensorcx_doctor.py'):
+            for required in ('tensorcx/__init__.py', 'tensorcx/_compiler/cuda.py', 'tensorcx_doctor.py',
+                             'tensorcx/_compiler/vulkan.py', 'tensorcx/_compiler/_vulkan_helpers.py'):
                 if required not in names:
                     raise RuntimeError(f'wheel missing {required}')
             if len([name for name in names if name.startswith('tensorcx/_core.') and name.endswith('.so')]) != 1:
@@ -195,7 +204,7 @@ def main():
                 raise RuntimeError('installed diagnostic console script failed')
             record['diagnostics'] = doctor
             modes = [('without-llvm', []), ('hidden-gpu', ['--hidden-gpu'])]
-            if args.llvm_bin and variant != 'vulkan':
+            if args.llvm_bin:
                 modes.append(('with-llvm', ['--mlir']))
             for mode, flags in modes:
                 selected_env = runtime_env.copy()
@@ -206,6 +215,9 @@ def main():
                         selected_env['VK_ICD_FILENAMES'] = str(work / 'absent-icd.json')
                 if mode == 'with-llvm':
                     selected_env['TENSORCX_LLVM_BIN'] = str(args.llvm_bin.resolve())
+                    if variant == 'vulkan':
+                        shader_bin = args.vulkan_bin or (args.vulkan_sdk / 'bin' if args.vulkan_sdk else None)
+                        if shader_bin: selected_env['TENSORCX_VULKAN_BIN'] = str(shader_bin.resolve())
                 raw = run([*command, work / 'probe.py', '--variant', variant, *flags],
                           work, selected_env, destination / (mode + '.log'))
                 record['probes'].append({'mode': mode, 'result': json.loads(raw)})

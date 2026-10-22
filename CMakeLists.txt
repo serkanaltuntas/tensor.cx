@@ -25,6 +25,22 @@ endif()
 find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
 find_package(nanobind CONFIG REQUIRED)
 
+# Pure compiler resources are packaged even in CPU-only builds. This copies
+# project source with Python only: ordinary builds/imports never require LLVM.
+set(TENSORCX_VULKAN_HELPERS)
+foreach(TENSORCX_HELPER float32 math_functions nn_functions dsl_functions)
+  list(APPEND TENSORCX_VULKAN_HELPERS
+    "${CMAKE_CURRENT_SOURCE_DIR}/cpp/tensorcx/backends/vulkan/kernels/${TENSORCX_HELPER}.glsl")
+endforeach()
+set(TENSORCX_VULKAN_HELPER_MODULE "${CMAKE_CURRENT_BINARY_DIR}/python/_vulkan_helpers.py")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+  ${TENSORCX_VULKAN_HELPERS} "${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed_vulkan_helpers.py")
+execute_process(COMMAND "${Python_EXECUTABLE}"
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed_vulkan_helpers.py"
+  "${TENSORCX_VULKAN_HELPER_MODULE}" ${TENSORCX_VULKAN_HELPERS}
+  COMMAND_ERROR_IS_FATAL ANY)
+install(FILES "${TENSORCX_VULKAN_HELPER_MODULE}" DESTINATION tensorcx/_compiler)
+
 include(FetchContent)
 
 set(TENSORCX_ENABLE_METAL "AUTO" CACHE STRING "Enable the Apple Metal backend: AUTO, ON, or OFF")
@@ -355,13 +371,16 @@ if(TENSORCX_ENABLE_VULKAN)
       "${CMAKE_CURRENT_SOURCE_DIR}/cpp/tensorcx/backends/vulkan/kernels/reduction.glsl"
       "${CMAKE_CURRENT_SOURCE_DIR}/cpp/tensorcx/backends/vulkan/kernels/matmul.glsl"
       "${CMAKE_CURRENT_SOURCE_DIR}/cpp/tensorcx/backends/vulkan/kernels/math.glsl"
+      "${CMAKE_CURRENT_SOURCE_DIR}/cpp/tensorcx/backends/vulkan/kernels/math_functions.glsl"
       "${CMAKE_CURRENT_SOURCE_DIR}/cpp/tensorcx/backends/vulkan/kernels/nn.glsl"
+      "${CMAKE_CURRENT_SOURCE_DIR}/cpp/tensorcx/backends/vulkan/kernels/nn_functions.glsl"
     VERBATIM
   )
   add_library(tensorcx_vulkan STATIC
     cpp/tensorcx/backends/vulkan/vulkan_backend.cpp
     cpp/tensorcx/backends/vulkan/vulkan_context.cpp
     cpp/tensorcx/backends/vulkan/vulkan_memory_pool.cpp
+    cpp/tensorcx/backends/vulkan/vulkan_kernel.cpp
     cpp/tensorcx/backends/vulkan/vulkan_tensor.cpp
     cpp/tensorcx/backends/vulkan/vulkan_transform.cpp
     cpp/tensorcx/backends/vulkan/vulkan_predicate.cpp
@@ -378,6 +397,29 @@ if(TENSORCX_ENABLE_VULKAN)
   target_link_libraries(tensorcx_vulkan PUBLIC tensorcx_core ${CMAKE_DL_LIBS})
   set_target_properties(tensorcx_vulkan PROPERTIES POSITION_INDEPENDENT_CODE ON)
   if(TENSORCX_BUILD_TESTS)
+    set(TENSORCX_VULKAN_KERNEL_FIXTURE "${TENSORCX_VULKAN_GENERATED}/kernel_fixture.spv")
+    add_custom_command(OUTPUT "${TENSORCX_VULKAN_KERNEL_FIXTURE}"
+      COMMAND "${TENSORCX_GLSLANG_VALIDATOR}" -V --target-env vulkan1.1
+        --source-entrypoint main --entry-point tensorcx_kernel_v1
+        "-I${CMAKE_CURRENT_SOURCE_DIR}/cpp/tensorcx/backends/vulkan/kernels"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/cpp/vulkan_kernel_fixture.comp"
+        -o "${TENSORCX_VULKAN_KERNEL_FIXTURE}"
+      COMMAND "${TENSORCX_SPIRV_VAL}" --target-env vulkan1.1 "${TENSORCX_VULKAN_KERNEL_FIXTURE}"
+      DEPENDS tests/cpp/vulkan_kernel_fixture.comp cpp/tensorcx/backends/vulkan/kernels/float32.glsl
+      VERBATIM)
+    add_custom_target(tensorcx_vulkan_kernel_fixture DEPENDS "${TENSORCX_VULKAN_KERNEL_FIXTURE}")
+    add_executable(tensorcx_vulkan_kernel_tests tests/cpp/test_vulkan_kernel.cpp)
+    target_link_libraries(tensorcx_vulkan_kernel_tests PRIVATE tensorcx_vulkan)
+    add_dependencies(tensorcx_vulkan_kernel_tests tensorcx_vulkan_kernel_fixture)
+    foreach(TENSORCX_KERNEL_TEST IN ITEMS contract wait_failure unproven)
+      set(TENSORCX_KERNEL_ARGS)
+      if(NOT TENSORCX_KERNEL_TEST STREQUAL "contract")
+        set(TENSORCX_KERNEL_ARGS "${TENSORCX_KERNEL_TEST}")
+      endif()
+      add_test(NAME tensorcx_vulkan_kernel_${TENSORCX_KERNEL_TEST}
+        COMMAND tensorcx_vulkan_kernel_tests "${TENSORCX_VULKAN_KERNEL_FIXTURE}" ${TENSORCX_KERNEL_ARGS})
+      set_tests_properties(tensorcx_vulkan_kernel_${TENSORCX_KERNEL_TEST} PROPERTIES SKIP_RETURN_CODE 77)
+    endforeach()
     add_executable(tensorcx_vulkan_backend_tests tests/cpp/test_vulkan_backend_contract.cpp)
     target_link_libraries(tensorcx_vulkan_backend_tests PRIVATE tensorcx_vulkan)
     add_library(tensorcx_vulkan_no_loader SHARED tests/cpp/vulkan_no_loader.cpp)

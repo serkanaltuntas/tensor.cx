@@ -9,7 +9,7 @@ import json
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", action="store_true", help="emit a JSON report")
-    parser.add_argument("--check-tools", action="store_true", help="run bounded LLVM version checks")
+    parser.add_argument("--check-tools", action="store_true", help="run bounded compiler tool version checks")
     args = parser.parse_args(argv)
     try:
         runtime = importlib.import_module("tensorcx")
@@ -42,6 +42,8 @@ def main(argv=None):
             if info["operations"]:
                 print("  operations: " + "; ".join(f"{op}({','.join(dtypes)})" for op, dtypes in info["operations"].items()))
         print("LLVM: " + report["llvm"]["status"])
+        ready = [name for name, value in report['llvm']['ready_targets'].items() if value]
+        print("MLIR ready targets: " + (', '.join(ready) or 'none verified'))
         print(report["llvm"]["hint"])
     return 0 if report["status"] == "ok" else 1
 

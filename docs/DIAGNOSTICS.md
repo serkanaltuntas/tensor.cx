@@ -74,6 +74,12 @@ and `clang` with `--version`, each limited to three seconds. A matching LLVM
 `ready_targets`. Ordinary operations need no LLVM. An explicit empty or missing
 `TENSORCX_LLVM_BIN` does not silently fall back to PATH.
 
+For an available Vulkan backend, opt-in tool checks also query glslangValidator
+and three SPIR-V Tools executables, with the same per-tool deadline and no raw
+output/paths in the report. `llvm.vulkan_tools` and `ready_targets.vulkan` describe
+the [Vulkan compiler](VULKAN_COMPILER.md), which needs mlir-opt/mlir-translate
+but not Clang. Ordinary operations do not need these tools.
+
 The report contains no environment values, paths, GPU UUIDs, hostname or raw
 tool output. It is local-only and is never uploaded automatically.
 

@@ -231,7 +231,7 @@ jobs:
           wget https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
           sudo ./llvm.sh 21
-          sudo apt-get install -y clang-21 mlir-21-tools libmlir-21-dev
+          sudo apt-get install -y clang-21 mlir-21-tools libmlir-21-dev glslang-tools spirv-tools
 
       # find_llvm_bin() requires mlir-opt, mlir-translate, AND clang as
       # unversioned names in one directory. The apt packages may install them
@@ -285,6 +285,16 @@ jobs:
           TENSORCX_LLVM_BIN: ${{ runner.temp }}/llvm-bin
           TENSORCX_REQUIRE_MLIR: "1"
         run: uv run pytest tests/python/test_mlir_cuda_probe.py -k "not driver_runtime_probe" -v -rs
+
+      - name: Check typed Vulkan SPIR-V lowering without a GPU
+        env:
+          TENSORCX_LLVM_BIN: ${{ runner.temp }}/llvm-bin
+          TENSORCX_REQUIRE_MLIR_SPIRV: "1"
+        run: |
+          uv run pytest -v -rs \
+            tests/python/test_mlir_vulkan.py::test_lower_to_spirv_without_gpu \
+            tests/python/test_mlir_vulkan.py::test_lower_to_spirv_without_clang \
+            tests/python/test_mlir_vulkan.py::test_invalid_ir_rejected_before_tools_or_device
 
       - name: Check CPU compilation cache and profiling benchmark with real LLVM
         env:
