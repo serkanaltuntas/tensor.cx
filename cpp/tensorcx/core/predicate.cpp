@@ -45,6 +45,18 @@ PredicatePlan make_predicate_plan(const OpDesc& op, std::span<const Tensor> inpu
   return plan;
 }
 
+ReductionPlan make_boolean_reduction_plan(const OpDesc& op, const Shape& input) {
+  if (op.kind != OpKind::kAny && op.kind != OpKind::kAll)
+    throw std::invalid_argument("expected a boolean reduction operation");
+  if (op.reduction_axes) return make_reduction_plan(input, *op.reduction_axes);
+  if (input.empty()) {
+    if (op.axis != 0 && op.axis != -1)
+      throw std::invalid_argument("reduction axis is out of range");
+    return make_reduction_plan(input, Shape{});
+  }
+  return make_reduction_plan(input, Shape{op.axis});
+}
+
 MaskedSelectPlan make_masked_select_plan(const Tensor& input, const Tensor& mask) {
   if (mask.dtype != DType::kBool) throw std::invalid_argument("mask must be bool");
   (void)dtype_size(input.dtype);

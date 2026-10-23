@@ -97,8 +97,7 @@ Status execute_predicate(const BackendExecution& execution) {
     }
     if (kind == OpKind::kAny || kind == OpKind::kAll) {
       if (input.dtype() != DType::kBool) throw std::invalid_argument("any/all require bool tensors");
-      const auto axes = execution.op.reduction_axes.value_or(input.shape().empty() ? Shape{} : Shape{execution.op.axis});
-      const auto plan = make_reduction_plan(input.shape(), axes);
+      const auto plan = make_boolean_reduction_plan(execution.op, input.shape());
       const auto logical_count = narrow(numel(plan.output_shape));
       const auto reduction = narrow(plan.reduction_size);
       auto allocated = empty(plan.output_shape, DType::kBool, input.device().index);

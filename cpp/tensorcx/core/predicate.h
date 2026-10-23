@@ -20,6 +20,7 @@ struct PredicatePlan {
 // Type/shape validation shared by CPU and accelerators. Concrete buffer and
 // device validation remains at each backend's existing from_core_tensor gate.
 PredicatePlan make_predicate_plan(const OpDesc& op, std::span<const Tensor> inputs);
+ReductionPlan make_boolean_reduction_plan(const OpDesc& op, const Shape& input);
 struct MaskedSelectPlan { Shape tail_shape; Dim block_size; };
 MaskedSelectPlan make_masked_select_plan(const Tensor& input, const Tensor& mask);
 Dim broadcast_offset(Dim flat, const Shape& shape, const Shape& strides);

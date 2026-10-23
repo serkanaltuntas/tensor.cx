@@ -57,8 +57,7 @@ Status execute_predicate(const BackendExecution& execution) {
   const auto& input = execution.inputs[0];
   if (kind == OpKind::kAny || kind == OpKind::kAll) {
     if (input.dtype != DType::kBool) return {StatusCode::kInvalidArgument, "any/all require bool tensors"};
-    const auto axes = execution.op.reduction_axes.value_or(input.shape.empty() ? Shape{} : Shape{execution.op.axis});
-    const auto plan = make_reduction_plan(input.shape, axes);
+    const auto plan = make_boolean_reduction_plan(execution.op, input.shape);
     auto output = CudaBuffer::create(DType::kBool, plan.output_shape);
     if (!output) return output.status();
     if (numel(plan.output_shape)) {

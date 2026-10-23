@@ -1178,8 +1178,7 @@ Expected<MetalTensor> execute_predicate(const OpDesc& op, const std::vector<Meta
   const auto& input = inputs[0];
   if (op.kind == OpKind::kAny || op.kind == OpKind::kAll) {
     if (input.dtype() != DType::kBool) return Status(StatusCode::kInvalidArgument, "any/all require bool tensors");
-    const auto axes = op.reduction_axes.value_or(input.shape().empty() ? Shape{} : Shape{op.axis});
-    const auto plan = make_reduction_plan(input.shape(), axes);
+    const auto plan = make_boolean_reduction_plan(op, input.shape());
     if (!plan.reduction_size)
       return fill(OpDesc{OpKind::kFill}, plan.output_shape, DType::kBool, op.kind == OpKind::kAll);
     auto count_result = checked_thread_count(numel(plan.output_shape));

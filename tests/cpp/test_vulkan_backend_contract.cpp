@@ -15,6 +15,7 @@
 #include "batched_matmul_contract.h"
 #include "math_contract.h"
 #include "inference_contract.h"
+#include "predicate_contract.h"
 
 using namespace tensorcx;
 namespace vk = tensorcx::vulkan;
@@ -300,6 +301,9 @@ void clone_contract() {
 void contract() {
   vk::VulkanBackend backend;
   clone_contract();
+  predicate_contract(backend,
+      [](const cpu::CpuTensor& input) { return vk::to_core_tensor(vk::from_cpu(input).value()); },
+      [](const Tensor& output) { return vk::to_cpu(vk::from_core_tensor(output).value()).move_value(); });
   performance_contract(backend);
   inference_contract(backend,
       [](const cpu::CpuTensor& input) { return vk::to_core_tensor(vk::from_cpu(input).value()); },

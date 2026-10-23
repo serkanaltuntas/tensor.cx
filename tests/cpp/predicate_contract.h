@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstring>
+#include <limits>
 #include <stdexcept>
 #include <vector>
 
@@ -92,4 +93,49 @@ void predicate_contract(tensorcx::Backend& backend, Upload upload, Download down
       }
     }
   }
+
+  // A scalar accepts only the single-axis spelling 0/-1. Explicit axes remain
+  // authoritative, including an empty axis set with an otherwise unused axis.
+  cpu::CpuTensor sentinel(DType::kInt32, {2});
+  sentinel.mutable_int32_data()[0] = 17;
+  sentinel.mutable_int32_data()[1] = 23;
+  const auto untouched = upload(sentinel);
+  for (auto raw : {0, 255}) {
+    cpu::CpuTensor scalar(DType::kBool, {});
+    scalar.mutable_bool_data()[0] = raw;
+    const std::array<Tensor, 1> inputs{upload(scalar)};
+    for (auto kind : {OpKind::kAny, OpKind::kAll}) {
+      OpDesc op{kind};
+      std::array<Tensor, 1> outputs{untouched};
+      BackendExecution request{BackendOpClass::kPrimitive, op, inputs, outputs};
+      for (Dim axis : {Dim{0}, Dim{-1}}) {
+        request.op.axis = axis;
+        check(backend.execute(request).ok(), "boolean scalar rejected valid axis");
+        const auto result = download(outputs[0]);
+        check(result.dtype() == DType::kBool && result.shape().empty() &&
+              result.bool_data()[0] == (raw != 0), "boolean scalar reduction mismatch");
+      }
+      for (Dim axis : {std::numeric_limits<Dim>::min(), Dim{-2}, Dim{1}, Dim{2},
+                       Dim{42}, std::numeric_limits<Dim>::max()}) {
+        request.op.axis = axis;
+        outputs[0] = untouched;
+        check(backend.execute(request).code() == StatusCode::kInvalidArgument,
+              "boolean scalar accepted invalid axis");
+        check(outputs[0].buffer == untouched.buffer && outputs[0].dtype == untouched.dtype &&
+              outputs[0].shape == untouched.shape && outputs[0].strides == untouched.strides &&
+              outputs[0].device.type == untouched.device.type &&
+              outputs[0].device.index == untouched.device.index && outputs[0].offset == untouched.offset,
+              "boolean scalar axis failure changed output");
+      }
+      request.op.axis = 42;
+      request.op.reduction_axes = Shape{};
+      check(backend.execute(request).ok(), "explicit boolean axes did not override unused axis");
+      const auto result = download(outputs[0]);
+      check(result.shape().empty() && result.bool_data()[0] == (raw != 0),
+            "explicit boolean scalar axes mismatch");
+    }
+  }
+  const auto preserved = download(untouched);
+  check(preserved.int32_data()[0] == 17 && preserved.int32_data()[1] == 23,
+        "invalid boolean reduction wrote to the original output");
 }

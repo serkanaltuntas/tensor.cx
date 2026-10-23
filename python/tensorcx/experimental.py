@@ -1119,16 +1119,16 @@ def _reference_execute(kernel_ir, arrays, scalars, thread_count, block_size):
                 rhs_tag, rhs = "int", int(rhs)
             if "float" in (lhs_tag, rhs_tag):
                 lhs_f, rhs_f = to_float(lhs_tag, lhs), to_float(rhs_tag, rhs)
-                if expression.op == "add":
-                    return ("float", np.float32(lhs_f + rhs_f))
-                if expression.op == "sub":
-                    return ("float", np.float32(lhs_f - rhs_f))
-                if expression.op == "div":
-                    # Hardware division returns IEEE values rather than Python
-                    # exceptions, including when callers set NumPy to raise.
-                    with np.errstate(all="ignore"):
+                # Hardware arithmetic returns IEEE values independently of the
+                # caller's NumPy policy. Restore that policy after each result.
+                with np.errstate(all="ignore"):
+                    if expression.op == "add":
+                        return ("float", np.float32(lhs_f + rhs_f))
+                    if expression.op == "sub":
+                        return ("float", np.float32(lhs_f - rhs_f))
+                    if expression.op == "div":
                         return ("float", np.divide(lhs_f, rhs_f, dtype=np.float32))
-                return ("float", np.float32(lhs_f * rhs_f))
+                    return ("float", np.float32(lhs_f * rhs_f))
             tag = "uint" if "uint" in (lhs_tag, rhs_tag) else "int"
             if expression.op == "add":
                 bits = lhs + rhs

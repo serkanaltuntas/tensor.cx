@@ -1784,6 +1784,62 @@ def test_experimental_reference_add_matches_cpu_backend():
     np.testing.assert_array_equal(out.numpy(), np.zeros_like(values))
 
 
+def _reference_arithmetic_kernel(operation):
+    @cx.experimental.kernel
+    def add(a, b, out, n):
+        i = cx.experimental.program_id(0) * cx.experimental.block_size() + cx.experimental.thread_id()
+        if i < n:
+            out[i] = a[i] + b[i]
+
+    @cx.experimental.kernel
+    def subtract(a, b, out, n):
+        i = cx.experimental.program_id(0) * cx.experimental.block_size() + cx.experimental.thread_id()
+        if i < n:
+            out[i] = a[i] - b[i]
+
+    @cx.experimental.kernel
+    def multiply(a, b, out, n):
+        i = cx.experimental.program_id(0) * cx.experimental.block_size() + cx.experimental.thread_id()
+        if i < n:
+            out[i] = a[i] * b[i]
+
+    return {"add": add, "subtract": subtract, "multiply": multiply}[operation]
+
+
+@pytest.mark.parametrize("operation,left,right", [
+    ("add", np.finfo(np.float32).max, np.finfo(np.float32).max),
+    ("add", np.inf, -np.inf),
+    ("subtract", -np.finfo(np.float32).max, np.finfo(np.float32).max),
+    ("subtract", np.inf, np.inf),
+    ("multiply", np.finfo(np.float32).max, 2.0),
+    ("multiply", np.finfo(np.float32).smallest_normal, 0.1),
+    ("multiply", np.inf, 0.0),
+    ("add", 1.25, -0.5),
+    ("subtract", 1.25, -0.5),
+    ("multiply", 1.25, -0.5),
+])
+@pytest.mark.parametrize("alias", [False, True])
+def test_experimental_reference_arithmetic_preserves_numpy_error_policy(operation, left, right, alias):
+    a = cx.tensor([left, 7.0, -9.0], dtype=cx.float32)
+    b = cx.tensor([right, 2.0, 3.0], dtype=cx.float32)
+    out = a if alias else cx.tensor([-13.0, -13.0, -13.0])
+    original = out.numpy().copy()
+    before = np.geterr()
+    with np.errstate(all="raise"):
+        strict = np.geterr()
+        native = {"add": lambda: a + b, "subtract": lambda: a - b,
+                  "multiply": lambda: a * b}[operation]().numpy()
+        result = _reference_arithmetic_kernel(operation).reference(a, b, out, 1, thread_count=1).numpy()
+        assert np.geterr() == strict
+    assert np.geterr() == before
+    expected = original.copy()
+    expected[:1] = native[:1]
+    np.testing.assert_array_equal(np.isnan(result), np.isnan(expected))
+    non_nan = ~np.isnan(expected)
+    np.testing.assert_array_equal(result[non_nan].view(np.uint32), expected[non_nan].view(np.uint32))
+    np.testing.assert_array_equal(out.numpy(), original)
+
+
 def test_experimental_reference_rowsum_and_partial_threads():
     rows, cols = 8, 16
     matrix = np.random.default_rng(3).standard_normal((rows, cols))

@@ -58,8 +58,7 @@ CpuTensor predicate(const OpDesc& op, std::span<const CpuTensor> inputs) {
 CpuTensor reduce_boolean(const OpDesc& op, const CpuTensor& input) {
   ProfileScope profile(ProfileCategory::kCompute, "cpu_boolean_reduce", "cpu", std::nullopt, op.kind);
   if (input.dtype() != DType::kBool) throw std::invalid_argument("any/all require bool tensors");
-  const auto axes = op.reduction_axes.value_or(input.shape().empty() ? Shape{} : Shape{op.axis});
-  const auto plan = make_reduction_plan(input.shape(), axes);
+  const auto plan = make_boolean_reduction_plan(op, input.shape());
   CpuTensor output(DType::kBool, plan.output_shape);
   for (Dim i = 0; i < output.size(); ++i) {
     bool value = op.kind == OpKind::kAll;
