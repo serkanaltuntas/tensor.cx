@@ -3,12 +3,10 @@ title: Tensor operations
 description: The current tensor API, its numerical behavior, and its explicit limits.
 ---
 
-The optional [Vulkan backend](/docs/vulkan/) implements a smaller subset: copies,
-factories, shared shape views, basic arithmetic, casts, transpose and basic
-indexing/concat/stack/split, comparisons/masks, boolean `any`/`all` and numeric
-sum/max/mean/min/argmax, float32 vector/batched matmul, log/sqrt/abs/clip/topk,
-float32 activations/norms and inference. Inspect `cx.capabilities(device)` for
-operation/dtype placement; storage exchange and generated kernels have separate limits.
+This guide describes the shared tensor API on CPU, Metal, CUDA and optional
+[Vulkan](/docs/vulkan/). Inspect `cx.capabilities(device)` and the
+[support matrix](/docs/backends/) for operation/dtype placement. Storage exchange
+and generated kernels have separate limits.
 
 
 import { Code } from '@astrojs/starlight/components';
@@ -45,11 +43,12 @@ Start with `import tensorcx as cx`. The following example works on CPU:
 | Activate | `cx.exp(x)`, `gelu`, `silu` | Float32 |
 | Normalize | `softmax`, `rmsnorm`, `layernorm` | Float32, explicit axis; preserves shape |
 
-CUDA `empty` allocates directly on the device, without CPU staging, an upload
-or a fill kernel. Its contents remain unspecified, including reused pool
+CUDA and Vulkan `empty` allocate directly on the device, without CPU staging, an upload
+or a fill kernel. Their contents remain unspecified, including reused pool
 storage: write all elements before reading, or use `zeros`/`ones`. CPU and Metal
 keep their existing allocation paths. See the
-[factory contract and validation](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/CUDA_EMPTY.md).
+[CUDA factory contract and validation](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/CUDA_EMPTY.md)
+and [Vulkan allocation scope](/docs/vulkan/#supported-subset).
 
 Support varies by backend, particularly for `int32`. See the
 [support matrix](/docs/backends/).
@@ -63,14 +62,14 @@ Support varies by backend, particularly for `int32`. See the
 - `astype` truncates float-to-int toward zero and rejects NaN, infinity and
   out-of-range values. Int-to-float can lose precision. `copy=False` returns
   the input only when the dtype is unchanged; conversion still allocates.
-- CPU, Metal and CUDA `int32` add/subtract/multiply/negate and sum wrap on
+- CPU, Metal, CUDA and Vulkan `int32` add/subtract/multiply/negate and sum wrap on
   overflow. Max compares signed integers. Division and mean require float32.
 - Scalars preserve the tensor dtype. Int32 requires an integer scalar within
   int32 bounds; float32 narrows real scalars before arithmetic. Booleans and
   complex scalars are rejected. Float division follows IEEE infinity/NaN rules.
 - Reshape keeps the underlying buffer alive. Experimental Metal kernels writing
-  through a view also change other views sharing that storage. MLIR CPU/CUDA
-  launches preserve caller tensors by copying their output. NumPy export still copies.
+  through a view also change other views sharing that storage. MLIR CPU/CUDA/Vulkan
+  launches preserve caller tensors and return private output storage. NumPy export still copies.
   Export preserves shape within the installed NumPy's rank limit; a larger rank
   raises `ValueError`. Internal tensors may have higher rank: use
   `x.reshape((-1,)).numpy()` to export a flattened copy explicitly.
@@ -134,7 +133,7 @@ Empty batch/row/column dimensions yield empty outputs; a zero contracting
 dimension produces zeros. Outputs own independent contiguous storage. Neither
 broadcasting nor matmul exports input tensors to the CPU.
 
-CPU accepts `auto`, `cpu`, `reference`; CUDA accepts `auto`, `custom`. Metal
+CPU accepts `auto`, `cpu`, `reference`; CUDA and Vulkan accept `auto`, `custom`. Metal
 accepts `custom` and, when enabled, `optimized` (MPSGraph); `auto` selects the
 available path. MPSGraph drops common singleton batch axes, then requires at
 most 16 graph dimensions including the two matrix axes. Metal `auto` selects
@@ -146,7 +145,7 @@ Empty products and zero contracting dimensions also work with `optimized`.
 
 `log` and `sqrt` accept float32, with IEEE NaN/infinity domain results. `abs`
 also accepts int32; its minimum value wraps to itself. `min`, `argmax`, `clip`
-and `topk` accept float32/int32 on CPU, Metal and CUDA. Bool inputs require an
+and `topk` accept float32/int32 on CPU, Metal, CUDA and Vulkan. Bool inputs require an
 explicit conversion. All seven functions also have Tensor methods.
 
 `min` accepts the same axes/keepdims options as sum/max. `argmax` accepts one
@@ -194,7 +193,7 @@ can propagate through the final matmul even when their probability is zero.
 Empty key sequences produce zero output. All arguments are checked for empty
 inputs as well.
 
-These APIs execute natively on CPU, Metal and CUDA. Attention materializes score
+These APIs execute natively on CPU, Metal, CUDA and Vulkan. Attention materializes score
 and probability buffers and runs synchronously; it is not FlashAttention.
 There is no dropout, autograd, grouped-query head replication or KV cache.
 The [API contract](https://github.com/serkanaltuntas/tensor.cx/blob/main/docs/TENSOR_API.md#inference-operations)
