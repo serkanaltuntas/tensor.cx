@@ -102,7 +102,7 @@ test('features are discoverable from the homepage and link to usage boundaries',
 test('mobile pages fit and the documentation menu works', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   for (const path of ['/', '/docs/installation/', '/docs/backends/', '/docs/first-tensor/',
-    '/docs/status/', '/docs/examples/', '/docs/performance/']) {
+    '/docs/status/', '/docs/examples/', '/docs/performance/', '/docs/experiments/']) {
     await page.goto(path);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), path).toBe(true);
   }
@@ -127,5 +127,22 @@ test('Vulkan guide states the supported subset and links to the matrix', async (
   await expect(page.getByRole('link', { name: 'Vulkan timing and reuse', exact: true })).toHaveAttribute('href', '/docs/performance/#vulkan-timing-and-reuse');
   await page.getByRole('link', { name: 'full support matrix', exact: true }).click();
   await expect(page).toHaveURL('/docs/backends/');
-  await expect(page.getByRole('columnheader', { name: 'Vulkan (initial slice)' })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Vulkan (optional)' })).toBeVisible();
+});
+
+
+test('execution experiments are discoverable without advertising an OpenCL runtime backend', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Execution experiments', exact: true }).click();
+  await expect(page).toHaveURL('/docs/experiments/');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Execution experiments');
+  await expect(page.locator('main')).toContainText('OpenCL is not a registered tensor.cx backend');
+  await expect(page.getByRole('cell', { name: 'GTX 980 Ti / NVIDIA OpenCL', exact: true })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'i7-6700K / PoCL OpenCL CPU', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'runtime support matrix', exact: true }).click();
+  await expect(page).toHaveURL('/docs/backends/');
+  await expect(page.getByRole('columnheader', { name: 'Vulkan (optional)', exact: true })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: /OpenCL|PoCL|lavapipe/i })).toHaveCount(0);
+  await page.goto('/docs/status/');
+  await expect(page.getByRole('heading', { name: 'Completed execution experiments', exact: true })).toBeVisible();
 });

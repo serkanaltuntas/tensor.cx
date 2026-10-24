@@ -19,7 +19,7 @@ the [support matrix](/docs/backends/) defines backend availability.
 | Math | Tensor/scalar broadcasting, batched/vector matmul, all/multi-axis reductions with `keepdims`, log/sqrt/abs, min/argmax/clip/topk | [Math and selection](/docs/operations/#math-and-selection) |
 | Inference | Float32 linear, affine RMSNorm/LayerNorm, int32-indexed embedding and scaled dot-product attention with boolean/additive/causal masks | [Inference](/docs/operations/#inference) |
 | Storage exchange | CPU/CUDA device-0 DLPack; explicit CUDA/Vulkan shared allocation on matching Linux GPUs; optional inference-only PyTorch `linear` custom op | [Storage sharing](/docs/interoperability/) |
-| Diagnostics | Standalone `tensorcx-doctor`, installation checks, operation/dtype capabilities and CPU/CUDA memory snapshots | [Diagnostics](/docs/diagnostics/) |
+| Diagnostics | Standalone `tensorcx-doctor`, installation checks, operation/dtype capabilities, CPU/CUDA memory snapshots and Vulkan owned-allocation diagnostics | [Diagnostics](/docs/diagnostics/) |
 | Explicit kernels | Experimental Metal MSL and guarded float32 CPU/CUDA/Vulkan MLIR compilation; division, sqrt/abs/exp/log/rsqrt/tanh/sigmoid/SiLU, minimum/maximum, comparisons and value selection in the MLIR subset | [Experimental kernels](/docs/experimental/) |
 | Compilation tools | Persistent CPU/CUDA/Metal/Vulkan code cache; compile/launch latency measurements and separate compilation profiles | [Performance](/docs/performance/#compilation-cache-measurements) |
 | Runtime profiling | CPU/CUDA/Vulkan host spans and Chrome trace export; optional separate CUDA kernel events and Vulkan copy/compute timestamps | [Runtime profiling](/docs/performance/#native-runtime-profiling) |
@@ -28,7 +28,7 @@ the [support matrix](/docs/backends/) defines backend availability.
 | CUDA allocation | Bounded opt-in exact-size reuse, pool stats/trim, and direct `empty` allocation without CPU staging | [Memory reuse](/docs/performance/#bounded-cuda-memory-reuse) |
 | Vulkan performance | Owned-allocation diagnostics, host/GPU timing and bounded buffer/staging/command reuse | [Timing and reuse](/docs/performance/#vulkan-timing-and-reuse) |
 | Vulkan / SPIR-V | Optional Linux GPU copies/factories/views, casts, transpose, indexing/joins, comparisons/masks, reductions, arithmetic, float32 vector/batched matmul, log/sqrt/abs/clip/topk, activations/norms and inference; one GTX 980 Ti validated | [Setup and limits](/docs/vulkan/) |
-| Distribution | Reviewed Linux x86_64 CPU manylinux wheel pipeline for CPython 3.11–3.13; source builds for supported Metal/CUDA environments | [Installation](/docs/installation/) |
+| Distribution | Separate Linux x86_64 CPU/Vulkan manylinux wheel pipelines for CPython 3.11–3.13; source builds for supported Metal/CUDA environments | [Installation](/docs/installation/) |
 
 Operation/dtype combinations have explicit limits. For example, matmul,
 division, mean and inference arithmetic require float32; integer indices are
@@ -76,6 +76,14 @@ is provisioned and validated. A skipped GPU job is not execution evidence.
 
 Measurements retain their workload and shared-machine limits; no overall speedup
 or cross-architecture support is promised. See [measurement guidance](/docs/performance/).
+
+## Completed execution experiments
+
+The [execution experiments](/docs/experiments/) now include validated NVIDIA
+OpenCL GPU and PoCL CPU probes alongside the separate Mesa lavapipe probe and
+the implemented Vulkan runtime. All four bounded source-backlog experiments
+are complete. OpenCL remains a standalone experiment, outside the runtime
+support matrix; wider hardware acceptance is still open.
 
 ## Separate longer-term directions
 

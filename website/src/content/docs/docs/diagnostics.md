@@ -54,7 +54,7 @@ See the [detailed contract and limitations](https://github.com/serkanaltuntas/te
 
 ## Vulkan diagnostics
 
-The [initial Vulkan backend](/docs/vulkan/) reports its smaller capability set,
+The [optional Vulkan backend](/docs/vulkan/) reports its declared capabilities,
 API version, vendor-encoded raw driver version, storage-buffer limit and total
 device-local heap bytes. Available/free bytes are not collected. CUDA/Metal keep
 higher automatic selection priority; Vulkan indices are process-local and only

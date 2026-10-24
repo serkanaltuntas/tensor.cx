@@ -7,7 +7,7 @@ This matrix describes the implemented pre-alpha runtime, not a promise of
 production support. All operations are synchronous; tensors are contiguous and
 CPU/Metal/CUDA expose index 0; Vulkan has indexed routes with one physical GPU validated.
 
-| Capability | CPU | Metal | CUDA | Vulkan (initial slice) |
+| Capability | CPU | Metal | CUDA | Vulkan (optional) |
 | --- | --- | --- | --- | --- |
 | Float32/int32/bool tensor copy | Yes | Yes | Yes | Yes |
 | Explicit `.to()` placement / forced same-device copy | Yes | Yes | Yes | Yes |
@@ -40,7 +40,7 @@ CPU/Metal/CUDA expose index 0; Vulkan has indexed routes with one physical GPU v
 | DLPack exchange (contiguous float32/int32/bool) | Yes | Not implemented | Device 0 | Not implemented |
 | Explicit shared allocation | Same-device aliases | Same-device aliases | Matching Vulkan GPU | Matching CUDA device 0 |
 | Installation and operation/dtype diagnostics | Yes | Availability/capabilities | Yes | Yes |
-| Memory snapshots | System physical memory | Not implemented | Device-wide free/total | Device-local heap total |
+| Memory snapshots | System physical memory | Not implemented | Device-wide free/total | Heap totals + separate owned-allocation diagnostics |
 | Native host profiling | Bounded spans | Not instrumented | Bounded spans | Bounded spans |
 | Optional GPU timing | No | Not instrumented | Kernel events | Copy/compute timestamps |
 | Persistent compiled-code cache | Optional MLIR | Experimental MSL | Optional MLIR | Optional MLIR/SPIR-V |
@@ -120,7 +120,14 @@ CPU/CUDA/Vulkan runtime integration handles a guarded float32 elementwise subset
 See [experimental kernels](/docs/experimental/) for requirements and non-goals.
 
 ROCm, float16/bfloat16, asynchronous streams and multi-device execution are not
-implemented. Broader Vulkan operations and GPU coverage remain open.
+implemented. Additional GPU/platform acceptance and broader generated-kernel subsets remain open.
+
+## Separate execution experiments
+
+NVIDIA OpenCL, PoCL CPU and Mesa lavapipe have passed bounded standalone probes.
+OpenCL is not a registered runtime backend, and software CPU execution does not
+extend the GPU support matrix. See the [execution experiments](/docs/experiments/)
+for results, reproduction instructions and limits.
 
 ## Engineering evidence
 

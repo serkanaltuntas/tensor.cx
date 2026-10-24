@@ -29,6 +29,7 @@ export default defineConfig({
         ] },
         { label: 'Project', items: [
           { label: 'Features & roadmap', slug: 'docs/status' },
+          { label: 'Execution experiments', slug: 'docs/experiments' },
           { label: 'Performance', slug: 'docs/performance' },
           { label: 'Contributing', slug: 'docs/contributing' },
         ] },

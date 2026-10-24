@@ -5,7 +5,7 @@ description: A small Python-first tensor runtime with a CPU reference and explic
 
 tensor.cx is an independent, Apache-2.0 licensed project for exploring
 tensor execution. A Python API sits above a backend-neutral C++20 core, with
-CPU, Apple Metal, and an optional CUDA backend.
+CPU, Apple Metal, and optional CUDA and Vulkan backends.
 
 The project is **pre-alpha**. It is useful for runtime experiments, studying
 backend contracts, and testing small tensor workloads. APIs may change.
@@ -17,6 +17,7 @@ backend contracts, and testing small tensor workloads. APIs may change.
 3. Read the [backend support matrix](/docs/backends/) before enabling a GPU.
 4. Try [matmul and a small inference pipeline](/docs/examples/).
 5. Explore the [feature overview and remaining work](/docs/status/).
+6. Read the [execution experiments](/docs/experiments/) for separate OpenCL and software-device validation.
 
 ## A deliberately compact runtime
 

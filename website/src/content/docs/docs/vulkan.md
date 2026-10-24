@@ -3,8 +3,8 @@ title: Vulkan / SPIR-V
 description: Build and use the optional Linux Vulkan backend for tensor operations, activations, normalization and inference.
 ---
 
-Vulkan is an optional Linux backend with a deliberately smaller operation set
-than CPU, Metal or CUDA. Its first real-device validation is on a GTX 980 Ti
+Vulkan is an optional Linux backend for tensor operations, inference and
+guarded MLIR/SPIR-V kernels. Its first real-device validation is on a GTX 980 Ti
 with NVIDIA 580.178.04 and Vulkan device API 1.4.312. Support on other NVIDIA,
 AMD and Intel GPUs still requires hardware acceptance.
 
