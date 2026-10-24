@@ -21,29 +21,32 @@ Engine, oneAPI/SYCL and WebGPU have no committed implementation track here.
 
 ## Nightblade validation experiments (planned)
 
-Added 2026-10-18 at the user's request. These four experiments are planned on
+Added 2026-10-18 at the user's request. These four experiments were planned on
 Nightblade's existing GTX 980 Ti and i7-6700K. They explore execution paths on the
 same physical hardware, not four additional devices or multi-GPU coverage.
 The GPU Vulkan item was implemented and validated on 2026-10-18, followed by
-the separate lavapipe software probe on 2026-10-23. The two OpenCL experiments
-remain unexecuted.
+the separate lavapipe software probe on 2026-10-23. Both OpenCL experiments
+were executed and validated on 2026-10-24; all four bounded experiments are complete.
 
 - [x] **GTX 980 Ti via Vulkan/SPIR-V:** NVIDIA compute discovery and real GPU
   execution integrated through the runtime; copies/factories/basic arithmetic,
   CPU parity, native failure contracts and fresh wheel installation validated.
   [Scope and evidence](VULKAN_BACKEND.md). Other Vulkan GPUs remain unvalidated.
-- [ ] **GTX 980 Ti via OpenCL:** establish the NVIDIA OpenCL environment,
-  enumerate the selected GPU and compiler capabilities, then run the same
-  minimal float32 probe against the CPU reference.
+- [x] **GTX 980 Ti via OpenCL:** explicit NVIDIA GPU selection, compiler/capability
+  enumeration and real guarded float32 add/multiply passed 192 cases with
+  CPU parity, two context lifecycles and 490/490 owned handles released.
+  [Standalone experiment and acceptance](../experiments/opencl/README.md).
 - [x] **i7-6700K via Mesa lavapipe:** explicit CPU ICD execution passed 192
   guarded float32 add/multiply cases against CPU references, including empty,
   partial/tail, alias and immutable-input checks. Two complete resource
   lifecycles balanced 1,742 owned objects with zero validation errors;
   production GPU discovery still excludes the software device.
   [Experiment and reviewed acceptance](../experiments/vulkan/README.md).
-- [ ] **i7-6700K via PoCL:** establish the OpenCL CPU environment, explicitly
-  select a PoCL CPU device and run the float32 probe against the existing CPU
-  reference. This does not establish NVIDIA OpenCL support.
+- [x] **i7-6700K via PoCL:** explicit PoCL pthread CPU selection and real guarded
+  float32 add/multiply passed the same 192 cases, CPU oracles, two context
+  lifecycles and 490/490 owned handles released. The separate NVIDIA run,
+  not this CPU run, establishes the GPU experiment.
+  [Standalone experiment and acceptance](../experiments/opencl/README.md).
 
 Each experiment first verifies prerequisites and reports the actual selected
 implementation, device, driver/compiler versions and capabilities. An installed
@@ -53,10 +56,10 @@ Acceptance requires real allocation/upload, guarded elementwise execution,
 readback with CPU parity, empty/tail sizes and resource cleanup. Retain reviewed
 results and limitations separately from raw local logs.
 
-The remaining unchecked items record planned validation only. OpenCL is not
-implemented; a standalone probe would not complete backend integration,
-packaging or operation coverage. OpenCL is a newly recorded
-exploration track, not an implemented family in the existing support matrix.
+The four completed probes establish only their bounded execution paths.
+OpenCL runtime backend integration, packaging and full operation coverage are
+not implemented; OpenCL remains outside the production support matrix.
+The unchecked cross-device/backend items below remain planned work.
 Implementation scope and ordering remain separate decisions; no delivery dates
 or change to the product-feature priority order are implied.
 

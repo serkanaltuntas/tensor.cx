@@ -113,8 +113,9 @@ it does not add LLVM/MLIR to the C++ core or backend build. See PROJECT.md §16 
   [device backlog](DEVICE_BACKLOG.md) tracks identity/discovery, per-device
   ownership, transfers, ROCm, wider Vulkan/SPIR-V coverage and multi-device acceptance.
   It also records the [Nightblade validation experiments](DEVICE_BACKLOG.md#nightblade-validation-experiments-planned)
-  for additional execution paths on existing hardware; the first Vulkan slice
-  is implemented, while the three OpenCL/software-device experiments remain planned.
+  for additional execution paths on existing hardware: Vulkan, lavapipe,
+  NVIDIA OpenCL and PoCL CPU probes are validated within their bounded scopes.
+  The [OpenCL experiments](../experiments/opencl/README.md) do not add a production backend.
   Its proposed sequence is separate from the product feature order below.
 
 - **MLIR CUDA integration.** The [CPU-first runtime slice](MLIR_RUNTIME_INTEGRATION_DECISION.md)

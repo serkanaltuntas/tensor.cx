@@ -116,6 +116,7 @@ x86_64 with external LLVM 21.1.8 tools. See the
   exact-commit CUDA acceptance and Nightblade's opt-in local push gate.
 - [`docs/VULKAN_CONTINUOUS_VALIDATION.md`](docs/VULKAN_CONTINUOUS_VALIDATION.md):
   exact-commit real-GPU Vulkan/MLIR acceptance and optional combined CUDA sharing.
+- [`experiments/opencl/`](experiments/opencl/README.md): standalone NVIDIA GPU and PoCL CPU execution probes; not a production OpenCL backend.
 - [`experiments/vulkan/`](experiments/vulkan/README.md): separate Mesa lavapipe
   software execution/readback probe with mandatory CPU references.
 - [`docs/CUDA_PRIMITIVES_VALIDATION.md`](docs/CUDA_PRIMITIVES_VALIDATION.md):

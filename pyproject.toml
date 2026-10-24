@@ -65,6 +65,9 @@ sdist.include = [
   "tools/*.py",
   "experiments/vulkan/*.py", "experiments/vulkan/*.cpp", "experiments/vulkan/*.comp",
   "experiments/vulkan/README.md",
+  "experiments/opencl/*.py", "experiments/opencl/*.cpp", "experiments/opencl/*.cl",
+  "experiments/opencl/README.md",
+  "tests/python/test_opencl_probe.py",
   "docs/**/*.md", "docs/**/*.json",
 ]
 sdist.exclude = [
